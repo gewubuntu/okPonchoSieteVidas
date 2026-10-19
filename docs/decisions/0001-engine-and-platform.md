@@ -1,6 +1,6 @@
 # 0001 Engine and platform
 
-- **Status:** Accepted (decided by the user, 2026-10-19)
+- **Status:** Accepted (decided by the user, 2026-10-19). Engine version and tooling superseded by 0002.
 - **GDD:** GDD-TEC-01, GDD-VIS-02
 
 ## Context
@@ -10,7 +10,7 @@ that has Node 22, Python 3.13 and Chromium with Playwright, but no game engine.
 
 ## Decision
 
-- Engine: **Phaser 3** with **TypeScript** (strict), bundled by **Vite**.
+- Engine: **Phaser** (version superseded by 0002) with **TypeScript** (strict), bundled by **Vite**.
 - Unit tests: **Vitest**. End-to-end and playtests: **Playwright** with the preinstalled Chromium.
 - Platforms: desktop browsers and **mobile browsers** (touch controls required), installable as a PWA later.
 

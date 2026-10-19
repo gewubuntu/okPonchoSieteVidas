@@ -56,7 +56,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-ART-02 | todo |  |
 | GDD-ART-03 | todo |  |
 | GDD-ART-04 | todo |  |
-| GDD-TEC-01 | done | scaffold: Phaser 3, TS strict, Vite, Vitest, Playwright |
+| GDD-TEC-01 | done | scaffold on latest stable: Phaser 4, TS 7, Vite 8, Vitest 5, Playwright, Oxlint |
 | GDD-TEC-02 | done | src/sim/fixedStep.ts, sim has no Phaser imports |
 | GDD-TEC-03 | doing | fit-to-screen test only; fps and size budgets pending |
 | GDD-TEC-04 | todo |  |
@@ -71,3 +71,4 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-PWR-05 | todo |  |
 | GDD-PWR-06 | todo |  |
 | GDD-VIS-05 | todo |  |
+| GDD-TEC-07 | todo |  |

@@ -4,6 +4,7 @@ import { flatWorld, spawn, step, type PlayerInput, type PlayerState, type World 
 
 const FLOOR = 0;
 const flat = flatWorld(FLOOR);
+const scripted = (i: number): PlayerInput => ({ move: Math.sin(i / 9) > 0 ? 1 : -1, jumpHeld: i % 40 < 20 });
 const idle: PlayerInput = { move: 0, jumpHeld: false };
 const right: PlayerInput = { move: 1, jumpHeld: false };
 
@@ -25,6 +26,25 @@ function fullJump(runSpeedInput: number, holdSteps: number) {
     s = step(s, { move: runSpeedInput, jumpHeld: i < holdSteps }, flat);
   }
   return { peak, distance: s.x - x0, airSeconds: airSteps * STEP };
+}
+
+/** Presses jump `stepsBeforeLanding` steps before touching the floor, then plays on. */
+function pressBeforeLanding(stepsBeforeLanding: number): PlayerState {
+  let fall: PlayerState = { ...spawn(0, FLOOR), y: -200, grounded: false };
+  const states: PlayerState[] = [fall];
+  while (!fall.grounded) {
+    fall = step(fall, idle, flat);
+    states.push(fall);
+  }
+  let t = states[states.length - 1 - stepsBeforeLanding]!;
+  for (let i = 0; i < stepsBeforeLanding + 2; i++) t = step(t, { move: 0, jumpHeld: true }, flat);
+  return t;
+}
+
+function playScripted(): PlayerState {
+  let s = spawn(0, FLOOR);
+  for (let i = 0; i < 600; i++) s = step(s, scripted(i), flat);
+  return s;
 }
 
 describe('GDD-MOV-01 run', () => {
@@ -94,19 +114,6 @@ describe('GDD-MOV-03 input forgiveness', () => {
     expect(walkOffAndPress(FORGIVENESS.coyoteSteps + 3).vy).toBeGreaterThan(0);
   });
 
-  /** Presses jump `stepsBeforeLanding` steps before touching the floor, then plays on. */
-  function pressBeforeLanding(stepsBeforeLanding: number): PlayerState {
-    let fall: PlayerState = { ...spawn(0, FLOOR), y: -200, grounded: false };
-    const states: PlayerState[] = [fall];
-    while (!fall.grounded) {
-      fall = step(fall, idle, flat);
-      states.push(fall);
-    }
-    let t = states[states.length - 1 - stepsBeforeLanding]!;
-    for (let i = 0; i < stepsBeforeLanding + 2; i++) t = step(t, { move: 0, jumpHeld: true }, flat);
-    return t;
-  }
-
   it('remembers a jump pressed up to 100 ms before landing', () => {
     expect(pressBeforeLanding(FORGIVENESS.bufferSteps - 2).vy).toBeLessThan(0);
   });
@@ -129,13 +136,7 @@ describe('GDD-MOV-04 gravity and falling', () => {
   });
 
   it('is deterministic: the same inputs give the same state', () => {
-    const inputs = (i: number): PlayerInput => ({ move: Math.sin(i / 9) > 0 ? 1 : -1, jumpHeld: i % 40 < 20 });
-    const play = () => {
-      let s = spawn(0, FLOOR);
-      for (let i = 0; i < 600; i++) s = step(s, inputs(i), flat);
-      return s;
-    };
-    expect(play()).toEqual(play());
+    expect(playScripted()).toEqual(playScripted());
   });
 });
 

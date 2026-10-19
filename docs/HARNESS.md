@@ -48,6 +48,12 @@ Add a function to `scripts/check.mjs` that returns a list of error strings, regi
 the `checks` array, and make sure it fails on a bad input. The retro skill should name the
 lesson that motivated the check in a comment.
 
+## Dependencies
+
+The stack tracks the latest stable releases (GDD-TEC-07). At every GDD minor version run `npm outdated`, upgrade, run
+`node scripts/check.mjs` and `npm run test:e2e`, and record what moved. Before choosing or pinning any version, look it up in
+the registry; do not rely on memory (see L-005).
+
 ## Playtesting
 
 The `playtest` skill (`npm run test:e2e`) drives the real game in headless Chromium on a desktop and a

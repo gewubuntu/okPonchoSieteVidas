@@ -60,3 +60,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** Write the semantics of a debug hook in its doc comment before the first test uses it, and test the hook after the action it measures has finished.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-005 Stack versions chosen from memory, not from the registry
+
+- **Date:** 2026-10-19
+- **What went wrong:** The stack was set up on Phaser 3 and a TypeScript 5 toolchain while Phaser 4 and TypeScript 7 were already the latest releases. The user had asked for the state of the art and had to ask for it explicitly.
+- **Root cause:** Versions were picked from training knowledge instead of checking the registry, and the intent behind "stack" was not made explicit (recommended versus latest).
+- **Rule:** Before choosing or pinning any dependency, run `npm view <pkg> version` (and check peer ranges and release notes for majors). Default to the latest stable unless a written blocker says otherwise (GDD-TEC-07).
+- **Recurrence:** 1
+- **Promoted:** no

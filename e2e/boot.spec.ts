@@ -27,7 +27,8 @@ test('GDD-TEC-01 boots with a canvas and no console errors', async ({ page }) =>
 test('GDD-ART-01 and GDD-TEC-03 canvas fits the screen without scrolling', async ({ page }) => {
   await boot(page);
   const m = await page.evaluate(() => {
-    const c = document.querySelector('#game canvas') as HTMLCanvasElement;
+    const c = document.querySelector('#game canvas');
+    if (!c) throw new Error('no canvas');
     const r = c.getBoundingClientRect();
     return {
       w: r.width, h: r.height, vw: innerWidth, vh: innerHeight,
@@ -42,7 +43,7 @@ test('GDD-ART-01 and GDD-TEC-03 canvas fits the screen without scrolling', async
 });
 
 test('GDD-MOV-02 holding jump reaches about 56 px in the real game', async ({ page, isMobile }) => {
-  test.skip(isMobile === true, 'keyboard test; touch controls arrive with GDD-CTL-03');
+  test.skip(isMobile, 'keyboard test; touch controls arrive with GDD-CTL-03');
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await page.keyboard.down('Space');
@@ -55,7 +56,7 @@ test('GDD-MOV-02 holding jump reaches about 56 px in the real game', async ({ pa
 });
 
 test('GDD-MOV-01 holding right runs at the max speed', async ({ page, isMobile }) => {
-  test.skip(isMobile === true, 'keyboard test; touch controls arrive with GDD-CTL-03');
+  test.skip(isMobile, 'keyboard test; touch controls arrive with GDD-CTL-03');
   await boot(page);
   await page.keyboard.down('ArrowRight');
   await page.waitForTimeout(500);

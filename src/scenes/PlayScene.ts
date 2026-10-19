@@ -7,6 +7,7 @@ import { flatWorld, spawn, step, type PlayerInput, type PlayerState } from '../s
 
 const FLOOR_Y = 224;
 const world = flatWorld(FLOOR_Y);
+const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
 
 /** Dev-only hook for the `playtest` skill. Exposed only by the Vite dev server (see PlayScene.create). */
 export interface PonchoDebug {
@@ -68,7 +69,6 @@ export class PlayScene extends Phaser.Scene {
   }
 
   override update(_time: number, deltaMs: number): void {
-    const down = (ks: Phaser.Input.Keyboard.Key[]) => ks.some((k) => k.isDown);
     const input: PlayerInput = {
       move: (down(this.keys.right) ? 1 : 0) - (down(this.keys.left) ? 1 : 0),
       jumpHeld: down(this.keys.jump),

@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.3.0
+Version: 0.4.0
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.0** (2026-10-19) Decided: state-of-the-art stack on the latest stable releases (Phaser 4, TypeScript 7, Vite 8, Vitest 5, Playwright, Oxlint): GDD-TEC-01 rewritten, new GDD-TEC-07 dependency policy, ADR 0002.
 - **0.3.0** (2026-10-19) Decided: pixel art (GDD-ART-01) and lives carried across a world (GDD-LIFE-05). New GDD-VIS-05: "PB" is the Poncho on Base brand mark, Poncho is the origin character of a meme coin on the Base blockchain; the game itself has no on-chain features. Jump numbers re-measured in the 60 Hz simulation: GDD-MOV-02 (minimum hop about 15 px), GDD-MOV-04 (exact integration), GDD-TEC-05 (test tolerances), GDD-WLD-03. Open Questions renumbered. Project scaffolded (GDD-TEC-01, GDD-TEC-02, GDD-TEC-05).
 - **0.2.0** (2026-10-19) Reference image received: GDD-ART-02, GDD-ART-03, GDD-ART-04, GDD-MOV-06 rewritten from it. Lives are shown as seven triangles, not stripes (the poncho has triangle patterns): GDD-LIFE-01, GDD-LIFE-02, GDD-LIFE-04, GDD-WLD-01, GDD-UI-01, GDD-UI-03. Decided: lives carried across a world (GDD-LIFE-05), Mario-style power-ups in the poncho setting (new section 6, GDD-PWR-01 to GDD-PWR-06), Poncho loves tacos and spicy food (GDD-VIS-01). GDD-CMB-03, GDD-LIFE-02, GDD-PRG-01, GDD-UI-01, GDD-MVP-01, GDD-MVP-02 and Open Questions updated.
 - **0.1.0** (2026-10-19) First draft. Decided: title, premise, Phaser 3 + TypeScript + Vite stack, web and mobile targets. Everything else is Proposed. IDs: all.
@@ -535,9 +536,9 @@ Idle (blink, glances at the taco in Taco state), run, skid, jump up, apex, fall,
 
 ### GDD-TEC-01 Stack
 
-Status: Decided (user, 2026-10-19). See `docs/decisions/0001-engine-and-platform.md`.
+Status: Decided (user, 2026-10-19: state of the art, latest releases). See `docs/decisions/0002-state-of-the-art-stack.md`.
 
-Phaser 3, TypeScript (strict), Vite, Vitest for unit tests, Playwright for end-to-end playtests.
+Phaser 4, TypeScript 7 (native compiler, strict), Vite 8, Vitest 5 for unit tests, Playwright for end-to-end playtests, Oxlint with type-aware rules for linting, Node 24 LTS in CI. Exact versions are in the ADR and `package-lock.json`. The first decision (Phaser 3) is superseded.
 
 ### GDD-TEC-02 Deterministic simulation
 
@@ -567,6 +568,15 @@ Levels are authored in Tiled and exported as JSON (tilemap and object layers: sp
 Status: Proposed
 
 All gameplay numbers in this document live in a single typed file, `src/config/tuning.ts`, each constant commented with its GDD ID. A unit test simulates a full jump and asserts the derived values stated in section 4: peak 56 px within 1.5 px, and horizontal distance 66 px at full run within one step of travel (2 px).
+
+### GDD-TEC-07 Dependency policy
+
+Status: Proposed
+
+- Track the latest stable release of every dependency. No pre-release versions in `main`.
+- At every GDD minor version bump, run `npm outdated`, upgrade, run the full gate and the playtests, and record the result in the changelog or an ADR.
+- Anything that must stay behind (a blocker like a peer-dependency conflict) is written down in an ADR with the condition for upgrading.
+- Phaser APIs marked deprecated (the Canvas renderer, custom pipelines) are not used.
 
 ### GDD-TEC-06 Testing strategy
 

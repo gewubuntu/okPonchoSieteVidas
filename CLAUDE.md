@@ -1,8 +1,9 @@
 # PONCHO: Siete Vidas
 
 A 2D pixel-art platformer. The hero is **Poncho**, a cat in a Mexican poncho (serape), the origin
-character of Poncho on Base ("PB"). The game is built on **Phaser 3 + TypeScript + Vite + Vitest**,
-targeting **web and mobile browsers**. Stay on Phaser 3: Phaser 4 exists but is not the decided stack.
+character of Poncho on Base ("PB"). The game is built on **Phaser 4 + TypeScript 7 + Vite 8 + Vitest 5**,
+linted with Oxlint, targeting **web and mobile browsers**. The stack tracks the latest stable releases
+(`GDD-TEC-01`, `GDD-TEC-07`, `docs/decisions/0002-state-of-the-art-stack.md`). Do not reintroduce ESLint or Phaser 3.
 
 ## The anchor rule
 

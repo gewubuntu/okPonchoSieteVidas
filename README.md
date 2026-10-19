@@ -16,4 +16,4 @@ npm run test:e2e   # browser playtests (needs Chromium)
 node scripts/check.mjs   # the gate: run before every commit
 ```
 
-Stack: Phaser 3, TypeScript, Vite, Vitest, Playwright. Targets desktop and mobile browsers (landscape).
+Stack: Phaser 4, TypeScript 7, Vite 8, Vitest 5, Playwright, Oxlint. Targets desktop and mobile browsers (landscape).
