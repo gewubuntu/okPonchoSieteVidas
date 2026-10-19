@@ -1,6 +1,6 @@
 ---
 name: feature
-description: Implement one GDD ID end to end for PONCHO: Siete Vidas. Use when asked to build, implement or work on a game feature, mechanic, enemy, level or system. Takes a GDD ID such as GDD-MOV-02.
+description: "Implement one GDD ID end to end for PONCHO: Siete Vidas. Use when asked to build, implement or work on a game feature, mechanic, enemy, level or system. Takes a GDD ID such as GDD-MOV-02."
 ---
 
 # Feature

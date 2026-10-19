@@ -1,6 +1,6 @@
 ---
 name: retro
-description: Run after finishing any task or fixing any mistake in PONCHO: Siete Vidas. Reviews the diff and the session for errors and friction, appends lessons to docs/LESSONS.md, promotes recurring lessons into automated checks, skills or CLAUDE.md. Use at the end of every task, before the final commit.
+description: "Run after finishing any task or fixing any mistake in PONCHO: Siete Vidas. Reviews the diff and the session for errors and friction, appends lessons to docs/LESSONS.md, promotes recurring lessons into automated checks, skills or CLAUDE.md. Use at the end of every task, before the final commit."
 ---
 
 # Retro

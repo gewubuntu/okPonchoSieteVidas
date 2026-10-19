@@ -59,5 +59,5 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - Cite GDD IDs in code comments only where a number or rule comes from the GDD.
 - Keep simulation logic (movement, lives, damage) free of Phaser imports so it is unit-testable.
 - Do not add game code that no GDD ID asks for.
-- Do not name AI models in any repository file or commit.
+- Do not name AI models in repository files or in commit subjects and bodies. Attribution trailers (such as `Co-Authored-By`) follow the session's own instructions.
 - Commit on the branch the session designates. Do not open a PR unless the user asks.

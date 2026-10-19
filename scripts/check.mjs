@@ -177,6 +177,13 @@ function checkSkills() {
     const get = (k) => new RegExp(`^${k}:\\s*(.+)$`, 'm').exec(fm[1])?.[1].trim();
     if (get('name') !== name) errors.push(`SKILL: ${file} name must be "${name}"`);
     if (!get('description')) errors.push(`SKILL: ${file} has no description`);
+    // L-001: a regex is not the real YAML parser. Plain scalars may not contain ": " or " #".
+    for (const line of fm[1].split('\n')) {
+      const m = /^([A-Za-z-]+):\s*(.*)$/.exec(line);
+      if (m && m[2] && !/^["']/.test(m[2]) && /: | #/.test(m[2])) {
+        errors.push(`SKILL: ${file} value of "${m[1]}" has ": " or " #" and must be quoted (invalid YAML otherwise)`);
+      }
+    }
   }
   return errors;
 }

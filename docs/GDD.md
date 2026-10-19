@@ -24,7 +24,7 @@ Status: Decided (title and premise, user, 2026-10-19). Wording is Proposed.
 
 **PONCHO: Siete Vidas** is a 2D platformer starring **Poncho**, a cat in a Mexican poncho. A cat has nine lives in English folklore, but in the Spanish-speaking tradition a cat has **siete vidas**. The title is the central mechanic: seven lives, and how you spend them is the game (see GDD-LIFE-01).
 
-Story seed (Proposed): Poncho has lost his lives one by one to a curse and must travel the seven worlds to get them back.
+Story seed (Proposed): Poncho has lost lives one by one to a curse and must travel the seven worlds to get them back.
 
 ### GDD-VIS-02 Platforms and audience
 
@@ -92,7 +92,7 @@ Status: Proposed (the number seven is Decided by the title)
 Status: Proposed
 
 - A life is lost on: touching an enemy or hazard without invulnerability, falling into a pit, or being crushed.
-- On loss: the lost stripe unravels (0.4 s), Poncho flips and lands on his feet at the last checkpoint after 0.8 s (GDD-MOV-05), then has 2.0 s of invulnerability (blinking).
+- On loss: the lost stripe unravels (0.4 s), Poncho flips and lands feet-first at the last checkpoint after 0.8 s (GDD-MOV-05), then has 2.0 s of invulnerability (blinking).
 - Enemies and moving hazards reset to their initial state, collected *hilos* since the checkpoint are kept (no loss of progress that is not a life).
 - Respawn is instant to restart: any input skips the 0.8 s delay after 0.3 s.
 
@@ -122,7 +122,7 @@ Status: Proposed
 
 ## 4. Movement
 
-All numbers are initial tuning targets, to be adjusted by playtest. Code mirrors them in `src/config/tuning.ts` (GDD-TEC-05). Gravity and jump values are chosen so that max jump height is 56 px (3.5 tiles) and the horizontal jump distance at full run is about 59 px (3.7 tiles).
+All numbers are initial tuning targets, to be adjusted by playtest. Code mirrors them in `src/config/tuning.ts` (GDD-TEC-05). Values are chosen so that a full jump peaks at about 56 px (3.5 tiles) and covers about 66 px (4.1 tiles) horizontally at full run speed, level ground to level ground. These figures include the apex hang and the terminal velocity cap (GDD-MOV-04) and were computed by simulation; GDD-TEC-05 requires a test that re-derives them.
 
 ### GDD-MOV-01 Run
 
@@ -155,7 +155,7 @@ Status: Proposed
 Status: Proposed
 
 - Gravity rising: 1500 px/s². Gravity falling: 2250 px/s² (1.5 times rising). Terminal velocity: 360 px/s.
-- Apex hang: while the vertical speed is within ±40 px/s, gravity is multiplied by 0.5 for a floatier peak.
+- Apex hang: whenever the vertical speed magnitude is below 40 px/s, whichever gravity applies (rising or falling) is multiplied by 0.5, for a floatier peak. Order per step: apply gravity, clamp to terminal velocity, then move.
 - Fixed timestep 60 Hz (GDD-TEC-02), so all values are deterministic.
 
 ### GDD-MOV-05 Cat reflexes
@@ -282,7 +282,7 @@ Status: Proposed
 - 3 ofrenda checkpoints at roughly 25%, 55% and 85% of the level, and an exit.
 - 1 hidden secret per level (a room or a veladora).
 - Teaching order: new mechanic is introduced in a safe spot, then combined with a threat, then used in a test.
-- Gaps never exceed 3 tiles in World 1 (jump distance is 3.7 tiles at full run).
+- Gaps never exceed 3 tiles in World 1 (jump distance is about 4.1 tiles at full run, GDD-MOV-01 to GDD-MOV-04).
 
 ### GDD-WLD-04 Collectibles
 
@@ -470,7 +470,7 @@ Levels are authored in Tiled and exported as JSON (tilemap and object layers: sp
 
 Status: Proposed
 
-All gameplay numbers in this document live in a single typed file, `src/config/tuning.ts`, each constant commented with its GDD ID. A unit test asserts the derived values (for example max jump height equals 56 px within 1 px).
+All gameplay numbers in this document live in a single typed file, `src/config/tuning.ts`, each constant commented with its GDD ID. A unit test simulates a full jump and asserts the derived values stated in section 4 (peak 56 px and horizontal distance 66 px at full run, each within 1.5 px).
 
 ### GDD-TEC-06 Testing strategy
 
@@ -517,7 +517,7 @@ Answer these to move items from Proposed to Decided. Until then the Proposed tex
 3. **Lives meaning (GDD-LIFE-01):** should a life ever be *spent on purpose* (for example a power that costs a stripe)? Not in the draft; interesting but changes the balance.
 4. **Seven worlds (GDD-WLD-02):** are the world themes and names right? Anything you want, or want avoided?
 5. **Story (GDD-VIS-01):** is the curse-and-seven-lives story seed what you want, or a different premise?
-6. **Poncho's look (GDD-ART-02):** pending your image. Does the poncho have seven stripes, or should another visual carry the lives?
+6. **Poncho's look and identity (GDD-ART-02):** pending your image. Does the poncho have seven stripes, or should another visual carry the lives? Is Poncho a he, she or they, for story and UI text? The draft avoids choosing.
 7. **Pixel art vs another style (GDD-ART-01):** confirm pixel art at 480 x 270.
 8. **Combat (GDD-CMB-02):** is a claw attack wanted in addition to stomping?
 9. **Difficulty (GDD-VIS-02):** is assist mode and a kid-friendly tone right, or do you want a harder game?
