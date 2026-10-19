@@ -4,6 +4,7 @@
 // Counts added plus deleted lines against the merge base, ignoring lockfiles. Warns only; it never fails.
 
 import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 
 export const LIMIT = 300;
 const IGNORED = new Set(['package-lock.json']);
@@ -19,7 +20,7 @@ export function countChangedLines(numstat) {
   return total;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const base = process.argv[2] ?? 'origin/main';
   const r = spawnSync('git', ['diff', '--numstat', `${base}...HEAD`], { encoding: 'utf8' });
   if (r.status !== 0) {
