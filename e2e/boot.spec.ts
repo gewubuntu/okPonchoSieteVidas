@@ -1,23 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import type { PonchoDebug } from '../src/scenes/PlayScene';
-
-declare global {
-  interface Window {
-    __PONCHO__?: PonchoDebug;
-  }
-}
-
-async function boot(page: Page): Promise<string[]> {
-  const errors: string[] = [];
-  page.on('console', (m) => {
-    if (m.type() === 'error') errors.push(m.text());
-  });
-  page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/');
-  await page.waitForFunction(() => window.__PONCHO__ !== undefined);
-  return errors;
-}
-
+import { expect, test } from '@playwright/test';
+import { boot } from './helpers';
 test('GDD-TEC-01 boots with a canvas and no console errors', async ({ page }) => {
   const errors = await boot(page);
   await expect(page.locator('#game canvas')).toBeVisible();
