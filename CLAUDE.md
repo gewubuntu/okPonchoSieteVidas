@@ -60,7 +60,9 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - `docs/LESSONS.md` append-only lessons log
 - `docs/HARNESS.md` how the harness works
 - `docs/decisions/` architecture decision records
-- `.claude/skills/` project skills: `feature`, `gdd-update`, `playtest`, `pr-review`, `retro`
+- `.claude/skills/` project skills: `feature`, `gdd-update`, `playtest`, `retro`
+- `.claude/agents/pr-reviewer.md` the subagent that reviews every pull request
+- `.claude/settings.json` project hooks (a hook reminds you to run the reviewer after a PR is created)
 - `scripts/check.mjs` the gate
 - `src/config/tuning.ts` every gameplay number, tagged with its GDD ID
 - `src/sim/` pure game logic (movement, fixed-step loop), no Phaser imports
@@ -82,7 +84,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - Base branch is `main`. Work step by step: one small PR at a time, each one a single GDD ID or a tight group of them.
 - Aim for under about 300 changed lines, excluding lockfiles. If a feature is bigger, split it: pure logic first, then wiring, then visuals.
 - Every PR keeps the gate green (`node scripts/check.mjs`) and CI green, updates the backlog row, and fills in `.github/pull_request_template.md`.
-- **Every PR gets a review.** CI starts one automatically (`.github/workflows/claude-review.yml`, needs the `ANTHROPIC_API_KEY` secret). In a session, when you open a PR, or the user says they opened one, run the `pr-review` skill on it straight away, then fix any blocking findings.
+- **Every PR gets a deep review from the `pr-reviewer` subagent.** Right after you create a PR (a hook reminds you), launch it with the Agent tool: `subagent_type` `pr-reviewer`, prompt with the PR number. It checks the PR out, runs it, audits the GDD changes, looks at the screenshots and posts one GitHub review. Fix its blocking findings with a push before you tell the user the PR is ready, and include its verdict in your report. When the user says they opened a PR, launch it on that PR too. If the agent type is not available in the session (the first time `.claude/agents/` appears a restart is needed), launch a general-purpose agent with the instruction to follow `.claude/agents/pr-reviewer.md` exactly. CI runs the same review on every PR (`.github/workflows/claude-review.yml`, needs the `ANTHROPIC_API_KEY` secret).
 - **Visible changes need the user's approval before the PR.** For any UI or UX work (scenes, HUD, layout, art, colours, animation, text on screen): run `npm run shots`, look at every image yourself, then show them to the user with `SendUserFile` (display `render`, desktop and phone) and ask whether they like it. Iterate until they approve. Only then open the PR, commit the approved images under `docs/screenshots/<slug>/`, embed them in the PR description, and say "approved in session" there. Never open a PR for a visible change without that approval. CI warns when visible files change and no screenshots are added (`scripts/pr-screenshots.mjs`).
 - Do not start the next PR's work until the current one is merged or the user says to.
 - After a PR is merged, restart the working branch from `main` (same branch name) before the next piece.
