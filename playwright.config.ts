@@ -22,8 +22,19 @@ export default defineConfig({
     timeout: 60_000,
   },
   projects: [
-    { name: 'desktop', use: { viewport: { width: 1280, height: 720 } } },
+    { name: 'desktop', testIgnore: /shots\//, use: { viewport: { width: 1280, height: 720 } } },
     // GDD-VIS-02: landscape phone
-    { name: 'phone', use: { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true } },
+    {
+      name: 'phone',
+      testIgnore: /shots\//,
+      use: { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true },
+    },
+    // Screenshots for visual review, run with `npm run shots` (see the playtest skill). Same viewports as above.
+    { name: 'shots-desktop', testMatch: /shots\/.*\.spec\.ts/, use: { viewport: { width: 1280, height: 720 } } },
+    {
+      name: 'shots-phone',
+      testMatch: /shots\/.*\.spec\.ts/,
+      use: { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true },
+    },
   ],
 });
