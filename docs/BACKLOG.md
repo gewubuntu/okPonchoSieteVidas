@@ -20,10 +20,10 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-LIFE-03 | todo |  |
 | GDD-LIFE-04 | todo |  |
 | GDD-LIFE-05 | todo |  |
-| GDD-MOV-01 | todo |  |
-| GDD-MOV-02 | todo |  |
-| GDD-MOV-03 | todo |  |
-| GDD-MOV-04 | todo |  |
+| GDD-MOV-01 | doing | sim done and tested; no tile collision or touch yet |
+| GDD-MOV-02 | doing | sim done and tested; no tile collision or touch yet |
+| GDD-MOV-03 | doing | coyote and buffer done; corner correction and stomp buffer pending |
+| GDD-MOV-04 | doing | sim done and tested |
 | GDD-MOV-05 | todo |  |
 | GDD-MOV-06 | todo |  |
 | GDD-MOV-07 | todo |  |
@@ -31,7 +31,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-CMB-01 | todo |  |
 | GDD-CMB-02 | todo |  |
 | GDD-CMB-03 | todo |  |
-| GDD-CTL-01 | todo |  |
+| GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W wired; remap and claw pending |
 | GDD-CTL-02 | todo |  |
 | GDD-CTL-03 | todo |  |
 | GDD-CTL-04 | todo |  |
@@ -52,16 +52,16 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-UI-03 | todo |  |
 | GDD-AUD-01 | todo |  |
 | GDD-AUD-02 | todo |  |
-| GDD-ART-01 | todo |  |
+| GDD-ART-01 | doing | 480x270 canvas scaled to fit; art not started |
 | GDD-ART-02 | todo |  |
 | GDD-ART-03 | todo |  |
 | GDD-ART-04 | todo |  |
-| GDD-TEC-01 | todo |  |
-| GDD-TEC-02 | todo |  |
-| GDD-TEC-03 | todo |  |
+| GDD-TEC-01 | done | scaffold: Phaser 3, TS strict, Vite, Vitest, Playwright |
+| GDD-TEC-02 | done | src/sim/fixedStep.ts, sim has no Phaser imports |
+| GDD-TEC-03 | doing | fit-to-screen test only; fps and size budgets pending |
 | GDD-TEC-04 | todo |  |
-| GDD-TEC-05 | todo |  |
-| GDD-TEC-06 | todo |  |
+| GDD-TEC-05 | done | src/config/tuning.ts, derived-number tests |
+| GDD-TEC-06 | doing | Vitest and Playwright set up; level validation pending |
 | GDD-MVP-01 | todo |  |
 | GDD-MVP-02 | todo |  |
 | GDD-PWR-01 | todo |  |
@@ -70,3 +70,4 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-PWR-04 | todo |  |
 | GDD-PWR-05 | todo |  |
 | GDD-PWR-06 | todo |  |
+| GDD-VIS-05 | todo |  |

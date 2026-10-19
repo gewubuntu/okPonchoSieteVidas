@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.2.0
+Version: 0.3.0
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.3.0** (2026-10-19) Decided: pixel art (GDD-ART-01) and lives carried across a world (GDD-LIFE-05). New GDD-VIS-05: "PB" is the Poncho on Base brand mark, Poncho is the origin character of a meme coin on the Base blockchain; the game itself has no on-chain features. Jump numbers re-measured in the 60 Hz simulation: GDD-MOV-02 (minimum hop about 15 px), GDD-MOV-04 (exact integration), GDD-TEC-05 (test tolerances), GDD-WLD-03. Open Questions renumbered. Project scaffolded (GDD-TEC-01, GDD-TEC-02, GDD-TEC-05).
 - **0.2.0** (2026-10-19) Reference image received: GDD-ART-02, GDD-ART-03, GDD-ART-04, GDD-MOV-06 rewritten from it. Lives are shown as seven triangles, not stripes (the poncho has triangle patterns): GDD-LIFE-01, GDD-LIFE-02, GDD-LIFE-04, GDD-WLD-01, GDD-UI-01, GDD-UI-03. Decided: lives carried across a world (GDD-LIFE-05), Mario-style power-ups in the poncho setting (new section 6, GDD-PWR-01 to GDD-PWR-06), Poncho loves tacos and spicy food (GDD-VIS-01). GDD-CMB-03, GDD-LIFE-02, GDD-PRG-01, GDD-UI-01, GDD-MVP-01, GDD-MVP-02 and Open Questions updated.
 - **0.1.0** (2026-10-19) First draft. Decided: title, premise, Phaser 3 + TypeScript + Vite stack, web and mobile targets. Everything else is Proposed. IDs: all.
 
@@ -55,6 +56,14 @@ Status: Proposed
 - Avoid: sombrero-and-siesta caricature, cartel imagery, mocking accents, a single flattened "Mexico".
 - Spanish is used for names and flavour; all gameplay text is also available in English (GDD-UI-03).
 - If unsure about a reference, ask the user or leave it out.
+
+### GDD-VIS-05 Origin and brand
+
+Status: Decided (user, 2026-10-19). The scope limits are Proposed.
+
+Poncho is the origin character of **Poncho on Base** ("PB"), a meme coin on the Base blockchain, where Poncho is billed as the cutest cat on Base. This game is a platformer starring that character. The "PB" marks in the reference image are that brand (GDD-ART-02).
+
+Proposed scope: the game has no wallet, token, NFT or on-chain feature, and it never asks for an account. It plays fully offline. Any such integration needs its own GDD ID and a decision from the user first (Open Question 6).
 
 ---
 
@@ -116,7 +125,7 @@ When exactly 1 life remains: the music shifts to a tense variation, the last tri
 
 ### GDD-LIFE-05 Out of lives
 
-Status: Decided (lives are carried across, user, 2026-10-19). Details are Proposed. The user said the seven lives are "carried across"; this is read as across all levels of a world. See Open Question 1.
+Status: Decided (lives are carried across a world, user, 2026-10-19). Details are Proposed.
 
 - Lives are tracked per world: 7 at world start, carried through its 3 levels and boss.
 - At 0 lives: *Siete vidas gastadas* screen, then restart from the first level of the world with 7 lives. Hilos collected stay (GDD-PRG-02).
@@ -126,7 +135,7 @@ Status: Decided (lives are carried across, user, 2026-10-19). Details are Propos
 
 ## 4. Movement
 
-All numbers are initial tuning targets, to be adjusted by playtest. Code mirrors them in `src/config/tuning.ts` (GDD-TEC-05). Values are chosen so that a full jump peaks at about 56 px (3.5 tiles) and covers about 66 px (4.1 tiles) horizontally at full run speed, level ground to level ground. These figures include the apex hang and the terminal velocity cap (GDD-MOV-04) and were computed by simulation; GDD-TEC-05 requires a test that re-derives them.
+All numbers are initial tuning targets, to be adjusted by playtest. Code mirrors them in `src/config/tuning.ts` (GDD-TEC-05). Values are chosen so that a full jump peaks at about 56 px (3.5 tiles) and covers about 66 to 68 px (4.1 to 4.3 tiles) horizontally at full run speed, level ground to level ground. The range is the landing resolution: one 60 Hz step at full speed is 2 px. The figures include the apex hang and the terminal velocity cap (GDD-MOV-04). They are measured by the simulation tests (GDD-TEC-05), not just calculated.
 
 ### GDD-MOV-01 Run
 
@@ -142,7 +151,7 @@ Status: Proposed
 Status: Proposed
 
 - Takeoff velocity: 410 px/s upwards. Max height holding jump: 56 px (3.5 tiles).
-- Variable jump: releasing jump while rising multiplies upward velocity by 0.4 (minimum hop about 9 px, 0.6 tile).
+- Variable jump: releasing jump while rising multiplies upward velocity by 0.4 (minimum hop about 15 px, 0.9 tile: the takeoff step already rises about 6.6 px before a release can register, and cutting the remaining speed adds about 8 px).
 - Jump is on button press (not release). Holding after landing does not rejump.
 
 ### GDD-MOV-03 Input forgiveness
@@ -159,7 +168,7 @@ Status: Proposed
 Status: Proposed
 
 - Gravity rising: 1500 px/s². Gravity falling: 2250 px/s² (1.5 times rising). Terminal velocity: 360 px/s.
-- Apex hang: whenever the vertical speed magnitude is below 40 px/s, whichever gravity applies (rising or falling) is multiplied by 0.5, for a floatier peak. Order per step: apply gravity, clamp to terminal velocity, then move.
+- Apex hang: whenever the vertical speed magnitude is below 40 px/s, whichever gravity applies (rising or falling) is multiplied by 0.5, for a floatier peak. Order per step: apply gravity, clamp to terminal velocity, then move using the average of the old and new vertical velocity (and likewise horizontally). That is exact for constant acceleration, so the figures in this section do not depend on the step rate.
 - Fixed timestep 60 Hz (GDD-TEC-02), so all values are deterministic.
 
 ### GDD-MOV-05 Cat reflexes
@@ -348,7 +357,7 @@ Status: Proposed
 - 3 ofrenda checkpoints at roughly 25%, 55% and 85% of the level, and an exit.
 - 1 hidden secret per level (a room or a veladora).
 - Teaching order: new mechanic is introduced in a safe spot, then combined with a threat, then used in a test.
-- Gaps never exceed 3 tiles in World 1 (jump distance is about 4.1 tiles at full run, GDD-MOV-01 to GDD-MOV-04).
+- Gaps never exceed 3 tiles in World 1 (jump distance is about 4.1 to 4.3 tiles at full run, GDD-MOV-01 to GDD-MOV-04).
 
 ### GDD-WLD-04 Collectibles
 
@@ -475,9 +484,10 @@ Short, punchy and readable: jump, land, claw, stomp, hilo pickup (rising pitch c
 
 ### GDD-ART-01 Style and resolution
 
-Status: Proposed
+Status: Decided (pixel art, user, 2026-10-19). Resolution, tile size and palette rules are Proposed.
 
 - Pixel art with a hand-made feel. Base resolution 480 x 270 (16:9) scaled by integer factors where possible, letterboxed on other aspect ratios.
+- The reference image is a smooth illustration. Sprites are redrawn by hand as pixel art that keeps its shapes, proportions and colours (GDD-ART-02, GDD-ART-03).
 - 16 px tile grid. Poncho sprite frame 32 x 32 px (GDD-MOV-06, GDD-ART-02).
 - Limited palette per world drawn from real Mexican craft colours.
 
@@ -494,9 +504,9 @@ Reference: `assets/characters/poncho/reference.jpg` (512 x 512 illustration, ora
 - **Poncho:** blue with red and cream triangle patterns, a V-neck, a red border with cream triangles at the hem, and cream fringe along the bottom edge. A darker navy layer with fringe shows behind it (cape or back panel).
 - **Held item:** a taco with lettuce, tomato and meat in one hand. This becomes the Taco state (GDD-PWR-01).
 - **Glow:** the illustration has a golden rim light. It is reserved as the invulnerability effect (GDD-CMB-03, GDD-PWR-04).
-- **Unknowns:** the reference shows a small gold "PB" badge on the chest and a "PB" mark in the bottom-right corner. It is not used until the user says what it is (Open Question 6). Tail and back are not shown and will be designed to match.
+- **PB mark (Decided, user, 2026-10-19):** the small gold "PB" badge on the chest and the "PB" mark in the bottom-right corner of the reference stand for **Poncho on Base** (GDD-VIS-05). Keep the badge on the chest as a few gold pixels where the frame allows. The corner mark is a brand watermark and is not part of the character. Tail and back are not shown and will be designed to match.
 - **Personality (Decided):** loves tacos and spicy food.
-- **Pronouns:** not stated. Text uses Poncho's name or "they" (Open Question 6).
+- **Pronouns:** not stated. Text uses Poncho's name or "they" (Open Question 5).
 
 ### GDD-ART-03 Palette
 
@@ -556,7 +566,7 @@ Levels are authored in Tiled and exported as JSON (tilemap and object layers: sp
 
 Status: Proposed
 
-All gameplay numbers in this document live in a single typed file, `src/config/tuning.ts`, each constant commented with its GDD ID. A unit test simulates a full jump and asserts the derived values stated in section 4 (peak 56 px and horizontal distance 66 px at full run, each within 1.5 px).
+All gameplay numbers in this document live in a single typed file, `src/config/tuning.ts`, each constant commented with its GDD ID. A unit test simulates a full jump and asserts the derived values stated in section 4: peak 56 px within 1.5 px, and horizontal distance 66 px at full run within one step of travel (2 px).
 
 ### GDD-TEC-06 Testing strategy
 
@@ -599,15 +609,14 @@ Worlds 2 to 7, Chile Fantasma (GDD-PWR-04), glide, wall cling, further powers, m
 
 Answer these to move items from Proposed to Decided. Until then the Proposed text stands as the working assumption.
 
-1. **Lives carried across (GDD-LIFE-05):** you said the 7 lives are carried across. I read it as across all levels of a world (3 levels and the boss), refilled to 7 at the start of each world. Did you mean across the whole game instead? That is much harsher with 28 stages.
-2. **Taco as shield (GDD-PWR-01, GDD-CMB-03):** Taco and Fuego absorb hits like Mario's mushroom and flower. This makes lives less scarce. Right balance, or should power-ups be rarer or not absorb hits?
-3. **Power-up set (section 6):** Taco, Chile (Fuego fireballs), Chile Fantasma (star), piñata blocks. Anything you want added, such as a different fireball style, a reserve slot, or other foods?
-4. **Seven worlds (GDD-WLD-02):** are the world themes and names right? Anything you want, or want avoided?
-5. **Story (GDD-VIS-01):** is the curse-and-seven-lives story seed what you want, or a different premise?
-6. **Poncho details (GDD-ART-02):** (a) what is the gold "PB" badge and the "PB" mark in the corner of the image, and should it appear in the game? (b) Is Poncho a he, she or they, for story and UI text? The draft avoids choosing.
-7. **Art style (GDD-ART-01):** your reference is a smooth cartoon illustration. I propose pixel art at 480 x 270 with a 32 x 32 Poncho. Is pixel art right, or do you want a hand-drawn smooth look? This decides the whole art pipeline.
-8. **Combat (GDD-CMB-02):** keep both claw swipe and stomp, with fireballs on top?
-9. **Difficulty (GDD-VIS-02):** is assist mode and a kid-friendly tone right, or do you want a harder game?
-10. **Audio (GDD-AUD-01):** will you provide music, or should placeholders be generated and licensed assets chosen?
-11. **Score and medals (GDD-PRG-03):** keep or cut?
-12. **Distribution:** where will it be hosted (itch.io, own site, stores)? This drives PWA versus native packaging.
+1. **Taco as shield (GDD-PWR-01, GDD-CMB-03):** Taco and Fuego absorb hits like Mario's mushroom and flower. This makes lives less scarce. Right balance, or should power-ups be rarer or not absorb hits?
+2. **Power-up set (section 6):** Taco, Chile (Fuego fireballs), Chile Fantasma (star), piñata blocks. Anything you want added, such as a different fireball style, a reserve slot, or other foods?
+3. **Seven worlds (GDD-WLD-02):** are the world themes and names right? Anything you want, or want avoided?
+4. **Story (GDD-VIS-01):** is the curse-and-seven-lives story seed what you want, or a different premise?
+5. **Pronouns (GDD-ART-02):** is Poncho a he, she or they, for story and UI text? The draft avoids choosing.
+6. **Brand and chain scope (GDD-VIS-05):** the draft keeps the game free of wallets, tokens and on-chain features. Is that right? Should the game mention the Poncho on Base token or community anywhere (credits, links), and who owns the final brand rules? Note that app stores restrict crypto features, which affects distribution (question 11).
+7. **Combat (GDD-CMB-02):** keep both claw swipe and stomp, with fireballs on top?
+8. **Difficulty (GDD-VIS-02):** is assist mode and a kid-friendly tone right, or do you want a harder game?
+9. **Audio (GDD-AUD-01):** will you provide music, or should placeholders be generated and licensed assets chosen?
+10. **Score and medals (GDD-PRG-03):** keep or cut?
+11. **Distribution:** where will it be hosted (itch.io, own site, stores)? This drives PWA versus native packaging.
