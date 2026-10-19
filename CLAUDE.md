@@ -72,3 +72,11 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - Do not add game code that no GDD ID asks for.
 - Do not name AI models in repository files or in commit subjects and bodies. Attribution trailers (such as `Co-Authored-By`) follow the session's own instructions.
 - Commit on the branch the session designates. Do not open a PR unless the user asks.
+
+## Pull requests
+
+- Base branch is `main`. Work step by step: one small PR at a time, each one a single GDD ID or a tight group of them.
+- Aim for under about 300 changed lines, excluding lockfiles. If a feature is bigger, split it: pure logic first, then wiring, then visuals.
+- Every PR keeps the gate green (`node scripts/check.mjs`) and CI green, updates the backlog row, and fills in `.github/pull_request_template.md`.
+- Do not start the next PR's work until the current one is merged or the user says to.
+- After a PR is merged, restart the working branch from `main` (same branch name) before the next piece.
