@@ -164,6 +164,22 @@ function checkLessons() {
   return errors;
 }
 
+/**
+ * Parses and validates the YAML frontmatter shared by skills and agents.
+ * L-001: a regex is not the real YAML parser. Plain scalars may not contain ": " or " #", so they must be quoted.
+ */
+function readFrontmatter(file, label, errors) {
+  const fm = /^---\n([\s\S]*?)\n---\n/.exec(read(file));
+  if (!fm) { errors.push(`${label}: ${file} has no frontmatter`); return null; }
+  for (const line of fm[1].split('\n')) {
+    const m = /^([A-Za-z-]+):\s*(.*)$/.exec(line);
+    if (m && m[2] && !/^["']/.test(m[2]) && /: | #/.test(m[2])) {
+      errors.push(`${label}: ${file} value of "${m[1]}" has ": " or " #" and must be quoted (invalid YAML otherwise)`);
+    }
+  }
+  return (key) => new RegExp(`^${key}:\\s*(.+)$`, 'm').exec(fm[1])?.[1].trim();
+}
+
 function checkSkills() {
   const errors = [];
   const dir = join('.claude', 'skills');
@@ -172,16 +188,55 @@ function checkSkills() {
     if (!statSync(join(ROOT, dir, name)).isDirectory()) continue;
     const file = join(dir, name, 'SKILL.md');
     if (!exists(file)) { errors.push(`SKILL: ${name} has no SKILL.md`); continue; }
-    const fm = /^---\n([\s\S]*?)\n---\n/.exec(read(file));
-    if (!fm) { errors.push(`SKILL: ${file} has no frontmatter`); continue; }
-    const get = (k) => new RegExp(`^${k}:\\s*(.+)$`, 'm').exec(fm[1])?.[1].trim();
+    const get = readFrontmatter(file, 'SKILL', errors);
+    if (!get) continue;
     if (get('name') !== name) errors.push(`SKILL: ${file} name must be "${name}"`);
     if (!get('description')) errors.push(`SKILL: ${file} has no description`);
-    // L-001: a regex is not the real YAML parser. Plain scalars may not contain ": " or " #".
-    for (const line of fm[1].split('\n')) {
-      const m = /^([A-Za-z-]+):\s*(.*)$/.exec(line);
-      if (m && m[2] && !/^["']/.test(m[2]) && /: | #/.test(m[2])) {
-        errors.push(`SKILL: ${file} value of "${m[1]}" has ": " or " #" and must be quoted (invalid YAML otherwise)`);
+  }
+  return errors;
+}
+
+// Subagents in .claude/agents. Claude Code silently skips an agent with bad frontmatter, so the gate must not.
+function checkAgents() {
+  const errors = [];
+  const dir = join('.claude', 'agents');
+  if (!exists(dir)) return errors;
+  for (const entry of readdirSync(join(ROOT, dir)).filter((f) => f.endsWith('.md'))) {
+    const file = join(dir, entry);
+    const get = readFrontmatter(file, 'AGENT', errors);
+    if (!get) continue;
+    const name = get('name')?.replace(/^["']|["']$/g, '');
+    if (!name || !/^[a-z0-9][a-z0-9-]*$/.test(name)) errors.push(`AGENT: ${file} needs a name of lowercase letters, digits and dashes (no ":")`);
+    else if (`${name}.md` !== entry) errors.push(`AGENT: ${file} name "${name}" must match the file name`);
+    if (!get('description')) errors.push(`AGENT: ${file} has no description`);
+    if (!get('tools')) errors.push(`AGENT: ${file} lists no tools; an agent without a tools line inherits everything`);
+    const model = get('model');
+    if (model && model.replace(/["']/g, '') !== 'inherit') {
+      errors.push(`AGENT: ${file} model must be "inherit": repository files do not name models (CLAUDE.md)`);
+    }
+  }
+  return errors;
+}
+
+// Project Claude Code settings: valid JSON, and every hook script it points at exists.
+function checkClaudeSettings() {
+  const file = join('.claude', 'settings.json');
+  if (!exists(file)) return [];
+  let settings;
+  try { settings = JSON.parse(read(file)); } catch (e) { return [`SETTINGS: ${file} is not valid JSON: ${e.message}`]; }
+  const errors = [];
+  const hooks = settings.hooks ?? {};
+  if (typeof hooks !== 'object' || Array.isArray(hooks)) return [`SETTINGS: ${file} "hooks" must be an object keyed by event`];
+  for (const [event, groups] of Object.entries(hooks)) {
+    if (!Array.isArray(groups)) { errors.push(`SETTINGS: hooks.${event} must be a list of matcher groups`); continue; }
+    for (const group of groups) {
+      if (!Array.isArray(group?.hooks)) { errors.push(`SETTINGS: a hooks.${event} group has no "hooks" list`); continue; }
+      for (const hook of group.hooks) {
+        // Both the exec form (args) and a plain command string can point at a project script.
+        const text = [hook.command, ...(Array.isArray(hook.args) ? hook.args : [])].filter((s) => typeof s === 'string').join(' ');
+        for (const m of text.matchAll(/\$\{?CLAUDE_PROJECT_DIR\}?\/([^\s"']+)/g)) {
+          if (!exists(m[1])) errors.push(`SETTINGS: ${event} hook points at ${m[1]}, which does not exist`);
+        }
       }
     }
   }
@@ -190,7 +245,7 @@ function checkSkills() {
 
 // Repository files must not name AI models (see CLAUDE.md conventions).
 function checkNoModelIds() {
-  const re = /\b(claude-(opus|sonnet|haiku|fable)[\w.-]*|(opus|sonnet|haiku|fable)\s+\d)/i;
+  const re = /\b(claude-(opus|sonnet|haiku|fable)[\w.-]*|(opus|sonnet|haiku|fable)\s+\d|model:\s*["']?(opus|sonnet|haiku|fable)\b)/i;
   const errors = [];
   for (const f of textFiles()) {
     read(f).split('\n').forEach((line, i) => {
@@ -221,6 +276,8 @@ const checks = [
   ['backlog', checkBacklog],
   ['lessons', checkLessons],
   ['skills', checkSkills],
+  ['agents', checkAgents],
+  ['claude-settings', checkClaudeSettings],
   ['no-model-ids', checkNoModelIds],
   ['toolchain', checkToolchain],
 ];
