@@ -1,7 +1,8 @@
 # PONCHO: Siete Vidas
 
-A 2D platformer. The hero is **Poncho**, a cat in a Mexican poncho (serape). The game
-is built on **Phaser 3 + TypeScript + Vite + Vitest**, targeting **web and mobile browsers**.
+A 2D pixel-art platformer. The hero is **Poncho**, a cat in a Mexican poncho (serape), the origin
+character of Poncho on Base ("PB"). The game is built on **Phaser 3 + TypeScript + Vite + Vitest**,
+targeting **web and mobile browsers**. Stay on Phaser 3: Phaser 4 exists but is not the decided stack.
 
 ## The anchor rule
 
@@ -40,7 +41,12 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 
 | Command | Purpose |
 | --- | --- |
-| `node scripts/check.mjs` | Run all harness checks (GDD integrity, backlog, lessons, skills). Also runs `lint`, `typecheck` and `test` npm scripts once they exist. |
+| `node scripts/check.mjs` | The gate: GDD integrity, backlog, lessons, skills, then `npm run lint`, `typecheck` and `test`. Must pass before every commit. |
+| `npm install` | Install dependencies (needed once, and by CI). |
+| `npm run dev` | Dev server on port 5173. |
+| `npm run build` | Typecheck and production build into `dist/`. |
+| `npm test` | Vitest unit tests (`src/**/*.test.ts`). |
+| `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `playtest` skill). |
 | `node scripts/check.mjs --backlog-stub` | Print backlog rows for GDD IDs missing from `docs/BACKLOG.md`. |
 
 ## Repository map
@@ -52,7 +58,11 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - `docs/decisions/` architecture decision records
 - `.claude/skills/` project skills: `feature`, `gdd-update`, `playtest`, `retro`
 - `scripts/check.mjs` the gate
-- `assets/` art and audio (character reference image goes in `assets/characters/poncho/`)
+- `src/config/tuning.ts` every gameplay number, tagged with its GDD ID
+- `src/sim/` pure game logic (movement, fixed-step loop), no Phaser imports
+- `src/scenes/` Phaser scenes: wiring only (input, rendering, audio)
+- `e2e/` Playwright playtests
+- `assets/` art and audio. `assets/characters/poncho/reference.jpg` is Poncho's reference image
 
 ## Conventions
 

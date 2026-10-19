@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- GDD-VIS-02, GDD-CTL-03: landscape mobile, no page zoom or scroll while playing -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#1b2036" />
+    <link rel="icon" href="data:," />
+    <title>PONCHO: Siete Vidas</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #1b2036;
+        overflow: hidden;
+        overscroll-behavior: none;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #game {
+        position: fixed;
+        inset: 0;
+      }
+      #game canvas {
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <noscript>PONCHO: Siete Vidas needs JavaScript.</noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

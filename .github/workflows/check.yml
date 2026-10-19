@@ -12,8 +12,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then npm ci; fi
-      - name: Harness check
+          cache: npm
+      - run: npm ci
+      - name: Gate (harness checks, lint, typecheck, unit tests)
         run: node scripts/check.mjs
+      - name: Build
+        run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Playtests
+        run: npm run test:e2e
+        env:
+          CI: "true"

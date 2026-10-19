@@ -25,7 +25,7 @@ project get better at itself over time.
    `Recurrence >= 2` has been promoted.
 6. Every skill has `name` (matching its folder) and `description` in its frontmatter.
 7. No AI model identifiers in repository files.
-8. If `package.json` defines `lint`, `typecheck` or `test` scripts, they run and must pass.
+8. If `package.json` defines `lint`, `typecheck` or `test` scripts, they run and must pass. Run `npm install` first; the gate fails without `node_modules`.
 
 ## The improvement loop
 
@@ -50,6 +50,6 @@ lesson that motivated the check in a comment.
 
 ## Playtesting
 
-Chromium and Playwright are available in the cloud environment. Once the game runs,
-the `playtest` skill drives it headlessly, takes screenshots and asserts on game state.
-Until then it is a documented stub.
+The `playtest` skill (`npm run test:e2e`) drives the real game in headless Chromium on a desktop and a
+landscape phone viewport and asserts on game state. It is not part of the gate because it needs a browser;
+CI runs it as a separate job.
