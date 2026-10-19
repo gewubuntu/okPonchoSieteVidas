@@ -97,7 +97,8 @@ describe('GDD-MOV-02 jump', () => {
 });
 
 describe('GDD-MOV-03 input forgiveness', () => {
-  const ledge: World = { floorAt: (x) => (x < 50 ? FLOOR : Infinity) };
+  // Floor under tiles 0 to 2 (x below 48) and nothing beyond: a ledge.
+  const ledge: World = { solidTile: (tx, ty) => tx < 3 && ty >= 0 };
 
   function walkOffAndPress(stepsAfterLeaving: number): PlayerState {
     let s = spawn(40, FLOOR);
@@ -126,10 +127,11 @@ describe('GDD-MOV-03 input forgiveness', () => {
 
 describe('GDD-MOV-04 gravity and falling', () => {
   it('never exceeds terminal velocity', () => {
+    const open: World = { solidTile: () => false };
     let s: PlayerState = { ...spawn(0, 5000), grounded: false };
     let max = 0;
     for (let i = 0; i < 600; i++) {
-      s = step(s, idle, flat);
+      s = step(s, idle, open);
       max = Math.max(max, s.vy);
     }
     expect(max).toBeLessThanOrEqual(GRAVITY.terminalVelocity);

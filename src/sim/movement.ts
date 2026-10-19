@@ -1,6 +1,6 @@
-// GDD-MOV-01 to GDD-MOV-04: Poncho's movement. Pure logic, no Phaser (GDD-TEC-02).
-// Tile collision, corner correction and the stomp bounce arrive with their own GDD IDs.
-import { FORGIVENESS, GRAVITY, JUMP, RUN, STEP } from '../config/tuning';
+// GDD-MOV-01 to GDD-MOV-04 and GDD-MOV-06: Poncho's movement and tile collision. Pure logic, no Phaser (GDD-TEC-02).
+// Corner correction (GDD-MOV-03) and the stomp bounce arrive with their own GDD IDs.
+import { FORGIVENESS, GRAVITY, HITBOX, JUMP, RUN, STEP, TILE } from '../config/tuning';
 
 export interface PlayerState {
   x: number;
@@ -23,11 +23,28 @@ export interface PlayerInput {
 }
 
 export interface World {
-  /** Y of the floor under x. Infinity means a pit. */
-  floorAt(x: number): number;
+  /** Is tile (tx, ty) solid? Tile (0, 0) covers x and y from 0 to 16. */
+  solidTile(tx: number, ty: number): boolean;
 }
 
-export const flatWorld = (floorY: number): World => ({ floorAt: () => floorY });
+/** An endless flat floor whose top is at y = floorY (a multiple of the tile size). */
+export const flatWorld = (floorY: number): World => ({ solidTile: (_tx, ty) => ty >= Math.floor(floorY / TILE) });
+
+const HALF_WIDTH = HITBOX.width / 2;
+/** Keeps a box that only touches a tile edge from counting as inside it. */
+const EDGE = 1e-6;
+
+/** Does Poncho's body box, centred on x with its feet at y (GDD-MOV-06), overlap a solid tile? */
+function blocked(world: World, x: number, y: number): boolean {
+  const left = Math.floor((x - HALF_WIDTH) / TILE);
+  const right = Math.floor((x + HALF_WIDTH - EDGE) / TILE);
+  const top = Math.floor((y - HITBOX.height) / TILE);
+  const bottom = Math.floor((y - EDGE) / TILE);
+  for (let ty = top; ty <= bottom; ty++) {
+    for (let tx = left; tx <= right; tx++) if (world.solidTile(tx, ty)) return true;
+  }
+  return false;
+}
 
 export function spawn(x: number, y: number): PlayerState {
   return { x, y, vx: 0, vy: 0, grounded: true, facing: 1, coyote: 0, jumpBuffer: 0, jumpWasHeld: false };
@@ -75,18 +92,33 @@ export function step(prev: PlayerState, input: PlayerInput, world: World): Playe
   let g = vy0 < 0 ? GRAVITY.rising : GRAVITY.falling;
   if (Math.abs(vy0) < GRAVITY.hangSpeed) g *= GRAVITY.hangMultiplier;
   s.vy = Math.min(vy0 + g * STEP, GRAVITY.terminalVelocity);
-  s.x += ((vx0 + s.vx) / 2) * STEP;
-  s.y += ((vy0 + s.vy) / 2) * STEP;
 
-  const floor = world.floorAt(s.x);
-  if (s.y >= floor && s.vy >= 0) {
-    s.y = floor;
-    s.vy = 0;
-    s.grounded = true;
-  } else {
-    s.grounded = false;
-    s.coyote = Math.max(0, s.coyote - 1);
+  // GDD-MOV-06: move one axis at a time and snap to the tile edge that was hit. Fastest speed is 360 px/s, which is
+  // 6 px per step and far less than a tile, so the box can never jump over a tile.
+  const dx = ((vx0 + s.vx) / 2) * STEP;
+  const dy = ((vy0 + s.vy) / 2) * STEP;
+
+  s.x += dx;
+  if (blocked(world, s.x, s.y)) {
+    s.x = dx > 0 ? Math.floor((s.x + HALF_WIDTH - EDGE) / TILE) * TILE - HALF_WIDTH
+      : (Math.floor((s.x - HALF_WIDTH) / TILE) + 1) * TILE + HALF_WIDTH;
+    s.vx = 0;
   }
+
+  s.y += dy;
+  let landed = false;
+  if (blocked(world, s.x, s.y)) {
+    if (dy > 0) {
+      s.y = Math.floor((s.y - EDGE) / TILE) * TILE; // stand on top of the tile
+      landed = true;
+    } else {
+      s.y = (Math.floor((s.y - HITBOX.height) / TILE) + 1) * TILE + HITBOX.height; // bump the underside
+    }
+    s.vy = 0;
+  }
+
+  s.grounded = landed;
+  if (!landed) s.coyote = Math.max(0, s.coyote - 1);
 
   s.jumpWasHeld = input.jumpHeld;
   return s;
