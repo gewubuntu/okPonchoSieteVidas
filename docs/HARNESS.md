@@ -15,7 +15,7 @@ project get better at itself over time.
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
 | `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a PR is larger than about 300 lines. |
 | `.github/workflows/claude-review.yml` | Starts an automatic review on every pull request (see below). |
-| `.github/pull_request_template.md` | The PR description every PR follows. |
+| `.github/pull_request_template.md` | The PR description every PR follows, including screenshots for visible changes. |
 
 ## What `scripts/check.mjs` enforces
 
@@ -70,6 +70,15 @@ PRs from forks do not receive secrets and are not reviewed automatically.
 
 **Size guideline.** `scripts/pr-size.mjs` runs in CI on every PR and warns above about 300 changed lines (lockfiles
 excluded). It warns and never fails.
+
+## Visual review
+
+Anything the player can see needs the user's eyes before it merges.
+
+1. `npm run shots` produces desktop and phone screenshots from `e2e/shots/`.
+2. Claude looks at them, shows them to the user in the session with `SendUserFile`, and asks for approval.
+3. After approval, the images go under `docs/screenshots/<slug>/` and are embedded in the PR description.
+4. CI warns when visible files change and no screenshot was added (`scripts/pr-screenshots.mjs`), and the `pr-review` skill treats missing screenshots or missing approval as blocking.
 
 ## Dependencies
 

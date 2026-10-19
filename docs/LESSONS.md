@@ -78,3 +78,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** For game input, test taps that are quick and repeated, and test with a realistic key hold time. Do not rely on `keydown-X` event handlers for game logic. Poll key state per fixed step. For the jump button (GDD-CTL-04, GDD-MOV-03) a press shorter than one frame must still count, so latch presses from raw key events before relying on polling.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-007 A visible change was built and merged without the user seeing it
+
+- **Date:** 2026-10-19
+- **What went wrong:** The lives HUD (PR #3) was built, reviewed and merged with the HUD checked only by screenshots that Claude looked at. The user never saw the images and had to ask for them.
+- **Root cause:** The harness had no step for visual approval. The playtest skill said to look at screenshots, but not to show them to the person who decides whether the result is good.
+- **Rule:** Anything the player can see is shown to the user, in the session, as desktop and phone screenshots, and approved before the PR opens (CLAUDE.md "Visible changes need the user's approval"). Approved images are committed under `docs/screenshots/` and embedded in the PR.
+- **Recurrence:** 1
+- **Promoted:** scripts/pr-screenshots.mjs (CI warning), pr-review skill (blocking finding), CLAUDE.md

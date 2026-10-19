@@ -47,6 +47,8 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `npm run dev` | Dev server on port 5173. |
 | `npm run build` | Typecheck and production build into `dist/`. |
 | `npm test` | Vitest unit tests (`src/**/*.test.ts`). |
+| `npm run shots` | Screenshots for visual review: desktop and phone viewport, into `shots/` (not committed). Scenarios live in `e2e/shots/`. |
+| `node scripts/pr-screenshots.mjs [base]` | Warn if visible files changed and no screenshot was added under `docs/screenshots/`. |
 | `node scripts/pr-size.mjs [base]` | Warn if the current branch changes more than about 300 lines against the base (default `origin/main`). |
 | `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `playtest` skill). |
 | `node scripts/check.mjs --backlog-stub` | Print backlog rows for GDD IDs missing from `docs/BACKLOG.md`. |
@@ -63,7 +65,8 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - `src/config/tuning.ts` every gameplay number, tagged with its GDD ID
 - `src/sim/` pure game logic (movement, fixed-step loop), no Phaser imports
 - `src/scenes/` Phaser scenes: wiring only (input, rendering, audio)
-- `e2e/` Playwright playtests
+- `e2e/` Playwright playtests; `e2e/shots/` screenshot scenarios for visual review
+- `docs/screenshots/<slug>/` screenshots the user approved, embedded in PR descriptions
 - `assets/` art and audio. `assets/characters/poncho/reference.jpg` is Poncho's reference image
 
 ## Conventions
@@ -80,5 +83,6 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - Aim for under about 300 changed lines, excluding lockfiles. If a feature is bigger, split it: pure logic first, then wiring, then visuals.
 - Every PR keeps the gate green (`node scripts/check.mjs`) and CI green, updates the backlog row, and fills in `.github/pull_request_template.md`.
 - **Every PR gets a review.** CI starts one automatically (`.github/workflows/claude-review.yml`, needs the `ANTHROPIC_API_KEY` secret). In a session, when you open a PR, or the user says they opened one, run the `pr-review` skill on it straight away, then fix any blocking findings.
+- **Visible changes need the user's approval before the PR.** For any UI or UX work (scenes, HUD, layout, art, colours, animation, text on screen): run `npm run shots`, look at every image yourself, then show them to the user with `SendUserFile` (display `render`, desktop and phone) and ask whether they like it. Iterate until they approve. Only then open the PR, commit the approved images under `docs/screenshots/<slug>/`, embed them in the PR description, and say "approved in session" there. Never open a PR for a visible change without that approval. CI warns when visible files change and no screenshots are added (`scripts/pr-screenshots.mjs`).
 - Do not start the next PR's work until the current one is merged or the user says to.
 - After a PR is merged, restart the working branch from `main` (same branch name) before the next piece.

@@ -12,6 +12,14 @@
 - [ ] `npm run test:e2e` passes, if anything visible or interactive changed
 - [ ] GDD and backlog updated, if a rule or a number changed
 
+## Screenshots
+
+<!-- Required for anything the player can see. Desktop and phone, committed under docs/screenshots/<slug>/ and embedded like
+![name](https://github.com/gewubuntu/okPonchoSieteVidas/blob/<branch>/docs/screenshots/<slug>/<name>.png?raw=true)
+Write "No visible change" if there is none. -->
+
+- [ ] The user saw these in the session and approved them
+
 ## Notes for the reviewer
 
 <!-- Decisions, trade-offs, open questions. Delete this section if empty. -->

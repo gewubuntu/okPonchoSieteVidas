@@ -40,8 +40,9 @@ The same procedure runs in three places: by CI on every PR (`.github/workflows/c
    - Dependencies follow GDD-TEC-07: latest stable, lockfile updated, no pre-release.
    - No AI model names in repository files. Skill frontmatter values with `: ` are quoted.
    - A mistake fixed in this PR should be a lesson in `docs/LESSONS.md`; a repeated one must be promoted.
-7. **Check the product constraints.** No wallet, token or on-chain feature (GDD-VIS-05). Cultural references follow GDD-VIS-04. Nothing that contradicts the character reference (GDD-ART-02).
-8. **Look for real bugs.** Trace one realistic input through the new code. Report only a failure you can describe with concrete inputs and the wrong output. Do not speculate.
+7. **Check visible changes.** If the PR touches what the player sees (`src/scenes`, `src/ui`, `index.html`, art under `assets/`), the description must embed desktop and phone screenshots, they must be committed under `docs/screenshots/`, and it must say the user approved them in the session. Missing screenshots or missing approval is 🔴 blocking. Look at the screenshots yourself: text that is cut off, overlap, unreadable contrast, or a layout that breaks at phone width are findings.
+8. **Check the product constraints.** No wallet, token or on-chain feature (GDD-VIS-05). Cultural references follow GDD-VIS-04. Nothing that contradicts the character reference (GDD-ART-02).
+9. **Look for real bugs.** Trace one realistic input through the new code. Report only a failure you can describe with concrete inputs and the wrong output. Do not speculate.
 
 ## Output
 

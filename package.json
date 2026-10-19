@@ -14,8 +14,9 @@
     "lint": "oxlint --type-aware --deny-warnings",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test",
-    "check": "node scripts/check.mjs"
+    "test:e2e": "playwright test --project=desktop --project=phone",
+    "check": "node scripts/check.mjs",
+    "shots": "playwright test --project=shots-desktop --project=shots-phone"
   },
   "dependencies": {
     "phaser": "^4.2.1"

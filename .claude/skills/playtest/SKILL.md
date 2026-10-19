@@ -25,6 +25,17 @@ npm run test:e2e
 4. Fail on console errors (see `boot()` in `e2e/boot.spec.ts`).
 5. For anything visual, also take a screenshot into the scratchpad and look at it. Pixels are for people; tests assert on state.
 
+## Screenshots for visual review
+
+```
+npm run shots
+```
+
+- Writes PNGs to `shots/` (git-ignored) for a desktop (1280x720) and a landscape phone (844x390) viewport. File names end in `-desktop` or `-phone`.
+- Scenarios live in `e2e/shots/*.spec.ts`. Add or extend one for every visible change, and capture every state that matters (for the HUD: full, partial, empty). Reuse `boot()` from `e2e/helpers.ts` and drive state with the `window.__PONCHO__` hooks.
+- Always look at the images yourself first (Read the PNG), then show them to the user with `SendUserFile` and ask for approval. After approval copy the chosen images to `docs/screenshots/<slug>/` and embed them in the PR.
+- These are for people to judge; tests still assert on state, not pixels.
+
 ## Coverage to build up
 
 - Boots without console errors, canvas fits the screen (done: GDD-TEC-01, GDD-ART-01).
