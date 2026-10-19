@@ -1,0 +1,10 @@
+{
+  "name": "poncho-siete-vidas",
+  "private": true,
+  "version": "0.0.0",
+  "description": "PONCHO: Siete Vidas - a platformer starring a cat in a Mexican poncho",
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs"
+  }
+}
