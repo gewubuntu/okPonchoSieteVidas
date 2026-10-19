@@ -33,3 +33,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** When a check guards a file format, encode the consumer's actual rules, and prove the check fails on a known-bad sample. Quote any frontmatter value that contains ": " or " #".
 - **Recurrence:** 1
 - **Promoted:** scripts/check.mjs (checkSkills quoting rule)
+
+## L-002 Section edit sliced through neighbouring GDD sections
+
+- **Date:** 2026-10-19
+- **What went wrong:** Replacing GDD-MOV-06 by slicing from its heading to the next horizontal rule also deleted GDD-MOV-07 and GDD-MOV-08, which sit between them.
+- **Root cause:** The end marker I chose was the end of the whole chapter, not the end of the section. Nothing about the edit made me check which IDs the slice contained.
+- **Rule:** When editing a GDD section by script, end the slice at the next heading (`^#{1,6} `), and compare the set of GDD IDs before and after the edit. The gate's unknown-reference and backlog checks catch deletions, so always run `node scripts/check.mjs` before committing.
+- **Recurrence:** 1
+- **Promoted:** no

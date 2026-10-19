@@ -4,7 +4,7 @@ One row per GDD ID. Status: `todo`, `doing`, `done` or `cut`. Deprecated GDD IDs
 `node scripts/check.mjs` fails if a GDD ID has no row or a row has no GDD ID.
 Add new rows with `node scripts/check.mjs --backlog-stub`.
 
-Suggested first order once the character image arrives: GDD-TEC-01, GDD-TEC-05, GDD-TEC-02, GDD-MOV-01 to GDD-MOV-06, GDD-CTL-01, GDD-CTL-03, GDD-LIFE-01 to GDD-LIFE-03, GDD-UI-01.
+Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05, GDD-TEC-02, GDD-MOV-01 to GDD-MOV-06, GDD-CTL-01, GDD-CTL-03, GDD-LIFE-01 to GDD-LIFE-03, GDD-UI-01.
 
 | GDD ID | Status | Notes |
 | --- | --- | --- |
@@ -64,3 +64,9 @@ Suggested first order once the character image arrives: GDD-TEC-01, GDD-TEC-05, 
 | GDD-TEC-06 | todo |  |
 | GDD-MVP-01 | todo |  |
 | GDD-MVP-02 | todo |  |
+| GDD-PWR-01 | todo |  |
+| GDD-PWR-02 | todo |  |
+| GDD-PWR-03 | todo |  |
+| GDD-PWR-04 | todo |  |
+| GDD-PWR-05 | todo |  |
+| GDD-PWR-06 | todo |  |

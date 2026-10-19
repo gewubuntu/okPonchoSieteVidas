@@ -1,11 +1,7 @@
 # Poncho character reference
 
-**Status: waiting for the reference image from the user.**
+`reference.jpg` is the user's reference illustration of Poncho (512 x 512, orange background). It is the source of truth for Poncho's look. Do not edit or overwrite it.
 
-When it arrives:
+The design notes derived from it are in `docs/GDD.md`: GDD-ART-02 (character), GDD-ART-03 (palette), GDD-ART-04 (animations), GDD-MOV-06 (size and hitbox).
 
-1. Save it here as `reference.png` (keep the original untouched).
-2. Update `GDD-ART-02` and `GDD-ART-03` in `docs/GDD.md` from what the image actually shows (colours, poncho pattern, proportions, face).
-3. Only then decide the final sprite size, hitbox and animation sheet layout (`GDD-ART-01`, `GDD-ART-04`, `GDD-MOV-06`).
-
-Do not invent character details before the image is here.
+Open items before pixel art starts: the meaning of the "PB" marks, Poncho's pronouns, and the art style (GDD Open Questions 6 and 7).

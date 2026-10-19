@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.1.0
+Version: 0.2.0
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.2.0** (2026-10-19) Reference image received: GDD-ART-02, GDD-ART-03, GDD-ART-04, GDD-MOV-06 rewritten from it. Lives are shown as seven triangles, not stripes (the poncho has triangle patterns): GDD-LIFE-01, GDD-LIFE-02, GDD-LIFE-04, GDD-WLD-01, GDD-UI-01, GDD-UI-03. Decided: lives carried across a world (GDD-LIFE-05), Mario-style power-ups in the poncho setting (new section 6, GDD-PWR-01 to GDD-PWR-06), Poncho loves tacos and spicy food (GDD-VIS-01). GDD-CMB-03, GDD-LIFE-02, GDD-PRG-01, GDD-UI-01, GDD-MVP-01, GDD-MVP-02 and Open Questions updated.
 - **0.1.0** (2026-10-19) First draft. Decided: title, premise, Phaser 3 + TypeScript + Vite stack, web and mobile targets. Everything else is Proposed. IDs: all.
 
 ---
@@ -23,6 +24,8 @@ This document is the anchor for every feature. Rules:
 Status: Decided (title and premise, user, 2026-10-19). Wording is Proposed.
 
 **PONCHO: Siete Vidas** is a 2D platformer starring **Poncho**, a cat in a Mexican poncho. A cat has nine lives in English folklore, but in the Spanish-speaking tradition a cat has **siete vidas**. The title is the central mechanic: seven lives, and how you spend them is the game (see GDD-LIFE-01).
+
+Character trait (Decided, user, 2026-10-19): Poncho loves tacos and spicy food. This drives the power-ups (section 6) and Poncho's personality.
 
 Story seed (Proposed): Poncho has lost lives one by one to a curse and must travel the seven worlds to get them back.
 
@@ -79,20 +82,21 @@ A world is 3 levels and 1 boss. Lives are a resource across the whole world (GDD
 
 ## 3. Siete Vidas (the lives system)
 
-### GDD-LIFE-01 Seven lives, seven stripes
+### GDD-LIFE-01 Seven lives, seven triangles
 
 Status: Proposed (the number seven is Decided by the title)
 
 - Poncho has **7 lives** at the start of every world.
-- Lives are shown as the **seven stripes of the poncho**. Each stripe is one life. Visible both on the HUD and on Poncho's sprite where feasible (to be confirmed against the reference image, GDD-ART-02).
+- Lives are shown as **seven triangles**, the signature motif of Poncho's poncho (GDD-ART-02). Each triangle is one life. They are drawn on the HUD (GDD-UI-01); a lost life leaves an empty outline.
+- The poncho in the reference has triangle and chevron patterns, not stripes, so the earlier "seven stripes" idea was dropped.
 - The count never exceeds 7.
 
 ### GDD-LIFE-02 Losing a life
 
 Status: Proposed
 
-- A life is lost on: touching an enemy or hazard without invulnerability, falling into a pit, or being crushed.
-- On loss: the lost stripe unravels (0.4 s), Poncho flips and lands feet-first at the last checkpoint after 0.8 s (GDD-MOV-05), then has 2.0 s of invulnerability (blinking).
+- A life is lost on: being hit while in the Base power-up state (GDD-PWR-01), touching an enemy or hazard without invulnerability, falling into a pit, or being crushed.
+- On loss: the lost triangle on the HUD cracks and fades to an outline (0.4 s), Poncho flips and lands feet-first at the last checkpoint after 0.8 s (GDD-MOV-05), then has 2.0 s of invulnerability (blinking).
 - Enemies and moving hazards reset to their initial state, collected *hilos* since the checkpoint are kept (no loss of progress that is not a life).
 - Respawn is instant to restart: any input skips the 0.8 s delay after 0.3 s.
 
@@ -108,11 +112,11 @@ Status: Proposed
 
 Status: Proposed
 
-When exactly 1 life remains: the music shifts to a tense variation, the last stripe pulses, and a *Última Vida* bonus applies: hilos give double score (GDD-PRG-03). Risk and reward, never an added penalty.
+When exactly 1 life remains: the music shifts to a tense variation, the last triangle pulses, and a *Última Vida* bonus applies: hilos give double score (GDD-PRG-03). Risk and reward, never an added penalty.
 
 ### GDD-LIFE-05 Out of lives
 
-Status: Proposed
+Status: Decided (lives are carried across, user, 2026-10-19). Details are Proposed. The user said the seven lives are "carried across"; this is read as across all levels of a world. See Open Question 1.
 
 - Lives are tracked per world: 7 at world start, carried through its 3 levels and boss.
 - At 0 lives: *Siete vidas gastadas* screen, then restart from the first level of the world with 7 lives. Hilos collected stay (GDD-PRG-02).
@@ -169,11 +173,13 @@ Status: Proposed
 
 ### GDD-MOV-06 Size, hitbox and tile
 
-Status: Proposed. Final hitbox TBD until the character image is available (GDD-ART-02).
+Status: Proposed. Based on the reference image (GDD-ART-02); validate against the real sprite sheet.
 
 - Tile size: 16 px.
-- Placeholder hitbox: 12 px wide, 12 px tall, centred at the feet. The sprite is drawn larger than the hitbox.
-- The hitbox is slightly forgiving: smaller than the visual for hazards (hurtbox) and standard for ground (collision).
+- Sprite frame: 32 x 32 px. Poncho is a chibi cat about 2.5 heads tall with a very wide sombrero (the brim is about 1.5 times the width of the body).
+- Body hitbox (ground and walls): 12 px wide, 14 px tall, centred at the feet. Fits through a 1-tile-high gap.
+- Hurtbox (enemies and hazards): 10 x 12 px, inside the body hitbox, so near-misses feel fair.
+- The sombrero brim is visual only. The crown top is the head-bump point for piñatas (GDD-PWR-05).
 
 ### GDD-MOV-07 Poncho glide
 
@@ -207,13 +213,72 @@ A short-range melee on the action button: 0.25 s cooldown, hits a 20 x 14 px are
 
 Status: Proposed
 
-- Every hit costs exactly 1 life (GDD-LIFE-02). There is no separate health bar.
+- A hit is resolved by the power-up state (GDD-PWR-01): in Base it costs exactly 1 life (GDD-LIFE-02); in Taco or Fuego it only downgrades the state and costs no life. There is no separate health bar.
 - After a hit Poncho is invulnerable for 2.0 s and knocked back 40 px/s away from the source.
 - Invulnerability does not protect from pits or crushing.
 
 ---
 
-## 6. Controls
+## 6. Power-ups
+
+Decided (user, 2026-10-19): the game has Mario-style power-ups, themed to Poncho's world. The specific items below are Proposed. Power-ups are temporary and are lost when hit; permanent abilities (glide, wall cling) are separate (GDD-PRG-01).
+
+### GDD-PWR-01 Power-up states
+
+Status: Proposed
+
+Poncho is always in exactly one state. The hitbox does not change between states (simpler levels, same on touch).
+
+| State | Look | What a hit does |
+| --- | --- | --- |
+| **Base** | Empty hands | Costs 1 life (GDD-LIFE-02) |
+| **Taco** | Holds a taco, as in the reference image | The taco is gone, no life lost, back to Base |
+| **Fuego** | Taco plus glowing chile, can spit fire (GDD-PWR-03) | Back to Taco, no life lost |
+
+- A hit that downgrades the state still gives 2.0 s invulnerability and knockback (GDD-CMB-03).
+- Losing a life respawns Poncho in Base.
+- Picking up an item that would not improve the state gives hilos instead (GDD-WLD-04).
+- Lives are never granted by taco or chile. Only veladoras and ofrendas restore lives (GDD-LIFE-03).
+
+### GDD-PWR-02 Taco (the mushroom)
+
+Status: Proposed
+
+Base to Taco. A taco walks away from a broken piñata at 40 px/s, turns at walls and falls off ledges, like a Mario mushroom. Collecting it plays a chomp, a 0.3 s freeze-frame and a sparkle. Poncho keeps the taco in hand until hit.
+
+### GDD-PWR-03 Chile and Fuego (the fire flower)
+
+Status: Proposed
+
+- Taco to Fuego by eating a chile (a stationary glowing pepper released from a piñata when Poncho is already in Taco or Fuego).
+- In Fuego the Fuego button spits a salsa fireball: 180 px/s horizontal, bounces along the ground with a 20 px arc, vanishes on walls or after 3 s, maximum 2 on screen.
+- Fireballs defeat most light enemies, melt ice and light unlit candles. Bosses take 1 damage per fireball unless a boss rule says otherwise (GDD-BOS-01).
+- The Fuego button is separate from Claw (GDD-CMB-02). On touch it appears only while in Fuego (GDD-CTL-03).
+
+### GDD-PWR-04 Chile Fantasma (the star)
+
+Status: Proposed. Post-MVP (GDD-MVP-02).
+
+A rare ghost pepper hidden in special piñatas. For 8 s: Poncho is invulnerable (golden glow, as in the reference illustration), runs at 180 px/s and defeats anything on contact. Does not protect from pits or crushing. Music switches to a spicy variation. The last 2 s flash as a warning.
+
+### GDD-PWR-05 Piñata blocks (the question blocks)
+
+Status: Proposed
+
+Hanging piñatas that open when Poncho hits them from below (head bump) or with a claw swipe, releasing an item or hilos. A piñata releases a Taco if Poncho is Base, otherwise a Chile; a multi-piñata gives up to 10 hilos over 4 s. An opened piñata becomes a broken shell. Piñatas are drawn so players recognise them at a glance and never hide a lethal surprise.
+
+### GDD-PWR-06 Item rules
+
+Status: Proposed
+
+- At most one active item per piñata. Items never spawn inside a wall.
+- Items are collected by touch with the body hitbox (GDD-MOV-06).
+- There is no reserve slot in the MVP. Whether to add one (as in some Mario games) is an Open Question.
+- The veladora (a life, GDD-LIFE-03) is the only extra-life item.
+
+---
+
+## 7. Controls
 
 ### GDD-CTL-01 Keyboard
 
@@ -224,6 +289,7 @@ Status: Proposed
 | Move | Arrow keys or A / D |
 | Jump | Space, Z or W / Up |
 | Claw | X or J |
+| Fuego (fireball) | C or K |
 | Pause | Escape or P |
 
 Keys are remappable (GDD-UI-03).
@@ -232,13 +298,13 @@ Keys are remappable (GDD-UI-03).
 
 Status: Proposed
 
-Standard gamepad mapping: left stick or D-pad to move (analog speed), south button to jump, west button to claw, start to pause. Dead zone 0.2.
+Standard gamepad mapping: left stick or D-pad to move (analog speed), south button to jump, west button to claw, east button for Fuego, start to pause. Dead zone 0.2.
 
 ### GDD-CTL-03 Touch
 
 Status: Proposed. Required for the MVP (GDD-MVP-01).
 
-- Landscape layout with two thumb zones. Left: horizontal slide stick or left/right buttons (player choice). Right: Jump (large) and Claw buttons.
+- Landscape layout with two thumb zones. Left: horizontal slide stick or left/right buttons (player choice). Right: Jump (large) and Claw buttons, plus a Fuego button that appears only in the Fuego state (GDD-PWR-03).
 - Minimum touch target 48 CSS px, buttons offset from the screen edge by the safe-area inset.
 - Layout can be mirrored and controls opacity adjustable (GDD-UI-03).
 - Multi-touch: moving and jumping at the same time must work. Prevent page scroll, zoom, long-press menus and text selection while playing.
@@ -252,13 +318,13 @@ Input is sampled once per fixed step (GDD-TEC-02). Jump press to first upward mo
 
 ---
 
-## 7. World and levels
+## 8. World and levels
 
 ### GDD-WLD-01 Structure
 
 Status: Proposed
 
-Seven worlds, matching the seven lives and the seven stripes. Each world has 3 levels and 1 boss. A world map screen links them. 7 x 4 = 28 stages in the full game.
+Seven worlds, matching the seven lives and the seven triangles. Each world has 3 levels and 1 boss. A world map screen links them. 7 x 4 = 28 stages in the full game.
 
 ### GDD-WLD-02 The seven worlds
 
@@ -300,7 +366,7 @@ Core set: spikes (cactus, obsidian), pits, crumbling platforms (0.5 s warning), 
 
 ---
 
-## 8. Enemies and bosses
+## 9. Enemies and bosses
 
 ### GDD-ENM-01 Enemy design rules
 
@@ -309,7 +375,7 @@ Status: Proposed
 - One idea per enemy, readable at a glance, with a 0.5 s telegraph before any attack.
 - Every enemy can be beaten at least one way: stomp, claw or avoidance.
 - Enemies never spawn on screen within 3 tiles of Poncho's respawn.
-- Enemy contact always costs exactly 1 life (GDD-CMB-03).
+- Enemy contact is resolved by GDD-CMB-03 and never costs more than 1 life.
 
 ### GDD-ENM-02 World 1 bestiary
 
@@ -336,13 +402,13 @@ A giant vulture, Don Zopilote, circles the arena and drops cactus fruit. Phase 1
 
 ---
 
-## 9. Progression and meta
+## 10. Progression and meta
 
 ### GDD-PRG-01 Unlocks
 
 Status: Proposed
 
-- Clearing worlds unlocks poncho powers in order: Glide (GDD-MOV-07, after World 2), Wall cling (GDD-MOV-08, after World 3). Further powers are open (GDD-MVP-02).
+- Clearing worlds unlocks permanent **abilities** in order (these are not the temporary power-ups of section 6): Glide (GDD-MOV-07, after World 2), Wall cling (GDD-MOV-08, after World 3). Further powers are open (GDD-MVP-02).
 - Hilos buy cosmetics for the poncho (patterns and colours). Cosmetics never change gameplay.
 
 ### GDD-PRG-02 Save system
@@ -361,13 +427,13 @@ Score from hilos, enemies and time. Level medals: Bronze (clear), Silver (all hi
 
 ---
 
-## 10. UI and accessibility
+## 11. UI and accessibility
 
 ### GDD-UI-01 HUD
 
 Status: Proposed
 
-- Top-left: seven stripes (GDD-LIFE-01), filled = life, dim = lost.
+- Top-left: seven triangles (GDD-LIFE-01), filled = life, outline = lost. Next to them, a small icon of the current power-up state (GDD-PWR-01).
 - Top-right: hilo counter.
 - Minimal, semi-transparent, hidden during cutscenes. On touch, controls are drawn under the safe-area insets (GDD-CTL-03).
 
@@ -389,7 +455,7 @@ Status: Proposed
 
 ---
 
-## 11. Audio
+## 12. Audio
 
 ### GDD-AUD-01 Music
 
@@ -405,37 +471,57 @@ Short, punchy and readable: jump, land, claw, stomp, hilo pickup (rising pitch c
 
 ---
 
-## 12. Art
+## 13. Art
 
 ### GDD-ART-01 Style and resolution
 
 Status: Proposed
 
 - Pixel art with a hand-made feel. Base resolution 480 x 270 (16:9) scaled by integer factors where possible, letterboxed on other aspect ratios.
-- 16 px tile grid. Poncho sprite around 24 x 24 px (final size set by the reference, GDD-ART-02).
+- 16 px tile grid. Poncho sprite frame 32 x 32 px (GDD-MOV-06, GDD-ART-02).
 - Limited palette per world drawn from real Mexican craft colours.
 
 ### GDD-ART-02 Poncho (character)
 
-Status: Proposed. **TBD: waiting for the user's reference image.** Nothing about Poncho's look is final.
+Status: Decided (appearance from the user's reference image, 2026-10-19). Sprite-level details are Proposed.
 
-When the image arrives, this section records: coat colour and markings, poncho pattern and colours (and how seven stripes map to it), face and proportions, any accessories. Every sprite is derived from the image. Save the original in `assets/characters/poncho/reference.png`.
+Reference: `assets/characters/poncho/reference.jpg` (512 x 512 illustration, orange background). Every sprite is derived from it.
+
+- **Build:** chubby chibi cat standing upright on two legs, large head, big pointed ears with pink insides.
+- **Fur:** warm tan and ginger, cream muzzle, chest and paws, darker ginger tabby marks on the forehead.
+- **Face:** large dark brown eyes with white highlights, slightly furrowed brows (confident, cheeky), pink cheek blush, small pink nose, small smirk.
+- **Sombrero:** wide-brim, blue, with a red crown and red band, and a red and cream zigzag trim around the brim.
+- **Poncho:** blue with red and cream triangle patterns, a V-neck, a red border with cream triangles at the hem, and cream fringe along the bottom edge. A darker navy layer with fringe shows behind it (cape or back panel).
+- **Held item:** a taco with lettuce, tomato and meat in one hand. This becomes the Taco state (GDD-PWR-01).
+- **Glow:** the illustration has a golden rim light. It is reserved as the invulnerability effect (GDD-CMB-03, GDD-PWR-04).
+- **Unknowns:** the reference shows a small gold "PB" badge on the chest and a "PB" mark in the bottom-right corner. It is not used until the user says what it is (Open Question 6). Tail and back are not shown and will be designed to match.
+- **Personality (Decided):** loves tacos and spicy food.
+- **Pronouns:** not stated. Text uses Poncho's name or "they" (Open Question 6).
 
 ### GDD-ART-03 Palette
 
-Status: Proposed. **TBD: derived from the reference image.**
+Status: Proposed. Approximate colours sampled from the reference JPEG; the final palette is extracted when the pixel art is made.
 
-The master palette starts from the colours in Poncho's poncho, then adds world palettes (GDD-WLD-02) from talavera, serape and marigold tones. The seven stripe colours should be distinguishable for colour-blind players (GDD-UI-03).
+| Use | Approx. colour |
+| --- | --- |
+| Sombrero and poncho blue | #44588A |
+| Poncho and sombrero red | #B94842 |
+| Fur (light tan) | #ECD4A6 |
+| Taco shell | #CF9251 |
+| Dark cape layer | #382E47 |
+| Illustration background (marketing only) | #D2690D |
+
+World palettes (GDD-WLD-02) start from these and add talavera, serape and marigold tones. Poncho must stay readable against every world background: blue and red against warm desert tones needs a dark outline.
 
 ### GDD-ART-04 Poncho animation set
 
 Status: Proposed
 
-Idle (blink), run, skid, jump up, apex, fall, land, claw swipe, hurt, respawn flip, wall cling (post-MVP), glide (post-MVP), victory. Exact frame counts decided with the final sprite sheet.
+Idle (blink, glances at the taco in Taco state), run, skid, jump up, apex, fall, land, claw swipe, fireball spit (Fuego), hurt (sombrero tips off, taco bitten), respawn flip, eating a taco or chile, victory (taco in the air), wall cling (post-MVP), glide (post-MVP). Exact frame counts decided with the final sprite sheet.
 
 ---
 
-## 13. Technical
+## 14. Technical
 
 ### GDD-TEC-01 Stack
 
@@ -483,7 +569,7 @@ Status: Proposed
 
 ---
 
-## 14. Scope
+## 15. Scope
 
 ### GDD-MVP-01 Vertical slice
 
@@ -493,8 +579,9 @@ The first playable milestone:
 
 - Poncho with run, jump (GDD-MOV-01 to GDD-MOV-06), stomp and claw (GDD-CMB-01 to GDD-CMB-03).
 - Seven-lives system complete (GDD-LIFE-01 to GDD-LIFE-05) and HUD (GDD-UI-01).
+- Power-ups: Taco, Chile and Fuego, piñatas (GDD-PWR-01, GDD-PWR-02, GDD-PWR-03, GDD-PWR-05, GDD-PWR-06).
 - World 1 with 3 levels and the boss, bestiary of GDD-ENM-02.
-- Keyboard and touch controls (GDD-CTL-01, GDD-CTL-03), gamepad nice to have.
+- Keyboard and touch controls (GDD-CTL-01, GDD-CTL-03), including the Fuego button, gamepad nice to have.
 - Autosave (GDD-PRG-02), pause, settings with volume and language.
 - Placeholder music and SFX are acceptable.
 
@@ -504,7 +591,7 @@ Done means: the `playtest` skill passes on desktop and a phone viewport, and the
 
 Status: Proposed
 
-Worlds 2 to 7, glide, wall cling, further powers, medals and score, cosmetics shop, full soundtrack, localisation beyond English and Spanish, native packaging (new ADR).
+Worlds 2 to 7, Chile Fantasma (GDD-PWR-04), glide, wall cling, further powers, medals and score, cosmetics shop, full soundtrack, localisation beyond English and Spanish, native packaging (new ADR).
 
 ---
 
@@ -512,14 +599,14 @@ Worlds 2 to 7, glide, wall cling, further powers, medals and score, cosmetics sh
 
 Answer these to move items from Proposed to Decided. Until then the Proposed text stands as the working assumption.
 
-1. **Lives scope (GDD-LIFE-05):** lives carried across a whole world (recommended, so seven is a real budget) or reset every level?
-2. **One-hit rule (GDD-CMB-03):** every hit costs one life with no health bar (recommended) or add hearts per life?
-3. **Lives meaning (GDD-LIFE-01):** should a life ever be *spent on purpose* (for example a power that costs a stripe)? Not in the draft; interesting but changes the balance.
+1. **Lives carried across (GDD-LIFE-05):** you said the 7 lives are carried across. I read it as across all levels of a world (3 levels and the boss), refilled to 7 at the start of each world. Did you mean across the whole game instead? That is much harsher with 28 stages.
+2. **Taco as shield (GDD-PWR-01, GDD-CMB-03):** Taco and Fuego absorb hits like Mario's mushroom and flower. This makes lives less scarce. Right balance, or should power-ups be rarer or not absorb hits?
+3. **Power-up set (section 6):** Taco, Chile (Fuego fireballs), Chile Fantasma (star), piñata blocks. Anything you want added, such as a different fireball style, a reserve slot, or other foods?
 4. **Seven worlds (GDD-WLD-02):** are the world themes and names right? Anything you want, or want avoided?
 5. **Story (GDD-VIS-01):** is the curse-and-seven-lives story seed what you want, or a different premise?
-6. **Poncho's look and identity (GDD-ART-02):** pending your image. Does the poncho have seven stripes, or should another visual carry the lives? Is Poncho a he, she or they, for story and UI text? The draft avoids choosing.
-7. **Pixel art vs another style (GDD-ART-01):** confirm pixel art at 480 x 270.
-8. **Combat (GDD-CMB-02):** is a claw attack wanted in addition to stomping?
+6. **Poncho details (GDD-ART-02):** (a) what is the gold "PB" badge and the "PB" mark in the corner of the image, and should it appear in the game? (b) Is Poncho a he, she or they, for story and UI text? The draft avoids choosing.
+7. **Art style (GDD-ART-01):** your reference is a smooth cartoon illustration. I propose pixel art at 480 x 270 with a 32 x 32 Poncho. Is pixel art right, or do you want a hand-drawn smooth look? This decides the whole art pipeline.
+8. **Combat (GDD-CMB-02):** keep both claw swipe and stomp, with fireballs on top?
 9. **Difficulty (GDD-VIS-02):** is assist mode and a kid-friendly tone right, or do you want a harder game?
 10. **Audio (GDD-AUD-01):** will you provide music, or should placeholders be generated and licensed assets chosen?
 11. **Score and medals (GDD-PRG-03):** keep or cut?
