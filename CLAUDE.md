@@ -47,6 +47,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `npm run dev` | Dev server on port 5173. |
 | `npm run build` | Typecheck and production build into `dist/`. |
 | `npm test` | Vitest unit tests (`src/**/*.test.ts`). |
+| `node scripts/pr-size.mjs [base]` | Warn if the current branch changes more than about 300 lines against the base (default `origin/main`). |
 | `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `playtest` skill). |
 | `node scripts/check.mjs --backlog-stub` | Print backlog rows for GDD IDs missing from `docs/BACKLOG.md`. |
 
@@ -57,7 +58,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - `docs/LESSONS.md` append-only lessons log
 - `docs/HARNESS.md` how the harness works
 - `docs/decisions/` architecture decision records
-- `.claude/skills/` project skills: `feature`, `gdd-update`, `playtest`, `retro`
+- `.claude/skills/` project skills: `feature`, `gdd-update`, `playtest`, `pr-review`, `retro`
 - `scripts/check.mjs` the gate
 - `src/config/tuning.ts` every gameplay number, tagged with its GDD ID
 - `src/sim/` pure game logic (movement, fixed-step loop), no Phaser imports
@@ -78,5 +79,6 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - Base branch is `main`. Work step by step: one small PR at a time, each one a single GDD ID or a tight group of them.
 - Aim for under about 300 changed lines, excluding lockfiles. If a feature is bigger, split it: pure logic first, then wiring, then visuals.
 - Every PR keeps the gate green (`node scripts/check.mjs`) and CI green, updates the backlog row, and fills in `.github/pull_request_template.md`.
+- **Every PR gets a review.** CI starts one automatically (`.github/workflows/claude-review.yml`, needs the `ANTHROPIC_API_KEY` secret). In a session, when you open a PR, or the user says they opened one, run the `pr-review` skill on it straight away, then fix any blocking findings.
 - Do not start the next PR's work until the current one is merged or the user says to.
 - After a PR is merged, restart the working branch from `main` (same branch name) before the next piece.

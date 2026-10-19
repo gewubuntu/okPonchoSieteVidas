@@ -11,9 +11,11 @@ project get better at itself over time.
 | `docs/BACKLOG.md` | One row per GDD ID: `todo`, `doing`, `done` or `cut`. |
 | `docs/LESSONS.md` | Append-only log of mistakes and the rules that came out of them. |
 | `docs/decisions/` | Architecture decision records (ADRs). |
-| `.claude/skills/*` | Repeatable procedures: `feature`, `gdd-update`, `playtest`, `retro`. |
+| `.claude/skills/*` | Repeatable procedures: `feature`, `gdd-update`, `playtest`, `pr-review`, `retro`. |
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
-| `.github/workflows/check.yml` | Runs the gate on every push and pull request. |
+| `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a PR is larger than about 300 lines. |
+| `.github/workflows/claude-review.yml` | Starts an automatic review on every pull request (see below). |
+| `.github/pull_request_template.md` | The PR description every PR follows. |
 
 ## What `scripts/check.mjs` enforces
 
@@ -47,6 +49,27 @@ When a lesson is promoted, set its `Promoted:` field to where the rule now lives
 Add a function to `scripts/check.mjs` that returns a list of error strings, register it in
 the `checks` array, and make sure it fails on a bad input. The retro skill should name the
 lesson that motivated the check in a comment.
+
+## Pull request review
+
+Every PR is reviewed, by the same procedure in three places: `.claude/skills/pr-review/SKILL.md`.
+
+1. **CI, automatically.** `claude-review.yml` runs on every PR that is opened, updated, reopened or marked ready. It
+   uses the official `anthropics/claude-code-action@v1`, follows the skill, and posts inline comments plus one summary.
+   It only comments: it never approves, requests changes, merges or pushes.
+2. **In a session, when Claude opens a PR.** Claude reviews its own PR with the skill before saying it is ready, fixes
+   blocking findings, then subscribes to the PR.
+3. **In a session, when the user opens a PR.** Tell Claude the PR is up and it runs the skill on it.
+
+Findings carry a severity: 🔴 blocking, 🟡 optional, 🟣 pre-existing.
+
+**One-time setup for the CI review:** add the `ANTHROPIC_API_KEY` secret under Settings, Secrets and variables, Actions.
+Until it exists the job skips itself and prints a notice, so CI stays green. To bill a Claude subscription instead of the
+API, replace the `anthropic_api_key` input in the workflow with `claude_code_oauth_token` and store that token as the secret.
+PRs from forks do not receive secrets and are not reviewed automatically.
+
+**Size guideline.** `scripts/pr-size.mjs` runs in CI on every PR and warns above about 300 changed lines (lockfiles
+excluded). It warns and never fails.
 
 ## Dependencies
 
