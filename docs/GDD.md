@@ -571,7 +571,7 @@ All gameplay numbers in this document live in a single typed file, `src/config/t
 
 ### GDD-TEC-07 Dependency policy
 
-Status: Proposed
+Status: Decided (use the latest stable releases, user, 2026-10-19). The review cadence and the holdback rule are Proposed.
 
 - Track the latest stable release of every dependency. No pre-release versions in `main`.
 - At every GDD minor version bump, run `npm outdated`, upgrade, run the full gate and the playtests, and record the result in the changelog or an ADR.
