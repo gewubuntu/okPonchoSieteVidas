@@ -205,7 +205,7 @@ function checkAgents() {
     const file = join(dir, entry);
     const get = readFrontmatter(file, 'AGENT', errors);
     if (!get) continue;
-    const name = get('name');
+    const name = get('name')?.replace(/^["']|["']$/g, '');
     if (!name || !/^[a-z0-9][a-z0-9-]*$/.test(name)) errors.push(`AGENT: ${file} needs a name of lowercase letters, digits and dashes (no ":")`);
     else if (`${name}.md` !== entry) errors.push(`AGENT: ${file} name "${name}" must match the file name`);
     if (!get('description')) errors.push(`AGENT: ${file} has no description`);
@@ -225,12 +225,17 @@ function checkClaudeSettings() {
   let settings;
   try { settings = JSON.parse(read(file)); } catch (e) { return [`SETTINGS: ${file} is not valid JSON: ${e.message}`]; }
   const errors = [];
-  for (const [event, groups] of Object.entries(settings.hooks ?? {})) {
+  const hooks = settings.hooks ?? {};
+  if (typeof hooks !== 'object' || Array.isArray(hooks)) return [`SETTINGS: ${file} "hooks" must be an object keyed by event`];
+  for (const [event, groups] of Object.entries(hooks)) {
+    if (!Array.isArray(groups)) { errors.push(`SETTINGS: hooks.${event} must be a list of matcher groups`); continue; }
     for (const group of groups) {
-      for (const hook of group.hooks ?? []) {
-        for (const arg of hook.args ?? []) {
-          const m = /^\$\{CLAUDE_PROJECT_DIR\}\/(.+)$/.exec(arg);
-          if (m && !exists(m[1])) errors.push(`SETTINGS: ${event} hook points at ${m[1]}, which does not exist`);
+      if (!Array.isArray(group?.hooks)) { errors.push(`SETTINGS: a hooks.${event} group has no "hooks" list`); continue; }
+      for (const hook of group.hooks) {
+        // Both the exec form (args) and a plain command string can point at a project script.
+        const text = [hook.command, ...(Array.isArray(hook.args) ? hook.args : [])].filter((s) => typeof s === 'string').join(' ');
+        for (const m of text.matchAll(/\$\{?CLAUDE_PROJECT_DIR\}?\/([^\s"']+)/g)) {
+          if (!exists(m[1])) errors.push(`SETTINGS: ${event} hook points at ${m[1]}, which does not exist`);
         }
       }
     }

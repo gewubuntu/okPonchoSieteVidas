@@ -27,7 +27,7 @@ project get better at itself over time.
 4. `docs/BACKLOG.md` has exactly one valid row for every non-deprecated GDD ID and no unknown IDs.
 5. `docs/LESSONS.md` entries are well formed, IDs are unique, and any lesson with
    `Recurrence >= 2` has been promoted.
-6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and use `model: inherit`, because repository files do not name models. `.claude/settings.json` is valid JSON and every hook script it points at exists.
+6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and, if they set a model, set `inherit`, because repository files do not name models. `.claude/settings.json` is valid JSON and every hook script it points at exists.
 7. No AI model identifiers in repository files.
 8. If `package.json` defines `lint`, `typecheck` or `test` scripts, they run and must pass. Run `npm install` first; the gate fails without `node_modules`.
 
@@ -60,6 +60,8 @@ Every PR is reviewed by the `pr-reviewer` subagent (`.claude/agents/pr-reviewer.
 - audits the GDD changes for validity: IDs never deleted, statuses honest, version and changelog bumped, no internal contradictions, GDD and `tuning.ts` in agreement, backlog truthful;
 - looks at the screenshots and checks the user approved them;
 - posts one GitHub review with 🔴 blocking, 🟡 optional and 🟣 pre-existing findings, never approving or merging.
+
+Read-only is a rule the agent follows, not a sandbox: its tool list cannot restrict `Bash`. In CI it works from the diff with a short tool allow-list and lists the steps it skipped.
 
 It runs in three places:
 

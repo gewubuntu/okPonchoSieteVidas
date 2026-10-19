@@ -5,11 +5,37 @@
 
 import { pathToFileURL } from 'node:url';
 
-/** Finds the pull request number in whatever shape the tool response has. Returns null if there is none. */
+/** Calls visit(key, value) for every key and string or number in a value. Strings that hold JSON are opened too. */
+function walk(value, visit, key = '') {
+  if (typeof value === 'string') {
+    visit(key, value);
+    if (/^\s*[[{]/.test(value)) {
+      try { walk(JSON.parse(value), visit, key); } catch { /* not JSON, the plain string was already visited */ }
+    }
+  } else if (typeof value === 'number') {
+    visit(key, value);
+  } else if (Array.isArray(value)) {
+    for (const item of value) walk(item, visit, key);
+  } else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) walk(v, visit, k);
+  }
+}
+
+/**
+ * Finds the number of the created pull request in whatever shape the tool response has, or null.
+ * The PR's own URL fields win over a number that appears in free text, because a PR body may link other PRs.
+ */
 export function findPullNumber(toolResponse) {
-  const text = typeof toolResponse === 'string' ? toolResponse : JSON.stringify(toolResponse ?? '');
-  const m = /\/pull\/(\d+)/.exec(text) ?? /"number"\s*:\s*(\d+)/.exec(text);
-  return m ? Number(m[1]) : null;
+  const found = { html_url: null, url: null, number: null, text: null };
+  walk(toolResponse, (key, value) => {
+    if (typeof value === 'number' && key === 'number') found.number ??= value;
+    if (typeof value !== 'string') return;
+    const m = /\/pull\/(\d+)/.exec(value);
+    if (!m) return;
+    if (key === 'html_url' || key === 'url') found[key] ??= Number(m[1]);
+    else found.text ??= Number(m[1]);
+  });
+  return found.html_url ?? found.url ?? found.number ?? found.text;
 }
 
 /** Builds the context text for a hook input, or null when the event is not a created pull request. */

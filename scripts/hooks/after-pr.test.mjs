@@ -7,6 +7,17 @@ describe('after-pr hook', () => {
     expect(findPullNumber('{"url":"https://github.com/o/r/pull/12"}')).toBe(12);
   });
 
+  it('prefers the PR url over a PR linked in free text', () => {
+    const response = { body: 'follows https://github.com/o/r/pull/2', url: 'https://github.com/o/r/pull/9' };
+    expect(findPullNumber(response)).toBe(9);
+  });
+
+  it('reads an MCP content array whose text is JSON', () => {
+    const response = [{ type: 'text', text: JSON.stringify({ id: '1', number: 9 }) }];
+    expect(findPullNumber(response)).toBe(9);
+    expect(findPullNumber([{ type: 'text', text: '{"url":"https://github.com/o/r/pull/11"}' }])).toBe(11);
+  });
+
   it('falls back to a number field, and to null when there is none', () => {
     expect(findPullNumber({ number: 7 })).toBe(7);
     expect(findPullNumber({})).toBeNull();
