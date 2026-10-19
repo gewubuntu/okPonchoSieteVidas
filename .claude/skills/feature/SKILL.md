@@ -16,6 +16,7 @@ Implements exactly one GDD ID (or a small named group of them) from spec to test
 5. **Write tests first** for the pure logic (Vitest, no Phaser imports). Test names include the GDD ID, e.g. `describe('GDD-MOV-02 jump', ...)`. Numbers come from `src/config/tuning.ts`, which mirrors the GDD.
 6. **Implement** the minimum that satisfies the GDD text. No extras the GDD does not list.
 7. **Playtest** with the `playtest` skill when the feature is visible or interactive.
+   **If anything visible changed**, follow the screenshot approval rule in `CLAUDE.md` now: `npm run shots`, look at the images, show them to the user with `SendUserFile`, and wait for their approval before opening the PR.
 8. **Update docs.** Mark the backlog row `done`. If implementation forced a rule change, update the GDD with `gdd-update`.
 9. **Gate.** Run `node scripts/check.mjs`. Fix everything before committing.
 10. **Retro.** Run the `retro` skill.
