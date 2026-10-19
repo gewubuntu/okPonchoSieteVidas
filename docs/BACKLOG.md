@@ -34,7 +34,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W wired; remap and claw pending |
 | GDD-CTL-02 | todo |  |
 | GDD-CTL-03 | todo |  |
-| GDD-CTL-04 | todo |  |
+| GDD-CTL-04 | todo | note: quick taps can fit inside one frame; latch presses from raw key events, see L-006 |
 | GDD-WLD-01 | todo |  |
 | GDD-WLD-02 | todo |  |
 | GDD-WLD-03 | todo |  |
@@ -47,7 +47,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-PRG-01 | todo |  |
 | GDD-PRG-02 | todo |  |
 | GDD-PRG-03 | todo |  |
-| GDD-UI-01 | todo |  |
+| GDD-UI-01 | doing | lives triangles drawn and tested (src/ui/livesLayout.ts); power-up icon, hilo counter and crack animation pending |
 | GDD-UI-02 | todo |  |
 | GDD-UI-03 | todo |  |
 | GDD-AUD-01 | todo |  |

@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.0
+Version: 0.4.1
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.1** (2026-10-19) GDD-UI-01: lives fill from the left and empty from the right; triangles are told apart by fill versus outline, not colour. HUD built.
 - **0.4.0** (2026-10-19) Decided: state-of-the-art stack on the latest stable releases (Phaser 4, TypeScript 7, Vite 8, Vitest 5, Playwright, Oxlint): GDD-TEC-01 rewritten, new GDD-TEC-07 dependency policy, ADR 0002.
 - **0.3.0** (2026-10-19) Decided: pixel art (GDD-ART-01) and lives carried across a world (GDD-LIFE-05). New GDD-VIS-05: "PB" is the Poncho on Base brand mark, Poncho is the origin character of a meme coin on the Base blockchain; the game itself has no on-chain features. Jump numbers re-measured in the 60 Hz simulation: GDD-MOV-02 (minimum hop about 15 px), GDD-MOV-04 (exact integration), GDD-TEC-05 (test tolerances), GDD-WLD-03. Open Questions renumbered. Project scaffolded (GDD-TEC-01, GDD-TEC-02, GDD-TEC-05).
 - **0.2.0** (2026-10-19) Reference image received: GDD-ART-02, GDD-ART-03, GDD-ART-04, GDD-MOV-06 rewritten from it. Lives are shown as seven triangles, not stripes (the poncho has triangle patterns): GDD-LIFE-01, GDD-LIFE-02, GDD-LIFE-04, GDD-WLD-01, GDD-UI-01, GDD-UI-03. Decided: lives carried across a world (GDD-LIFE-05), Mario-style power-ups in the poncho setting (new section 6, GDD-PWR-01 to GDD-PWR-06), Poncho loves tacos and spicy food (GDD-VIS-01). GDD-CMB-03, GDD-LIFE-02, GDD-PRG-01, GDD-UI-01, GDD-MVP-01, GDD-MVP-02 and Open Questions updated.
@@ -443,7 +444,7 @@ Score from hilos, enemies and time. Level medals: Bronze (clear), Silver (all hi
 
 Status: Proposed
 
-- Top-left: seven triangles (GDD-LIFE-01), filled = life, outline = lost. Next to them, a small icon of the current power-up state (GDD-PWR-01).
+- Top-left: seven triangles (GDD-LIFE-01), filled = life, outline = lost. Lives fill from the left, so a lost life empties the rightmost filled triangle. Filled and outline differ by shape, not colour alone (GDD-UI-03). Next to them, a small icon of the current power-up state (GDD-PWR-01).
 - Top-right: hilo counter.
 - Minimal, semi-transparent, hidden during cutscenes. On touch, controls are drawn under the safe-area insets (GDD-CTL-03).
 
