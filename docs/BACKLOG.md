@@ -15,11 +15,11 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-LOOP-01 | todo |  |
 | GDD-LOOP-02 | todo |  |
 | GDD-LOOP-03 | todo |  |
-| GDD-LIFE-01 | todo |  |
-| GDD-LIFE-02 | todo |  |
-| GDD-LIFE-03 | todo |  |
-| GDD-LIFE-04 | todo |  |
-| GDD-LIFE-05 | todo |  |
+| GDD-LIFE-01 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
+| GDD-LIFE-02 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
+| GDD-LIFE-03 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
+| GDD-LIFE-04 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
+| GDD-LIFE-05 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
 | GDD-MOV-01 | doing | sim done and tested; no tile collision or touch yet |
 | GDD-MOV-02 | doing | sim done and tested; no tile collision or touch yet |
 | GDD-MOV-03 | doing | coyote and buffer done; corner correction and stomp buffer pending |
