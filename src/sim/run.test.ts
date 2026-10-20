@@ -166,16 +166,33 @@ describe('GDD-LIFE-03 ofrenda checkpoints', () => {
     expect(r.checkpoint).toEqual({ x: 56, y: 64 });
   });
 
-  it('restores a life once per ofrenda, and touching a used one again makes it the checkpoint again', () => {
+  it('restores a life once per ofrenda, and a later ofrenda replaces an earlier one as the checkpoint', () => {
     let r = hurt(hurt(startRun(withOfrendas)));
     r = go(r, right, 20); // near: first touch, one life back
     expect(r.lives.lives).toBe(LIVES_MAX - 1);
-    r = stepRun({ ...r, player: spawn(far.x, far.y) }, idle, withOfrendas); // far: now the checkpoint
+    expect(r.checkpoint).toEqual({ x: near.x, y: near.y });
+    r = stepRun({ ...r, player: spawn(far.x, far.y) }, idle, withOfrendas); // far: later in the level, now the checkpoint
     expect(r.checkpoint).toEqual({ x: far.x, y: far.y });
     expect(r.lives.lives).toBe(LIVES_MAX); // far gave its own life
-    r = stepRun({ ...r, player: spawn(near.x, near.y) }, idle, withOfrendas); // back onto near, already used
-    expect(r.checkpoint).toEqual({ x: near.x, y: near.y });
-    expect(r.lives.lives).toBe(LIVES_MAX); // and no second life
+  });
+
+  it('only forward: walking back onto an earlier ofrenda does not move the checkpoint or give a second life', () => {
+    let r = go(startRun(withOfrendas), right, 20); // near used
+    r = hurt(stepRun({ ...r, player: spawn(far.x, far.y) }, idle, withOfrendas)); // far used and the checkpoint, then a life lost
+    const lives = r.lives.lives;
+    r = stepRun({ ...r, player: spawn(near.x, near.y) }, idle, withOfrendas); // back onto near
+    expect(r.checkpoint).toEqual({ x: far.x, y: far.y });
+    expect(r.lives.lives).toBe(lives);
+  });
+
+  it('an earlier ofrenda touched for the first time after a later one still gives its life, but is not the checkpoint', () => {
+    let r = hurt(startRun(withOfrendas));
+    r = stepRun({ ...r, player: spawn(far.x, far.y) }, idle, withOfrendas); // skip near, touch far first
+    expect(r.lives.lives).toBe(LIVES_MAX);
+    r = hurt(r);
+    r = stepRun({ ...r, player: spawn(near.x, near.y) }, idle, withOfrendas); // now near, for the first time
+    expect(r.lives.lives).toBe(LIVES_MAX);
+    expect(r.checkpoint).toEqual({ x: far.x, y: far.y });
   });
 
   it('at seven lives an ofrenda gives nothing but is used up', () => {
@@ -219,5 +236,8 @@ describe('GDD-LIFE-03 ofrenda checkpoints', () => {
     expect(r.player).toMatchObject({ x: 24, y: 64 });
     expect(r.checkpoint).toEqual({ x: 24, y: 64 });
     expect(r.lives.used.size).toBe(0);
+    // and the first ofrenda counts as a checkpoint again, not only a later one
+    r = go(r, right, 20);
+    expect(r.checkpoint).toEqual({ x: near.x, y: near.y });
   });
 });

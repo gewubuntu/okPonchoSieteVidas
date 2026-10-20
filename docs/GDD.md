@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.8
+Version: 0.4.9
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.9** (2026-10-20) GDD-LIFE-03 and GDD-LIFE-02: only the latest ofrenda counts, so walking back never moves the respawn point backwards (user's decision, 2026-10-20; Open Question 12 answered and removed).
 - **0.4.8** (2026-10-20) GDD-CTL-03: first touch controls built (left, right and jump buttons, shown on touch devices only), with their sizes and what is still missing.
 - **0.4.7** (2026-10-20) GDD-AUD-02 and GDD-AUD-01: the ofrenda sound is a marimba (user's choice, 2026-10-20), generated from code as a placeholder; first sound effect wired in, audio unlocks on the first gesture.
 - **0.4.6** (2026-10-20) GDD-WLD-03 and GDD-WLD-05: the sandbox level gets three ofrendas, drawn as placeholders (outline when unused, filled with a flame when used). GDD-WLD-03 notes the sandbox deviation. Open Question 12 added for GDD-LIFE-03 (can the respawn point move back).
@@ -118,14 +119,14 @@ Status: Proposed
 - Enemies and moving hazards reset to their initial state, collected *hilos* since the checkpoint are kept (no loss of progress that is not a life).
 - Respawn is instant to restart: any input skips the 0.8 s delay after 0.3 s.
 - A fall into a pit counts once the whole body is below the bottom row of the level (GDD-MOV-06). It costs one life even while invulnerable (GDD-CMB-03). While waiting to respawn Poncho is hidden. A button held through the respawn does not make him jump. Because "any input" includes a held direction, a player who keeps running into a pit respawns after 0.3 s instead of 0.8 s.
-- Respawn point: the last ofrenda Poncho touched (GDD-LIFE-03), or the level start if he touched none.
+- Respawn point: the latest ofrenda Poncho has reached (GDD-LIFE-03), or the level start if he touched none.
 
 ### GDD-LIFE-03 Regaining lives
 
-Status: Proposed
+Status: Proposed (that only the latest ofrenda counts as the checkpoint is Decided, user, 2026-10-20)
 
 - **Ofrenda checkpoint:** first activation of an ofrenda restores 1 life if fewer than 7. Each ofrenda restores only once.
-- Touching an ofrenda again, even one already used, makes it the checkpoint again, so walking back to an earlier one moves the respawn point back. It gives no second life.
+- **Only the latest ofrenda counts (Decided, user, 2026-10-20):** an ofrenda becomes the respawn point only if it comes later in the level than the current one. Touching an earlier ofrenda never moves the respawn point back. One touched for the first time after a later one still restores its life, but is not the checkpoint. Ofrendas count in the order the level lists them, which is the order the player meets them.
 - A restart after the last life (GDD-LIFE-05) puts every ofrenda back to unused and the respawn point at the level start.
 - **Veladora pickup:** a candle hidden in a level restores 1 life. At most 1 per level.
 - No other source. Lives stay scarce.
@@ -652,4 +653,3 @@ Answer these to move items from Proposed to Decided. Until then the Proposed tex
 9. **Audio (GDD-AUD-01):** will you provide music, or should placeholders be generated and licensed assets chosen?
 10. **Score and medals (GDD-PRG-03):** keep or cut?
 11. **Distribution:** where will it be hosted (itch.io, own site, stores)? This drives PWA versus native packaging.
-12. **Checkpoint order (GDD-LIFE-03):** when Poncho touches an earlier ofrenda again, should his respawn point move back to it (as built), or only ever move forward?

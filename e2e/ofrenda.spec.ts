@@ -44,6 +44,19 @@ test('GDD-LIFE-02 after a pit fall Poncho respawns at the last ofrenda touched',
   expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 312, y: 224, grounded: true });
 });
 
+test('GDD-LIFE-03 only the latest ofrenda counts: walking back to an earlier one keeps the respawn point', async ({ page }) => {
+  await boot(page);
+  await touch(page, 312);
+  await page.waitForFunction(() => window.__PONCHO__!.ofrendas()[1]!.used);
+  await touch(page, 120); // the earlier ofrenda, for the first time
+  await page.waitForFunction(() => window.__PONCHO__!.ofrendas()[0]!.used);
+  expect(await api(page, () => window.__PONCHO__!.checkpoint())).toMatchObject({ x: 312, y: 224 });
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150)); // above the pit
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'respawning');
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing');
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 312, y: 224, grounded: true });
+});
+
 test('GDD-LIFE-05 losing the last life puts the ofrendas back and restarts at the level start', async ({ page }) => {
   await boot(page);
   await touch(page, 120);

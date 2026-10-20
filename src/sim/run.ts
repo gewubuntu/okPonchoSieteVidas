@@ -20,6 +20,7 @@ export interface Level {
   readonly world: TileGrid;
   /** Where Poncho appears: the middle of a tile, standing on the floor. */
   readonly spawn: Point;
+  /** In the order the player meets them, which is the order they count as checkpoints (GDD-LIFE-03). */
   readonly ofrendas: readonly Ofrenda[];
 }
 
@@ -33,10 +34,12 @@ export interface RunState {
   readonly invulnerable: number;
   /** Where Poncho respawns: the level start, or the last ofrenda he touched (GDD-LIFE-02). */
   readonly checkpoint: Point;
+  /** Position in `Level.ofrendas` of the ofrenda that is the checkpoint, or -1 for the level start. Only moves forward. */
+  readonly checkpointIndex: number;
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1 };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -70,6 +73,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       player: { ...spawn(back.x, back.y), jumpWasHeld: true },
       lives: restart ? startWorld() : run.lives,
       checkpoint: back,
+      checkpointIndex: restart ? -1 : run.checkpointIndex,
       phase: 'playing',
       wait: 0,
       invulnerable: RESPAWN.invulnerableSteps,
@@ -81,12 +85,17 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     // Invulnerability does not protect from pits (GDD-CMB-03), so a life is lost even while it lasts.
     return { ...run, player, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
   }
-  // GDD-LIFE-03: touching an ofrenda makes it the checkpoint. It restores a life the first time only.
-  let { lives, checkpoint } = run;
-  for (const o of level.ofrendas) {
-    if (!touchesOfrenda(player, o)) continue;
+  // GDD-LIFE-03: touching an ofrenda restores a life the first time only. It becomes the checkpoint only if it is later
+  // in the level than the current one, so walking back never moves the respawn point backwards. `Level.ofrendas` is in
+  // the order they are met.
+  let { lives, checkpoint, checkpointIndex } = run;
+  level.ofrendas.forEach((o, index) => {
+    if (!touchesOfrenda(player, o)) return;
     lives = activateOfrenda(lives, o.id);
-    checkpoint = { x: o.x, y: o.y };
-  }
-  return { ...run, player, lives, checkpoint, invulnerable: Math.max(0, run.invulnerable - 1) };
+    if (index > checkpointIndex) {
+      checkpoint = { x: o.x, y: o.y };
+      checkpointIndex = index;
+    }
+  });
+  return { ...run, player, lives, checkpoint, checkpointIndex, invulnerable: Math.max(0, run.invulnerable - 1) };
 }
