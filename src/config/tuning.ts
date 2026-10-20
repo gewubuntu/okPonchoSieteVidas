@@ -60,3 +60,6 @@ export const RESPAWN = {
   /** Invulnerability after respawning, 2.0 s (GDD-LIFE-02, GDD-CMB-03). */
   invulnerableSteps: Math.round(2.0 * TICK_HZ),
 } as const;
+
+/** GDD-WLD-05: an ofrenda checkpoint is one tile wide and two tiles tall, standing on the floor. Touching it activates it. */
+export const OFRENDA = { width: TILE, height: 2 * TILE } as const;
