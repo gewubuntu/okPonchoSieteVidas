@@ -166,20 +166,16 @@ describe('GDD-LIFE-03 ofrenda checkpoints', () => {
     expect(r.checkpoint).toEqual({ x: 56, y: 64 });
   });
 
-  it('restores a life once per ofrenda, but touching it again still makes it the checkpoint', () => {
+  it('restores a life once per ofrenda, and touching a used one again makes it the checkpoint again', () => {
     let r = hurt(hurt(startRun(withOfrendas)));
-    r = go(r, right, 20);
+    r = go(r, right, 20); // near: first touch, one life back
     expect(r.lives.lives).toBe(LIVES_MAX - 1);
-    r = go(r, { move: -1, jumpHeld: false }, 30); // walk back off it
-    r = go(r, right, 30); // and on again
-    expect(r.lives.lives).toBe(LIVES_MAX - 1);
-  });
-
-  it('touching an earlier ofrenda again makes it the checkpoint again', () => {
-    const r = go({ ...startRun(withOfrendas), checkpoint: { x: far.x, y: far.y } }, idle, 1);
+    r = stepRun({ ...r, player: spawn(far.x, far.y) }, idle, withOfrendas); // far: now the checkpoint
     expect(r.checkpoint).toEqual({ x: far.x, y: far.y });
-    const back = stepRun({ ...r, player: spawn(near.x, near.y) }, idle, withOfrendas);
-    expect(back.checkpoint).toEqual({ x: near.x, y: near.y });
+    expect(r.lives.lives).toBe(LIVES_MAX); // far gave its own life
+    r = stepRun({ ...r, player: spawn(near.x, near.y) }, idle, withOfrendas); // back onto near, already used
+    expect(r.checkpoint).toEqual({ x: near.x, y: near.y });
+    expect(r.lives.lives).toBe(LIVES_MAX); // and no second life
   });
 
   it('at seven lives an ofrenda gives nothing but is used up', () => {
@@ -205,9 +201,11 @@ describe('GDD-LIFE-03 ofrenda checkpoints', () => {
     expect(r.player).toMatchObject({ x: 24, y: 64 });
   });
 
-  it('a pit takes the life even on the same step, and the checkpoint stays', () => {
-    let r = go(startRun(withOfrendas), right, 20);
+  it('a pit costs a life as usual, and the checkpoint stays', () => {
+    let r = hurt(startRun(withOfrendas));
+    r = go(r, right, 20); // near restores the life lost above
     r = fallIn(r);
+    expect(r.lives.lives).toBe(LIVES_MAX - 1);
     expect(r.checkpoint).toEqual({ x: 56, y: 64 });
   });
 
