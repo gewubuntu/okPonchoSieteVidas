@@ -109,11 +109,11 @@ Prefer an automated check over a prose rule.
 ## L-010 A test that could not fail
 
 - **Date:** 2026-10-20
-- **What went wrong:** The held-jump test for the respawn rule (PR #7) passed with the rule removed, because the input it fed never exercised the rule. The skip window was also one step late. The `pr-reviewer` agent found both by mutating the code; my own run did not.
+- **What went wrong:** The held-jump test for the respawn rule (PR #7) passed with the rule removed, because the input it fed never exercised the rule. The skip window was also one step late. The `pr-reviewer` agent found both by mutating the code; my own run did not. It happened again in PR #9 (the rule "touching a used ofrenda again moves the checkpoint" had no test that could fail, because my own mutations covered other rules) and in PR #11 (the pitch test read its notes from the code under test).
 - **Root cause:** I wrote the test, saw it green and stopped. A green test only proves the code and the test agree, not that the test can detect the rule being broken.
-- **Rule:** After writing a test for a rule, break the code (remove the rule, move a threshold by one) and confirm the test fails, then restore. The `feature` skill has this step and the `pr-reviewer` agent does it on every PR.
-- **Recurrence:** 1
-- **Promoted:** .claude/skills/feature (mutation step), pr-reviewer subagent
+- **Rule:** After writing a test for a rule, break the code (remove the rule, move a threshold by one) and confirm the test fails, then restore. Do it for every new rule or bullet in the GDD diff, not a sample, and write the expected values from the GDD into the test instead of reading them from the code under test. The `feature` skill has this step and the `pr-reviewer` agent does it on every PR.
+- **Recurrence:** 3
+- **Promoted:** .claude/skills/feature (mutation step, now one mutation per new GDD rule), pr-reviewer subagent
 
 ## L-011 Generated audio was never listened to or measured
 
@@ -123,3 +123,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** For any generated asset (audio, images), measure the output itself before showing it: non-silent samples over time, the expected frequencies, decay. Pin the expected values from the GDD in a test (`scripts/audio/ofrenda.test.mjs`), not values read back from the code under test.
 - **Recurrence:** 1
 - **Promoted:** scripts/audio/ofrenda.test.mjs (decoded-energy and pitch tests)
+
+## L-012 A failing gate was committed and pushed
+
+- **Date:** 2026-10-20
+- **What went wrong:** For the touch controls I ran `node scripts/check.mjs | tail -1; git commit ...`. The gate had failed (a TypeScript error: `toSorted` is not in the ES2022 lib), but the pipe kept only `tail`'s exit status and `;` ignores failures, so the commit and push went ahead. I saw "1 problem(s) found" in the output and fixed it in a second commit before opening the PR, so nothing broke, but CLAUDE.md says the gate must pass before every commit.
+- **Root cause:** I chained the commit after a pipeline that hides the gate's exit code, and read the result only after the commit had happened.
+- **Rule:** Run the gate on its own and check its exit code, then commit: `node scripts/check.mjs && git commit ...` with no pipe to `tail` (or `set -o pipefail`). If the output is needed, read it from a separate run.
+- **Recurrence:** 1
+- **Promoted:** .claude/skills/feature (Gate step)
