@@ -35,11 +35,20 @@ describe('GDD-AUD-02 ofrenda sound', () => {
     expect(rms(0.6, 0.05)).toBeGreaterThan(0.005);
   });
 
-  it('contains the pitch of the first bar, then the second bar', () => {
-    const [first, second] = BARS;
-    expect(level(first.hz, 0.03, 0.07)).toBeGreaterThan(0.1); // first bar, before the second is struck
-    expect(level(second.hz, 0.03, 0.07)).toBeLessThan(0.02);
-    expect(level(second.hz, 0.2, 0.2)).toBeGreaterThan(0.05);
+  it('plays E5, then B5 about 0.11 s later', () => {
+    // The pitches and the timing are written out here, from GDD-AUD-02, not read back from the module under test.
+    const E5 = 659.25;
+    const B5 = 987.77;
+    expect(BARS.map((b) => b.hz)).toEqual([E5, B5]);
+    expect(level(E5, 0.03, 0.07)).toBeGreaterThan(0.1); // first bar, before the second is struck
+    expect(level(B5, 0.03, 0.07)).toBeLessThan(0.02); // no second bar yet
+    expect(level(B5, 0.14, 0.07)).toBeGreaterThan(0.1); // second bar is already ringing
+    expect(level(E5, 0.14, 0.07)).toBeGreaterThan(0.02); // and the first is still sounding underneath
+  });
+
+  it('ends in silence, so playback does not click at the end', () => {
+    expect(Math.abs(samples[samples.length - 1])).toBeLessThan(1e-3);
+    expect(rms(DURATION - 0.01, 0.01)).toBeLessThan(0.01);
   });
 
   it('stays within range and is deterministic', () => {

@@ -245,7 +245,7 @@ export class PlayScene extends Phaser.Scene {
     if (this.run.lives.lives !== this.drawnLives) this.drawHud();
     const key = this.usedKey();
     if (key !== this.ofrendasKey) {
-      // GDD-AUD-02: the bell-like marimba plays when an ofrenda is used for the first time, not when a restart resets them.
+      // GDD-AUD-02: the marimba plays when an ofrenda is used for the first time, not when a restart resets them.
       const activated = countUsed(key) > countUsed(this.ofrendasKey);
       this.drawOfrendas();
       if (activated) this.playSfx('ofrenda');
