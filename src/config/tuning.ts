@@ -52,3 +52,11 @@ export const GRAVITY = {
 export const HITBOX = { width: 12, height: 14 } as const;
 export const HURTBOX = { width: 10, height: 12 } as const;
 export const SPRITE_FRAME = 32;
+
+/** GDD-LIFE-02: after a life is lost, wait, then respawn; any input skips the wait after a short while. */
+export const RESPAWN = {
+  delaySteps: Math.round(0.8 * TICK_HZ),
+  skipAfterSteps: Math.round(0.3 * TICK_HZ),
+  /** Invulnerability after respawning, 2.0 s (GDD-LIFE-02, GDD-CMB-03). */
+  invulnerableSteps: Math.round(2.0 * TICK_HZ),
+} as const;
