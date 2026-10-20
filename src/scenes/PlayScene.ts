@@ -1,18 +1,22 @@
-// Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, rendering) on the sandbox level.
+// Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, TILE } from '../config/tuning';
 import { SANDBOX_ROWS, SANDBOX_SPAWN } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
-import { activateOfrenda, collectVeladora, loseLife, startWorld, type LivesState } from '../sim/lives';
-import { spawn, step, type PlayerInput, type PlayerState } from '../sim/movement';
+import { activateOfrenda, collectVeladora, loseLife } from '../sim/lives';
+import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
+import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import { layoutLives } from '../ui/livesLayout';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
+const level: Level = { world, spawn: SANDBOX_SPAWN };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
+/** Steps per half of the invulnerability blink (0.1 s). */
+const BLINK_STEPS = 6;
 
 /** Dev-only hook for the `playtest` skill. Exposed only by the Vite dev server (see PlayScene.create). */
 export interface PonchoDebug {
@@ -29,6 +33,13 @@ export interface PonchoDebug {
   activateOfrenda(id: string): void;
   /** Puts Poncho at (x, y), feet position, at rest and in the air. */
   teleport(x: number, y: number): void;
+  /** 'playing', or 'respawning' while waiting after a lost life (GDD-LIFE-02). */
+  phase(): RunState['phase'];
+  /** Steps of invulnerability left after a respawn (GDD-LIFE-02). */
+  invulnerable(): number;
+  /** Whether Poncho's body is drawn, and how opaque (hidden while waiting to respawn, dim half of the blink). */
+  bodyVisible(): boolean;
+  bodyAlpha(): number;
 }
 
 declare global {
@@ -39,14 +50,14 @@ declare global {
 
 export class PlayScene extends Phaser.Scene {
   private readonly stepper = new FixedStepper();
-  private player: PlayerState = spawn(SANDBOX_SPAWN.x, SANDBOX_SPAWN.y);
-  private prevPlayer: PlayerState = this.player;
+  private run: RunState = startRun(level);
+  private prevPlayer: PlayerState = this.run.player;
   private ticks = 0;
   private peak = 0;
   private lastPeak = 0;
-  private lives: LivesState = startWorld();
   private hud!: Phaser.GameObjects.Graphics;
   private hudFilled = 0;
+  private drawnLives = 0;
   private devOfrendas = 0;
   private devVeladoras = 0;
   private devKeys?: Record<'lose' | 'ofrenda' | 'veladora', Phaser.Input.Keyboard.Key>;
@@ -76,7 +87,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawHud();
 
     // GDD-MOV-06: body hitbox, feet at the origin.
-    this.body = this.add.rectangle(this.player.x, this.player.y, HITBOX.width, HITBOX.height, 0xb94842).setOrigin(0.5, 1);
+    this.body = this.add.rectangle(this.run.player.x, this.run.player.y, HITBOX.width, HITBOX.height, 0xb94842).setOrigin(0.5, 1);
 
     const kb = this.input.keyboard;
     if (!kb) throw new Error('Keyboard input is unavailable');
@@ -89,16 +100,20 @@ export class PlayScene extends Phaser.Scene {
 
     if (import.meta.env.DEV) {
       window.__PONCHO__ = {
-        state: () => this.player,
+        state: () => this.run.player,
         ticks: () => this.ticks,
         peakRise: () => this.lastPeak,
-        lives: () => this.lives.lives,
+        lives: () => this.run.lives.lives,
+        phase: () => this.run.phase,
+        invulnerable: () => this.run.invulnerable,
+        bodyVisible: () => this.body.visible,
+        bodyAlpha: () => this.body.alpha,
         hudFilled: () => this.hudFilled,
-        loseLife: () => this.setLives(loseLife(this.lives)),
-        activateOfrenda: (id) => this.setLives(activateOfrenda(this.lives, id)),
+        loseLife: () => this.setLives(loseLife(this.run.lives)),
+        activateOfrenda: (id) => this.setLives(activateOfrenda(this.run.lives, id)),
         teleport: (x, y) => {
-          this.player = { ...spawn(x, y), grounded: false };
-          this.prevPlayer = this.player;
+          this.run = { ...this.run, player: { ...spawn(x, y), grounded: false } };
+          this.prevPlayer = this.run.player;
         },
       };
       // Dev only: L loses a life, O activates a fresh ofrenda, V collects a fresh veladora.
@@ -121,8 +136,8 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-  private setLives(next: LivesState): void {
-    this.lives = next;
+  private setLives(lives: RunState['lives']): void {
+    this.run = { ...this.run, lives };
     this.drawHud();
   }
 
@@ -130,7 +145,8 @@ export class PlayScene extends Phaser.Scene {
   private drawHud(): void {
     this.hud.clear();
     this.hudFilled = 0;
-    for (const { points: [x1, y1, x2, y2, x3, y3], filled } of layoutLives(this.lives.lives)) {
+    this.drawnLives = this.run.lives.lives;
+    for (const { points: [x1, y1, x2, y2, x3, y3], filled } of layoutLives(this.run.lives.lives)) {
       if (filled) {
         this.hudFilled++;
         this.hud.fillStyle(0xb94842, 1).fillTriangle(x1, y1, x2, y2, x3, y3);
@@ -144,9 +160,9 @@ export class PlayScene extends Phaser.Scene {
   override update(_time: number, deltaMs: number): void {
     const dev = this.devKeys;
     if (dev) {
-      if (Phaser.Input.Keyboard.JustDown(dev.lose)) this.setLives(loseLife(this.lives));
-      if (Phaser.Input.Keyboard.JustDown(dev.ofrenda)) this.setLives(activateOfrenda(this.lives, `dev-${this.devOfrendas++}`));
-      if (Phaser.Input.Keyboard.JustDown(dev.veladora)) this.setLives(collectVeladora(this.lives, `dev-${this.devVeladoras++}`));
+      if (Phaser.Input.Keyboard.JustDown(dev.lose)) this.setLives(loseLife(this.run.lives));
+      if (Phaser.Input.Keyboard.JustDown(dev.ofrenda)) this.setLives(activateOfrenda(this.run.lives, `dev-${this.devOfrendas++}`));
+      if (Phaser.Input.Keyboard.JustDown(dev.veladora)) this.setLives(collectVeladora(this.run.lives, `dev-${this.devVeladoras++}`));
     }
 
     const input: PlayerInput = {
@@ -155,19 +171,29 @@ export class PlayScene extends Phaser.Scene {
     };
 
     const alpha = this.stepper.advance(deltaMs / 1000, () => {
-      this.prevPlayer = this.player;
-      this.player = step(this.player, input, world);
+      const before = this.run;
+      this.run = stepRun(before, input, level);
+      // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
+      this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
       this.ticks++;
-      if (this.player.grounded) {
+      const { player } = this.run;
+      if (player.grounded) {
         if (this.peak > 0) this.lastPeak = this.peak;
         this.peak = 0;
       } else {
-        this.peak = Math.max(this.peak, FLOOR_Y - this.player.y);
+        this.peak = Math.max(this.peak, FLOOR_Y - player.y);
       }
     });
+    if (this.run.lives.lives !== this.drawnLives) this.drawHud();
 
-    // Render interpolated between the last two simulation states.
+    // Render interpolated between the last two simulation states. Hidden while waiting to respawn, and blinking
+    // while invulnerable (GDD-LIFE-02).
     const lerp = (a: number, b: number) => a + (b - a) * alpha;
-    this.body.setPosition(lerp(this.prevPlayer.x, this.player.x), lerp(this.prevPlayer.y, this.player.y));
+    const { player } = this.run;
+    this.body.setPosition(lerp(this.prevPlayer.x, player.x), lerp(this.prevPlayer.y, player.y));
+    this.body.setVisible(this.run.phase === 'playing');
+    // The blink phase comes from the invulnerability counter, so it is the same every time: bright for the first
+    // 0.1 s after a respawn, then dim and bright in turn.
+    this.body.setAlpha(Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
   }
 }

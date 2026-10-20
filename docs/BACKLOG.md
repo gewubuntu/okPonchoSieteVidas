@@ -16,10 +16,10 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-LOOP-02 | todo |  |
 | GDD-LOOP-03 | todo |  |
 | GDD-LIFE-01 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
-| GDD-LIFE-02 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
+| GDD-LIFE-02 | doing | pit loss, 0.8 s wait with skip, hidden while waiting, invulnerability timer and blink in src/sim/run.ts; crack animation, feet-first flip and enemy or hazard losses pending |
 | GDD-LIFE-03 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
 | GDD-LIFE-04 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
-| GDD-LIFE-05 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
+| GDD-LIFE-05 | doing | restart with 7 lives at zero is built; the Siete vidas gastadas screen and per-world scope pending |
 | GDD-MOV-01 | doing | sim done and tested; no tile collision or touch yet |
 | GDD-MOV-02 | doing | sim done and tested; no tile collision or touch yet |
 | GDD-MOV-03 | doing | coyote and buffer done; corner correction and stomp buffer pending |
@@ -39,7 +39,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-WLD-02 | todo |  |
 | GDD-WLD-03 | todo |  |
 | GDD-WLD-04 | todo |  |
-| GDD-WLD-05 | todo |  |
+| GDD-WLD-05 | doing | pits only (3-tile pit in the sandbox level); spikes, crumbling platforms, springs and the rest pending |
 | GDD-ENM-01 | todo |  |
 | GDD-ENM-02 | todo |  |
 | GDD-BOS-01 | todo |  |
