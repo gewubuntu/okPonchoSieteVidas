@@ -61,7 +61,7 @@ Every PR is reviewed by the `pr-reviewer` subagent (`.claude/agents/pr-reviewer.
 - looks at the screenshots and checks the user approved them;
 - posts one GitHub review with 🔴 blocking, 🟡 optional and 🟣 pre-existing findings, never approving or merging.
 
-Read-only is a rule the agent follows, not a sandbox: its tool list cannot restrict `Bash`. In CI it works from the diff with a short tool allow-list and lists the steps it skipped.
+Read-only is a rule the agent follows, not a sandbox: its tool list cannot restrict `Bash`. In CI it works from the diff with a short tool allow-list and lists the steps it skipped. In CI it never runs anything from the PR checkout, because that job holds the API key and a PR can change any script. For each new rule the reviewer also mutates the code and confirms a test fails (in CI it reasons about it and says so).
 
 It runs in three places:
 

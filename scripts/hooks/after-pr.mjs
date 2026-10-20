@@ -5,34 +5,42 @@
 
 import { pathToFileURL } from 'node:url';
 
-/** Calls visit(key, value) for every key and string or number in a value. Strings that hold JSON are opened too. */
-function walk(value, visit, key = '') {
+/**
+ * Calls visit(key, value, depth) for every string and number in a value. `depth` is how many objects deep the value
+ * sits, so the keys of the response's own top-level object are at depth 1. A string that holds JSON is opened too when
+ * it is the whole value or a content block's `text` (how MCP results arrive); its object then counts as a new
+ * response root, so its keys are at depth 1 whatever wrapper held it. Other strings, such as a PR body, stay text.
+ */
+function walk(value, visit, key = '', depth = 0) {
   if (typeof value === 'string') {
-    visit(key, value);
-    if (/^\s*[[{]/.test(value)) {
-      try { walk(JSON.parse(value), visit, key); } catch { /* not JSON, the plain string was already visited */ }
+    visit(key, value, depth);
+    if ((depth === 0 || key === 'text') && /^\s*[[{]/.test(value)) {
+      try { walk(JSON.parse(value), visit, key, 0); } catch { /* not JSON, already visited */ }
     }
   } else if (typeof value === 'number') {
-    visit(key, value);
+    visit(key, value, depth);
   } else if (Array.isArray(value)) {
-    for (const item of value) walk(item, visit, key);
+    for (const item of value) walk(item, visit, key, depth);
   } else if (value && typeof value === 'object') {
-    for (const [k, v] of Object.entries(value)) walk(v, visit, k);
+    for (const [k, v] of Object.entries(value)) walk(v, visit, k, depth + 1);
   }
 }
 
 /**
  * Finds the number of the created pull request in whatever shape the tool response has, or null.
- * The PR's own URL fields win over a number that appears in free text, because a PR body may link other PRs.
+ * Only the response's own top-level `html_url`, `url` and `number` count. A number or link nested inside another object
+ * (a milestone, a linked PR) or in free text such as the PR body comes last, so it cannot win over the PR's own fields.
  */
 export function findPullNumber(toolResponse) {
   const found = { html_url: null, url: null, number: null, text: null };
-  walk(toolResponse, (key, value) => {
-    if (typeof value === 'number' && key === 'number') found.number ??= value;
-    if (typeof value !== 'string') return;
-    const m = /\/pull\/(\d+)/.exec(value);
+  walk(toolResponse, (key, value, depth) => {
+    if (typeof value === 'number') {
+      if (key === 'number' && depth === 1) found.number ??= value;
+      return;
+    }
+    const m = /\/pulls?\/(\d+)/.exec(value);
     if (!m) return;
-    if (key === 'html_url' || key === 'url') found[key] ??= Number(m[1]);
+    if ((key === 'html_url' || key === 'url') && depth === 1) found[key] ??= Number(m[1]);
     else found.text ??= Number(m[1]);
   });
   return found.html_url ?? found.url ?? found.number ?? found.text;

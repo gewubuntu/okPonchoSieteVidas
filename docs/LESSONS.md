@@ -105,3 +105,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** After creating or editing a PR description, read it back with the GitHub tool and check every link. Embed a single overview image per PR, as a markdown image with a `/raw/<commit sha>/` path and no query string, and list the other files as plain links. The reviewer treats unrendered images as missing screenshots.
 - **Recurrence:** 1
 - **Promoted:** CLAUDE.md, PR template and the pr-reviewer agent
+
+## L-010 A test that could not fail
+
+- **Date:** 2026-10-20
+- **What went wrong:** The held-jump test for the respawn rule (PR #7) passed with the rule removed, because the input it fed never exercised the rule. The skip window was also one step late. The `pr-reviewer` agent found both by mutating the code; my own run did not.
+- **Root cause:** I wrote the test, saw it green and stopped. A green test only proves the code and the test agree, not that the test can detect the rule being broken.
+- **Rule:** After writing a test for a rule, break the code (remove the rule, move a threshold by one) and confirm the test fails, then restore. The `feature` skill has this step and the `pr-reviewer` agent does it on every PR.
+- **Recurrence:** 1
+- **Promoted:** .claude/skills/feature (mutation step), pr-reviewer subagent
