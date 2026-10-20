@@ -43,3 +43,41 @@ test('GDD-UI-01 each tap of the dev key L loses exactly one life', async ({ page
   }
   expect(await page.evaluate(() => window.__PONCHO__!.hudFilled())).toBe(4);
 });
+
+test('GDD-LIFE-02 a lost life cracks and fades on the HUD for 0.4 s, then stays an outline', async ({ page }) => {
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  expect(await page.evaluate(() => window.__PONCHO__!.hudCracking())).toEqual([]);
+  const start = await page.evaluate(() => {
+    window.__PONCHO__!.loseLife();
+    return window.__PONCHO__!.ticks();
+  });
+  // Cracking now: the lost triangle (the rightmost, index 6) is not counted as filled, and its fill is still showing.
+  const first = await page.evaluate(() => ({ cracking: window.__PONCHO__!.hudCracking(), filled: window.__PONCHO__!.hudFilled() }));
+  expect(first.filled).toBe(6);
+  expect(first.cracking).toHaveLength(1);
+  expect(first.cracking[0]).toMatchObject({ index: 6 });
+  expect(first.cracking[0]!.fillAlpha).toBeGreaterThan(0.5);
+  // Later in the animation the fill has faded, and the crack was seen at some point.
+  const seen: number[] = [];
+  for (let i = 0; i < 30; i++) {
+    const c = await page.evaluate(() => window.__PONCHO__!.hudCracking());
+    if (c[0]) seen.push(c[0].crackAlpha);
+    await page.waitForTimeout(10);
+  }
+  expect(Math.max(...seen)).toBeGreaterThan(0.5);
+  // After 24 steps it is over: nothing cracking, still six filled.
+  await page.waitForFunction((s) => window.__PONCHO__!.ticks() >= s + 26, start);
+  expect(await page.evaluate(() => window.__PONCHO__!.hudCracking())).toEqual([]);
+  expect(await page.evaluate(() => window.__PONCHO__!.hudFilled())).toBe(6);
+});
+
+test('GDD-LIFE-02 a pit fall cracks the lost triangle, and a refilled triangle does not crack', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150)); // above the pit
+  await page.waitForFunction(() => window.__PONCHO__!.lives() === 6);
+  expect((await page.evaluate(() => window.__PONCHO__!.hudCracking()))[0]).toMatchObject({ index: 6 });
+  await page.evaluate(() => window.__PONCHO__!.activateOfrenda('a')); // refills it at once
+  expect(await page.evaluate(() => window.__PONCHO__!.hudCracking())).toEqual([]);
+  expect(await page.evaluate(() => window.__PONCHO__!.hudFilled())).toBe(7);
+});

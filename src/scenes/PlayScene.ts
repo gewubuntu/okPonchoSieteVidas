@@ -10,6 +10,7 @@ import { activateOfrenda, collectVeladora, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
+import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
 import { layoutLives } from '../ui/livesLayout';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
@@ -51,6 +52,10 @@ export interface PonchoDebug {
   sfx(): string[];
   /** Whether the ofrenda sound file was loaded and decoded into the audio cache. */
   sfxLoaded(): boolean;
+  /** Triangles drawn as cracking now (GDD-LIFE-02), read from what was drawn: the place in the row and how much fill and crack. */
+  hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
+  /** Freezes the simulation and the animations on the current frame, for screenshots. */
+  pause(on: boolean): void;
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed (GDD-CTL-03). */
   touch(): TouchDebug;
   /** Where Poncho would respawn now (GDD-LIFE-02). */
@@ -75,6 +80,9 @@ export class PlayScene extends Phaser.Scene {
   private ofrendaGfx!: Phaser.GameObjects.Graphics;
   private ofrendasDrawn: { id: string; x: number; used: boolean }[] = [];
   private drawnLives = 0;
+  private cracks: Crack[] = [];
+  private cracksDrawn: { index: number; fillAlpha: number; crackAlpha: number }[] = [];
+  private paused = false;
   /** Which ofrendas the drawing shows as used, as a key, so a change of the set itself (not only its size) redraws. */
   private ofrendasKey = '';
   private sfxLog: string[] = [];
@@ -141,6 +149,10 @@ export class PlayScene extends Phaser.Scene {
         bodyVisible: () => this.body.visible,
         bodyAlpha: () => this.body.alpha,
         hudFilled: () => this.hudFilled,
+        hudCracking: () => this.cracksDrawn,
+        pause: (on) => {
+          this.paused = on;
+        },
         ofrendas: () => this.ofrendasDrawn,
         checkpoint: () => this.run.checkpoint,
         sfx: () => this.sfxLog,
@@ -211,16 +223,30 @@ export class PlayScene extends Phaser.Scene {
   private drawHud(): void {
     this.hud.clear();
     this.hudFilled = 0;
+    // GDD-LIFE-02: a life lost since the last drawing starts a crack on its triangle.
+    this.cracks = updateCracks(this.cracks, this.drawnLives, this.run.lives.lives, this.ticks);
     this.drawnLives = this.run.lives.lives;
-    for (const { points: [x1, y1, x2, y2, x3, y3], filled } of layoutLives(this.run.lives.lives)) {
+    this.cracksDrawn = [];
+    layoutLives(this.run.lives.lives).forEach((triangle, index) => {
+      const { points: [x1, y1, x2, y2, x3, y3], filled } = triangle;
       if (filled) {
         this.hudFilled++;
         this.hud.fillStyle(0xb94842, 1).fillTriangle(x1, y1, x2, y2, x3, y3);
         this.hud.lineStyle(1, 0xfff3dc, 1).strokeTriangle(x1, y1, x2, y2, x3, y3);
-      } else {
-        this.hud.lineStyle(1, 0x9ba3c4, 1).strokeTriangle(x1, y1, x2, y2, x3, y3);
+        return;
       }
-    }
+      const frame = crackFrame(this.cracks.find((c) => c.index === index) ?? { index, start: Infinity }, this.ticks);
+      if (frame) {
+        // Cracking: the red fill fades out, and a crack line shows across it, over the outline of a lost life.
+        this.cracksDrawn.push({ index, ...frame });
+        this.hud.fillStyle(0xb94842, frame.fillAlpha).fillTriangle(x1, y1, x2, y2, x3, y3);
+        const line = crackLine(triangle);
+        this.hud.lineStyle(1, 0xfff3dc, frame.crackAlpha).beginPath().moveTo(line[0]!, line[1]!);
+        for (let i = 2; i < line.length; i += 2) this.hud.lineTo(line[i]!, line[i + 1]!);
+        this.hud.strokePath();
+      }
+      this.hud.lineStyle(1, 0x9ba3c4, 1).strokeTriangle(x1, y1, x2, y2, x3, y3);
+    });
   }
 
   override update(_time: number, deltaMs: number): void {
@@ -238,7 +264,7 @@ export class PlayScene extends Phaser.Scene {
       jumpHeld: down(this.keys.jump) || touch.jumpHeld,
     };
 
-    const alpha = this.stepper.advance(deltaMs / 1000, () => {
+    const alpha = this.paused ? 1 : this.stepper.advance(deltaMs / 1000, () => {
       const before = this.run;
       this.run = stepRun(before, input, level);
       // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
@@ -252,7 +278,8 @@ export class PlayScene extends Phaser.Scene {
         this.peak = Math.max(this.peak, FLOOR_Y - player.y);
       }
     });
-    if (this.run.lives.lives !== this.drawnLives) this.drawHud();
+    // Redraw when the lives change, and on every step while a triangle is cracking.
+    if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0) this.drawHud();
     const key = this.usedKey();
     if (key !== this.ofrendasKey) {
       // GDD-AUD-02: the marimba plays when an ofrenda is used for the first time, not when a restart resets them.
