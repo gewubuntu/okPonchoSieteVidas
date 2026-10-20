@@ -93,8 +93,9 @@ export function step(prev: PlayerState, input: PlayerInput, world: World): Playe
   if (Math.abs(vy0) < GRAVITY.hangSpeed) g *= GRAVITY.hangMultiplier;
   s.vy = Math.min(vy0 + g * STEP, GRAVITY.terminalVelocity);
 
-  // GDD-MOV-06: move one axis at a time and snap to the tile edge that was hit. Fastest speed is 360 px/s, which is
-  // 6 px per step and far less than a tile, so the box can never jump over a tile.
+  // GDD-MOV-06: move one axis at a time and snap to the tile edge that was hit. The fastest speed is the 410 px/s jump
+  // takeoff, about 6.8 px per step and far less than a 16 px tile, so the box can never jump over a tile (a test
+  // guards this against the tuning values).
   const dx = ((vx0 + s.vx) / 2) * STEP;
   const dy = ((vy0 + s.vy) / 2) * STEP;
 

@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.2
+Version: 0.4.3
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.3** (2026-10-20) GDD-MOV-06 and GDD-WLD-03: level edges and pit behaviour written down, and how gap width is measured (reconciles the 4.1 to 4.3 tile jump distance with the 5-tile gap). Level-limit tests extended.
 - **0.4.2** (2026-10-19) GDD-WLD-03 and GDD-MOV-06: measured level limits from the tile-collision tests (a full jump mantles a wall 3 tiles high but not 4, and crosses a gap of 5 tiles but not 6). Collision built.
 - **0.4.1** (2026-10-19) GDD-UI-01: lives fill from the left and empty from the right; triangles are told apart by fill versus outline, not colour. HUD built.
 - **0.4.0** (2026-10-19) Decided: state-of-the-art stack on the latest stable releases (Phaser 4, TypeScript 7, Vite 8, Vitest 5, Playwright, Oxlint): GDD-TEC-01 rewritten, new GDD-TEC-07 dependency policy, ADR 0002.
@@ -191,6 +192,7 @@ Status: Proposed. Based on the reference image (GDD-ART-02); validate against th
 - Sprite frame: 32 x 32 px. Poncho is a chibi cat about 2.5 heads tall with a very wide sombrero (the brim is about 1.5 times the width of the body).
 - Body hitbox (ground and walls): 12 px wide, 14 px tall, centred at the feet. Fits through a 1-tile-high gap (checked by a test).
 - Hurtbox (enemies and hazards): 10 x 12 px, inside the body hitbox, so near-misses feel fair.
+- Level edges: the left and right edges of a level are solid walls, so Poncho cannot walk out. The sky above is open, so he can jump above the top row. Below the bottom row is open space, a pit (GDD-WLD-05).
 - The sombrero brim is visual only. The crown top is the head-bump point for piñatas (GDD-PWR-05).
 
 ### GDD-MOV-07 Poncho glide
@@ -361,7 +363,7 @@ Status: Proposed
 - 1 hidden secret per level (a room or a veladora).
 - Teaching order: new mechanic is introduced in a safe spot, then combined with a threat, then used in a test.
 - Gaps never exceed 3 tiles in World 1 (jump distance is about 4.1 to 4.3 tiles at full run, GDD-MOV-01 to GDD-MOV-04).
-- Measured with the real body box against tiles (`src/sim/collision.test.ts`): a full jump can climb onto a wall 3 tiles high but not 4, and a running jump can cross a gap of 5 tiles but not 6. Walls taller than 3 tiles block the path; gaps wider than 5 tiles are impassable without a power. Design to the World 1 limit of 3 so there is room for mistakes.
+- Measured with the real body box against tiles (`src/sim/collision.test.ts`): a full jump can climb onto a wall 3 tiles high but not 4, and a running jump can cross a gap of 5 tiles but not 6. Gaps are measured edge to edge. The body only has to overlap the far edge, so a 5-tile gap (80 px) costs about 4.25 tiles (68 px) of travel from centre to centre, which is why it fits the 4.1 to 4.3 tile jump distance above. Walls taller than 3 tiles block the path; gaps wider than 5 tiles are impassable without a power. Design to the World 1 limit of 3 so there is room for mistakes.
 
 ### GDD-WLD-04 Collectibles
 

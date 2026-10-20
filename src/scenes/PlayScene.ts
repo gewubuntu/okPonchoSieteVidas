@@ -1,5 +1,5 @@
-// Placeholder scene: proves the loop (input, fixed-step simulation, rendering) on a flat floor.
-// Final art arrives with GDD-ART-01 and GDD-ART-02, levels with GDD-TEC-04.
+// Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, rendering) on the sandbox level.
+// Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, TILE } from '../config/tuning';
 import { SANDBOX_ROWS, SANDBOX_SPAWN } from '../levels/sandbox';

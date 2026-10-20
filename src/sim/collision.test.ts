@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HITBOX, TILE } from '../config/tuning';
+import { GRAVITY, HITBOX, JUMP, RUN, STEP, TILE } from '../config/tuning';
 import { spawn, step, type PlayerInput, type PlayerState, type World } from './movement';
 import { parseTiles } from './tilemap';
 
@@ -90,6 +90,37 @@ describe('GDD-MOV-06 floors, walls and ceilings', () => {
     expect(s.x).toBeCloseTo(12 * TILE - HITBOX.width / 2, 5); // walked the whole slot to the far wall
   });
 
+  it('moves less than one tile per step at the fastest speed, so it cannot skip a tile', () => {
+    const fastest = Math.max(JUMP.velocity, GRAVITY.terminalVelocity, RUN.maxSpeed);
+    expect(fastest * STEP).toBeLessThan(TILE);
+  });
+
+  it('stands on a ledge until the body box fully leaves it, and falls the moment it does', () => {
+    const w = parseTiles(['......', '......', '###...']); // floor under x < 48
+    const leaving = (x: number) => step({ ...spawn(x, 2 * TILE) }, idle, w);
+    expect(leaving(48 + HITBOX.width / 2 - 0.001)).toMatchObject({ grounded: true, y: 2 * TILE }); // overlaps by 0.001
+    expect(leaving(48 + HITBOX.width / 2).grounded).toBe(false); // only touching the edge
+  });
+
+  it('pressed into a wall and ceiling corner stops flush against both', () => {
+    const w = parseTiles(['########', '......#.', '......#.', '########']); // a 2-tile-high room
+    let s = standAt(5, 3);
+    let highest = s.y;
+    for (let i = 0; i < 90; i++) {
+      s = step(s, { move: 1, jumpHeld: i >= 5 }, w);
+      highest = Math.min(highest, s.y);
+    }
+    expect(s.x).toBeCloseTo(6 * TILE - HITBOX.width / 2, 5); // flush with the wall
+    expect(highest).toBeCloseTo(TILE + HITBOX.height, 5); // head flush with the ceiling's underside (y = 16)
+  });
+
+  it('does not stick to a wall it is pressed against: a jump still rises to full height', () => {
+    const w = parseTiles(['.......', '.......', '.......', '.....#.', '.....#.', '#######']);
+    const seen = runAndJump(w, standAt(1, 5), 60, 80); // runs into the wall first, then jumps while pressing right
+    const highest = Math.min(...seen.map((s) => s.y));
+    expect(5 * TILE - highest).toBeGreaterThan(54.5); // the same 56 px peak as a jump in the open (GDD-MOV-02)
+  });
+
   it('never passes through a tile at terminal speed', () => {
     const w = parseTiles(['..........', '..........', '##########']);
     const s = run({ ...standAt(2, 2), y: -2000, grounded: false }, idle, 600, w);
@@ -138,8 +169,8 @@ describe('GDD-MOV-02 and GDD-WLD-03 against real tiles', () => {
     expect(canMantle(4)).toBe(false);
   });
 
-  it('a running jump crosses a gap 3 tiles wide, the limit for World 1', () => {
-    expect(crossesGap(3)).toBe(true);
+  it('a running jump crosses a gap 3 tiles wide, the limit for World 1, and up to 5 tiles', () => {
+    expect([3, 4, 5].map(crossesGap)).toEqual([true, true, true]);
   });
 
   it('a running jump cannot cross a gap 6 tiles wide', () => {
