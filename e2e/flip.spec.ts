@@ -5,7 +5,8 @@ const FLOOR = 224; // the sandbox floor, and the level start is at x = 56
 const pose = (page: Page) => page.evaluate(() => ({ ...window.__PONCHO__!.bodyPose(), visible: window.__PONCHO__!.bodyVisible() }));
 /** The pale strip along the feet of the placeholder body. */
 const cream = (c: { r: number; g: number; b: number }) => c.r > 200 && c.g > 190 && c.b > 170;
-const step = (page: Page, n: number) => page.evaluate((k) => window.__PONCHO__!.step(k), n);
+const step = (page: Page, n: number, input?: { move: number; jumpHeld: boolean }) =>
+  page.evaluate(([k, i]) => window.__PONCHO__!.step(k, i), [n, input] as const);
 
 /** Drops Poncho into the pit with the game paused, and steps to the first step of the 0.8 s wait (48 steps left). */
 async function fallIntoPit(page: Page) {
@@ -103,4 +104,46 @@ test('GDD-LIFE-02 the flip lands at the latest ofrenda, not the level start', as
   expect(middle.x).toBe(312);
   await step(page, 11); // landed and respawned
   expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ x: 312, y: FLOOR, grounded: true });
+});
+
+test('GDD-LIFE-05 after the last life the flip lands at the level start, not at the ofrenda', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => {
+    window.__PONCHO__!.pause(true);
+    window.__PONCHO__!.teleport(312, 224); // the second ofrenda is the checkpoint...
+  });
+  await step(page, 2);
+  expect(await page.evaluate(() => window.__PONCHO__!.checkpoint())).toMatchObject({ x: 312 });
+  for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife()); // ...but only one life is left
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
+  for (let i = 0; i < 200 && (await page.evaluate(() => window.__PONCHO__!.phase())) !== 'respawning'; i++) await step(page, 1);
+  expect(await page.evaluate(() => window.__PONCHO__!.lives())).toBe(0);
+  await step(page, 27 + 10); // in the middle of the flip
+  const middle = await pose(page);
+  expect(middle.visible).toBe(true);
+  expect(middle.x).toBe(56); // over the level start
+  await step(page, 11);
+  expect(await page.evaluate(() => window.__PONCHO__!.lives())).toBe(7);
+  expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: FLOOR });
+});
+
+test('GDD-LIFE-02 a skip in the middle of the flip puts him upright at the respawn point at once', async ({ page }) => {
+  await fallIntoPit(page);
+  await step(page, 27 + 10); // wait 11: upside down in mid-air
+  const before = await pose(page);
+  expect(before.y).toBeLessThan(FLOOR - 20);
+  expect(Math.abs(Math.cos(before.rotation) - 1)).toBeGreaterThan(0.5); // clearly not upright
+  await step(page, 1, { move: 1, jumpHeld: false }); // any input after 0.3 s skips the rest of the wait
+  expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('playing');
+  const after = await pose(page);
+  expect(after).toMatchObject({ x: 56, y: FLOOR, rotation: 0, visible: true });
+});
+
+test('GDD-LIFE-02 a skip before the flip starts never shows a flip', async ({ page }) => {
+  await fallIntoPit(page);
+  await step(page, 20); // 28 steps of the wait left, still hidden
+  expect((await pose(page)).visible).toBe(false);
+  await step(page, 1, { move: 1, jumpHeld: false }); // skipped: no flip is drawn
+  expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('playing');
+  expect(await pose(page)).toMatchObject({ x: 56, y: FLOOR, rotation: 0, visible: true });
 });

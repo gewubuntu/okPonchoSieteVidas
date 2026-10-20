@@ -18,6 +18,10 @@ describe('GDD-LIFE-02 and GDD-MOV-05 respawn flip', () => {
   });
 
   it('drops from 48 px above the respawn point down to it, faster and faster', () => {
+    // The numbers are written out from GDD-LIFE-02, not read back from the tuning file.
+    expect(FLIP.height).toBe(48);
+    expect(FLIP.turns).toBe(1);
+    expect(flipPose(11).dy).toBeCloseTo(34.8, 1); // part way down: a straight, a quadratic and a cubic drop all differ here
     const poses = Array.from({ length: FLIP.steps }, (_, i) => flipPose(FLIP.steps - i));
     expect(poses[0]!.dy).toBeGreaterThan(FLIP.height - 1);
     expect(poses[0]!.dy).toBeLessThanOrEqual(FLIP.height);

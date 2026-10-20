@@ -61,8 +61,8 @@ export interface PonchoDebug {
   hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
   /** Freezes the simulation and the animations on the current frame, for screenshots and pixel tests. */
   pause(on: boolean): void;
-  /** While paused, runs exactly `n` simulation steps with no input, so a frame can be reached without timing luck. */
-  step(n: number): void;
+  /** While paused, runs exactly `n` simulation steps, with no input unless given, so a frame can be reached without timing luck. */
+  step(n: number, input?: PlayerInput): void;
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed (GDD-CTL-03). */
   touch(): TouchDebug;
   /** Where Poncho would respawn now (GDD-LIFE-02). */
@@ -167,9 +167,9 @@ export class PlayScene extends Phaser.Scene {
         pause: (on) => {
           this.paused = on;
         },
-        step: (n) => {
+        step: (n, input = { move: 0, jumpHeld: false }) => {
           if (!this.paused) throw new Error('step() needs the game paused');
-          for (let i = 0; i < n; i++) this.simStep({ move: 0, jumpHeld: false });
+          for (let i = 0; i < n; i++) this.simStep(input);
           this.drawHud();
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
         },
