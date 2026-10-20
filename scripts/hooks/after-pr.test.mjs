@@ -25,6 +25,13 @@ describe('after-pr hook', () => {
     expect(findPullNumber({ milestone: { number: 3 } })).toBeNull();
   });
 
+  it('reads a response wrapped as { content: [{ type: text, text }] }', () => {
+    const wrap = (o) => ({ content: [{ type: 'text', text: JSON.stringify(o) }] });
+    expect(findPullNumber(wrap({ number: 9, milestone: { number: 3 } }))).toBe(9);
+    expect(findPullNumber(wrap({ body: 'follows https://github.com/o/r/pull/2', number: 9 }))).toBe(9);
+    expect(findPullNumber({ body: '{"number":5}', number: 9 })).toBe(9);
+  });
+
   it('falls back to a number field, and to null when there is none', () => {
     expect(findPullNumber({ number: 7 })).toBe(7);
     expect(findPullNumber({})).toBeNull();

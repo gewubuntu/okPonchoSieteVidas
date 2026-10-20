@@ -7,14 +7,15 @@ import { pathToFileURL } from 'node:url';
 
 /**
  * Calls visit(key, value, depth) for every string and number in a value. `depth` is how many objects deep the value
- * sits, so the keys of the response's own top-level object are at depth 1. Strings that hold JSON are opened too, and
- * their top-level object counts as the same depth as the string that held it.
+ * sits, so the keys of the response's own top-level object are at depth 1. A string that holds JSON is opened too when
+ * it is the whole value or a content block's `text` (how MCP results arrive); its object then counts as a new
+ * response root, so its keys are at depth 1 whatever wrapper held it. Other strings, such as a PR body, stay text.
  */
 function walk(value, visit, key = '', depth = 0) {
   if (typeof value === 'string') {
     visit(key, value, depth);
-    if (/^\s*[[{]/.test(value)) {
-      try { walk(JSON.parse(value), visit, key, Math.max(depth - 1, 0)); } catch { /* not JSON, already visited */ }
+    if ((depth === 0 || key === 'text') && /^\s*[[{]/.test(value)) {
+      try { walk(JSON.parse(value), visit, key, 0); } catch { /* not JSON, already visited */ }
     }
   } else if (typeof value === 'number') {
     visit(key, value, depth);
