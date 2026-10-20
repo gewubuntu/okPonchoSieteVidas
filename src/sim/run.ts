@@ -34,8 +34,9 @@ export function isInPit(player: PlayerState, world: TileGrid): boolean {
 /** Advances one fixed step. Returns a new state and never mutates its input. */
 export function stepRun(run: RunState, input: PlayerInput, level: Level): RunState {
   if (run.phase === 'respawning') {
-    const waited = RESPAWN.delaySteps - run.wait;
-    const skip = waited >= RESPAWN.skipAfterSteps && (input.move !== 0 || input.jumpHeld);
+    // `elapsed` is the number of respawning steps taken including this one, so 0.3 s is step 18 and 0.8 s is step 48.
+    const elapsed = RESPAWN.delaySteps - run.wait + 1;
+    const skip = elapsed >= RESPAWN.skipAfterSteps && (input.move !== 0 || input.jumpHeld);
     const wait = skip ? 0 : run.wait - 1;
     if (wait > 0) return { ...run, wait };
     return {

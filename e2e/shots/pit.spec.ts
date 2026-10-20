@@ -17,5 +17,7 @@ test('GDD-LIFE-02 pit: the level, the fall, waiting to respawn, and back at the 
   await page.waitForFunction(() => window.__PONCHO__!.phase() === 'respawning');
   await shot(page, info, 'pit-waiting-6-lives');
   await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing');
+  // Wait for the blink to end so the picture does not depend on which half of the blink the screenshot lands in.
+  await page.waitForFunction(() => window.__PONCHO__!.invulnerable() === 0, undefined, { timeout: 5000 });
   await shot(page, info, 'pit-respawned');
 });

@@ -15,6 +15,8 @@ const world = parseTiles(SANDBOX_ROWS);
 const level: Level = { world, spawn: SANDBOX_SPAWN };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
+/** Steps per half of the invulnerability blink (0.1 s). */
+const BLINK_STEPS = 6;
 
 /** Dev-only hook for the `playtest` skill. Exposed only by the Vite dev server (see PlayScene.create). */
 export interface PonchoDebug {
@@ -35,6 +37,9 @@ export interface PonchoDebug {
   phase(): RunState['phase'];
   /** Steps of invulnerability left after a respawn (GDD-LIFE-02). */
   invulnerable(): number;
+  /** Whether Poncho's body is drawn, and how opaque (hidden while waiting to respawn, dim half of the blink). */
+  bodyVisible(): boolean;
+  bodyAlpha(): number;
 }
 
 declare global {
@@ -101,6 +106,8 @@ export class PlayScene extends Phaser.Scene {
         lives: () => this.run.lives.lives,
         phase: () => this.run.phase,
         invulnerable: () => this.run.invulnerable,
+        bodyVisible: () => this.body.visible,
+        bodyAlpha: () => this.body.alpha,
         hudFilled: () => this.hudFilled,
         loseLife: () => this.setLives(loseLife(this.run.lives)),
         activateOfrenda: (id) => this.setLives(activateOfrenda(this.run.lives, id)),
@@ -185,6 +192,8 @@ export class PlayScene extends Phaser.Scene {
     const { player } = this.run;
     this.body.setPosition(lerp(this.prevPlayer.x, player.x), lerp(this.prevPlayer.y, player.y));
     this.body.setVisible(this.run.phase === 'playing');
-    this.body.setAlpha(this.run.invulnerable > 0 && Math.floor(this.ticks / 6) % 2 === 0 ? 0.3 : 1);
+    // The blink phase comes from the invulnerability counter, so it is the same every time: bright for the first
+    // 0.1 s after a respawn, then dim and bright in turn.
+    this.body.setAlpha(Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
   }
 }

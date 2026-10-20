@@ -37,3 +37,26 @@ test('GDD-LIFE-05 losing the last life restarts the world with seven lives', asy
   expect(await api(page, () => window.__PONCHO__!.hudFilled())).toBe(7);
   expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: 224 });
 });
+
+test('GDD-LIFE-02 Poncho is hidden while waiting to respawn and blinks while invulnerable', async ({ page }) => {
+  await boot(page);
+  expect(await api(page, () => window.__PONCHO__!.bodyVisible())).toBe(true);
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'respawning');
+  await page.waitForTimeout(100); // let a frame draw
+  expect(await api(page, () => window.__PONCHO__!.bodyVisible())).toBe(false);
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing');
+  // Sample the opacity while he is invulnerable: it must be both dim and bright at times.
+  const seen = new Set<number>();
+  for (let i = 0; i < 24; i++) {
+    seen.add(await api(page, () => window.__PONCHO__!.bodyAlpha()));
+    await page.waitForTimeout(25);
+  }
+  expect(seen.has(1)).toBe(true);
+  expect(seen.has(0.3)).toBe(true);
+  expect(await api(page, () => window.__PONCHO__!.bodyVisible())).toBe(true);
+  // Once the invulnerability is over he is fully opaque and stays that way.
+  await page.waitForFunction(() => window.__PONCHO__!.invulnerable() === 0, undefined, { timeout: 5000 });
+  await page.waitForTimeout(100);
+  expect(await api(page, () => window.__PONCHO__!.bodyAlpha())).toBe(1);
+});

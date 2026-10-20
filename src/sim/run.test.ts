@@ -75,19 +75,36 @@ describe('GDD-LIFE-02 respawning', () => {
     expect(run(fallIn(), idle, RESPAWN.delaySteps - 1).phase).toBe('respawning');
   });
 
-  it('ignores input for the first 0.3 s, then any input skips the wait', () => {
+  it('ignores input before step 18 (0.3 s), then any input skips the wait', () => {
     const fallen = fallIn();
-    expect(run(fallen, right, RESPAWN.skipAfterSteps - 1).phase).toBe('respawning');
-    const afterSkipWindow = run(fallen, idle, RESPAWN.skipAfterSteps);
-    expect(stepRun(afterSkipWindow, right, level).phase).toBe('playing');
-    expect(stepRun(afterSkipWindow, { move: 0, jumpHeld: true }, level).phase).toBe('playing');
-    expect(stepRun(afterSkipWindow, idle, level).phase).toBe('respawning');
+    const jump: PlayerInput = { move: 0, jumpHeld: true };
+    // `before` steps have been taken without input when the next step has input.
+    const withInput = (before: number, input: PlayerInput) => stepRun(run(fallen, idle, before), input, level).phase;
+    expect(withInput(RESPAWN.skipAfterSteps - 2, right)).toBe('respawning'); // step 17
+    expect(withInput(RESPAWN.skipAfterSteps - 1, right)).toBe('playing'); // step 18, exactly 0.3 s
+    expect(withInput(RESPAWN.skipAfterSteps - 1, jump)).toBe('playing'); // a jump press skips it too
+    expect(withInput(RESPAWN.skipAfterSteps - 1, idle)).toBe('respawning'); // no input, no skip
   });
 
-  it('does not jump on respawn when the jump button is still held', () => {
-    const r = run(fallIn(), { move: 0, jumpHeld: true }, RESPAWN.delaySteps + 5);
+  it('without input the wait ends on step 48 (0.8 s), not before', () => {
+    const fallen = fallIn();
+    expect(run(fallen, idle, RESPAWN.delaySteps - 1).phase).toBe('respawning');
+    expect(run(fallen, idle, RESPAWN.delaySteps).phase).toBe('playing');
+  });
+
+  it('does not jump on respawn when the jump button is still held, but does when it is pressed again', () => {
+    const held: PlayerInput = { move: 0, jumpHeld: true };
+    let r = fallIn();
+    for (let i = 0; i < 100 && r.phase === 'respawning'; i++) r = stepRun(r, held, level);
     expect(r.phase).toBe('playing');
-    expect(r.player.grounded).toBe(true);
+    for (let i = 0; i < 3; i++) {
+      r = stepRun(r, held, level);
+      expect(r.player).toMatchObject({ grounded: true, vy: 0 }); // still standing on the step after respawn
+    }
+    r = stepRun(r, idle, level); // release
+    r = stepRun(r, held, level); // press again
+    expect(r.player.vy).toBeLessThan(0);
+    expect(r.player.grounded).toBe(false);
   });
 
   it('counts the invulnerability down to zero after 2.0 s', () => {
