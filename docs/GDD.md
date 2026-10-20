@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.5
+Version: 0.4.6
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.6** (2026-10-20) GDD-WLD-03 and GDD-WLD-05: the sandbox level gets three ofrendas, drawn as placeholders (outline when unused, filled with a flame when used).
 - **0.4.5** (2026-10-20) GDD-LIFE-02, GDD-LIFE-03 and GDD-WLD-05: ofrenda checkpoints as rules (size, touch, respawn point, what a restart resets). Logic only; drawing them and placing them in a level come next.
 - **0.4.4** (2026-10-20) GDD-LIFE-02, GDD-LIFE-05 and GDD-WLD-05: when a fall into a pit counts, what is built so far (wait, skip, invulnerability timer, restart at zero lives), and what is left (crack animation, feet-first flip, checkpoints, the "Siete vidas gastadas" screen). Sandbox level gets a 3-tile pit.
 - **0.4.3** (2026-10-20) GDD-MOV-06 and GDD-WLD-03: level edges and pit behaviour written down, and how gap width is measured (reconciles the 4.1 to 4.3 tile jump distance with the 5-tile gap). Level-limit tests extended.
@@ -386,6 +387,7 @@ Status: Proposed
 Core set: spikes (cactus, obsidian), pits, crumbling platforms (0.5 s warning), springs (bounce 480 px/s), moving platforms, fragile walls (claw-breakable), ofrendas (checkpoints), doors and keys. Each world adds one signature hazard (GDD-WLD-02).
 
 - **Ofrenda:** one tile wide and two tiles tall (16 x 32 px), standing on the floor. It is activated when Poncho's body box (GDD-MOV-06) overlaps it; boxes that only share an edge do not touch. It does not need a button press and works in the air, so a jump through it counts.
+- Placeholder look until real art (GDD-ART-01): an outlined frame when unused, filled with a flame on top once used, so the two differ by shape and not only by colour (GDD-UI-03). The sandbox level has three, at about 25%, 65% and 85% of its width; the 55% spot of GDD-WLD-03 is in its pit.
 
 ---
 

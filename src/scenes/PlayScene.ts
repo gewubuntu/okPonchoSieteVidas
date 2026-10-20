@@ -1,8 +1,8 @@
 // Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { BASE_WIDTH, HITBOX, TILE } from '../config/tuning';
-import { SANDBOX_ROWS, SANDBOX_SPAWN } from '../levels/sandbox';
+import { BASE_WIDTH, HITBOX, OFRENDA, TILE } from '../config/tuning';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import { activateOfrenda, collectVeladora, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
@@ -12,7 +12,7 @@ import { layoutLives } from '../ui/livesLayout';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: [] };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
 /** Steps per half of the invulnerability blink (0.1 s). */
@@ -40,6 +40,10 @@ export interface PonchoDebug {
   /** Whether Poncho's body is drawn, and how opaque (hidden while waiting to respawn, dim half of the blink). */
   bodyVisible(): boolean;
   bodyAlpha(): number;
+  /** Each ofrenda as drawn: its id and whether it is drawn as used. Read from what was drawn, not from the game state. */
+  ofrendas(): { id: string; x: number; used: boolean }[];
+  /** Where Poncho would respawn now (GDD-LIFE-02). */
+  checkpoint(): { x: number; y: number };
 }
 
 declare global {
@@ -57,7 +61,10 @@ export class PlayScene extends Phaser.Scene {
   private lastPeak = 0;
   private hud!: Phaser.GameObjects.Graphics;
   private hudFilled = 0;
+  private ofrendaGfx!: Phaser.GameObjects.Graphics;
+  private ofrendasDrawn: { id: string; x: number; used: boolean }[] = [];
   private drawnLives = 0;
+  private ofrendasUsed = 0;
   private devOfrendas = 0;
   private devVeladoras = 0;
   private devKeys?: Record<'lose' | 'ofrenda' | 'veladora', Phaser.Input.Keyboard.Key>;
@@ -86,8 +93,11 @@ export class PlayScene extends Phaser.Scene {
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(10);
     this.drawHud();
 
+    this.ofrendaGfx = this.add.graphics().setDepth(2);
+    this.drawOfrendas();
+
     // GDD-MOV-06: body hitbox, feet at the origin.
-    this.body = this.add.rectangle(this.run.player.x, this.run.player.y, HITBOX.width, HITBOX.height, 0xb94842).setOrigin(0.5, 1);
+    this.body = this.add.rectangle(this.run.player.x, this.run.player.y, HITBOX.width, HITBOX.height, 0xb94842).setOrigin(0.5, 1).setDepth(3);
 
     const kb = this.input.keyboard;
     if (!kb) throw new Error('Keyboard input is unavailable');
@@ -109,6 +119,8 @@ export class PlayScene extends Phaser.Scene {
         bodyVisible: () => this.body.visible,
         bodyAlpha: () => this.body.alpha,
         hudFilled: () => this.hudFilled,
+        ofrendas: () => this.ofrendasDrawn,
+        checkpoint: () => this.run.checkpoint,
         loseLife: () => this.setLives(loseLife(this.run.lives)),
         activateOfrenda: (id) => this.setLives(activateOfrenda(this.run.lives, id)),
         teleport: (x, y) => {
@@ -134,6 +146,26 @@ export class PlayScene extends Phaser.Scene {
         g.fillRect(tx * TILE, ty * TILE, TILE, TILE).strokeRect(tx * TILE + 0.5, ty * TILE + 0.5, TILE - 1, TILE - 1);
       }
     }
+  }
+
+  /**
+   * Placeholder ofrenda art (GDD-WLD-05): an outlined frame when unused, filled with a flame on top once used, so the two
+   * differ by shape and not only by colour (GDD-UI-03). Real art arrives with GDD-ART-01.
+   */
+  private drawOfrendas(): void {
+    this.ofrendaGfx.clear();
+    this.ofrendasDrawn = level.ofrendas.map((o) => ({ id: o.id, x: o.x, used: this.run.lives.used.has(`ofrenda:${o.id}`) }));
+    for (const o of level.ofrendas) {
+      const used = this.run.lives.used.has(`ofrenda:${o.id}`);
+      const x = o.x - OFRENDA.width / 2;
+      const y = o.y - OFRENDA.height;
+      if (used) {
+        this.ofrendaGfx.fillStyle(0xe8a33d, 1).fillRect(x + 2, y + 10, OFRENDA.width - 4, OFRENDA.height - 10);
+        this.ofrendaGfx.fillStyle(0xfff3dc, 1).fillTriangle(x + 8, y, x + 4, y + 10, x + 12, y + 10);
+      }
+      this.ofrendaGfx.lineStyle(1, used ? 0xfff3dc : 0x9ba3c4, 1).strokeRect(x + 2.5, y + 10.5, OFRENDA.width - 5, OFRENDA.height - 11);
+    }
+    this.ofrendasUsed = this.run.lives.used.size;
   }
 
   private setLives(lives: RunState['lives']): void {
@@ -185,6 +217,7 @@ export class PlayScene extends Phaser.Scene {
       }
     });
     if (this.run.lives.lives !== this.drawnLives) this.drawHud();
+    if (this.run.lives.used.size !== this.ofrendasUsed) this.drawOfrendas();
 
     // Render interpolated between the last two simulation states. Hidden while waiting to respawn, and blinking
     // while invulnerable (GDD-LIFE-02).
