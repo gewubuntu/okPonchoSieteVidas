@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.5
+Version: 0.4.6
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.6** (2026-10-20) GDD-WLD-03 and GDD-WLD-05: the sandbox level gets three ofrendas, drawn as placeholders (outline when unused, filled with a flame when used). GDD-WLD-03 notes the sandbox deviation. Open Question 12 added for GDD-LIFE-03 (can the respawn point move back).
 - **0.4.5** (2026-10-20) GDD-LIFE-02, GDD-LIFE-03 and GDD-WLD-05: ofrenda checkpoints as rules (size, touch, respawn point, what a restart resets). Logic only; drawing them and placing them in a level come next.
 - **0.4.4** (2026-10-20) GDD-LIFE-02, GDD-LIFE-05 and GDD-WLD-05: when a fall into a pit counts, what is built so far (wait, skip, invulnerability timer, restart at zero lives), and what is left (crack animation, feet-first flip, checkpoints, the "Siete vidas gastadas" screen). Sandbox level gets a 3-tile pit.
 - **0.4.3** (2026-10-20) GDD-MOV-06 and GDD-WLD-03: level edges and pit behaviour written down, and how gap width is measured (reconciles the 4.1 to 4.3 tile jump distance with the 5-tile gap). Level-limit tests extended.
@@ -365,7 +366,7 @@ Status: Proposed. Names and themes are a starting point for the user to react to
 Status: Proposed
 
 - Length: 3 to 6 screens wide at 480 px (GDD-ART-01). Mostly horizontal; vertical sections allowed.
-- 3 ofrenda checkpoints at roughly 25%, 55% and 85% of the level, and an exit.
+- 3 ofrenda checkpoints at roughly 25%, 55% and 85% of the level, and an exit. (The sandbox test level puts the middle one at about 65% because 55% is in its pit; see GDD-WLD-05.)
 - 1 hidden secret per level (a room or a veladora).
 - Teaching order: new mechanic is introduced in a safe spot, then combined with a threat, then used in a test.
 - Gaps never exceed 3 tiles in World 1 (jump distance is about 4.1 to 4.3 tiles at full run, GDD-MOV-01 to GDD-MOV-04).
@@ -386,6 +387,7 @@ Status: Proposed
 Core set: spikes (cactus, obsidian), pits, crumbling platforms (0.5 s warning), springs (bounce 480 px/s), moving platforms, fragile walls (claw-breakable), ofrendas (checkpoints), doors and keys. Each world adds one signature hazard (GDD-WLD-02).
 
 - **Ofrenda:** one tile wide and two tiles tall (16 x 32 px), standing on the floor. It is activated when Poncho's body box (GDD-MOV-06) overlaps it; boxes that only share an edge do not touch. It does not need a button press and works in the air, so a jump through it counts.
+- Placeholder look until real art (GDD-ART-01): an outlined frame when unused, filled with a flame on top once used, so the two differ by shape and not only by colour (GDD-UI-03). The sandbox level has three, at about 25%, 65% and 85% of its width; the 55% spot of GDD-WLD-03 is in its pit.
 
 ---
 
@@ -643,3 +645,4 @@ Answer these to move items from Proposed to Decided. Until then the Proposed tex
 9. **Audio (GDD-AUD-01):** will you provide music, or should placeholders be generated and licensed assets chosen?
 10. **Score and medals (GDD-PRG-03):** keep or cut?
 11. **Distribution:** where will it be hosted (itch.io, own site, stores)? This drives PWA versus native packaging.
+12. **Checkpoint order (GDD-LIFE-03):** when Poncho touches an earlier ofrenda again, should his respawn point move back to it (as built), or only ever move forward?
