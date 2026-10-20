@@ -1,14 +1,17 @@
-// Placeholder scene: proves the loop (input, fixed-step simulation, rendering) on a flat floor.
-// Final art arrives with GDD-ART-01 and GDD-ART-02, levels with GDD-TEC-04.
+// Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, rendering) on the sandbox level.
+// Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { BASE_HEIGHT, BASE_WIDTH, HITBOX } from '../config/tuning';
+import { BASE_WIDTH, HITBOX, TILE } from '../config/tuning';
+import { SANDBOX_ROWS, SANDBOX_SPAWN } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import { activateOfrenda, collectVeladora, loseLife, startWorld, type LivesState } from '../sim/lives';
-import { flatWorld, spawn, step, type PlayerInput, type PlayerState } from '../sim/movement';
+import { spawn, step, type PlayerInput, type PlayerState } from '../sim/movement';
+import { parseTiles } from '../sim/tilemap';
 import { layoutLives } from '../ui/livesLayout';
 
-const FLOOR_Y = 224;
-const world = flatWorld(FLOOR_Y);
+// GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
+const world = parseTiles(SANDBOX_ROWS);
+const FLOOR_Y = SANDBOX_SPAWN.y;
 const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
 
 /** Dev-only hook for the `playtest` skill. Exposed only by the Vite dev server (see PlayScene.create). */
@@ -24,6 +27,8 @@ export interface PonchoDebug {
   /** Test hooks: stand in for hazards and checkpoints until they exist (GDD-LIFE-02, GDD-LIFE-03). */
   loseLife(): void;
   activateOfrenda(id: string): void;
+  /** Puts Poncho at (x, y), feet position, at rest and in the air. */
+  teleport(x: number, y: number): void;
 }
 
 declare global {
@@ -34,7 +39,7 @@ declare global {
 
 export class PlayScene extends Phaser.Scene {
   private readonly stepper = new FixedStepper();
-  private player: PlayerState = spawn(BASE_WIDTH / 2, FLOOR_Y);
+  private player: PlayerState = spawn(SANDBOX_SPAWN.x, SANDBOX_SPAWN.y);
   private prevPlayer: PlayerState = this.player;
   private ticks = 0;
   private peak = 0;
@@ -54,7 +59,7 @@ export class PlayScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor('#1b2036');
-    this.add.rectangle(0, FLOOR_Y, BASE_WIDTH, BASE_HEIGHT - FLOOR_Y, 0x44588a).setOrigin(0, 0);
+    this.drawTiles();
     this.add
       .text(BASE_WIDTH / 2, 28, 'PONCHO: Siete Vidas', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' })
       .setOrigin(0.5);
@@ -91,12 +96,28 @@ export class PlayScene extends Phaser.Scene {
         hudFilled: () => this.hudFilled,
         loseLife: () => this.setLives(loseLife(this.lives)),
         activateOfrenda: (id) => this.setLives(activateOfrenda(this.lives, id)),
+        teleport: (x, y) => {
+          this.player = { ...spawn(x, y), grounded: false };
+          this.prevPlayer = this.player;
+        },
       };
       // Dev only: L loses a life, O activates a fresh ofrenda, V collects a fresh veladora.
       // Polled with JustDown, not 'keydown-X' events: Phaser 4.2.1 can fire those more than once when several
       // key events land in the same frame (see docs/LESSONS.md L-006).
       this.devKeys = { lose: kb.addKey(K.L), ofrenda: kb.addKey(K.O), veladora: kb.addKey(K.V) };
       this.add.text(BASE_WIDTH - 6, 6, 'dev: L lose life, O ofrenda, V veladora', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(1, 0);
+    }
+  }
+
+  /** Placeholder tile art: one blue square per solid tile with a darker edge. */
+  private drawTiles(): void {
+    const g = this.add.graphics().setDepth(1);
+    g.fillStyle(0x44588a, 1).lineStyle(1, 0x35466f, 1);
+    for (let ty = 0; ty < world.height; ty++) {
+      for (let tx = 0; tx < world.width; tx++) {
+        if (!world.solidTile(tx, ty)) continue;
+        g.fillRect(tx * TILE, ty * TILE, TILE, TILE).strokeRect(tx * TILE + 0.5, ty * TILE + 0.5, TILE - 1, TILE - 1);
+      }
     }
   }
 

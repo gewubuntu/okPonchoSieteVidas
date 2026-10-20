@@ -25,7 +25,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-MOV-03 | doing | coyote and buffer done; corner correction and stomp buffer pending |
 | GDD-MOV-04 | doing | sim done and tested |
 | GDD-MOV-05 | todo |  |
-| GDD-MOV-06 | todo |  |
+| GDD-MOV-06 | doing | body box collides with tiles (floors, walls, ceilings, 1-tile gap) in src/sim; hurtbox and final sprite size pending |
 | GDD-MOV-07 | todo |  |
 | GDD-MOV-08 | todo |  |
 | GDD-CMB-01 | todo |  |
@@ -59,7 +59,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-TEC-01 | done | scaffold on latest stable: Phaser 4, TS 7, Vite 8, Vitest 5, Playwright, Oxlint |
 | GDD-TEC-02 | done | src/sim/fixedStep.ts, sim has no Phaser imports |
 | GDD-TEC-03 | doing | fit-to-screen test only; fps and size budgets pending |
-| GDD-TEC-04 | todo |  |
+| GDD-TEC-04 | todo | stand-in: ASCII tile level in src/levels/sandbox.ts; Tiled JSON and the level validator pending |
 | GDD-TEC-05 | done | src/config/tuning.ts, derived-number tests |
 | GDD-TEC-06 | doing | Vitest and Playwright set up; level validation pending |
 | GDD-MVP-01 | todo |  |
