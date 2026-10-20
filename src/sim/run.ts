@@ -1,6 +1,6 @@
 // GDD-LIFE-02 and GDD-LIFE-05: one play-through of a level, tying movement, lives and respawn together.
 // Pure logic, no Phaser (GDD-TEC-02). The cracking animation and the "Siete vidas gastadas" screen arrive with their
-// own GDD IDs. Poncho respawns at the last ofrenda he touched, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
+// own GDD IDs. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
 import { HITBOX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
 import { activateOfrenda, isOutOfLives, loseLife, startWorld, type LivesState } from './lives';
 import { spawn, step, type PlayerInput, type PlayerState } from './movement';
@@ -32,7 +32,7 @@ export interface RunState {
   readonly wait: number;
   /** Steps of invulnerability left (GDD-LIFE-02, GDD-CMB-03). */
   readonly invulnerable: number;
-  /** Where Poncho respawns: the level start, or the last ofrenda he touched (GDD-LIFE-02). */
+  /** Where Poncho respawns: the level start, or the latest ofrenda he has reached (GDD-LIFE-02). */
   readonly checkpoint: Point;
   /** Position in `Level.ofrendas` of the ofrenda that is the checkpoint, or -1 for the level start. Only moves forward. */
   readonly checkpointIndex: number;

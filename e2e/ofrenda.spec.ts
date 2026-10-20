@@ -33,7 +33,7 @@ test('GDD-LIFE-03 touching an ofrenda restores a life and draws it as used', asy
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
 });
 
-test('GDD-LIFE-02 after a pit fall Poncho respawns at the last ofrenda touched', async ({ page }) => {
+test('GDD-LIFE-02 after a pit fall Poncho respawns at the latest ofrenda reached', async ({ page }) => {
   await boot(page);
   await touch(page, 312);
   await page.waitForFunction(() => window.__PONCHO__!.ofrendas()[1]!.used);

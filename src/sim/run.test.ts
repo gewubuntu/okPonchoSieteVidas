@@ -185,6 +185,23 @@ describe('GDD-LIFE-03 ofrenda checkpoints', () => {
     expect(r.lives.lives).toBe(lives);
   });
 
+  it('only forward also holds after dying: respawn at the latest ofrenda, walk back onto an earlier one, die again', () => {
+    // Drops Poncho into the pit (x 80 to 128) from wherever he is, and waits out the respawn.
+    const dieAndRespawn = (r: RunState) => {
+      const fallen = stepRun({ ...r, player: spawn(104, 200) }, idle, withOfrendas);
+      expect(fallen.phase).toBe('respawning');
+      return go(fallen, idle, RESPAWN.delaySteps);
+    };
+    let r = go(startRun(withOfrendas), right, 20); // near
+    r = stepRun({ ...r, player: spawn(far.x, far.y) }, idle, withOfrendas); // far is the checkpoint
+    r = dieAndRespawn(r);
+    expect(r.player).toMatchObject({ x: far.x, y: far.y });
+    r = stepRun({ ...r, player: spawn(near.x, near.y) }, idle, withOfrendas); // walk back onto near
+    expect(r.checkpoint).toEqual({ x: far.x, y: far.y });
+    r = dieAndRespawn(r); // die again: still back at far, not near
+    expect(r.player).toMatchObject({ x: far.x, y: far.y });
+  });
+
   it('an earlier ofrenda touched for the first time after a later one still gives its life, but is not the checkpoint', () => {
     let r = hurt(startRun(withOfrendas));
     r = stepRun({ ...r, player: spawn(far.x, far.y) }, idle, withOfrendas); // skip near, touch far first
@@ -204,7 +221,7 @@ describe('GDD-LIFE-03 ofrenda checkpoints', () => {
     expect(r.lives.lives).toBe(LIVES_MAX - 1);
   });
 
-  it('respawns at the last ofrenda touched, not at the start', () => {
+  it('respawns at the latest ofrenda reached, not at the start', () => {
     let r = go(startRun(withOfrendas), right, 20);
     r = fallIn(r);
     expect(r.phase).toBe('respawning');
@@ -213,9 +230,11 @@ describe('GDD-LIFE-03 ofrenda checkpoints', () => {
     expect(r.player).toMatchObject({ x: 56, y: 64, grounded: true });
   });
 
-  it('respawns at the start when no ofrenda was touched', () => {
-    const r = go(fallIn(startRun(withOfrendas)), idle, RESPAWN.delaySteps);
+  it('respawns at the start when no ofrenda was touched, and the first ofrenda still counts afterwards', () => {
+    let r = go(fallIn(startRun(withOfrendas)), idle, RESPAWN.delaySteps);
     expect(r.player).toMatchObject({ x: 24, y: 64 });
+    r = stepRun({ ...r, player: spawn(near.x, near.y) }, idle, withOfrendas);
+    expect(r.checkpoint).toEqual({ x: near.x, y: near.y });
   });
 
   it('a pit costs a life as usual, and the checkpoint stays', () => {
