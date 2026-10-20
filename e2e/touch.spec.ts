@@ -19,7 +19,8 @@ test('GDD-CTL-03 touch buttons show on a touch device and not on a desktop', asy
   await boot(page);
   const touch = await api(page, () => window.__PONCHO__!.touch());
   expect(touch.visible).toBe(isMobile);
-  expect(touch.buttons.map((b) => b.id).toSorted()).toEqual(isMobile ? ['jump', 'left', 'right'] : []);
+  expect(new Set(touch.buttons.map((b) => b.id))).toEqual(new Set(isMobile ? ['left', 'right', 'jump'] : []));
+  expect(touch.buttons).toHaveLength(isMobile ? 3 : 0);
 });
 
 test('GDD-CTL-03 every touch button is at least 48 CSS px on screen', async ({ page, isMobile }) => {

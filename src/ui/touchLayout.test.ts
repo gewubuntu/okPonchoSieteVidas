@@ -11,7 +11,8 @@ describe('GDD-CTL-03 touch button layout', () => {
   const buttons = layoutTouchButtons(PHONE);
 
   it('has a left, a right and a jump button', () => {
-    expect(buttons.map((b) => b.id).toSorted()).toEqual(['jump', 'left', 'right']);
+    expect(new Set(buttons.map((b) => b.id))).toEqual(new Set(['left', 'right', 'jump']));
+    expect(buttons).toHaveLength(3);
   });
 
   it('puts move buttons bottom-left and jump bottom-right, inside the screen', () => {
