@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.6
+Version: 0.4.7
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.7** (2026-10-20) GDD-AUD-02 and GDD-AUD-01: the ofrenda sound is a marimba (user's choice, 2026-10-20), generated from code as a placeholder; first sound effect wired in, audio unlocks on the first gesture.
 - **0.4.6** (2026-10-20) GDD-WLD-03 and GDD-WLD-05: the sandbox level gets three ofrendas, drawn as placeholders (outline when unused, filled with a flame when used). GDD-WLD-03 notes the sandbox deviation. Open Question 12 added for GDD-LIFE-03 (can the respawn point move back).
 - **0.4.5** (2026-10-20) GDD-LIFE-02, GDD-LIFE-03 and GDD-WLD-05: ofrenda checkpoints as rules (size, touch, respawn point, what a restart resets). Logic only; drawing them and placing them in a level come next.
 - **0.4.4** (2026-10-20) GDD-LIFE-02, GDD-LIFE-05 and GDD-WLD-05: when a fall into a pit counts, what is built so far (wait, skip, invulnerability timer, restart at zero lives), and what is left (crack animation, feet-first flip, checkpoints, the "Siete vidas gastadas" screen). Sandbox level gets a 3-tile pit.
@@ -490,9 +491,12 @@ Upbeat chiptune-and-acoustic mix: marimba, guitarrón, guitar, trumpets, played 
 
 ### GDD-AUD-02 Sound effects
 
-Status: Proposed
+Status: Proposed (the ofrenda sound being a marimba is Decided, user, 2026-10-20)
 
 Short, punchy and readable: jump, land, claw, stomp, hilo pickup (rising pitch combo), life lost (unravelling thread sound), ofrenda activate (bell), Poncho meows as personality. Each SFX is under 1 s and compressed for the web.
+
+- **Ofrenda activate:** two rosewood marimba bars struck in quick succession, E5 then B5, 0.95 s. Generated from code (`scripts/audio/ofrenda.mjs`, encoded by `scripts/audio/make-sfx.mjs`) as a placeholder until real audio exists (Open Question 9). Shipped as Ogg and MP3. It plays when an ofrenda is used for the first time, not on a repeat touch and not when a restart resets the ofrendas.
+- Sounds start playing only after the first key press or touch, because browsers keep audio locked until then (GDD-AUD-01).
 
 ---
 

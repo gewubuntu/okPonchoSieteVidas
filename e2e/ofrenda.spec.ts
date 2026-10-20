@@ -55,3 +55,28 @@ test('GDD-LIFE-05 losing the last life puts the ofrendas back and restarts at th
   expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: 224 });
   expect(await api(page, () => window.__PONCHO__!.checkpoint())).toMatchObject({ x: 56, y: 224 });
 });
+
+test('GDD-AUD-02 the ofrenda sound plays on the first touch of each ofrenda, not on a repeat or a restart', async ({ page }) => {
+  await boot(page);
+  expect(await api(page, () => window.__PONCHO__!.sfx())).toEqual([]);
+  await touch(page, 120);
+  await page.waitForFunction(() => window.__PONCHO__!.sfx().length === 1);
+  await touch(page, 312);
+  await page.waitForFunction(() => window.__PONCHO__!.sfx().length === 2);
+  await touch(page, 120); // already used
+  await page.waitForTimeout(200);
+  expect(await api(page, () => window.__PONCHO__!.sfx())).toEqual(['ofrenda', 'ofrenda']);
+  for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150)); // lose the last life: the ofrendas reset
+  await page.waitForFunction(() => window.__PONCHO__!.ofrendas().every((o) => !o.used));
+  await page.waitForTimeout(200);
+  expect(await api(page, () => window.__PONCHO__!.sfx())).toEqual(['ofrenda', 'ofrenda']);
+});
+
+test('GDD-AUD-02 the sound files load without errors', async ({ page }) => {
+  const errors = await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  const loaded = await page.evaluate(() => window.__PONCHO__!.sfxLoaded());
+  expect(loaded).toBe(true);
+  expect(errors).toEqual([]);
+});
