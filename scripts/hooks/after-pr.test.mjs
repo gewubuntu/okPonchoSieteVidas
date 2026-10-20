@@ -18,6 +18,13 @@ describe('after-pr hook', () => {
     expect(findPullNumber([{ type: 'text', text: '{"url":"https://github.com/o/r/pull/11"}' }])).toBe(11);
   });
 
+  it('ignores a number nested inside another object, and reads the pulls form of the URL', () => {
+    expect(findPullNumber({ milestone: { number: 3 }, number: 9 })).toBe(9);
+    expect(findPullNumber({ milestone: { number: 3, url: 'https://api.github.com/o/r/pull/2' }, url: 'https://api.github.com/repos/o/r/pulls/9' })).toBe(9);
+    expect(findPullNumber([{ type: 'text', text: JSON.stringify({ milestone: { number: 3 }, number: 9 }) }])).toBe(9);
+    expect(findPullNumber({ milestone: { number: 3 } })).toBeNull();
+  });
+
   it('falls back to a number field, and to null when there is none', () => {
     expect(findPullNumber({ number: 7 })).toBe(7);
     expect(findPullNumber({})).toBeNull();

@@ -232,9 +232,10 @@ function checkClaudeSettings() {
     for (const group of groups) {
       if (!Array.isArray(group?.hooks)) { errors.push(`SETTINGS: a hooks.${event} group has no "hooks" list`); continue; }
       for (const hook of group.hooks) {
+        if (hook === null || typeof hook !== 'object' || Array.isArray(hook)) { errors.push(`SETTINGS: a hooks.${event} entry is not an object`); continue; }
         // Both the exec form (args) and a plain command string can point at a project script.
         const text = [hook.command, ...(Array.isArray(hook.args) ? hook.args : [])].filter((s) => typeof s === 'string').join(' ');
-        for (const m of text.matchAll(/\$\{?CLAUDE_PROJECT_DIR\}?\/([^\s"']+)/g)) {
+        for (const m of text.matchAll(/["']?\$\{?CLAUDE_PROJECT_DIR\}?["']?\/([^\s"']+)/g)) {
           if (!exists(m[1])) errors.push(`SETTINGS: ${event} hook points at ${m[1]}, which does not exist`);
         }
       }
