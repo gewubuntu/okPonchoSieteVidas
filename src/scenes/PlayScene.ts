@@ -64,7 +64,8 @@ export class PlayScene extends Phaser.Scene {
   private ofrendaGfx!: Phaser.GameObjects.Graphics;
   private ofrendasDrawn: { id: string; x: number; used: boolean }[] = [];
   private drawnLives = 0;
-  private ofrendasUsed = 0;
+  /** Which ofrendas the drawing shows as used, as a key, so a change of the set itself (not only its size) redraws. */
+  private ofrendasKey = '';
   private devOfrendas = 0;
   private devVeladoras = 0;
   private devKeys?: Record<'lose' | 'ofrenda' | 'veladora', Phaser.Input.Keyboard.Key>;
@@ -165,7 +166,11 @@ export class PlayScene extends Phaser.Scene {
       }
       this.ofrendaGfx.lineStyle(1, used ? 0xfff3dc : 0x9ba3c4, 1).strokeRect(x + 2.5, y + 10.5, OFRENDA.width - 5, OFRENDA.height - 11);
     }
-    this.ofrendasUsed = this.run.lives.used.size;
+    this.ofrendasKey = this.usedKey();
+  }
+
+  private usedKey(): string {
+    return level.ofrendas.map((o) => (this.run.lives.used.has(`ofrenda:${o.id}`) ? '1' : '0')).join('');
   }
 
   private setLives(lives: RunState['lives']): void {
@@ -217,7 +222,7 @@ export class PlayScene extends Phaser.Scene {
       }
     });
     if (this.run.lives.lives !== this.drawnLives) this.drawHud();
-    if (this.run.lives.used.size !== this.ofrendasUsed) this.drawOfrendas();
+    if (this.usedKey() !== this.ofrendasKey) this.drawOfrendas();
 
     // Render interpolated between the last two simulation states. Hidden while waiting to respawn, and blinking
     // while invulnerable (GDD-LIFE-02).
