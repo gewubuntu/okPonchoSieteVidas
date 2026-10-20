@@ -11,6 +11,7 @@ import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import { layoutLives } from '../ui/livesLayout';
+import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
@@ -50,6 +51,8 @@ export interface PonchoDebug {
   sfx(): string[];
   /** Whether the ofrenda sound file was loaded and decoded into the audio cache. */
   sfxLoaded(): boolean;
+  /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed (GDD-CTL-03). */
+  touch(): TouchDebug;
   /** Where Poncho would respawn now (GDD-LIFE-02). */
   checkpoint(): { x: number; y: number };
 }
@@ -79,6 +82,7 @@ export class PlayScene extends Phaser.Scene {
   private devVeladoras = 0;
   private devKeys?: Record<'lose' | 'ofrenda' | 'veladora', Phaser.Input.Keyboard.Key>;
   private body!: Phaser.GameObjects.Rectangle;
+  private touch!: TouchControls;
   private keys!: Record<'left' | 'right' | 'jump', Phaser.Input.Keyboard.Key[]>;
 
   constructor() {
@@ -123,6 +127,9 @@ export class PlayScene extends Phaser.Scene {
       jump: [kb.addKey(K.SPACE), kb.addKey(K.Z), kb.addKey(K.UP), kb.addKey(K.W)],
     };
 
+    // GDD-CTL-03: on-screen buttons on touch devices, merged with the keyboard below.
+    this.touch = new TouchControls(this);
+
     if (import.meta.env.DEV) {
       window.__PONCHO__ = {
         state: () => this.run.player,
@@ -137,6 +144,7 @@ export class PlayScene extends Phaser.Scene {
         ofrendas: () => this.ofrendasDrawn,
         checkpoint: () => this.run.checkpoint,
         sfx: () => this.sfxLog,
+        touch: () => this.touch.debug(),
         sfxLoaded: () => this.cache.audio.exists('sfx-ofrenda'),
         loseLife: () => this.setLives(loseLife(this.run.lives)),
         activateOfrenda: (id) => this.setLives(activateOfrenda(this.run.lives, id)),
@@ -223,9 +231,11 @@ export class PlayScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(dev.veladora)) this.setLives(collectVeladora(this.run.lives, `dev-${this.devVeladoras++}`));
     }
 
+    // Keyboard and touch work together: either can move or jump (GDD-CTL-01, GDD-CTL-03).
+    const touch = this.touch.read();
     const input: PlayerInput = {
-      move: (down(this.keys.right) ? 1 : 0) - (down(this.keys.left) ? 1 : 0),
-      jumpHeld: down(this.keys.jump),
+      move: Math.max(-1, Math.min(1, (down(this.keys.right) ? 1 : 0) - (down(this.keys.left) ? 1 : 0) + touch.move)),
+      jumpHeld: down(this.keys.jump) || touch.jumpHeld,
     };
 
     const alpha = this.stepper.advance(deltaMs / 1000, () => {
