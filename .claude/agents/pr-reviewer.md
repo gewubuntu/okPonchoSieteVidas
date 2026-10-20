@@ -60,7 +60,7 @@ Do this whenever the PR touches `docs/GDD.md`, `src/config/tuning.ts`, or any be
 
 If the PR touches `src/scenes`, `src/ui`, `index.html` or art under `assets/`:
 
-- The description must embed desktop and phone screenshots, committed under `docs/screenshots/`, and say the user approved them in the session. Missing screenshots or missing approval is blocking.
+- The description must embed desktop and phone screenshots, committed under `docs/screenshots/`, and say the user approved them in the session. Missing screenshots or missing approval is blocking. Read the description text itself: image URLs wrapped in backticks or quotes, or links with the `!` missing, do not render and count as missing.
 - Open every screenshot with the Read tool and judge it yourself: cut-off or overlapping text, unreadable contrast, elements too small at phone width, anything that contradicts the GDD or the character reference. Also run `npm run shots` in the worktree and compare with what the PR shows.
 
 ## 5. Report
