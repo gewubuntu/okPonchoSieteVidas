@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.10
+Version: 0.4.11
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.11** (2026-10-20) GDD-LIFE-02 and GDD-MOV-05: the respawn flip is built. Poncho is hidden for the first 0.45 s of the wait, then drops in and turns once and lands feet-first as control returns (this changes "hidden while waiting" in GDD-LIFE-02).
 - **0.4.10** (2026-10-20) GDD-LIFE-02 and GDD-UI-01: the HUD crack animation for a lost life is built (the flip and feet-first landing are still to come).
 - **0.4.9** (2026-10-20) GDD-LIFE-03 and GDD-LIFE-02: only the latest ofrenda counts, so walking back never moves the respawn point backwards (user's decision, 2026-10-20; Open Question 12 answered and removed).
 - **0.4.8** (2026-10-20) GDD-CTL-03: first touch controls built (left, right and jump buttons, shown on touch devices only), with their sizes and what is still missing.
@@ -119,9 +120,10 @@ Status: Proposed
 - On loss: the lost triangle on the HUD cracks and fades to an outline (0.4 s), Poncho flips and lands feet-first at the last checkpoint after 0.8 s (GDD-MOV-05), then has 2.0 s of invulnerability (blinking).
 - Enemies and moving hazards reset to their initial state, collected *hilos* since the checkpoint are kept (no loss of progress that is not a life).
 - Respawn is instant to restart: any input skips the 0.8 s delay after 0.3 s.
-- A fall into a pit counts once the whole body is below the bottom row of the level (GDD-MOV-06). It costs one life even while invulnerable (GDD-CMB-03). While waiting to respawn Poncho is hidden. A button held through the respawn does not make him jump. Because "any input" includes a held direction, a player who keeps running into a pit respawns after 0.3 s instead of 0.8 s.
+- A fall into a pit counts once the whole body is below the bottom row of the level (GDD-MOV-06). It costs one life even while invulnerable (GDD-CMB-03). For the first 0.45 s of the wait Poncho is hidden. A button held through the respawn does not make him jump. Because "any input" includes a held direction, a player who keeps running into a pit respawns after 0.3 s instead of 0.8 s.
 - Respawn point: the latest ofrenda Poncho has reached (GDD-LIFE-03), or the level start if he touched none.
-- **HUD crack, built:** the lost triangle keeps its outline, its red fill fades from full to nothing over 0.4 s (24 steps, `LIFE_LOSS` in `src/config/tuning.ts`) while a crack line appears across it quickly and fades with the fill. If several lives are lost at once, each of their triangles cracks. A triangle that is filled again (an ofrenda) stops cracking. The animation counts simulation steps, so it pauses with the game. The flip and feet-first landing are not built yet.
+- **Respawn flip, built (placeholder body):** in the last 0.35 s of the wait (21 steps) Poncho appears 48 px above the respawn point, drops with gravity-like acceleration while turning once, and is on the ground, upright and feet down, on the last step, so control returns without a jump in position (`FLIP` in `src/config/tuning.ts`). He lands at the respawn point: the latest ofrenda reached, or the level start after the last life is spent. A skip (any input after 0.3 s) before the flip starts shows no flip, and a skip during it makes him appear at the respawn point at once. The placeholder body has a pale strip along the feet so the turn can be seen.
+- **HUD crack, built:** the lost triangle keeps its outline, its red fill fades from full to nothing over 0.4 s (24 steps, `LIFE_LOSS` in `src/config/tuning.ts`) while a crack line appears across it quickly and fades with the fill. If several lives are lost at once, each of their triangles cracks. A triangle that is filled again (an ofrenda) stops cracking. The animation counts simulation steps, so it pauses with the game. 
 
 ### GDD-LIFE-03 Regaining lives
 
@@ -193,7 +195,7 @@ Status: Proposed
 
 - No fall damage from height. Falling only hurts through pits or hazards.
 - Landing squash animation 80 ms, does not block input.
-- Respawn animation always ends with a feet-first landing (GDD-LIFE-02).
+- Respawn animation always ends with a feet-first landing (GDD-LIFE-02). Built as the flip described in GDD-LIFE-02.
 - Air control is generous (GDD-MOV-01); on a turn mid-air the sprite flips instantly.
 
 ### GDD-MOV-06 Size, hitbox and tile

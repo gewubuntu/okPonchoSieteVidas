@@ -56,6 +56,14 @@ export function touchesOfrenda(player: PlayerState, o: Ofrenda): boolean {
   );
 }
 
+/**
+ * Where Poncho appears when the wait ends: the latest ofrenda he reached, or the level start if he reached none or has
+ * spent his last life (GDD-LIFE-02, GDD-LIFE-05). The respawn flip lands here too.
+ */
+export function respawnPoint(run: RunState, level: Level): Point {
+  return isOutOfLives(run.lives) ? level.spawn : run.checkpoint;
+}
+
 /** Advances one fixed step. Returns a new state and never mutates its input. */
 export function stepRun(run: RunState, input: PlayerInput, level: Level): RunState {
   if (run.phase === 'respawning') {
@@ -67,7 +75,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     // GDD-LIFE-05: out of lives restarts the world with all seven and from the level start (the screen in between
     // comes later).
     const restart = isOutOfLives(run.lives);
-    const back = restart ? level.spawn : run.checkpoint;
+    const back = respawnPoint(run, level);
     return {
       // Marked as already holding jump, so a button held through the respawn does not make Poncho jump at once.
       player: { ...spawn(back.x, back.y), jumpWasHeld: true },

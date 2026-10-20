@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import { boot } from './helpers';
+import { expect, test } from '@playwright/test';
+import { boot, pixelsAt, red } from './helpers';
 
 test('GDD-UI-01 the HUD starts with seven filled triangles', async ({ page }) => {
   const errors = await boot(page);
@@ -81,37 +81,6 @@ test('GDD-LIFE-02 a pit fall cracks the lost triangle, and a refilled triangle d
   expect(await page.evaluate(() => window.__PONCHO__!.hudCracking())).toEqual([]);
   expect(await page.evaluate(() => window.__PONCHO__!.hudFilled())).toBe(7);
 });
-
-/**
- * Colours of the pixels at some virtual-pixel positions, read from a real screenshot of the page (the picture the player
- * sees), not from what the scene says it drew.
- */
-async function pixelsAt(page: Page, points: { x: number; y: number }[]): Promise<{ r: number; g: number; b: number }[]> {
-  const box = (await page.locator('canvas').boundingBox())!;
-  const k = box.width / 480; // CSS px per virtual px
-  const png = await page.screenshot();
-  return page.evaluate(
-    async ({ b64, spots }) => {
-      const img = new Image();
-      img.src = `data:image/png;base64,${b64}`;
-      await img.decode();
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0);
-      const scale = img.width / window.innerWidth; // screenshot pixels per CSS pixel
-      return spots.map(({ x, y }) => {
-        const [r, g, b] = ctx.getImageData(Math.round(x * scale), Math.round(y * scale), 1, 1).data;
-        return { r: r!, g: g!, b: b! };
-      });
-    },
-    { b64: png.toString('base64'), spots: points.map((p) => ({ x: box.x + p.x * k, y: box.y + p.y * k })) },
-  );
-}
-
-/** How red a pixel is: the fill is 185 red against 66 blue, the background 27 against 54. */
-const red = (c: { r: number; g: number; b: number }) => c.r - c.b;
 
 test('GDD-LIFE-02 the HUD really draws the fade and the crack: red fill, then a crack line, then no fill', async ({ page }) => {
   await boot(page);

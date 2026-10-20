@@ -8,7 +8,8 @@ import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import { activateOfrenda, collectVeladora, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
-import { startRun, stepRun, type Level, type RunState } from '../sim/run';
+import { flipPose } from '../sim/respawnFlip';
+import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
 import { layoutLives } from '../ui/livesLayout';
@@ -23,6 +24,8 @@ const countUsed = (key: string) => key.split('1').length - 1;
 const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
 /** Steps per half of the invulnerability blink (0.1 s). */
 const BLINK_STEPS = 6;
+/** Height of the pale strip along Poncho's feet on the placeholder body, in px. */
+const FEET_HEIGHT = 3;
 
 /** Dev-only hook for the `playtest` skill. Exposed only by the Vite dev server (see PlayScene.create). */
 export interface PonchoDebug {
@@ -46,6 +49,8 @@ export interface PonchoDebug {
   /** Whether Poncho's body is drawn, and how opaque (hidden while waiting to respawn, dim half of the blink). */
   bodyVisible(): boolean;
   bodyAlpha(): number;
+  /** Where the body is drawn: feet position, and turn in radians (GDD-LIFE-02 respawn flip). */
+  bodyPose(): { x: number; y: number; rotation: number };
   /** Each ofrenda as drawn: its id and whether it is drawn as used. Read from what was drawn, not from the game state. */
   ofrendas(): { id: string; x: number; used: boolean }[];
   /** Every sound effect asked for so far, in order (GDD-AUD-02). Browsers keep audio locked until a first gesture. */
@@ -56,8 +61,8 @@ export interface PonchoDebug {
   hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
   /** Freezes the simulation and the animations on the current frame, for screenshots and pixel tests. */
   pause(on: boolean): void;
-  /** While paused, runs exactly `n` simulation steps with no input, so a frame can be reached without timing luck. */
-  step(n: number): void;
+  /** While paused, runs exactly `n` simulation steps, with no input unless given, so a frame can be reached without timing luck. */
+  step(n: number, input?: PlayerInput): void;
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed (GDD-CTL-03). */
   touch(): TouchDebug;
   /** Where Poncho would respawn now (GDD-LIFE-02). */
@@ -91,7 +96,8 @@ export class PlayScene extends Phaser.Scene {
   private devOfrendas = 0;
   private devVeladoras = 0;
   private devKeys?: Record<'lose' | 'ofrenda' | 'veladora', Phaser.Input.Keyboard.Key>;
-  private body!: Phaser.GameObjects.Rectangle;
+  /** Placeholder body: a red box with a pale strip along the feet, so a flip shows which way up he is. */
+  private body!: Phaser.GameObjects.Container;
   private touch!: TouchControls;
   private keys!: Record<'left' | 'right' | 'jump', Phaser.Input.Keyboard.Key[]>;
 
@@ -126,7 +132,12 @@ export class PlayScene extends Phaser.Scene {
     this.drawOfrendas();
 
     // GDD-MOV-06: body hitbox, feet at the origin.
-    this.body = this.add.rectangle(this.run.player.x, this.run.player.y, HITBOX.width, HITBOX.height, 0xb94842).setOrigin(0.5, 1).setDepth(3);
+    this.body = this.add
+      .container(this.run.player.x, this.run.player.y - HITBOX.height / 2, [
+        this.add.rectangle(0, 0, HITBOX.width, HITBOX.height, 0xb94842),
+        this.add.rectangle(0, (HITBOX.height - FEET_HEIGHT) / 2, HITBOX.width, FEET_HEIGHT, 0xfff3dc),
+      ])
+      .setDepth(3);
 
     const kb = this.input.keyboard;
     if (!kb) throw new Error('Keyboard input is unavailable');
@@ -150,15 +161,17 @@ export class PlayScene extends Phaser.Scene {
         invulnerable: () => this.run.invulnerable,
         bodyVisible: () => this.body.visible,
         bodyAlpha: () => this.body.alpha,
+        bodyPose: () => ({ x: this.body.x, y: this.body.y + HITBOX.height / 2, rotation: this.body.rotation }),
         hudFilled: () => this.hudFilled,
         hudCracking: () => this.cracksDrawn,
         pause: (on) => {
           this.paused = on;
         },
-        step: (n) => {
+        step: (n, input = { move: 0, jumpHeld: false }) => {
           if (!this.paused) throw new Error('step() needs the game paused');
-          for (let i = 0; i < n; i++) this.simStep({ move: 0, jumpHeld: false });
+          for (let i = 0; i < n; i++) this.simStep(input);
           this.drawHud();
+          this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
         },
         ofrendas: () => this.ofrendasDrawn,
         checkpoint: () => this.run.checkpoint,
@@ -272,6 +285,26 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Draws Poncho. Interpolated between the last two simulation states while playing. While waiting to respawn he is
+   * hidden and then flips in; after it he blinks while invulnerable (GDD-LIFE-02).
+   */
+  private renderBody(alpha: number): void {
+    const lerp = (a: number, b: number) => a + (b - a) * alpha;
+    const { player } = this.run;
+    if (this.run.phase === 'respawning') {
+      // GDD-LIFE-02: hidden at first, then he drops in above the respawn point, turning once, and lands feet-first.
+      const pose = flipPose(this.run.wait);
+      const at = respawnPoint(this.run, level);
+      this.body.setPosition(at.x, at.y - pose.dy - HITBOX.height / 2).setRotation(pose.angle).setVisible(pose.visible);
+    } else {
+      this.body.setPosition(lerp(this.prevPlayer.x, player.x), lerp(this.prevPlayer.y, player.y) - HITBOX.height / 2).setRotation(0).setVisible(true);
+    }
+    // The blink phase comes from the invulnerability counter, so it is the same every time: bright for the first
+    // 0.1 s after a respawn, then dim and bright in turn.
+    this.body.setAlpha(Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
+  }
+
   override update(_time: number, deltaMs: number): void {
     const dev = this.devKeys;
     if (dev) {
@@ -298,14 +331,6 @@ export class PlayScene extends Phaser.Scene {
       if (activated) this.playSfx('ofrenda');
     }
 
-    // Render interpolated between the last two simulation states. Hidden while waiting to respawn, and blinking
-    // while invulnerable (GDD-LIFE-02).
-    const lerp = (a: number, b: number) => a + (b - a) * alpha;
-    const { player } = this.run;
-    this.body.setPosition(lerp(this.prevPlayer.x, player.x), lerp(this.prevPlayer.y, player.y));
-    this.body.setVisible(this.run.phase === 'playing');
-    // The blink phase comes from the invulnerability counter, so it is the same every time: bright for the first
-    // 0.1 s after a respawn, then dim and bright in turn.
-    this.body.setAlpha(Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
+    this.renderBody(alpha);
   }
 }
