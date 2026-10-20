@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { HITBOX, LIVES_MAX, RESPAWN, TILE } from '../config/tuning';
+import { HITBOX, LIVES_MAX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
 import { loseLife } from './lives';
 import { spawn, type PlayerInput } from './movement';
-import { isInPit, startRun, stepRun, type Level, type RunState } from './run';
+import { isInPit, startRun, stepRun, touchesOfrenda, type Level, type Ofrenda, type RunState } from './run';
 import { parseTiles } from './tilemap';
 
 const idle: PlayerInput = { move: 0, jumpHeld: false };
@@ -10,7 +10,7 @@ const right: PlayerInput = { move: 1, jumpHeld: false };
 
 // Floor on the left (x < 80), a 3-tile pit (x 80 to 128), floor again on the right. Floor top is y = 64.
 const world = parseTiles(['..............', '..............', '..............', '..............', '#####...######', '#####...######']);
-const level: Level = { world, spawn: { x: 24, y: 4 * TILE } };
+const level: Level = { world, spawn: { x: 24, y: 4 * TILE }, ofrendas: [] };
 
 const run = (r: RunState, input: PlayerInput, steps: number): RunState => {
   for (let i = 0; i < steps; i++) r = stepRun(r, input, level);
@@ -133,5 +133,93 @@ describe('GDD-LIFE-05 out of lives', () => {
     const back = run(fallen, idle, RESPAWN.delaySteps);
     expect(back.lives.lives).toBe(LIVES_MAX);
     expect(back.phase).toBe('playing');
+  });
+});
+
+const hurt = (r: RunState): RunState => ({ ...r, lives: loseLife(r.lives) });
+
+describe('GDD-LIFE-03 ofrenda checkpoints', () => {
+  // Two ofrendas on the floor (y = 64): one at x = 56, one past the pit at x = 152.
+  const near: Ofrenda = { id: 'near', x: 56, y: 4 * TILE };
+  const far: Ofrenda = { id: 'far', x: 152, y: 4 * TILE };
+  const withOfrendas: Level = { ...level, ofrendas: [near, far] };
+  const go = (r: RunState, input: PlayerInput, steps: number, lv = withOfrendas): RunState => {
+    for (let i = 0; i < steps; i++) r = stepRun(r, input, lv);
+    return r;
+  };
+
+  it('touches an ofrenda only when the body box overlaps its box', () => {
+    const reach = (HITBOX.width + OFRENDA.width) / 2;
+    expect(touchesOfrenda(spawn(56 + reach - 0.01, 64), near)).toBe(true);
+    expect(touchesOfrenda(spawn(56 + reach, 64), near)).toBe(false); // edges only
+    expect(touchesOfrenda(spawn(56, 64 - OFRENDA.height + 0.01), near)).toBe(true); // feet just below its top
+    expect(touchesOfrenda(spawn(56, 64 - OFRENDA.height), near)).toBe(false); // feet exactly at its top
+    expect(touchesOfrenda(spawn(56, 64 - OFRENDA.height - HITBOX.height), near)).toBe(false); // a jump over the top
+    expect(touchesOfrenda(spawn(56, 64 + HITBOX.height), near)).toBe(false); // below its feet
+  });
+
+  it('activating restores one life when fewer than seven and sets the checkpoint', () => {
+    let r = hurt(startRun(withOfrendas));
+    expect(r.lives.lives).toBe(LIVES_MAX - 1);
+    r = go(r, right, 20);
+    expect(r.lives.lives).toBe(LIVES_MAX);
+    expect(r.checkpoint).toEqual({ x: 56, y: 64 });
+  });
+
+  it('restores a life once per ofrenda, but touching it again still makes it the checkpoint', () => {
+    let r = hurt(hurt(startRun(withOfrendas)));
+    r = go(r, right, 20);
+    expect(r.lives.lives).toBe(LIVES_MAX - 1);
+    r = go(r, { move: -1, jumpHeld: false }, 30); // walk back off it
+    r = go(r, right, 30); // and on again
+    expect(r.lives.lives).toBe(LIVES_MAX - 1);
+  });
+
+  it('touching an earlier ofrenda again makes it the checkpoint again', () => {
+    const r = go({ ...startRun(withOfrendas), checkpoint: { x: far.x, y: far.y } }, idle, 1);
+    expect(r.checkpoint).toEqual({ x: far.x, y: far.y });
+    const back = stepRun({ ...r, player: spawn(near.x, near.y) }, idle, withOfrendas);
+    expect(back.checkpoint).toEqual({ x: near.x, y: near.y });
+  });
+
+  it('at seven lives an ofrenda gives nothing but is used up', () => {
+    let r = go(startRun(withOfrendas), right, 20);
+    expect(r.lives.lives).toBe(LIVES_MAX);
+    r = hurt(r);
+    r = go(r, { move: -1, jumpHeld: false }, 30);
+    r = go(r, right, 30);
+    expect(r.lives.lives).toBe(LIVES_MAX - 1);
+  });
+
+  it('respawns at the last ofrenda touched, not at the start', () => {
+    let r = go(startRun(withOfrendas), right, 20);
+    r = fallIn(r);
+    expect(r.phase).toBe('respawning');
+    r = go(r, idle, RESPAWN.delaySteps);
+    expect(r.phase).toBe('playing');
+    expect(r.player).toMatchObject({ x: 56, y: 64, grounded: true });
+  });
+
+  it('respawns at the start when no ofrenda was touched', () => {
+    const r = go(fallIn(startRun(withOfrendas)), idle, RESPAWN.delaySteps);
+    expect(r.player).toMatchObject({ x: 24, y: 64 });
+  });
+
+  it('a pit takes the life even on the same step, and the checkpoint stays', () => {
+    let r = go(startRun(withOfrendas), right, 20);
+    r = fallIn(r);
+    expect(r.checkpoint).toEqual({ x: 56, y: 64 });
+  });
+
+  it('out of lives restarts the world from the level start, with the ofrendas fresh', () => {
+    let r = go(startRun(withOfrendas), right, 20); // checkpoint at x = 56, near used
+    for (let i = 0; i < LIVES_MAX - 1; i++) r = hurt(r);
+    r = fallIn(r);
+    expect(r.lives.lives).toBe(0);
+    r = go(r, idle, RESPAWN.delaySteps);
+    expect(r.lives.lives).toBe(LIVES_MAX);
+    expect(r.player).toMatchObject({ x: 24, y: 64 });
+    expect(r.checkpoint).toEqual({ x: 24, y: 64 });
+    expect(r.lives.used.size).toBe(0);
   });
 });

@@ -1,15 +1,26 @@
 // GDD-LIFE-02 and GDD-LIFE-05: one play-through of a level, tying movement, lives and respawn together.
-// Pure logic, no Phaser (GDD-TEC-02). The cracking animation, the "Siete vidas gastadas" screen and checkpoints
-// arrive with their own GDD IDs; for now Poncho always respawns at the start of the level.
-import { HITBOX, RESPAWN, TILE } from '../config/tuning';
-import { isOutOfLives, loseLife, startWorld, type LivesState } from './lives';
+// Pure logic, no Phaser (GDD-TEC-02). The cracking animation and the "Siete vidas gastadas" screen arrive with their
+// own GDD IDs. Poncho respawns at the last ofrenda he touched, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
+import { HITBOX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
+import { activateOfrenda, isOutOfLives, loseLife, startWorld, type LivesState } from './lives';
 import { spawn, step, type PlayerInput, type PlayerState } from './movement';
 import type { TileGrid } from './tilemap';
+
+export interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** GDD-WLD-05: a checkpoint. `x` is the middle and `y` the floor it stands on, like Poncho's own position. */
+export interface Ofrenda extends Point {
+  readonly id: string;
+}
 
 export interface Level {
   readonly world: TileGrid;
   /** Where Poncho appears: the middle of a tile, standing on the floor. */
-  readonly spawn: { readonly x: number; readonly y: number };
+  readonly spawn: Point;
+  readonly ofrendas: readonly Ofrenda[];
 }
 
 export interface RunState {
@@ -20,15 +31,26 @@ export interface RunState {
   readonly wait: number;
   /** Steps of invulnerability left (GDD-LIFE-02, GDD-CMB-03). */
   readonly invulnerable: number;
+  /** Where Poncho respawns: the level start, or the last ofrenda he touched (GDD-LIFE-02). */
+  readonly checkpoint: Point;
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0 };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
 export function isInPit(player: PlayerState, world: TileGrid): boolean {
   return player.y - HITBOX.height > world.height * TILE;
+}
+
+/** GDD-WLD-05: whether Poncho's body box overlaps the ofrenda's box. Boxes that only share an edge do not touch. */
+export function touchesOfrenda(player: PlayerState, o: Ofrenda): boolean {
+  return (
+    Math.abs(player.x - o.x) < (HITBOX.width + OFRENDA.width) / 2 &&
+    player.y > o.y - OFRENDA.height &&
+    player.y - HITBOX.height < o.y
+  );
 }
 
 /** Advances one fixed step. Returns a new state and never mutates its input. */
@@ -39,11 +61,15 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     const skip = elapsed >= RESPAWN.skipAfterSteps && (input.move !== 0 || input.jumpHeld);
     const wait = skip ? 0 : run.wait - 1;
     if (wait > 0) return { ...run, wait };
+    // GDD-LIFE-05: out of lives restarts the world with all seven and from the level start (the screen in between
+    // comes later).
+    const restart = isOutOfLives(run.lives);
+    const back = restart ? level.spawn : run.checkpoint;
     return {
       // Marked as already holding jump, so a button held through the respawn does not make Poncho jump at once.
-      player: { ...spawn(level.spawn.x, level.spawn.y), jumpWasHeld: true },
-      // GDD-LIFE-05: out of lives restarts the world with all seven (the screen in between comes later).
-      lives: isOutOfLives(run.lives) ? startWorld() : run.lives,
+      player: { ...spawn(back.x, back.y), jumpWasHeld: true },
+      lives: restart ? startWorld() : run.lives,
+      checkpoint: back,
       phase: 'playing',
       wait: 0,
       invulnerable: RESPAWN.invulnerableSteps,
@@ -53,7 +79,14 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   const player = step(run.player, input, level.world);
   if (isInPit(player, level.world)) {
     // Invulnerability does not protect from pits (GDD-CMB-03), so a life is lost even while it lasts.
-    return { player, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
+    return { ...run, player, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
   }
-  return { ...run, player, invulnerable: Math.max(0, run.invulnerable - 1) };
+  // GDD-LIFE-03: touching an ofrenda makes it the checkpoint. It restores a life the first time only.
+  let { lives, checkpoint } = run;
+  for (const o of level.ofrendas) {
+    if (!touchesOfrenda(player, o)) continue;
+    lives = activateOfrenda(lives, o.id);
+    checkpoint = { x: o.x, y: o.y };
+  }
+  return { ...run, player, lives, checkpoint, invulnerable: Math.max(0, run.invulnerable - 1) };
 }

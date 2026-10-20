@@ -12,7 +12,7 @@ import { layoutLives } from '../ui/livesLayout';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: [] };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
 /** Steps per half of the invulnerability blink (0.1 s). */
