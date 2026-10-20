@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.3
+Version: 0.4.4
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.4** (2026-10-20) GDD-LIFE-02 and GDD-LIFE-05: when a fall into a pit counts, what is built so far (wait, skip, invulnerability timer, restart at zero lives), and what is left (crack animation, feet-first flip, checkpoints, the "Siete vidas gastadas" screen). Sandbox level gets a 3-tile pit.
 - **0.4.3** (2026-10-20) GDD-MOV-06 and GDD-WLD-03: level edges and pit behaviour written down, and how gap width is measured (reconciles the 4.1 to 4.3 tile jump distance with the 5-tile gap). Level-limit tests extended.
 - **0.4.2** (2026-10-19) GDD-WLD-03 and GDD-MOV-06: measured level limits from the tile-collision tests (a full jump mantles a wall 3 tiles high but not 4, and crosses a gap of 5 tiles but not 6). Collision built.
 - **0.4.1** (2026-10-19) GDD-UI-01: lives fill from the left and empty from the right; triangles are told apart by fill versus outline, not colour. HUD built.
@@ -112,6 +113,7 @@ Status: Proposed
 - On loss: the lost triangle on the HUD cracks and fades to an outline (0.4 s), Poncho flips and lands feet-first at the last checkpoint after 0.8 s (GDD-MOV-05), then has 2.0 s of invulnerability (blinking).
 - Enemies and moving hazards reset to their initial state, collected *hilos* since the checkpoint are kept (no loss of progress that is not a life).
 - Respawn is instant to restart: any input skips the 0.8 s delay after 0.3 s.
+- A fall into a pit counts once the whole body is below the bottom row of the level (GDD-MOV-06). It costs one life even while invulnerable (GDD-CMB-03). While waiting to respawn Poncho is hidden. A button held through the respawn does not make him jump.
 
 ### GDD-LIFE-03 Regaining lives
 
@@ -132,7 +134,7 @@ When exactly 1 life remains: the music shifts to a tense variation, the last tri
 Status: Decided (lives are carried across a world, user, 2026-10-19). Details are Proposed.
 
 - Lives are tracked per world: 7 at world start, carried through its 3 levels and boss.
-- At 0 lives: *Siete vidas gastadas* screen, then restart from the first level of the world with 7 lives. Hilos collected stay (GDD-PRG-02).
+- At 0 lives: *Siete vidas gastadas* screen, then restart from the first level of the world with 7 lives. Hilos collected stay (GDD-PRG-02). Until the screen exists, the world restarts with 7 lives at the normal respawn.
 - Assist mode (GDD-UI-03) can grant infinite lives, marked as such in the save.
 
 ---
