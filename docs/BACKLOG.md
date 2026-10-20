@@ -16,7 +16,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-LOOP-02 | todo |  |
 | GDD-LOOP-03 | todo |  |
 | GDD-LIFE-01 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
-| GDD-LIFE-02 | doing | pit loss, 0.8 s wait with skip, hidden while waiting, invulnerability timer and blink, respawn at the latest ofrenda in src/sim/run.ts, HUD crack animation (src/ui/lifeCrack.ts); feet-first flip and enemy or hazard losses pending |
+| GDD-LIFE-02 | doing | pit loss, 0.8 s wait with skip, hidden while waiting, invulnerability timer and blink, respawn at the latest ofrenda in src/sim/run.ts, HUD crack animation (src/ui/lifeCrack.ts), respawn flip (src/sim/respawnFlip.ts); enemy or hazard losses pending |
 | GDD-LIFE-03 | doing | rules as pure logic in src/sim/lives.ts; touching an ofrenda restores a life and, if it is later in the level, sets the checkpoint (only forward) in src/sim/run.ts; ofrendas drawn as placeholders and placed in the sandbox level; the marimba sound plays on first use (GDD-AUD-02) |
 | GDD-LIFE-04 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
 | GDD-LIFE-05 | doing | restart with 7 lives at zero is built; the Siete vidas gastadas screen and per-world scope pending |
@@ -24,7 +24,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-MOV-02 | doing | sim done and tested; no tile collision or touch yet |
 | GDD-MOV-03 | doing | coyote and buffer done; corner correction and stomp buffer pending |
 | GDD-MOV-04 | doing | sim done and tested |
-| GDD-MOV-05 | todo |  |
+| GDD-MOV-05 | doing | respawn flip lands feet-first (src/sim/respawnFlip.ts); landing squash and mid-air sprite flip pending (need the real sprite) |
 | GDD-MOV-06 | doing | body box collides with tiles (floors, walls, ceilings, 1-tile gap) in src/sim; hurtbox and final sprite size pending |
 | GDD-MOV-07 | todo |  |
 | GDD-MOV-08 | todo |  |
