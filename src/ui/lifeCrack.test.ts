@@ -39,6 +39,7 @@ describe('GDD-LIFE-02 life loss crack on the HUD', () => {
     const frames = Array.from({ length: LIFE_LOSS.crackSteps }, (_, step) => crackFrame(crack, step)!);
     expect(frames[0]).toEqual({ fillAlpha: 1, crackAlpha: 0 });
     for (let i = 1; i < frames.length; i++) expect(frames[i]!.fillAlpha).toBeLessThan(frames[i - 1]!.fillAlpha);
+    expect(frames[12]!.fillAlpha).toBeCloseTo(0.5, 5); // a straight fade: half gone at half time
     expect(frames.at(-1)!.fillAlpha).toBeGreaterThan(0);
     expect(frames.at(-1)!.fillAlpha).toBeLessThan(0.1);
     // the crack is clearly visible somewhere in the first half and almost gone at the end

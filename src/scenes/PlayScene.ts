@@ -52,10 +52,12 @@ export interface PonchoDebug {
   sfx(): string[];
   /** Whether the ofrenda sound file was loaded and decoded into the audio cache. */
   sfxLoaded(): boolean;
-  /** Triangles drawn as cracking now (GDD-LIFE-02), read from what was drawn: the place in the row and how much fill and crack. */
+  /** Triangles the HUD was asked to draw as cracking (GDD-LIFE-02): the place in the row and the fill and crack alpha. The pixels themselves are checked by reading the screenshot. */
   hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
-  /** Freezes the simulation and the animations on the current frame, for screenshots. */
+  /** Freezes the simulation and the animations on the current frame, for screenshots and pixel tests. */
   pause(on: boolean): void;
+  /** While paused, runs exactly `n` simulation steps with no input, so a frame can be reached without timing luck. */
+  step(n: number): void;
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed (GDD-CTL-03). */
   touch(): TouchDebug;
   /** Where Poncho would respawn now (GDD-LIFE-02). */
@@ -153,6 +155,11 @@ export class PlayScene extends Phaser.Scene {
         pause: (on) => {
           this.paused = on;
         },
+        step: (n) => {
+          if (!this.paused) throw new Error('step() needs the game paused');
+          for (let i = 0; i < n; i++) this.simStep({ move: 0, jumpHeld: false });
+          this.drawHud();
+        },
         ofrendas: () => this.ofrendasDrawn,
         checkpoint: () => this.run.checkpoint,
         sfx: () => this.sfxLog,
@@ -249,6 +256,22 @@ export class PlayScene extends Phaser.Scene {
     });
   }
 
+  /** One fixed simulation step with the given input. */
+  private simStep(input: PlayerInput): void {
+    const before = this.run;
+    this.run = stepRun(before, input, level);
+    // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
+    this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
+    this.ticks++;
+    const { player } = this.run;
+    if (player.grounded) {
+      if (this.peak > 0) this.lastPeak = this.peak;
+      this.peak = 0;
+    } else {
+      this.peak = Math.max(this.peak, FLOOR_Y - player.y);
+    }
+  }
+
   override update(_time: number, deltaMs: number): void {
     const dev = this.devKeys;
     if (dev) {
@@ -264,20 +287,7 @@ export class PlayScene extends Phaser.Scene {
       jumpHeld: down(this.keys.jump) || touch.jumpHeld,
     };
 
-    const alpha = this.paused ? 1 : this.stepper.advance(deltaMs / 1000, () => {
-      const before = this.run;
-      this.run = stepRun(before, input, level);
-      // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
-      this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
-      this.ticks++;
-      const { player } = this.run;
-      if (player.grounded) {
-        if (this.peak > 0) this.lastPeak = this.peak;
-        this.peak = 0;
-      } else {
-        this.peak = Math.max(this.peak, FLOOR_Y - player.y);
-      }
-    });
+    const alpha = this.paused ? 1 : this.stepper.advance(deltaMs / 1000, () => this.simStep(input));
     // Redraw when the lives change, and on every step while a triangle is cracking.
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0) this.drawHud();
     const key = this.usedKey();
