@@ -4,6 +4,8 @@ import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, OFRENDA, TILE } from '../config/tuning';
 import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
+import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
+import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import { activateOfrenda, collectVeladora, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
@@ -14,6 +16,8 @@ import { layoutLives } from '../ui/livesLayout';
 const world = parseTiles(SANDBOX_ROWS);
 const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS };
 const FLOOR_Y = SANDBOX_SPAWN.y;
+/** How many ofrendas an `usedKey` string marks as used. */
+const countUsed = (key: string) => key.split('1').length - 1;
 const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
 /** Steps per half of the invulnerability blink (0.1 s). */
 const BLINK_STEPS = 6;
@@ -42,6 +46,10 @@ export interface PonchoDebug {
   bodyAlpha(): number;
   /** Each ofrenda as drawn: its id and whether it is drawn as used. Read from what was drawn, not from the game state. */
   ofrendas(): { id: string; x: number; used: boolean }[];
+  /** Every sound effect asked for so far, in order (GDD-AUD-02). Browsers keep audio locked until a first gesture. */
+  sfx(): string[];
+  /** Whether the ofrenda sound file was loaded and decoded into the audio cache. */
+  sfxLoaded(): boolean;
   /** Where Poncho would respawn now (GDD-LIFE-02). */
   checkpoint(): { x: number; y: number };
 }
@@ -66,6 +74,7 @@ export class PlayScene extends Phaser.Scene {
   private drawnLives = 0;
   /** Which ofrendas the drawing shows as used, as a key, so a change of the set itself (not only its size) redraws. */
   private ofrendasKey = '';
+  private sfxLog: string[] = [];
   private devOfrendas = 0;
   private devVeladoras = 0;
   private devKeys?: Record<'lose' | 'ofrenda' | 'veladora', Phaser.Input.Keyboard.Key>;
@@ -74,6 +83,11 @@ export class PlayScene extends Phaser.Scene {
 
   constructor() {
     super('play');
+  }
+
+  preload(): void {
+    // GDD-AUD-02: Ogg where it plays, MP3 elsewhere. Phaser picks the first format the browser supports.
+    this.load.audio('sfx-ofrenda', [ofrendaOgg, ofrendaMp3]);
   }
 
   create(): void {
@@ -122,6 +136,8 @@ export class PlayScene extends Phaser.Scene {
         hudFilled: () => this.hudFilled,
         ofrendas: () => this.ofrendasDrawn,
         checkpoint: () => this.run.checkpoint,
+        sfx: () => this.sfxLog,
+        sfxLoaded: () => this.cache.audio.exists('sfx-ofrenda'),
         loseLife: () => this.setLives(loseLife(this.run.lives)),
         activateOfrenda: (id) => this.setLives(activateOfrenda(this.run.lives, id)),
         teleport: (x, y) => {
@@ -167,6 +183,11 @@ export class PlayScene extends Phaser.Scene {
       this.ofrendaGfx.lineStyle(1, used ? 0xfff3dc : 0x9ba3c4, 1).strokeRect(x + 2.5, y + 10.5, OFRENDA.width - 5, OFRENDA.height - 11);
     }
     this.ofrendasKey = this.usedKey();
+  }
+
+  private playSfx(name: 'ofrenda'): void {
+    this.sfxLog.push(name);
+    this.sound.play(`sfx-${name}`);
   }
 
   private usedKey(): string {
@@ -222,7 +243,13 @@ export class PlayScene extends Phaser.Scene {
       }
     });
     if (this.run.lives.lives !== this.drawnLives) this.drawHud();
-    if (this.usedKey() !== this.ofrendasKey) this.drawOfrendas();
+    const key = this.usedKey();
+    if (key !== this.ofrendasKey) {
+      // GDD-AUD-02: the marimba plays when an ofrenda is used for the first time, not when a restart resets them.
+      const activated = countUsed(key) > countUsed(this.ofrendasKey);
+      this.drawOfrendas();
+      if (activated) this.playSfx('ofrenda');
+    }
 
     // Render interpolated between the last two simulation states. Hidden while waiting to respawn, and blinking
     // while invulnerable (GDD-LIFE-02).

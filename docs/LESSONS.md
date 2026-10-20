@@ -114,3 +114,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** After writing a test for a rule, break the code (remove the rule, move a threshold by one) and confirm the test fails, then restore. The `feature` skill has this step and the `pr-reviewer` agent does it on every PR.
 - **Recurrence:** 1
 - **Promoted:** .claude/skills/feature (mutation step), pr-reviewer subagent
+
+## L-011 Generated audio was never listened to or measured
+
+- **Date:** 2026-10-20
+- **What went wrong:** The first two ofrenda sound files were almost silent: an attack ramp made the envelope exactly 0 at the first sample, which ended the tone loop at once, so only a 12 ms click was written. I checked the length and peak level, sent the files, and the user had to tell me they sounded wrong.
+- **Root cause:** I verified that the generator ran and the file had the right size, not what was inside it. A peak level can come from one click, and I cannot hear.
+- **Rule:** For any generated asset (audio, images), measure the output itself before showing it: non-silent samples over time, the expected frequencies, decay. Pin the expected values from the GDD in a test (`scripts/audio/ofrenda.test.mjs`), not values read back from the code under test.
+- **Recurrence:** 1
+- **Promoted:** scripts/audio/ofrenda.test.mjs (decoded-energy and pitch tests)
