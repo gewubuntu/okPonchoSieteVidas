@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.7
+Version: 0.4.8
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.8** (2026-10-20) GDD-CTL-03: first touch controls built (left, right and jump buttons, shown on touch devices only), with their sizes and what is still missing.
 - **0.4.7** (2026-10-20) GDD-AUD-02 and GDD-AUD-01: the ofrenda sound is a marimba (user's choice, 2026-10-20), generated from code as a placeholder; first sound effect wired in, audio unlocks on the first gesture.
 - **0.4.6** (2026-10-20) GDD-WLD-03 and GDD-WLD-05: the sandbox level gets three ofrendas, drawn as placeholders (outline when unused, filled with a flame when used). GDD-WLD-03 notes the sandbox deviation. Open Question 12 added for GDD-LIFE-03 (can the respawn point move back).
 - **0.4.5** (2026-10-20) GDD-LIFE-02, GDD-LIFE-03 and GDD-WLD-05: ofrenda checkpoints as rules (size, touch, respawn point, what a restart resets). Logic only; drawing them and placing them in a level come next.
@@ -331,6 +332,8 @@ Status: Proposed. Required for the MVP (GDD-MVP-01).
 - Layout can be mirrored and controls opacity adjustable (GDD-UI-03).
 - Multi-touch: moving and jumping at the same time must work. Prevent page scroll, zoom, long-press menus and text selection while playing.
 - Short vibration (50 ms) on life loss where the platform supports it. Audio unlocks on first touch (GDD-AUD-01).
+- **Built so far:** left and right buttons bottom-left and a larger jump button bottom-right, drawn as a framed triangle (the poncho motif) semi-transparent, brighter and orange while pressed (the exact opacity becomes a setting with GDD-UI-03). Buttons are 40 px (jump 56 px) with 6 px from the screen edge and a 4 px gap between left and right, and they grow on a small screen so none is under 48 CSS px (`TOUCH` in `src/config/tuning.ts`). They show only on devices that report touch and work together with the keyboard. Left and right pressed together cancel out. Moving and jumping at once works with two fingers.
+- **Still missing:** the slide stick option, claw and Fuego buttons (those actions do not exist yet), mirrored layout and opacity setting, safe-area insets (the canvas is letterboxed, which keeps the buttons clear of notches on wide phones), vibration, pause.
 
 ### GDD-CTL-04 Input latency budget
 

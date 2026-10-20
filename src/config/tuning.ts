@@ -63,3 +63,14 @@ export const RESPAWN = {
 
 /** GDD-WLD-05: an ofrenda checkpoint is one tile wide and two tiles tall, standing on the floor. Touching it activates it. */
 export const OFRENDA = { width: TILE, height: 2 * TILE } as const;
+
+/** GDD-CTL-03: touch buttons, in virtual pixels except `minCssPx`. */
+export const TOUCH = {
+  /** Left, right and jump button sizes (jump is larger), and the space around them. */
+  size: 40,
+  jumpSize: 56,
+  margin: 6,
+  gap: 4,
+  /** A button is never smaller than this on the player's screen, in CSS pixels (GDD-CTL-03). */
+  minCssPx: 48,
+} as const;

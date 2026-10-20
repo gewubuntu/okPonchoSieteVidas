@@ -33,7 +33,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-CMB-03 | todo |  |
 | GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W wired; remap and claw pending |
 | GDD-CTL-02 | todo |  |
-| GDD-CTL-03 | todo |  |
+| GDD-CTL-03 | doing | left, right and jump buttons with multi-touch in src/ui/touchLayout.ts and TouchControls.ts; slide stick, claw and Fuego buttons, mirroring, opacity, vibration pending |
 | GDD-CTL-04 | todo | note: quick taps can fit inside one frame; latch presses from raw key events, see L-006 |
 | GDD-WLD-01 | todo |  |
 | GDD-WLD-02 | todo |  |
