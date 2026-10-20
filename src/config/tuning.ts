@@ -74,3 +74,6 @@ export const TOUCH = {
   /** A button is never smaller than this on the player's screen, in CSS pixels (GDD-CTL-03). */
   minCssPx: 48,
 } as const;
+
+/** GDD-LIFE-02: the lost triangle on the HUD cracks and fades to an outline in 0.4 s. */
+export const LIFE_LOSS = { crackSteps: Math.round(0.4 * TICK_HZ) } as const;

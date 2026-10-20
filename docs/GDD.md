@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.9
+Version: 0.4.10
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.10** (2026-10-20) GDD-LIFE-02 and GDD-UI-01: the HUD crack animation for a lost life is built (the flip and feet-first landing are still to come).
 - **0.4.9** (2026-10-20) GDD-LIFE-03 and GDD-LIFE-02: only the latest ofrenda counts, so walking back never moves the respawn point backwards (user's decision, 2026-10-20; Open Question 12 answered and removed).
 - **0.4.8** (2026-10-20) GDD-CTL-03: first touch controls built (left, right and jump buttons, shown on touch devices only), with their sizes and what is still missing.
 - **0.4.7** (2026-10-20) GDD-AUD-02 and GDD-AUD-01: the ofrenda sound is a marimba (user's choice, 2026-10-20), generated from code as a placeholder; first sound effect wired in, audio unlocks on the first gesture.
@@ -120,6 +121,7 @@ Status: Proposed
 - Respawn is instant to restart: any input skips the 0.8 s delay after 0.3 s.
 - A fall into a pit counts once the whole body is below the bottom row of the level (GDD-MOV-06). It costs one life even while invulnerable (GDD-CMB-03). While waiting to respawn Poncho is hidden. A button held through the respawn does not make him jump. Because "any input" includes a held direction, a player who keeps running into a pit respawns after 0.3 s instead of 0.8 s.
 - Respawn point: the latest ofrenda Poncho has reached (GDD-LIFE-03), or the level start if he touched none.
+- **HUD crack, built:** the lost triangle keeps its outline, its red fill fades from full to nothing over 0.4 s (24 steps, `LIFE_LOSS` in `src/config/tuning.ts`) while a crack line appears across it quickly and fades with the fill. If several lives are lost at once, each of their triangles cracks. A triangle that is filled again (an ofrenda) stops cracking. The animation counts simulation steps, so it pauses with the game. The flip and feet-first landing are not built yet.
 
 ### GDD-LIFE-03 Regaining lives
 
