@@ -2,7 +2,7 @@
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS } from '../levels/sandbox';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
@@ -19,7 +19,7 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -78,6 +78,9 @@ export interface PonchoDebug {
   tacosDrawn(): number;
   /** Whether the taco in Poncho's hand and the power-up icon on the HUD are drawn. Read from what was drawn. */
   heldTacoVisible(): boolean;
+  /** Each piñata as drawn: whether it is drawn open (GDD-PWR-05). And the walking tacos as drawn: where their feet are (GDD-PWR-02). */
+  pinatasDrawn(): boolean[];
+  itemsDrawn(): { x: number; y: number }[];
   hudPowerIcon(): boolean;
 }
 
@@ -102,6 +105,10 @@ export class PlayScene extends Phaser.Scene {
   private tacoGfx!: Phaser.GameObjects.Graphics;
   private heldGfx!: Phaser.GameObjects.Graphics;
   private tacosKey = '';
+  private pinataGfx!: Phaser.GameObjects.Graphics;
+  private itemGfx!: Phaser.GameObjects.Graphics;
+  private pinatasKey = '';
+  private itemsDrawn: { x: number; y: number }[] = [];
   private hudPower: Power = 'base';
   private ofrendaGfx!: Phaser.GameObjects.Graphics;
   private ofrendasDrawn: { id: string; x: number; used: boolean }[] = [];
@@ -154,6 +161,9 @@ export class PlayScene extends Phaser.Scene {
     this.tacoGfx = this.add.graphics().setDepth(2);
     this.drawTacos();
     this.heldGfx = this.add.graphics().setDepth(4);
+    this.pinataGfx = this.add.graphics().setDepth(1);
+    this.drawPinatas();
+    this.itemGfx = this.add.graphics().setDepth(2);
     this.platformGfx = this.add.graphics().setDepth(1);
     this.crumbleGfx = this.add.graphics().setDepth(1);
     this.drawCrumbles();
@@ -200,6 +210,8 @@ export class PlayScene extends Phaser.Scene {
           this.drawHud();
           this.drawCrumbles();
           this.drawTacos();
+          this.drawPinatas();
+          this.drawItems();
           this.renderPlatforms(1);
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
         },
@@ -211,6 +223,8 @@ export class PlayScene extends Phaser.Scene {
         tacosDrawn: () => this.run.tacosTaken.filter((t) => !t).length,
         heldTacoVisible: () => this.heldGfx.visible,
         hudPowerIcon: () => this.hudPower === 'taco',
+        pinatasDrawn: () => this.run.pinatasOpen.slice(),
+        itemsDrawn: () => this.itemsDrawn,
         sfx: () => this.sfxLog,
         touch: () => this.touch.debug(),
         sfxLoaded: () => this.cache.audio.exists('sfx-ofrenda'),
@@ -295,6 +309,41 @@ export class PlayScene extends Phaser.Scene {
     level.tacos.forEach((t, i) => {
       if (!this.run.tacosTaken[i]) this.paintTaco(this.tacoGfx, t.col * TILE + TILE / 2, t.row * TILE + TILE / 2 - 1, 12);
     });
+  }
+
+  /**
+   * Placeholder piñata art (GDD-PWR-05): a closed one is a diamond in four party colours with a fringe along the top and a
+   * string, so it reads as a piñata and not as a tile. An open one is a dull torn shell with a dark hole, so the two
+   * differ by shape and not only by colour (GDD-UI-03).
+   */
+  private drawPinatas(): void {
+    this.pinatasKey = this.run.pinatasOpen.join();
+    this.pinataGfx.clear();
+    level.pinatas.forEach((p, i) => {
+      const x = p.col * TILE;
+      const y = p.row * TILE;
+      const cx = x + TILE / 2;
+      const cy = y + TILE / 2;
+      if (this.run.pinatasOpen[i]) {
+        this.pinataGfx.fillStyle(0x8a7a62, 1).fillTriangle(x + 1, cy, cx, y + 2, x + TILE - 1, cy).fillTriangle(x + 1, cy, x + TILE - 1, cy, cx, y + TILE - 1);
+        this.pinataGfx.fillStyle(0x2a2218, 1).fillRect(cx - 4, cy - 2, 8, 4);
+        this.pinataGfx.lineStyle(1, 0x4a3f2e, 1).strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
+        return;
+      }
+      this.pinataGfx.fillStyle(0xe0508a, 1).fillTriangle(x + 1, cy, cx, y + 1, cx, cy);
+      this.pinataGfx.fillStyle(0xf2c230, 1).fillTriangle(x + TILE - 1, cy, cx, y + 1, cx, cy);
+      this.pinataGfx.fillStyle(0x2fb5a0, 1).fillTriangle(x + 1, cy, cx, y + TILE - 1, cx, cy);
+      this.pinataGfx.fillStyle(0xf28a30, 1).fillTriangle(x + TILE - 1, cy, cx, y + TILE - 1, cx, cy);
+      this.pinataGfx.lineStyle(1, 0x3a1530, 1).strokeTriangle(x + 1, cy, cx, y + 1, x + TILE - 1, cy).strokeTriangle(x + 1, cy, cx, y + TILE - 1, x + TILE - 1, cy);
+      this.pinataGfx.fillStyle(0xfff3dc, 1).fillRect(x + 3, y, TILE - 6, 1);
+    });
+  }
+
+  /** The tacos walking about after a piñata (GDD-PWR-02), drawn where the simulation has them. */
+  private drawItems(): void {
+    this.itemGfx.clear();
+    this.itemsDrawn = this.run.items.map((it) => ({ x: it.x, y: it.y }));
+    for (const it of this.run.items) this.paintTaco(this.itemGfx, it.x, it.y - 7, 12);
   }
 
   /** Placeholder spring art (GDD-WLD-05): a red block with a pale zigzag coil and a bar on top, to read as springy and not as floor. */
@@ -448,6 +497,8 @@ export class PlayScene extends Phaser.Scene {
     // Redraw when the lives change, and on every step while a triangle is cracking.
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.run.power !== this.hudPower) this.drawHud();
     if (this.run.tacosTaken.join() !== this.tacosKey) this.drawTacos();
+    if (this.run.pinatasOpen.join() !== this.pinatasKey) this.drawPinatas();
+    this.drawItems();
     if (this.run.crumbles.map((c) => `${c.phase}${c.steps}`).join() !== this.crumblesKey) this.drawCrumbles();
     const key = this.usedKey();
     if (key !== this.ofrendasKey) {

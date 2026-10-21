@@ -103,5 +103,5 @@ export const PLATFORM = { speed: 40 } as const;
 /** GDD-CMB-03: a hit that leaves Poncho alive gives 2.0 s of invulnerability and pushes him away from the source (px/s). */
 export const HIT = { invulnerableSteps: Math.round(2.0 * TICK_HZ), knockback: 80 } as const;
 
-/** GDD-PWR-02: a taco pickup is a square this many px wide, centred in its tile. */
-export const TACO = { size: 12 } as const;
+/** GDD-PWR-02: a taco is a square this many px wide (a pickup sits centred in its tile); one released from a piñata walks at `walkSpeed` px/s. */
+export const TACO = { size: 12, walkSpeed: 40 } as const;
