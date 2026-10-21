@@ -287,7 +287,7 @@ Status: Proposed
 
 Base to Taco. A taco walks away from a broken piñata at 40 px/s, turns at walls and falls off ledges, like a Mario mushroom. Collecting it plays a chomp, a 0.3 s freeze-frame and a sparkle. Poncho keeps the taco in hand until hit.
 
-- **Built (details Proposed):** a taco released from a piñata (GDD-PWR-05) stands on top of it and walks right at 40 px/s (`TACO.walkSpeed`), turns round at walls, falls off ledges and is gone once it falls below the level. It is a 12 x 12 px square, collected by touch (GDD-PWR-06). Collecting one in Base gives Taco. In Taco it would not improve the state, which gives hilos (GDD-PWR-01); those are not built, so it is just used up. `src/sim/item.ts`.
+- **Built (details Proposed):** a taco released from a piñata (GDD-PWR-05) stands on top of it and walks right at 40 px/s (`TACO.walkSpeed`), turns round at walls, falls off ledges and is gone once it falls below the level. It is a 12 x 12 px square, collected by touch (GDD-PWR-06). Collecting one in Base gives Taco. In Taco it would not improve the state, which gives hilos (GDD-PWR-01); those are not built, so it is just used up. This differs from the floor taco, which waits where it is: a released one walks away and cannot wait (Open Question 12). `src/sim/item.ts`.
 
 ### GDD-PWR-03 Chile and Fuego (the fire flower)
 
