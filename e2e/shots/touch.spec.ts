@@ -30,3 +30,27 @@ test('GDD-CTL-03 touch: buttons idle, then right and jump held', async ({ page, 
   await shot(page, info, 'touch-right-and-jump');
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 });
+
+test('GDD-CTL-03 touch: slide stick idle, then pushed right with jump held', async ({ page, isMobile }, info) => {
+  if (!isMobile) return; // no touch buttons on the desktop
+  await boot(page);
+  const cdp = await page.context().newCDPSession(page);
+  const at = async (id: string, fx = 0.5, fy = 0.5) => {
+    const btn = (await page.evaluate(() => window.__PONCHO__!.touch())).buttons.find((x) => x.id === id)!;
+    const box = (await page.locator('canvas').boundingBox())!;
+    const k = box.width / 480;
+    return { x: box.x + (btn.x + btn.w * fx) * k, y: box.y + (btn.y + btn.h * fy) * k };
+  };
+  const sw = await at('mode');
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...sw, id: 9 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForFunction(() => window.__PONCHO__!.touch().mode === 'stick');
+  await shot(page, info, 'touch-stick-idle');
+  await page.evaluate(() => window.__PONCHO__!.teleport(290, 224));
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+  const [thumb, jump] = [await at('stick', 0.85), await at('jump')];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...thumb, id: 1 }, { ...jump, id: 2 }] });
+  await page.waitForFunction(() => window.__PONCHO__!.touch().stick > 0.5 && !window.__PONCHO__!.state().grounded);
+  await shot(page, info, 'touch-stick-right-and-jump');
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+});

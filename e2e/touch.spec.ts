@@ -4,7 +4,7 @@ import { boot } from './helpers';
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 
 /** Where the centre of a touch button is on the page, in CSS px. */
-async function buttonAt(page: Page, id: 'left' | 'right' | 'jump') {
+async function buttonAt(page: Page, id: 'left' | 'right' | 'jump' | 'stick' | 'mode') {
   const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === id)!;
   const box = (await page.locator('canvas').boundingBox())!;
   const k = box.width / 480; // CSS px per virtual px
@@ -19,14 +19,14 @@ test('GDD-CTL-03 touch buttons show on a touch device and not on a desktop', asy
   await boot(page);
   const touch = await api(page, () => window.__PONCHO__!.touch());
   expect(touch.visible).toBe(isMobile);
-  expect(new Set(touch.buttons.map((b) => b.id))).toEqual(new Set(isMobile ? ['left', 'right', 'jump'] : []));
-  expect(touch.buttons).toHaveLength(isMobile ? 3 : 0);
+  expect(new Set(touch.buttons.map((b) => b.id))).toEqual(new Set(isMobile ? ['left', 'right', 'jump', 'mode'] : []));
+  expect(touch.buttons).toHaveLength(isMobile ? 4 : 0);
 });
 
 test('GDD-CTL-03 every touch button is at least 48 CSS px on screen', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch device only');
   await boot(page);
-  for (const id of ['left', 'right', 'jump'] as const) {
+  for (const id of ['left', 'right', 'jump', 'mode'] as const) {
     const b = await buttonAt(page, id);
     expect(b.widthCss).toBeGreaterThanOrEqual(48);
     expect(b.heightCss).toBeGreaterThanOrEqual(48);
@@ -102,9 +102,74 @@ test('GDD-CTL-03 the buttons are laid out again, and stay at least 48 CSS px, wh
   const before = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((b) => b.id === 'left')!.w;
   await page.setViewportSize({ width: 360, height: 200 }); // a very small landscape screen
   await page.waitForFunction((w) => window.__PONCHO__!.touch().buttons.find((b) => b.id === 'left')!.w > w, before);
-  for (const id of ['left', 'right', 'jump'] as const) {
+  for (const id of ['left', 'right', 'jump', 'mode'] as const) {
     const b = await buttonAt(page, id);
     expect(b.widthCss).toBeGreaterThanOrEqual(48);
     expect(b.heightCss).toBeGreaterThanOrEqual(48);
   }
+});
+
+/** Taps the mode switch with a real touch and waits for the zone to change. */
+async function switchTo(page: Page, cdp: CDPSession, mode: 'buttons' | 'stick') {
+  const sw = await buttonAt(page, 'mode');
+  await fingers(cdp, 'touchStart', [{ x: sw.x, y: sw.y, id: 9 }]);
+  await fingers(cdp, 'touchEnd', []);
+  await page.waitForFunction((m) => window.__PONCHO__!.touch().mode === m, mode);
+}
+
+test('GDD-CTL-03 the mode switch swaps the buttons for the slide stick and back, and the choice survives a reload', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await boot(page);
+  const cdp = await page.context().newCDPSession(page);
+  expect((await api(page, () => window.__PONCHO__!.touch())).mode).toBe('buttons');
+  await switchTo(page, cdp, 'stick');
+  expect(new Set((await api(page, () => window.__PONCHO__!.touch())).buttons.map((b) => b.id))).toEqual(new Set(['stick', 'jump', 'mode']));
+  await page.reload();
+  await boot(page);
+  expect((await api(page, () => window.__PONCHO__!.touch())).mode).toBe('stick');
+  await switchTo(page, cdp, 'buttons');
+  expect(new Set((await api(page, () => window.__PONCHO__!.touch())).buttons.map((b) => b.id))).toEqual(new Set(['left', 'right', 'jump', 'mode']));
+});
+
+test('GDD-CTL-03 sliding the finger right of the stick centre runs right, slower near the centre than at the end', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await boot(page);
+  const cdp = await page.context().newCDPSession(page);
+  await switchTo(page, cdp, 'stick');
+  const track = await buttonAt(page, 'stick');
+  const speedAt = async (frac: number) => {
+    await page.evaluate(() => window.__PONCHO__!.teleport(290, 224));
+    await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+    await fingers(cdp, 'touchStart', [{ x: track.x + frac * (track.widthCss / 2), y: track.y, id: 1 }]);
+    await page.waitForTimeout(300); // long enough to reach that stick position's top speed, short of the wall at x 352
+    const vx = await page.evaluate(() => window.__PONCHO__!.state().vx);
+    await fingers(cdp, 'touchEnd', []);
+    return vx;
+  };
+  const slow = await speedAt(0.6); // 0.5 of full speed (dead zone 0.2)
+  const full = await speedAt(1);
+  expect(slow).toBeCloseTo(60, 0);
+  expect(full).toBeCloseTo(120, 0);
+  expect(await speedAt(0.1)).toBe(0); // inside the dead zone
+  expect(await speedAt(-1)).toBeCloseTo(-120, 0);
+});
+
+test('GDD-CTL-03 a finger that slides from the stick onto the mode switch does not flip the mode', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await boot(page);
+  const cdp = await page.context().newCDPSession(page);
+  await switchTo(page, cdp, 'stick');
+  const track = await buttonAt(page, 'stick');
+  const sw = await buttonAt(page, 'mode');
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: track.x, y: track.y, id: 1 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: sw.x, y: sw.y, id: 1 }] });
+  await page.waitForTimeout(300);
+  expect((await api(page, () => window.__PONCHO__!.touch())).mode).toBe('stick');
+  await fingers(cdp, 'touchEnd', []);
+  // and a finger that stays on the switch flips it once, not every frame
+  await fingers(cdp, 'touchStart', [{ x: sw.x, y: sw.y, id: 2 }]);
+  await page.waitForFunction(() => window.__PONCHO__!.touch().mode === 'buttons');
+  await page.waitForTimeout(300);
+  expect((await api(page, () => window.__PONCHO__!.touch())).mode).toBe('buttons');
+  await fingers(cdp, 'touchEnd', []);
 });
