@@ -15,8 +15,7 @@ project get better at itself over time.
 | `.claude/agents/pr-reviewer.md` | The subagent that reviews every pull request in depth. |
 | `.claude/settings.json` | Project hooks. After a PR is created, a hook tells Claude to run the reviewer. |
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
-| `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a PR is larger than about 300 lines. |
-| `.github/workflows/claude-review.yml` | Starts an automatic review on every pull request (see below). |
+| `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a visible change has no screenshots. |
 | `.github/pull_request_template.md` | The PR description every PR follows, including screenshots for visible changes. |
 
 ## What `scripts/check.mjs` enforces
@@ -61,27 +60,18 @@ Every PR is reviewed by the `pr-reviewer` subagent (`.claude/agents/pr-reviewer.
 - looks at the screenshots and checks the user approved them;
 - posts one GitHub review with 🔴 blocking, 🟡 optional and 🟣 pre-existing findings, never approving or merging.
 
-Read-only is a rule the agent follows, not a sandbox: its tool list cannot restrict `Bash`. In CI it works from the diff with a short tool allow-list and lists the steps it skipped. In CI it never runs anything from the PR checkout, because that job holds the API key and a PR can change any script. For each new rule the reviewer also mutates the code and confirms a test fails (in CI it reasons about it and says so).
+Read-only is a rule the agent follows, not a sandbox: its tool list cannot restrict `Bash`. For each new rule the reviewer also mutates the code in its worktree and confirms a test fails.
 
-It runs in three places:
+It runs in two places:
 
-1. **CI, automatically.** `claude-review.yml` runs on every PR that is opened, updated, reopened or marked ready. It
-   uses the official `anthropics/claude-code-action@v1`, follows the agent file directly, and posts inline comments plus one summary.
-   It only comments: it never approves, requests changes, merges or pushes.
-2. **In a session, when Claude opens a PR.** A project hook (`.claude/settings.json` runs `scripts/hooks/after-pr.mjs` after
+1. **In a session, when Claude opens a PR.** A project hook (`.claude/settings.json` runs `scripts/hooks/after-pr.mjs` after
    `mcp__github__create_pull_request`) tells Claude the review has not run yet. Claude launches the subagent, fixes
    blocking findings, then subscribes to the PR.
-3. **In a session, when the user opens a PR.** Tell Claude the PR is up and it launches the subagent on it.
+2. **In a session, when the user opens a PR.** Tell Claude the PR is up and it launches the subagent on it.
 
 Findings carry a severity: 🔴 blocking, 🟡 optional, 🟣 pre-existing.
 
-**One-time setup for the CI review:** add the `ANTHROPIC_API_KEY` secret under Settings, Secrets and variables, Actions.
-Until it exists the job skips itself and prints a notice, so CI stays green. To bill a Claude subscription instead of the
-API, replace the `anthropic_api_key` input in the workflow with `claude_code_oauth_token` and store that token as the secret.
-PRs from forks do not receive secrets and are not reviewed automatically.
-
-**Size guideline.** `scripts/pr-size.mjs` runs in CI on every PR and warns above about 300 changed lines (lockfiles
-excluded). It warns and never fails.
+There is no automatic review in CI. It used to run on every PR through `.github/workflows/claude-review.yml` and an `ANTHROPIC_API_KEY` secret; the user removed it, together with the 300-line size guideline (`scripts/pr-size.mjs`), because PRs were over it almost every time.
 
 ## Visual review
 

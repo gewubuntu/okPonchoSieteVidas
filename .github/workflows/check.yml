@@ -34,7 +34,7 @@ jobs:
         env:
           CI: "true"
 
-  pr-size:
+  screenshots:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -44,7 +44,5 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      - name: Pull request size (warns above the guideline)
-        run: node scripts/pr-size.mjs "origin/${{ github.base_ref }}"
       - name: Visible changes need screenshots (warns)
         run: node scripts/pr-screenshots.mjs "origin/${{ github.base_ref }}"
