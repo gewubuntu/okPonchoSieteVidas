@@ -91,5 +91,8 @@ export const FLIP = { steps: Math.round(0.35 * TICK_HZ), height: 48, turns: 1 } 
 /** GDD-WLD-05: a crumbling tile gives 0.5 s of warning from the step Poncho lands on it, then is gone. */
 export const CRUMBLE = { warningSteps: Math.round(0.5 * TICK_HZ) } as const;
 
-/** GDD-WLD-05: a spring launches Poncho upwards at this speed (a jump takes off at 410). */
-export const SPRING = { velocity: 480 } as const;
+/**
+ * GDD-WLD-05: a spring launches Poncho upwards at `velocity` (a jump takes off at 410). A jump pressed in the 0.1 s
+ * before he lands on it launches him at `boostVelocity` instead.
+ */
+export const SPRING = { velocity: 480, boostVelocity: 600 } as const;

@@ -4,6 +4,7 @@ import { spawn, step, type PlayerInput, type PlayerState } from './movement';
 import { bounce, withSprings, type Spring } from './spring';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { parseTiles } from './tilemap';
+import { SANDBOX_CRUMBLES, SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_SPRINGS } from '../levels/sandbox';
 
 const idle: PlayerInput = { move: 0, jumpHeld: false };
 const right: PlayerInput = { move: 1, jumpHeld: false };
@@ -23,6 +24,8 @@ function play(r: RunState, steps: number, input: (i: number) => PlayerInput = ()
   }
   return { states, rise: 8 * TILE - Math.min(...states.map((s) => s.player.y)) };
 }
+/** Poncho dropped onto the spring from 30 px up. */
+const drop = (): RunState => ({ ...startRun(level), player: { ...spawn(56, 8 * TILE - 30), grounded: false } });
 const launched = (states: RunState[]) => states.find((s) => s.player.vy === -SPRING.velocity);
 
 describe('GDD-WLD-05 spring', () => {
@@ -77,14 +80,49 @@ describe('GDD-WLD-05 spring', () => {
     expect(released.rise).toBeCloseTo(kept.rise, 5);
   });
 
-  it('holding jump, or pressing it just before landing, does not change the height', () => {
+  it('holding jump does not change the height: only a press counts', () => {
     const plain = play({ ...startRun(level), player: onSpring }, 120).rise;
     const held = play({ ...startRun(level), player: onSpring }, 120, () => ({ move: 0, jumpHeld: true })).rise;
     expect(held).toBeCloseTo(plain, 5);
-    // Dropped from 10 px up with jump pressed 2 steps before the landing, and held.
-    const dropped = play({ ...startRun(level), player: { ...spawn(56, 8 * TILE - 10), grounded: false } }, 120, (i) => ({ move: 0, jumpHeld: i >= 1 })).rise;
-    expect(dropped).toBeGreaterThan(75);
-    expect(dropped).toBeLessThan(90);
+  });
+
+  it('walking onto it gives the plain 480 launch', () => {
+    const { states } = play(startRun(level), 60, () => ({ move: 1, jumpHeld: false }));
+    expect(launched(states)).toBeDefined();
+  });
+
+  describe('a jump pressed just before landing (a timed press)', () => {
+    // `landing` is the step the launch happens on when dropped from 30 px up, found without any press.
+    const landing = play(drop(), 60).states.findIndex((s) => s.player.vy < -400);
+    /** The launch speed with one press on step `at`, and the jump held from then until the end. */
+    const launchSpeed = (at: number, hold = true): number => {
+      const { states } = play(drop(), 60, (i) => ({ move: 0, jumpHeld: hold ? i >= at : i === at }));
+      return -states[landing]!.player.vy;
+    };
+
+    it('launches at 600 px/s, from 0.1 s (6 steps) before the landing up to the landing step itself', () => {
+      expect(landing).toBeGreaterThan(8); // the fall is long enough to tell a press from holding
+      expect(SPRING.boostVelocity).toBe(600);
+      for (let back = 0; back <= 5; back++) expect(launchSpeed(landing - back)).toBe(600);
+    });
+
+    it('a press 6 or more steps early, or after the landing, gives the plain 480', () => {
+      expect(launchSpeed(landing - 6)).toBe(480);
+      expect(launchSpeed(0)).toBe(480);
+      expect(launchSpeed(landing + 1)).toBe(480);
+    });
+
+    it('throws him to about 120 px up, 40 px more than the plain launch', () => {
+      const { rise } = play(drop(), 160, (i) => ({ move: 0, jumpHeld: i >= landing - 2 }));
+      expect(rise).toBeGreaterThan(118); // 600 squared over 2 x 1500 = 120 px, a little more with the slow hang at the top
+      expect(rise).toBeLessThan(135);
+    });
+
+    it('letting go of jump does not cut the boosted launch', () => {
+      const { states, rise } = play(drop(), 160, (i) => ({ move: 0, jumpHeld: i === landing - 2 || i === landing - 1 }));
+      expect(states[landing + 1]!.player.vy).toBeLessThan(-550);
+      expect(rise).toBeGreaterThan(118);
+    });
   });
 
   it('a jump pressed the step after the launch does not replace it with a weaker 410 px/s jump', () => {
@@ -101,5 +139,40 @@ describe('GDD-WLD-05 spring', () => {
     p = step(p, { move: 0, jumpHeld: true }, level.world);
     const v = p.vy;
     expect(step(p, idle, level.world).vy).toBeCloseTo(v * 0.4 + 1500 / 60, 5); // cut to 0.4 on release (GDD-MOV-02), then rising gravity
+  });
+});
+
+describe('GDD-WLD-05 the sandbox spring and its ledge', () => {
+  // The ledge (tile columns 13 and 14, row 8) has its top at y = 128, 96 px above the floor next to the spring.
+  const sandbox: Level = {
+    world: parseTiles(SANDBOX_ROWS),
+    spawn: SANDBOX_SPAWN,
+    ofrendas: SANDBOX_OFRENDAS,
+    spikes: SANDBOX_SPIKES,
+    crumbles: SANDBOX_CRUMBLES,
+    springs: SANDBOX_SPRINGS,
+  };
+  /**
+   * Drops onto the spring from 34 px up (he lands on step 11), optionally pressing jump on step 8, which is inside the
+   * 0.1 s before the landing, and drifting right once he is above the ledge. Whether he ever stands on the ledge.
+   */
+  const reachesLedge = (timed: boolean): boolean => {
+    let r: RunState = { ...startRun(sandbox), player: { ...spawn(200, 190), grounded: false } };
+    let up = false;
+    for (let i = 0; i < 300; i++) {
+      up ||= r.player.vy <= -400;
+      const drift = up && r.player.y < 128 ? 1 : 0;
+      r = stepRun(r, { move: drift, jumpHeld: timed && i >= 8 && !up }, sandbox);
+      if (r.player.grounded && r.player.y === 128) return true;
+    }
+    return false;
+  };
+
+  it('a timed press lands on the ledge, 96 px up', () => {
+    expect(reachesLedge(true)).toBe(true);
+  });
+
+  it('the plain launch falls short of it', () => {
+    expect(reachesLedge(false)).toBe(false); // it keeps bouncing on the spring, 77 px up, 19 px short
   });
 });

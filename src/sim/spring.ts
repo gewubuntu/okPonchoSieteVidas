@@ -19,10 +19,12 @@ export function withSprings(world: TileGrid, springs: readonly Spring[]): TileGr
 
 /**
  * Poncho right after a step: if he stands on a spring he is launched at once, so he is never grounded on one for a
- * whole step. Releasing jump does not cut the launch short, and a held jump does not make it higher: it is always
- * SPRING.velocity.
+ * whole step. The launch is SPRING.velocity, or SPRING.boostVelocity if he pressed jump in the 0.1 s up to and
+ * including this step (the jump buffer, GDD-MOV-03). Only a press counts: holding jump from earlier does not, and
+ * walking onto the spring gives the plain launch. Releasing jump does not cut either launch short.
  */
 export function bounce(player: PlayerState, springs: readonly Spring[]): PlayerState {
   if (!springs.some((s) => standsOn(player, s))) return player;
-  return { ...player, vy: -SPRING.velocity, grounded: false, coyote: 0, jumpBuffer: 0, bounced: true };
+  const timed = player.jumpBuffer > 0;
+  return { ...player, vy: -(timed ? SPRING.boostVelocity : SPRING.velocity), grounded: false, coyote: 0, jumpBuffer: 0, bounced: true };
 }
