@@ -195,6 +195,16 @@ describe('GDD-PWR-02 a released taco stands on the piñata it came from', () => 
   });
 });
 
+describe('GDD-PWR-02 a piñata is a wall for a walking taco', () => {
+  it('a taco walking into the side of a piñata turns round with its box flush against it', () => {
+    // A floor at row 6 (top y = 96), so a taco on it is level with the piñata in column 5, row 5 (x from 80).
+    const shelf: Level = { ...level, world: parseTiles([...Array.from({ length: 6 }, () => '..........'), '##########', '..........']) };
+    let r: RunState = { ...startRun(shelf), player: at(24, 96), items: [{ x: 60, y: 96, vx: TACO.walkSpeed, vy: 0 }] };
+    for (let i = 0; i < 60 && r.items[0]!.vx > 0; i++) r = stepRun(r, idle, shelf);
+    expect(r.items[0]).toMatchObject({ x: 74, y: 96, vx: -TACO.walkSpeed });
+  });
+});
+
 describe('GDD-PWR-06 collecting a released taco', () => {
   const item: Item = { x: 100, y: 128, vx: 0, vy: 0 };
   it('in Base it makes Poncho Taco and is used up', () => {

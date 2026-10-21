@@ -12,15 +12,24 @@ const bumpIt = (page: Page) =>
     window.__PONCHO__!.step(25, { move: 0, jumpHeld: true });
   });
 
+/** Like `bumpIt`, but stops on the step the taco appears, so it is still standing on the piñata. */
+const bumpItAndStop = (page: Page) =>
+  page.evaluate(() => {
+    window.__PONCHO__!.pause(true);
+    window.__PONCHO__!.teleport(152, 224);
+    window.__PONCHO__!.step(2);
+    for (let i = 0; i < 40 && window.__PONCHO__!.itemsDrawn().length === 0; i++) window.__PONCHO__!.step(1, { move: 0, jumpHeld: true });
+  });
+
 test('GDD-PWR-05 a jump from underneath opens the piñata and a taco walks out on top of it', async ({ page }) => {
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
   expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([false]);
-  await bumpIt(page);
+  await bumpItAndStop(page);
   expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([true]);
   const items = await api(page, () => window.__PONCHO__!.itemsDrawn());
   expect(items).toHaveLength(1);
-  expect(items[0]!.y).toBeLessThanOrEqual(176 + 0.5); // on the piñata's top or falling past it
+  expect(items[0]!.y).toBe(176); // standing on the piñata's top, not fallen through it
   const x0 = items[0]!.x;
   await page.evaluate(() => window.__PONCHO__!.step(10));
   expect((await api(page, () => window.__PONCHO__!.itemsDrawn()))[0]!.x).toBeGreaterThan(x0); // walking away
