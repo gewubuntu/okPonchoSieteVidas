@@ -143,7 +143,8 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       keysHeld: 0,
       keysTaken: freshFlags(level.keys),
       doorsOpen: freshFlags(level.doors),
-      claw: IDLE_CLAW,
+      // A claw button held through the respawn does not swing the moment control returns (like jump, GDD-MOV-05).
+      claw: { ...IDLE_CLAW, held: input.claw ?? false },
       fragilesBroken: freshFlags(level.fragiles),
     };
   }

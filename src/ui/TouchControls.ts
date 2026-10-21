@@ -3,6 +3,7 @@
 import Phaser from 'phaser';
 import { BASE_WIDTH } from '../config/tuning';
 import type { PlayerInput } from '../sim/movement';
+import { effectiveHeld, InputLatch } from './inputLatch';
 import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchButton, type TouchButtonId, type TouchMode } from './touchLayout';
 
 const IDLE_ALPHA = 0.35;
@@ -43,6 +44,9 @@ export class TouchControls {
   private drawnPressed: TouchButtonId[] = [];
   private mode: TouchMode = loadMode();
   private stick = 0;
+  /** L-006: a tap on Jump or Claw that is over before the next poll still counts for one step. */
+  private readonly jumpLatch = new InputLatch();
+  private readonly clawLatch = new InputLatch();
   /** Fingers that already flipped the mode, so one touch flips it once. */
   private readonly flipped = new Set<number>();
 
@@ -54,6 +58,11 @@ export class TouchControls {
     // Buttons keep their size on the player's screen, so lay them out again when the canvas is resized.
     const onResize = () => this.relayout();
     scene.scale.on(Phaser.Scale.Events.RESIZE, onResize);
+    scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      const hit = pressedButtons(this.buttons, [{ x: p.x, y: p.y }]);
+      if (hit.has('jump')) this.jumpLatch.press();
+      if (hit.has('claw')) this.clawLatch.press();
+    });
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off(Phaser.Scale.Events.RESIZE, onResize));
   }
 
@@ -78,7 +87,16 @@ export class TouchControls {
       this.stick = stick;
       this.draw();
     }
-    return touchInput(pressed, stick);
+    const effective = new Set(pressed);
+    if (effectiveHeld(false, this.jumpLatch)) effective.add('jump');
+    if (effectiveHeld(false, this.clawLatch)) effective.add('claw');
+    return touchInput(effective, stick);
+  }
+
+  /** A simulation step has used what was read: the taps latched since the last step are spent. */
+  consume(): void {
+    this.jumpLatch.consume();
+    this.clawLatch.consume();
   }
 
   debug(): TouchDebug {

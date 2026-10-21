@@ -228,4 +228,25 @@ describe('GDD-CMB-02 a hit interrupts the swing', () => {
     expect(r.claw.cooldown).toBeGreaterThan(0);
     expect(r.lives.lives).toBe(LIVES_MAX);
   });
+  it('the button still held after the hit does not swing again once the cooldown is over', () => {
+    const midSwing: ClawState = { phase: 'swing', steps: 1, cooldown: 10, dir: 1, held: true };
+    let r = stepRun({ ...startRun(spikeLevel), power: 'taco', player: spawn(56, 64), claw: midSwing }, swipe, spikeLevel);
+    for (let i = 0; i < 40; i++) r = stepRun(r, swipe, spikeLevel); // held down the whole time, well past the cooldown
+    expect(r.claw.phase).toBe('idle');
+  });
+});
+
+describe('GDD-CMB-02 holding the button through a death', () => {
+  it('does not swing the moment control returns after the respawn', () => {
+    const pit: Level = { ...level, world: parseTiles(['..........', '..........', '..........', '..........', '#####.....']), fragiles: [] };
+    let r: RunState = { ...startRun(pit), player: spawn(120, 200) }; // falls past the bottom: a life is lost, he respawns on the floor
+    let swings = 0;
+    for (let i = 0; i < 1 + RESPAWN.delaySteps + 40; i++) {
+      const before = r.claw.phase;
+      r = stepRun(r, swipe, pit); // the button is held the whole time
+      if (before === 'idle' && r.claw.phase === 'windup') swings++;
+    }
+    expect(r.phase).toBe('playing');
+    expect(swings).toBe(0);
+  });
 });

@@ -14,6 +14,7 @@ import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import type { Power } from '../sim/taco';
+import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
 import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
@@ -89,6 +90,8 @@ export interface PonchoDebug {
   hudKeys(): number;
   /** The claw phase in the simulation, what was drawn for it, and the fragile wall tiles the scene painted (GDD-CMB-02, GDD-WLD-05). */
   claw(): 'idle' | 'windup' | 'swing';
+  /** How many swings have started since the page loaded (GDD-CMB-02). */
+  swings(): number;
   clawDrawn(): 'none' | 'windup' | 'swing';
   fragilesDrawn(): number;
   hudPowerIcon(): boolean;
@@ -148,6 +151,10 @@ export class PlayScene extends Phaser.Scene {
   private clawGfx!: Phaser.GameObjects.Graphics;
   private fragilesKey = '';
   private fragilesPainted = 0;
+  /** L-006: key presses latched from raw key events, so a tap shorter than a frame still reaches a step. */
+  private readonly jumpLatch = new InputLatch();
+  private readonly clawLatch = new InputLatch();
+  private swings = 0;
   private clawPainted: 'none' | 'windup' | 'swing' = 'none';
 
   constructor() {
@@ -214,6 +221,9 @@ export class PlayScene extends Phaser.Scene {
       jump: [kb.addKey(K.SPACE), kb.addKey(K.Z), kb.addKey(K.UP), kb.addKey(K.W)],
       claw: [kb.addKey(K.X), kb.addKey(K.J)],
     };
+    // The Key 'down' event fires once per press, even when the press ends before the next frame. Repeats only set the latch again.
+    for (const k of this.keys.jump) k.on('down', () => this.jumpLatch.press());
+    for (const k of this.keys.claw) k.on('down', () => this.clawLatch.press());
 
     // GDD-CTL-03: on-screen buttons on touch devices, merged with the keyboard below.
     this.touch = new TouchControls(this);
@@ -243,10 +253,8 @@ export class PlayScene extends Phaser.Scene {
           this.drawPinatas();
           this.drawItems();
           this.drawDoorsAndKeys();
-          this.drawFragiles();
           this.renderPlatforms(1);
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
-          this.drawClaw();
         },
         ofrendas: () => this.ofrendasDrawn,
         platforms: () => level.platforms.map((p) => platformAt(p, this.run.platformTick)),
@@ -263,6 +271,7 @@ export class PlayScene extends Phaser.Scene {
         doorsDrawn: () => this.doorsPaintedShut.map((shut) => !shut),
         hudKeys: () => this.hudKeyCount,
         claw: () => this.run.claw.phase,
+        swings: () => this.swings,
         clawDrawn: () => this.clawPainted,
         fragilesDrawn: () => this.fragilesPainted,
         sfx: () => this.sfxLog,
@@ -576,6 +585,7 @@ export class PlayScene extends Phaser.Scene {
     // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
     this.ticks++;
+    if (before.claw.phase === 'idle' && this.run.claw.phase === 'windup') this.swings++;
     const { player } = this.run;
     if (player.grounded) {
       if (this.peak > 0) this.lastPeak = this.peak;
@@ -620,11 +630,23 @@ export class PlayScene extends Phaser.Scene {
     const touch = this.touch.read();
     const input: PlayerInput = {
       move: Math.max(-1, Math.min(1, (down(this.keys.right) ? 1 : 0) - (down(this.keys.left) ? 1 : 0) + touch.move)),
-      jumpHeld: down(this.keys.jump) || touch.jumpHeld,
-      claw: down(this.keys.claw) || touch.claw === true,
+      jumpHeld: effectiveHeld(down(this.keys.jump), this.jumpLatch) || touch.jumpHeld,
+      claw: effectiveHeld(down(this.keys.claw), this.clawLatch) || touch.claw === true,
     };
 
-    const alpha = this.paused ? 1 : this.stepper.advance(deltaMs / 1000, () => this.simStep(input));
+    let stepped = false;
+    const alpha = this.paused
+      ? 1
+      : this.stepper.advance(deltaMs / 1000, () => {
+          stepped = true;
+          this.simStep(input);
+        });
+    // A latched tap is spent once a step has used it; if the frame ran no step it waits for the next one.
+    if (stepped) {
+      this.jumpLatch.consume();
+      this.clawLatch.consume();
+      this.touch.consume();
+    }
     // Redraw when the lives change, and on every step while a triangle is cracking.
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
     if (`${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}` !== this.doorsKey) this.drawDoorsAndKeys();

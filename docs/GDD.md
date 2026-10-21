@@ -12,7 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
-- **0.4.25** (2026-10-21) GDD-CMB-02, GDD-WLD-05, GDD-PWR-05, GDD-CTL-03: the claw swipe is built as a standard mechanic (the user's call), with fragile walls and claw-opened piñatas; the swing timing, hit box, what interrupts it and the reset on respawn are written out as proposals, and a Claw touch button is added.
+- **0.4.25** (2026-10-21) GDD-CMB-02, GDD-WLD-05, GDD-PWR-05, GDD-CTL-03: the claw swipe is built as a standard mechanic (the user's call), with fragile walls and claw-opened piñatas; the swing timing, hit box, what interrupts it and the reset on respawn are written out as proposals, and a Claw touch button is added. GDD-CTL-04: a jump or claw press that is over before the next frame still counts for one step.
 - **0.4.24** (2026-10-21) GDD-WLD-05, GDD-UI-01: doors and keys are built (and a key icon per key carried joins the HUD); how a key is picked up, what opens a door, and the reset on respawn are written out as proposals.
 - **0.4.23** (2026-10-21) GDD-PWR-05, GDD-PWR-02, GDD-PWR-06: piñata blocks are built for the head bump, releasing a walking taco in Base; the open and closed rules, the walking taco and the respawn reset are written out as proposals; one open question added about floor tacos against released ones.
 - **0.4.22** (2026-10-21) GDD-PWR-01, GDD-PWR-02, GDD-CMB-03: the Taco state is built (pickup, spike hit spends the taco, knockback now 80 px/s, user-approved number); the edge cases (including the ofrenda and the HUD icon) are written out as proposals.
@@ -371,7 +371,7 @@ Status: Proposed. Required for the MVP (GDD-MVP-01).
 
 Status: Proposed
 
-Input is sampled once per fixed step (GDD-TEC-02). Jump press to first upward movement happens on the same step. Total input to screen budget: under 100 ms on a mid-range phone (GDD-TEC-03).
+Input is sampled once per fixed step (GDD-TEC-02). A press of jump or claw, on the keyboard or on a touch button, that starts and ends inside one frame is latched from the raw event and counts for the next step (`src/ui/inputLatch.ts`, L-006), so a quick tap or a hitch never loses it; a tap that short makes the shortest jump. Jump press to first upward movement happens on the same step. Total input to screen budget: under 100 ms on a mid-range phone (GDD-TEC-03).
 
 ---
 
@@ -685,7 +685,7 @@ Answer these to move items from Proposed to Decided. Until then the Proposed tex
 4. **Story (GDD-VIS-01):** is the curse-and-seven-lives story seed what you want, or a different premise?
 5. **Pronouns (GDD-ART-02):** is Poncho a he, she or they, for story and UI text? The draft avoids choosing.
 6. **Brand and chain scope (GDD-VIS-05):** the draft keeps the game free of wallets, tokens and on-chain features. Is that right? Should the game mention the Poncho on Base token or community anywhere (credits, links), and who owns the final brand rules? Note that app stores restrict crypto features, which affects distribution (question 11).
-7. **Combat (GDD-CMB-02):** keep both claw swipe and stomp, with fireballs on top?
+7. **Combat (GDD-CMB-02):** keep both claw swipe and stomp, with fireballs on top? Partly answered (user, 2026-10-21): the claw swipe is a standard mechanic that Poncho always has, not a power-up. Stomp and fireballs alongside it are still open.
 8. **Difficulty (GDD-VIS-02):** is assist mode and a kid-friendly tone right, or do you want a harder game?
 9. **Audio (GDD-AUD-01):** will you provide music, or should placeholders be generated and licensed assets chosen?
 10. **Score and medals (GDD-PRG-03):** keep or cut?

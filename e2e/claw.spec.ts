@@ -23,27 +23,27 @@ const idle = (page: Page, steps: number) => page.evaluate((n) => window.__PONCHO
 test('GDD-CMB-02 a press winds up for 2 steps, swings for 3, and what is drawn follows', async ({ page }) => {
   await start(page, 120);
   expect(await api(page, () => window.__PONCHO__!.claw())).toBe('idle');
-  expect(await api(page, () => window.__PONCHO__!.clawDrawn())).toBe('none');
+  await page.waitForFunction(() => window.__PONCHO__!.clawDrawn() === 'none'); // painted by the game's own frame loop
   await press(page, 1);
   expect(await api(page, () => window.__PONCHO__!.claw())).toBe('windup');
-  expect(await api(page, () => window.__PONCHO__!.clawDrawn())).toBe('windup');
+  await page.waitForFunction(() => window.__PONCHO__!.clawDrawn() === 'windup'); // painted by the game's own frame loop
   await idle(page, 2);
   expect(await api(page, () => window.__PONCHO__!.claw())).toBe('swing');
-  expect(await api(page, () => window.__PONCHO__!.clawDrawn())).toBe('swing');
+  await page.waitForFunction(() => window.__PONCHO__!.clawDrawn() === 'swing'); // painted by the game's own frame loop
   await idle(page, 3);
   expect(await api(page, () => window.__PONCHO__!.claw())).toBe('idle');
-  expect(await api(page, () => window.__PONCHO__!.clawDrawn())).toBe('none');
+  await page.waitForFunction(() => window.__PONCHO__!.clawDrawn() === 'none'); // painted by the game's own frame loop
 });
 
 test('GDD-WLD-05 a claw swipe breaks the fragile wall where it reaches, and Poncho walks through the gap', async ({ page }) => {
   await start(page, 418);
-  expect(await api(page, () => window.__PONCHO__!.fragilesDrawn())).toBe(4);
+  await page.waitForFunction(() => window.__PONCHO__!.fragilesDrawn() === 4);
   await idle(page, 1);
   await page.evaluate(() => window.__PONCHO__!.step(60, { move: 1, jumpHeld: false }));
   expect((await api(page, () => window.__PONCHO__!.state())).x).toBe(432 - 6); // the wall stops him
   await press(page, 1);
   await idle(page, 4);
-  expect(await api(page, () => window.__PONCHO__!.fragilesDrawn())).toBe(3); // the 14 px claw hits only the bottom tile
+  await page.waitForFunction(() => window.__PONCHO__!.fragilesDrawn() === 3); // the 14 px claw hits only the bottom tile
   await page.evaluate(() => window.__PONCHO__!.step(60, { move: 1, jumpHeld: false }));
   expect((await api(page, () => window.__PONCHO__!.state())).x).toBeGreaterThan(448);
 });
@@ -62,11 +62,11 @@ test('GDD-WLD-05 losing a life puts the fragile wall back', async ({ page }) => 
   await start(page, 418);
   await press(page, 1);
   await idle(page, 4);
-  expect(await api(page, () => window.__PONCHO__!.fragilesDrawn())).toBe(3);
+  await page.waitForFunction(() => window.__PONCHO__!.fragilesDrawn() === 3);
   await page.evaluate(() => {
     window.__PONCHO__!.teleport(248, 150); // into the pit
     window.__PONCHO__!.step(140);
   });
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('playing');
-  expect(await api(page, () => window.__PONCHO__!.fragilesDrawn())).toBe(4);
+  await page.waitForFunction(() => window.__PONCHO__!.fragilesDrawn() === 4);
 });
