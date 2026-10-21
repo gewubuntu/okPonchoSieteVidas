@@ -1,8 +1,8 @@
 // Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { BASE_WIDTH, HITBOX, OFRENDA, TILE } from '../config/tuning';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN } from '../levels/sandbox';
+import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
@@ -17,7 +17,7 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -130,6 +130,7 @@ export class PlayScene extends Phaser.Scene {
 
     this.ofrendaGfx = this.add.graphics().setDepth(2);
     this.drawOfrendas();
+    this.drawSpikes();
 
     // GDD-MOV-06: body hitbox, feet at the origin.
     this.body = this.add
@@ -201,6 +202,19 @@ export class PlayScene extends Phaser.Scene {
       for (let tx = 0; tx < world.width; tx++) {
         if (!world.solidTile(tx, ty)) continue;
         g.fillRect(tx * TILE, ty * TILE, TILE, TILE).strokeRect(tx * TILE + 0.5, ty * TILE + 0.5, TILE - 1, TILE - 1);
+      }
+    }
+  }
+
+  /** Placeholder spike art: two light points per tile with a dark outline, inside the lower half that hurts (GDD-WLD-05, GDD-UI-03 high-contrast hazards). */
+  private drawSpikes(): void {
+    const g = this.add.graphics().setDepth(2);
+    for (const s of level.spikes) {
+      const x = s.col * TILE;
+      const bottom = (s.row + 1) * TILE;
+      for (const px of [x, x + TILE / 2]) {
+        g.fillStyle(0xe5e8f2, 1).fillTriangle(px + 0.5, bottom, px + TILE / 2 - 0.5, bottom, px + TILE / 4, bottom - SPIKE.height);
+        g.lineStyle(1, 0x12162a, 1).strokeTriangle(px + 0.5, bottom, px + TILE / 2 - 0.5, bottom, px + TILE / 4, bottom - SPIKE.height);
       }
     }
   }

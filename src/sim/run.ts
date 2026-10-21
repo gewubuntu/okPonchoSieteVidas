@@ -2,6 +2,7 @@
 // Pure logic, no Phaser (GDD-TEC-02). The cracking animation and the "Siete vidas gastadas" screen arrive with their
 // own GDD IDs. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
 import { HITBOX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
+import { touchesSpike, type Spike } from './hazards';
 import { activateOfrenda, isOutOfLives, loseLife, startWorld, type LivesState } from './lives';
 import { spawn, step, type PlayerInput, type PlayerState } from './movement';
 import type { TileGrid } from './tilemap';
@@ -22,6 +23,8 @@ export interface Level {
   readonly spawn: Point;
   /** In the order the player meets them, which is the order they count as checkpoints (GDD-LIFE-03). */
   readonly ofrendas: readonly Ofrenda[];
+  /** GDD-WLD-05: spikes. */
+  readonly spikes: readonly Spike[];
 }
 
 export interface RunState {
@@ -91,6 +94,10 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   const player = step(run.player, input, level.world);
   if (isInPit(player, level.world)) {
     // Invulnerability does not protect from pits (GDD-CMB-03), so a life is lost even while it lasts.
+    return { ...run, player, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
+  }
+  // GDD-WLD-05, GDD-LIFE-02: touching a spike costs a life, unless Poncho is invulnerable (GDD-CMB-03).
+  if (run.invulnerable === 0 && level.spikes.some((spike) => touchesSpike(player, spike))) {
     return { ...run, player, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
   }
   // GDD-LIFE-03: touching an ofrenda restores a life the first time only. It becomes the checkpoint only if it is later
