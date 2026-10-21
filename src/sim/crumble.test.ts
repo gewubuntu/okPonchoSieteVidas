@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CRUMBLE, RESPAWN, TILE } from '../config/tuning';
+import { CRUMBLE, FORGIVENESS, RESPAWN, TILE } from '../config/tuning';
 import { freshCrumbles, standsOn, stepCrumbles, withCrumbles, type Crumble } from './crumble';
 import { spawn, type PlayerInput, type PlayerState } from './movement';
 import { startRun, stepRun, type Level, type RunState } from './run';
@@ -23,6 +23,8 @@ const run = (r: RunState, input: PlayerInput, steps: number): RunState => {
   return r;
 };
 const solid = (s: RunState) => withCrumbles(world, crumbles, s.crumbles).solidTile(2, 5);
+/** The step the first tile goes, with Poncho still standing on it. */
+const goneAt = (): RunState => run({ ...standingRun(2), crumbles: [{ phase: 'warning', steps: 1 }, { phase: 'idle', steps: 0 }] }, idle, 1);
 const phases = (r: RunState) => r.crumbles.map((c) => c.phase);
 
 describe('GDD-WLD-05 crumbling tile: what counts as standing on it', () => {
@@ -93,7 +95,7 @@ describe('GDD-WLD-05 crumbling tile: warning and falling away', () => {
     expect(side.map((s) => s.phase)).toEqual(['idle', 'idle']);
   });
 
-  it('Poncho falls when the tile goes, with the usual 0.1 s of coyote time to still jump', () => {
+  it('Poncho falls when the tile goes and lands on the floor below', () => {
     let r = stepRun(standingRun(2), idle, level);
     r = run({ ...r, player: onTile(2), crumbles: [{ phase: 'warning', steps: 1 }, r.crumbles[1]!] }, idle, 1);
     expect(r.crumbles[0]!.phase).toBe('gone');
@@ -102,6 +104,14 @@ describe('GDD-WLD-05 crumbling tile: warning and falling away', () => {
     expect(r.player.y).toBeGreaterThan(5 * TILE);
     r = run(r, idle, 200);
     expect(r.player).toMatchObject({ grounded: true, y: 8 * TILE }); // lands on the floor below
+  });
+
+  it('a jump pressed up to 5 steps after the tile goes still works (0.1 s of coyote time), and not 6', () => {
+    const jumpAfter = (k: number): number => stepRun(run(goneAt(), idle, k), { move: 0, jumpHeld: true }, level).player.vy;
+    expect(goneAt().crumbles[0]!.phase).toBe('gone');
+    expect(FORGIVENESS.coyoteSteps).toBe(6);
+    expect(jumpAfter(5)).toBeLessThan(0); // rising
+    expect(jumpAfter(6)).toBeGreaterThan(0); // already falling
   });
 });
 
