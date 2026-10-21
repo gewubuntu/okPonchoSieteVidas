@@ -22,7 +22,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-LIFE-05 | doing | restart with 7 lives at zero is built; the Siete vidas gastadas screen and per-world scope pending |
 | GDD-MOV-01 | doing | sim done and tested; no tile collision or touch yet |
 | GDD-MOV-02 | doing | sim done and tested; no tile collision or touch yet |
-| GDD-MOV-03 | doing | coyote and buffer done; corner correction and stomp buffer pending |
+| GDD-MOV-03 | doing | coyote, buffer and corner correction done; stomp bounce buffer pending (needs combat) |
 | GDD-MOV-04 | doing | sim done and tested |
 | GDD-MOV-05 | doing | respawn flip lands feet-first (src/sim/respawnFlip.ts); landing squash and mid-air sprite flip pending (need the real sprite) |
 | GDD-MOV-06 | doing | body box collides with tiles (floors, walls, ceilings, 1-tile gap) in src/sim; hurtbox and final sprite size pending |

@@ -43,3 +43,31 @@ test('GDD-MOV-06 Poncho bumps his head on the underside of a platform', async ({
   expect(peak).toBeGreaterThan(33);
   expect(peak).toBeLessThan(35);
 });
+
+test('GDD-MOV-03 a jump that clips the corner of a platform by 3 px slides around it and keeps rising', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test; touch controls are covered in touch.spec.ts');
+  await boot(page);
+  // The floating platform spans x 64 to 144, y 160 to 176. Standing at x = 61 puts his right edge 3 px under its left end.
+  await page.evaluate(() => window.__PONCHO__!.teleport(61, 224));
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+  await page.keyboard.down('Space');
+  await page.waitForFunction(() => window.__PONCHO__!.state().vy > 0); // held through the top of the jump
+  await page.keyboard.up('Space');
+  expect((await state(page)).x).toBeCloseTo(58, 1); // nudged 3 px left, so his right edge is at the platform's end
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+  // Without the nudge his head hits the platform after a 34 px rise; a full jump is about 56 px.
+  expect(await page.evaluate(() => window.__PONCHO__!.peakRise())).toBeGreaterThan(50);
+});
+
+test('GDD-MOV-03 a jump that clips the platform by more than 4 px still bumps his head', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test; touch controls are covered in touch.spec.ts');
+  await boot(page);
+  await page.evaluate(() => window.__PONCHO__!.teleport(63, 224)); // his right edge is 5 px under the platform
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+  await page.keyboard.down('Space');
+  await page.waitForFunction(() => window.__PONCHO__!.state().vy > 0);
+  await page.keyboard.up('Space');
+  expect((await state(page)).x).toBeCloseTo(63, 1);
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+  expect(await page.evaluate(() => window.__PONCHO__!.peakRise())).toBeLessThan(36);
+});

@@ -32,10 +32,12 @@ export const JUMP = {
   cutMultiplier: 0.4,
 } as const;
 
-/** GDD-MOV-03 (corner correction and stomp bounce buffer arrive with tile collision and combat). */
+/** GDD-MOV-03 (the stomp bounce buffer arrives with combat). */
 export const FORGIVENESS = {
   coyoteSteps: Math.round(0.1 * TICK_HZ),
   bufferSteps: Math.round(0.1 * TICK_HZ),
+  /** Corner correction: a head that clips a block corner by this many px or less is nudged around it (px). */
+  cornerPx: 4,
 } as const;
 
 /** GDD-MOV-04 */

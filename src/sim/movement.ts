@@ -1,5 +1,5 @@
 // GDD-MOV-01 to GDD-MOV-04 and GDD-MOV-06: Poncho's movement and tile collision. Pure logic, no Phaser (GDD-TEC-02).
-// Corner correction (GDD-MOV-03) and the stomp bounce arrive with their own GDD IDs.
+// The stomp bounce (GDD-MOV-03) arrives with combat.
 import { FORGIVENESS, GRAVITY, HITBOX, JUMP, RUN, STEP, TILE } from '../config/tuning';
 
 export interface PlayerState {
@@ -48,6 +48,30 @@ function blocked(world: World, x: number, y: number): boolean {
 
 export function spawn(x: number, y: number): PlayerState {
   return { x, y, vx: 0, vy: 0, grounded: true, facing: 1, coyote: 0, jumpBuffer: 0, jumpWasHeld: false };
+}
+
+/**
+ * GDD-MOV-03 corner correction. Poncho has just moved up into a block, and only one side of his box is inside it, by
+ * FORGIVENESS.cornerPx or less: the horizontal shift that clears the corner, or 0 if there is none (a ceiling over his
+ * whole width, or more than the allowed clip). His box is narrower than a tile, so it spans at most two columns, and
+ * after the shift it lies in the one column that was free, which cannot hold anything new. A box inside one column is
+ * either all blocked or all free, so it never gets a nudge.
+ */
+function cornerNudge(world: World, x: number, y: number): number {
+  const left = Math.floor((x - HALF_WIDTH) / TILE);
+  const right = Math.floor((x + HALF_WIDTH - EDGE) / TILE);
+  const top = Math.floor((y - HITBOX.height) / TILE);
+  const bottom = Math.floor((y - EDGE) / TILE);
+  const columnBlocked = (tx: number) => {
+    for (let ty = top; ty <= bottom; ty++) if (world.solidTile(tx, ty)) return true;
+    return false;
+  };
+  const leftBlocked = columnBlocked(left);
+  const rightBlocked = columnBlocked(right);
+  if (leftBlocked === rightBlocked) return 0;
+  // His left side is in a block: shift right until it is at the block's right edge. His right side: shift left.
+  const shift = leftBlocked ? (left + 1) * TILE - (x - HALF_WIDTH) : right * TILE - (x + HALF_WIDTH);
+  return Math.abs(shift) <= FORGIVENESS.cornerPx ? shift : 0;
 }
 
 function approach(value: number, target: number, delta: number): number {
@@ -112,10 +136,16 @@ export function step(prev: PlayerState, input: PlayerInput, world: World): Playe
     if (dy > 0) {
       s.y = Math.floor((s.y - EDGE) / TILE) * TILE; // stand on top of the tile
       landed = true;
+      s.vy = 0;
     } else {
-      s.y = (Math.floor((s.y - HITBOX.height) / TILE) + 1) * TILE + HITBOX.height; // bump the underside
+      const nudge = cornerNudge(world, s.x, s.y);
+      if (nudge !== 0) {
+        s.x += nudge; // GDD-MOV-03: slide around the corner and keep rising
+      } else {
+        s.y = (Math.floor((s.y - HITBOX.height) / TILE) + 1) * TILE + HITBOX.height; // bump the underside
+        s.vy = 0;
+      }
     }
-    s.vy = 0;
   }
 
   s.grounded = landed;
