@@ -77,10 +77,11 @@ describe('GDD-MOV-03 corner correction', () => {
     expect(after.x).toBe(before.x);
   });
 
-  it('only applies while rising: falling onto a block top is not nudged', () => {
-    const falling: PlayerState = { ...spawn(BLOCK.left - HITBOX.width / 2 + 3, BLOCK.bottom - 16 + 4), vy: 100, grounded: false };
-    const after = step(falling, hold, world);
-    expect(after.vy).toBeGreaterThanOrEqual(0);
+  it('only applies while rising: falling onto the corner of a block top lands, it is not nudged', () => {
+    // Just above the block top (y 48), his right edge 3 px over its left end.
+    const x = BLOCK.left - HITBOX.width / 2 + 3;
+    const falling: PlayerState = { ...spawn(x, 46.5), vy: 100, grounded: false };
+    expect(step(falling, hold, world)).toMatchObject({ x, y: 48, vy: 0, grounded: true });
   });
 
   it('lets a real jump go past a block corner it clips by 3 px', () => {
