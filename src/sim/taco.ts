@@ -12,16 +12,22 @@ export interface Taco {
   readonly row: number;
 }
 
-/** Whether Poncho's body box overlaps the taco's box. Boxes that only share an edge do not touch. */
-export function touchesTaco(player: PlayerState, taco: Taco): boolean {
-  const cx = taco.col * TILE + TILE / 2;
-  const cy = taco.row * TILE + TILE / 2;
+/**
+ * Whether Poncho's body box overlaps a square pickup, `size` px wide, in the middle of tile (col, row). Boxes that only
+ * share an edge do not touch (GDD-PWR-06).
+ */
+export function touchesPickup(player: PlayerState, col: number, row: number, size: number): boolean {
+  const cx = col * TILE + TILE / 2;
+  const cy = row * TILE + TILE / 2;
   return (
-    Math.abs(player.x - cx) < (HITBOX.width + TACO.size) / 2 &&
-    player.y > cy - TACO.size / 2 &&
-    player.y - HITBOX.height < cy + TACO.size / 2
+    Math.abs(player.x - cx) < (HITBOX.width + size) / 2 &&
+    player.y > cy - size / 2 &&
+    player.y - HITBOX.height < cy + size / 2
   );
 }
+
+/** Whether Poncho's body box overlaps the taco's box. */
+export const touchesTaco = (player: PlayerState, taco: Taco): boolean => touchesPickup(player, taco.col, taco.row, TACO.size);
 
 /** GDD-PWR-01: every taco starts out there to be picked up. */
 export const freshTacos = (tacos: readonly Taco[]): readonly boolean[] => tacos.map(() => false);

@@ -21,7 +21,7 @@ const level: Level = {
   springs: [],
   platforms: [],
   tacos: [taco],
-  pinatas: [],
+  pinatas: [], doors: [], keys: [],
 };
 const at = (x: number, y: number) => spawn(x, y);
 const run = (r: RunState, input: PlayerInput, steps: number): RunState => {
@@ -35,8 +35,10 @@ describe('GDD-PWR-02 the taco pickup', () => {
   it('is a 12 x 12 box in the middle of its tile, touched by the 12 x 14 body', () => {
     // Taco box x 50 to 62, y 50 to 62. Body box is x - 6 to x + 6, y - 14 to y.
     expect(touchesTaco(at(43.99, 56), taco)).toBe(false); // body right edge 49.99
+    expect(touchesTaco(at(44, 56), taco)).toBe(false); // only touching its left edge
     expect(touchesTaco(at(44.01, 56), taco)).toBe(true);
     expect(touchesTaco(at(67.99, 56), taco)).toBe(true);
+    expect(touchesTaco(at(68, 56), taco)).toBe(false); // only touching its right edge
     expect(touchesTaco(at(68.01, 56), taco)).toBe(false);
     expect(touchesTaco(at(56, 50), taco)).toBe(false); // feet at the taco's top edge: only touching
     expect(touchesTaco(at(56, 50.01), taco)).toBe(true);

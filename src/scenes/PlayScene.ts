@@ -2,7 +2,7 @@
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS } from '../levels/sandbox';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
@@ -19,7 +19,7 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -73,7 +73,7 @@ export interface PonchoDebug {
   crumbles(): { col: number; row: number; phase: string; steps: number }[];
   /** Where Poncho would respawn now (GDD-LIFE-02). */
   checkpoint(): { x: number; y: number };
-  /** The power-up state (GDD-PWR-01), and the taco pickups still drawn in the level (GDD-PWR-02). */
+  /** The power-up state (GDD-PWR-01), and the taco pickups the scene painted in the level (GDD-PWR-02). */
   power(): Power;
   tacosDrawn(): number;
   /** Whether the taco in Poncho's hand and the power-up icon on the HUD are drawn. Read from what was drawn. */
@@ -81,6 +81,11 @@ export interface PonchoDebug {
   /** Each piñata as drawn: whether it is drawn open (GDD-PWR-05). And the walking tacos as drawn: where their feet are (GDD-PWR-02). */
   pinatasDrawn(): boolean[];
   itemsDrawn(): { x: number; y: number }[];
+  /** Keys Poncho carries, the keys still drawn on the floor, the doors drawn open, and the key icons on the HUD (GDD-WLD-05). Read from what was drawn. */
+  keysHeld(): number;
+  keysDrawn(): number;
+  doorsDrawn(): boolean[];
+  hudKeys(): number;
   hudPowerIcon(): boolean;
 }
 
@@ -105,9 +110,17 @@ export class PlayScene extends Phaser.Scene {
   private tacoGfx!: Phaser.GameObjects.Graphics;
   private heldGfx!: Phaser.GameObjects.Graphics;
   private tacosKey = '';
+  private tacosPainted = 0;
+  private pinatasPainted: boolean[] = [];
+  private doorsPaintedShut: boolean[] = [];
+  private keysPainted = 0;
   private pinataGfx!: Phaser.GameObjects.Graphics;
   private itemGfx!: Phaser.GameObjects.Graphics;
   private pinatasKey = '';
+  private doorGfx!: Phaser.GameObjects.Graphics;
+  private keyGfx!: Phaser.GameObjects.Graphics;
+  private doorsKey = '';
+  private hudKeyCount = 0;
   private itemsDrawn: { x: number; y: number }[] = [];
   private hudPower: Power = 'base';
   private ofrendaGfx!: Phaser.GameObjects.Graphics;
@@ -164,6 +177,9 @@ export class PlayScene extends Phaser.Scene {
     this.pinataGfx = this.add.graphics().setDepth(1);
     this.drawPinatas();
     this.itemGfx = this.add.graphics().setDepth(2);
+    this.doorGfx = this.add.graphics().setDepth(1);
+    this.keyGfx = this.add.graphics().setDepth(2);
+    this.drawDoorsAndKeys();
     this.platformGfx = this.add.graphics().setDepth(1);
     this.crumbleGfx = this.add.graphics().setDepth(1);
     this.drawCrumbles();
@@ -212,6 +228,7 @@ export class PlayScene extends Phaser.Scene {
           this.drawTacos();
           this.drawPinatas();
           this.drawItems();
+          this.drawDoorsAndKeys();
           this.renderPlatforms(1);
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
         },
@@ -220,11 +237,15 @@ export class PlayScene extends Phaser.Scene {
         crumbles: () => level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
         checkpoint: () => this.run.checkpoint,
         power: () => this.run.power,
-        tacosDrawn: () => this.run.tacosTaken.filter((t) => !t).length,
+        tacosDrawn: () => this.tacosPainted,
         heldTacoVisible: () => this.heldGfx.visible,
         hudPowerIcon: () => this.hudPower === 'taco',
-        pinatasDrawn: () => this.run.pinatasOpen.slice(),
+        pinatasDrawn: () => this.pinatasPainted,
         itemsDrawn: () => this.itemsDrawn,
+        keysHeld: () => this.run.keysHeld,
+        keysDrawn: () => this.keysPainted,
+        doorsDrawn: () => this.doorsPaintedShut.map((shut) => !shut),
+        hudKeys: () => this.hudKeyCount,
         sfx: () => this.sfxLog,
         touch: () => this.touch.debug(),
         sfxLoaded: () => this.cache.audio.exists('sfx-ofrenda'),
@@ -306,8 +327,11 @@ export class PlayScene extends Phaser.Scene {
   private drawTacos(): void {
     this.tacosKey = this.run.tacosTaken.join();
     this.tacoGfx.clear();
+    this.tacosPainted = 0;
     level.tacos.forEach((t, i) => {
-      if (!this.run.tacosTaken[i]) this.paintTaco(this.tacoGfx, t.col * TILE + TILE / 2, t.row * TILE + TILE / 2 - 1, 12);
+      if (this.run.tacosTaken[i]) return;
+      this.tacosPainted++;
+      this.paintTaco(this.tacoGfx, t.col * TILE + TILE / 2, t.row * TILE + TILE / 2 - 1, 12);
     });
   }
 
@@ -319,12 +343,14 @@ export class PlayScene extends Phaser.Scene {
   private drawPinatas(): void {
     this.pinatasKey = this.run.pinatasOpen.join();
     this.pinataGfx.clear();
+    this.pinatasPainted = level.pinatas.map(() => false);
     level.pinatas.forEach((p, i) => {
       const x = p.col * TILE;
       const y = p.row * TILE;
       const cx = x + TILE / 2;
       const cy = y + TILE / 2;
       if (this.run.pinatasOpen[i]) {
+        this.pinatasPainted[i] = true; // painted as the open shell
         this.pinataGfx.fillStyle(0x8a7a62, 1).fillTriangle(x + 1, cy, cx, y + 2, x + TILE - 1, cy).fillTriangle(x + 1, cy, x + TILE - 1, cy, cx, y + TILE - 1);
         this.pinataGfx.fillStyle(0x2a2218, 1).fillRect(cx - 4, cy - 2, 8, 4);
         this.pinataGfx.lineStyle(1, 0x4a3f2e, 1).strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
@@ -336,6 +362,42 @@ export class PlayScene extends Phaser.Scene {
       this.pinataGfx.fillStyle(0xf28a30, 1).fillTriangle(x + TILE - 1, cy, cx, y + TILE - 1, cx, cy);
       this.pinataGfx.lineStyle(1, 0x3a1530, 1).strokeTriangle(x + 1, cy, cx, y + 1, x + TILE - 1, cy).strokeTriangle(x + 1, cy, cx, y + TILE - 1, x + TILE - 1, cy);
       this.pinataGfx.fillStyle(0xfff3dc, 1).fillRect(x + 3, y, TILE - 6, 1);
+    });
+  }
+
+  /** A small golden key: a ring for the head, a shaft and two teeth. `size` is the height in px. */
+  private paintKey(g: Phaser.GameObjects.Graphics, cx: number, cy: number, size: number): void {
+    const u = size / 12;
+    g.fillStyle(0xf2c230, 1).fillCircle(cx, cy - 3 * u, 3 * u).fillRect(cx - 0.75 * u, cy - u, 1.5 * u, 6 * u).fillRect(cx, cy + 3 * u, 2.5 * u, 1.2 * u).fillRect(cx, cy + 5 * u, 2 * u, 1.2 * u);
+    g.fillStyle(0x1b2036, 1).fillCircle(cx, cy - 3 * u, 1.2 * u);
+    g.lineStyle(1, 0x6b4e0a, 1).strokeCircle(cx, cy - 3 * u, 3 * u);
+  }
+
+  /**
+   * Placeholder doors and keys (GDD-WLD-05): a shut door is a wooden plank wall with an iron band and a keyhole, so it reads
+   * as a door and not as a tile; once open it is not drawn. A key lying on the floor is the golden key, until picked up.
+   */
+  private drawDoorsAndKeys(): void {
+    this.doorsKey = `${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}`;
+    this.doorGfx.clear();
+    this.doorsPaintedShut = level.doors.map(() => false);
+    level.doors.forEach((d, i) => {
+      if (this.run.doorsOpen[i]) return;
+      this.doorsPaintedShut[i] = true;
+      const x = d.col * TILE;
+      const y = d.row * TILE;
+      const h = d.height * TILE;
+      this.doorGfx.fillStyle(0x8b5a2b, 1).fillRect(x, y, TILE, h);
+      this.doorGfx.lineStyle(1, 0x4a2f14, 1).strokeRect(x + 0.5, y + 0.5, TILE - 1, h - 1).lineBetween(x + TILE / 2, y, x + TILE / 2, y + h);
+      this.doorGfx.fillStyle(0x3a3f4f, 1).fillRect(x, y + 4, TILE, 2).fillRect(x, y + h - 6, TILE, 2);
+      this.doorGfx.fillStyle(0xf2c230, 1).fillCircle(x + TILE / 2, y + h / 2, 2).fillRect(x + TILE / 2 - 0.5, y + h / 2, 1, 4);
+    });
+    this.keyGfx.clear();
+    this.keysPainted = 0;
+    level.keys.forEach((k, i) => {
+      if (this.run.keysTaken[i]) return;
+      this.keysPainted++;
+      this.paintKey(this.keyGfx, k.col * TILE + TILE / 2, k.row * TILE + TILE / 2, 12);
     });
   }
 
@@ -417,6 +479,9 @@ export class PlayScene extends Phaser.Scene {
     // GDD-UI-01: a small icon of the power-up state, to the right of the triangles. Nothing in Base.
     this.hudPower = this.run.power;
     if (this.run.power === 'taco') this.paintTaco(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 6, LIVES_HUD.top + 3, 13);
+    // GDD-WLD-05: one small key per key Poncho carries, after the power-up icon.
+    this.hudKeyCount = this.run.keysHeld;
+    for (let i = 0; i < this.run.keysHeld; i++) this.paintKey(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 24 + i * 9, LIVES_HUD.top + 5, 12);
     layoutLives(this.run.lives.lives).forEach((triangle, index) => {
       const { points: [x1, y1, x2, y2, x3, y3], filled } = triangle;
       if (filled) {
@@ -495,7 +560,8 @@ export class PlayScene extends Phaser.Scene {
 
     const alpha = this.paused ? 1 : this.stepper.advance(deltaMs / 1000, () => this.simStep(input));
     // Redraw when the lives change, and on every step while a triangle is cracking.
-    if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.run.power !== this.hudPower) this.drawHud();
+    if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
+    if (`${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}` !== this.doorsKey) this.drawDoorsAndKeys();
     if (this.run.tacosTaken.join() !== this.tacosKey) this.drawTacos();
     if (this.run.pinatasOpen.join() !== this.pinatasKey) this.drawPinatas();
     this.drawItems();

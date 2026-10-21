@@ -8,6 +8,7 @@ import type { Crumble } from '../sim/crumble';
 import type { MovingPlatform } from '../sim/platform';
 import type { Spring } from '../sim/spring';
 import type { Spike } from '../sim/hazards';
+import type { Door, Key } from '../sim/door';
 import type { Pinata } from '../sim/pinata';
 import type { Taco } from '../sim/taco';
 import type { Ofrenda } from '../sim/run';
@@ -70,3 +71,12 @@ export const SANDBOX_TACOS: readonly Taco[] = [{ col: 18, row: 13 }];
  * the platform above (columns 4 to 8) and of the touch buttons.
  */
 export const SANDBOX_PINATAS: readonly Pinata[] = [{ col: 9, row: 11 }];
+
+/**
+ * GDD-WLD-05: a door three tiles tall (rows 11 to 13, 48 px) at tile column 8, between the first ofrenda and the piñata.
+ * The platform above it (row 10, columns 4 to 8) closes the top, so the only way past is a key.
+ */
+export const SANDBOX_DOORS: readonly Door[] = [{ col: 8, row: 11, height: 3 }];
+
+/** GDD-WLD-05: a key on the floor at tile column 5, on the way from the start to the door. */
+export const SANDBOX_KEYS: readonly Key[] = [{ col: 5, row: 13 }];
