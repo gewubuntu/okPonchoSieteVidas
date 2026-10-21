@@ -10,7 +10,7 @@ linted with Oxlint, targeting **web and mobile browsers**. The stack tracks the 
 `docs/GDD.md` is the single source of truth. Every feature, test, backlog row and
 commit refers to a stable GDD ID such as `GDD-MOV-02`.
 
-- No GDD ID, no feature. If an idea has no ID, use the `gdd-update` skill first.
+- No GDD ID, no feature. If an idea has no ID, use the `harness-gdd-update` skill first.
 - Never present a guess as a decision. Each GDD section has `Status: Decided | Proposed | Deprecated`.
   Only the user turns `Proposed` into `Decided`.
 - Tuning numbers live in the GDD and in one code file (`src/config/tuning.ts`, once it exists).
@@ -25,7 +25,7 @@ commit refers to a stable GDD ID such as `GDD-MOV-02`.
 3. **Test first** where logic is testable (movement, lives, damage, save data are pure code).
 4. **Implement** the smallest change that satisfies the GDD text.
 5. **Check**: run `node scripts/check.mjs`. It must pass before every commit.
-6. **Retro**: run the `retro` skill. Append lessons, promote recurring ones.
+6. **Retro**: run the `harness-retro` skill. Append lessons, promote recurring ones.
 7. **Commit** with the GDD IDs in the message, e.g. `feat(GDD-MOV-02): variable jump height`.
 
 ## Self-improvement loop
@@ -50,7 +50,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `npm run shots` | Screenshots for visual review: desktop and phone viewport, into `shots/` (not committed). Scenarios live in `e2e/shots/`. |
 | `node scripts/pr-screenshots.mjs [base]` | Warn if visible files changed and no screenshot was added under `docs/screenshots/`. |
 | `node scripts/pr-size.mjs [base]` | Warn if the current branch changes more than about 300 lines against the base (default `origin/main`). |
-| `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `playtest` skill). |
+| `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `harness-playtest` skill). |
 | `node scripts/check.mjs --backlog-stub` | Print backlog rows for GDD IDs missing from `docs/BACKLOG.md`. |
 
 ## Repository map
@@ -60,7 +60,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - `docs/LESSONS.md` append-only lessons log
 - `docs/HARNESS.md` how the harness works
 - `docs/decisions/` architecture decision records
-- `.claude/skills/` project skills: `feature`, `gdd-update`, `playtest`, `retro`
+- `.claude/skills/` project skills, all prefixed `harness-`: `harness-feature`, `harness-gdd-update`, `harness-playtest`, `harness-retro`
 - `.claude/agents/pr-reviewer.md` the subagent that reviews every pull request
 - `.claude/settings.json` project hooks (a hook reminds you to run the reviewer after a PR is created)
 - `scripts/check.mjs` the gate

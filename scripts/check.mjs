@@ -191,6 +191,7 @@ function checkSkills() {
     const get = readFrontmatter(file, 'SKILL', errors);
     if (!get) continue;
     if (get('name') !== name) errors.push(`SKILL: ${file} name must be "${name}"`);
+    if (!name.startsWith('harness-')) errors.push(`SKILL: ${name} must start with "harness-" so its command shows it is a harness skill`);
     if (!get('description')) errors.push(`SKILL: ${file} has no description`);
   }
   return errors;

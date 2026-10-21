@@ -1,5 +1,5 @@
 ---
-name: playtest
+name: harness-playtest
 description: "Run PONCHO: Siete Vidas in headless Chromium with Playwright, drive input, take screenshots and assert on game state. Use to verify a visible or interactive change actually works in the real game, including mobile viewport and touch input. Run with npm run test:e2e."
 ---
 
