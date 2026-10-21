@@ -2,7 +2,7 @@
 // lands on its top from above, is carried along while he stands on it, and passes through it from below and the sides.
 // Where it is depends only on the step count, so it is the same on every run. Pure logic, no Phaser (GDD-TEC-02).
 import { HITBOX, PLATFORM, TICK_HZ } from '../config/tuning';
-import type { PlayerState } from './movement';
+import { blocked, type PlayerState, type World } from './movement';
 
 /** A platform's two ends, as the top-left corner of its top surface, and how wide it is. */
 export interface MovingPlatform {
@@ -40,13 +40,19 @@ export function standsOnPlatform(player: PlayerState, at: PlatformPos): boolean 
   return player.grounded && Math.abs(player.y - at.y) < EPS && overlapsX(player, at);
 }
 
-/** Poncho before a step: if he stands on a platform, he moves with it to where it will be after this step. */
-export function carry(player: PlayerState, platforms: readonly MovingPlatform[], tick: number): PlayerState {
+/**
+ * Poncho before a step: if he stands on a platform, he moves with it to where it will be after this step, one axis at
+ * a time and never into a solid tile: if the platform would push him into a wall or a ceiling he stays against it and
+ * the platform slides on under his feet, so a platform never crushes him or pushes him through a tile.
+ */
+export function carry(player: PlayerState, platforms: readonly MovingPlatform[], tick: number, world: World): PlayerState {
   for (const p of platforms) {
     const from = platformAt(p, tick);
     if (!standsOnPlatform(player, from)) continue;
     const to = platformAt(p, tick + 1);
-    return { ...player, x: player.x + (to.x - from.x), y: player.y + (to.y - from.y) };
+    const x = blocked(world, player.x + (to.x - from.x), player.y) ? player.x : player.x + (to.x - from.x);
+    const y = blocked(world, x, player.y + (to.y - from.y)) ? player.y : player.y + (to.y - from.y);
+    return { ...player, x, y };
   }
   return player;
 }

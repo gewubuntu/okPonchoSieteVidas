@@ -37,7 +37,7 @@ const HALF_WIDTH = HITBOX.width / 2;
 const EDGE = 1e-6;
 
 /** Does Poncho's body box, centred on x with its feet at y (GDD-MOV-06), overlap a solid tile? */
-function blocked(world: World, x: number, y: number): boolean {
+export function blocked(world: World, x: number, y: number): boolean {
   const left = Math.floor((x - HALF_WIDTH) / TILE);
   const right = Math.floor((x + HALF_WIDTH - EDGE) / TILE);
   const top = Math.floor((y - HITBOX.height) / TILE);

@@ -108,8 +108,9 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   }
 
   // GDD-WLD-05: a platform carries Poncho, then he lands on the one he came down on.
-  const carried = carry(run.player, level.platforms, run.platformTick);
-  const stepped = step(carried, input, withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles));
+  const solid = withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles);
+  const carried = carry(run.player, level.platforms, run.platformTick, solid);
+  const stepped = step(carried, input, solid);
   const landed = landOnPlatforms(carried, stepped, level.platforms, run.platformTick);
   const platformTick = run.platformTick + 1;
   // GDD-WLD-05: a spring throws Poncho up the step he stands on it.

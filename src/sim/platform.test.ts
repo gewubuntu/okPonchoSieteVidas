@@ -23,6 +23,9 @@ const levelOf = (...platforms: MovingPlatform[]): Level => ({
   platforms,
 });
 
+/** A 20-wide world with a floor at row 12, and `solid(row)` giving every other row. */
+const rows = (solid: (row: number) => string) => parseTiles(Array.from({ length: 13 }, (_, r) => (r === 12 ? '#'.repeat(20) : solid(r))));
+
 /** Plays on, returning every state. */
 function play(level: Level, r: RunState, steps: number, input: (i: number) => PlayerInput = () => idle): RunState[] {
   const states: RunState[] = [];
@@ -133,6 +136,32 @@ describe('GDD-WLD-05 moving platform: one way', () => {
     const l: Level = { ...levelOf({ x0: 120, y0: 128, x1: 120, y1: 128, w: 48 }), world: high };
     const states = play(l, runAt(l, spawn(80, 128)), 60, () => ({ move: 1, jumpHeld: false })); // the platform is a 128-high strip ahead
     expect(states[59]!.player.x).toBeGreaterThan(120);
+  });
+});
+
+describe('GDD-WLD-05 moving platform: never carries Poncho into a tile', () => {
+
+  it('a wall in the way: he stops against its face and does not pass through it', () => {
+    // A wall at tile column 10 (x 160 to 176), rows 6 and 7 (y 96 to 128): level with his body as he stands on the platform.
+    const l: Level = { ...levelOf(across), world: rows((r) => (r === 6 || r === 7 ? '.'.repeat(10) + '#' + '.'.repeat(9) : '.'.repeat(20))) };
+    const states = play(l, runAt(l, spawn(120, 128)), 200);
+    const xs = states.map((s) => s.player.x);
+    expect(Math.max(...xs)).toBeLessThanOrEqual(154 + 1e-6); // the wall face at 160 less half his 12 px width
+    expect(Math.max(...xs)).toBeGreaterThan(153); // he did get all the way to it
+    for (let i = 1; i < xs.length; i++) expect(Math.abs(xs[i]! - xs[i - 1]!)).toBeLessThan(1); // no jump through the wall
+    // The platform slides on under him and later back; he is not crushed and not pushed anywhere odd.
+    expect(states.every((s) => s.phase === 'playing')).toBe(true);
+  });
+
+  it('a ceiling in the way: his head stops under it and he is not moved sideways', () => {
+    // A ceiling at tile row 6 (y 96 to 112) over x 32 to 80, with a vertical platform rising from y = 176 to y = 100 under it.
+    const up: MovingPlatform = { x0: 40, y0: 176, x1: 40, y1: 100, w: 48 };
+    const l: Level = { ...levelOf(up), world: rows((r) => (r === 6 ? '..###' + '.'.repeat(15) : '.'.repeat(20))) };
+    const states = play(l, runAt(l, spawn(60, 176)), 160);
+    const ys = states.map((s) => s.player.y);
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(126 - 1e-6); // the ceiling's underside at 112 plus his 14 px height
+    expect(Math.min(...ys)).toBeLessThan(127); // he did rise right up to it
+    expect(states.every((s) => Math.abs(s.player.x - 60) < 1e-9)).toBe(true);
   });
 });
 
