@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.12
+Version: 0.4.13
 
 This document is the anchor for every feature. Rules:
 
@@ -8,10 +8,11 @@ This document is the anchor for every feature. Rules:
 - **Decided** = the user said so. **Proposed** = a recommendation that is not binding until the user confirms it. **Deprecated** = removed, kept so IDs are never reused.
 - Proposals are listed in [Open Questions](#open-questions) so they can be confirmed or changed.
 - Numbers use *virtual pixels* at the base resolution defined in GDD-ART-01, unless stated otherwise.
-- Process for editing: `.claude/skills/gdd-update/SKILL.md`.
+- Process for editing: `.claude/skills/harness-gdd-update/SKILL.md`.
 
 ## Changelog
 
+- **0.4.13** (2026-10-21) No rule changed: the harness skills are renamed with a `harness-` prefix, so the process and playtest references point at the new names.
 - **0.4.12** (2026-10-21) GDD-MOV-03: corner correction is built and its rule is written out (which side, how far, only while rising).
 - **0.4.11** (2026-10-20) GDD-LIFE-02 and GDD-MOV-05: the respawn flip is built. Poncho is hidden for the first 0.45 s of the wait, then drops in and turns once and lands feet-first as control returns (this changes "hidden while waiting" in GDD-LIFE-02).
 - **0.4.10** (2026-10-20) GDD-LIFE-02 and GDD-UI-01: the HUD crack animation for a lost life is built (the flip and feet-first landing are still to come).
@@ -612,7 +613,7 @@ Status: Proposed
 
 - Unit tests (Vitest) for simulation: movement numbers, forgiveness windows, lives rules, save migration.
 - Level validation tests (GDD-TEC-04).
-- Playwright playtests per the `playtest` skill: boot, jump, life loss, touch input, console free of errors.
+- Playwright playtests per the `harness-playtest` skill: boot, jump, life loss, touch input, console free of errors.
 - `scripts/check.mjs` runs all of these through npm scripts once they exist.
 
 ---
@@ -633,7 +634,7 @@ The first playable milestone:
 - Autosave (GDD-PRG-02), pause, settings with volume and language.
 - Placeholder music and SFX are acceptable.
 
-Done means: the `playtest` skill passes on desktop and a phone viewport, and the user has played it.
+Done means: the `harness-playtest` skill passes on desktop and a phone viewport, and the user has played it.
 
 ### GDD-MVP-02 Later scope
 

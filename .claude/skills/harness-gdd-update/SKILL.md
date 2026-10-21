@@ -1,5 +1,5 @@
 ---
-name: gdd-update
+name: harness-gdd-update
 description: "Edit docs/GDD.md for PONCHO: Siete Vidas, the anchor design document. Use when adding, changing, splitting, promoting or deprecating a game design rule, mechanic, tuning number or scope item. Keeps IDs stable, statuses honest, the changelog current and the backlog in sync."
 ---
 

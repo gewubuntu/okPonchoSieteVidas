@@ -27,7 +27,7 @@ const BLINK_STEPS = 6;
 /** Height of the pale strip along Poncho's feet on the placeholder body, in px. */
 const FEET_HEIGHT = 3;
 
-/** Dev-only hook for the `playtest` skill. Exposed only by the Vite dev server (see PlayScene.create). */
+/** Dev-only hook for the `harness-playtest` skill. Exposed only by the Vite dev server (see PlayScene.create). */
 export interface PonchoDebug {
   state(): PlayerState;
   ticks(): number;

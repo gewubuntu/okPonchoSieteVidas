@@ -11,7 +11,7 @@ project get better at itself over time.
 | `docs/BACKLOG.md` | One row per GDD ID: `todo`, `doing`, `done` or `cut`. |
 | `docs/LESSONS.md` | Append-only log of mistakes and the rules that came out of them. |
 | `docs/decisions/` | Architecture decision records (ADRs). |
-| `.claude/skills/*` | Repeatable procedures: `feature`, `gdd-update`, `playtest`, `retro`. |
+| `.claude/skills/*` | Repeatable procedures: `harness-feature`, `harness-gdd-update`, `harness-playtest`, `harness-retro` (all start with `harness-`, so typing `/harness` lists them). |
 | `.claude/agents/pr-reviewer.md` | The subagent that reviews every pull request in depth. |
 | `.claude/settings.json` | Project hooks. After a PR is created, a hook tells Claude to run the reviewer. |
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
@@ -49,7 +49,7 @@ When a lesson is promoted, set its `Promoted:` field to where the rule now lives
 ## Adding a check
 
 Add a function to `scripts/check.mjs` that returns a list of error strings, register it in
-the `checks` array, and make sure it fails on a bad input. The retro skill should name the
+the `checks` array, and make sure it fails on a bad input. The harness-retro skill should name the
 lesson that motivated the check in a comment.
 
 ## Pull request review
@@ -100,6 +100,6 @@ the registry; do not rely on memory (see L-005).
 
 ## Playtesting
 
-The `playtest` skill (`npm run test:e2e`) drives the real game in headless Chromium on a desktop and a
+The `harness-playtest` skill (`npm run test:e2e`) drives the real game in headless Chromium on a desktop and a
 landscape phone viewport and asserts on game state. It is not part of the gate because it needs a browser;
 CI runs it as a separate job.
