@@ -196,6 +196,13 @@ describe('GDD-PWR-03 spitting', () => {
     expect(r.fireballs.length).toBeGreaterThan(0);
   });
 
+  it('a fireball flies on over a spike tile', () => {
+    // The level has a spike in column 8 (x 128 to 144), level with the fireball's bounces.
+    const r = run(run(as('fuego'), spit, 1), idle, 40);
+    expect(r.fireballs).toHaveLength(1);
+    expect(r.fireballs[0]!.x).toBeGreaterThan(144);
+  });
+
   it('the fireballs in flight keep going when Poncho takes a hit or leaves Fuego', () => {
     let r = run(as('fuego'), spit, 1);
     r = { ...r, power: 'taco' };

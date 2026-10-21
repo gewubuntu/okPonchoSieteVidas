@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.25
+Version: 0.4.26
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.26** (2026-10-21) GDD-PWR-03, GDD-PWR-01, GDD-PWR-05, GDD-PWR-06, GDD-CTL-03: the chile, the Fuego state and its fireball are built (a piñata releases a chile when Poncho is not in Base); what a chile does in Base, the fireball's fall and bounce, and the Fuego touch button are written out as proposals.
 - **0.4.25** (2026-10-21) GDD-CMB-02, GDD-WLD-05, GDD-PWR-05, GDD-CTL-03: the claw swipe is built as a standard mechanic (the user's call), with fragile walls and claw-opened piñatas; the swing timing, hit box, what interrupts it and the reset on respawn are written out as proposals, and a Claw touch button is added. GDD-CTL-04: a jump or claw press that is over before the next frame still counts for one step.
 - **0.4.24** (2026-10-21) GDD-WLD-05, GDD-UI-01: doors and keys are built (and a key icon per key carried joins the HUD); how a key is picked up, what opens a door, and the reset on respawn are written out as proposals.
 - **0.4.23** (2026-10-21) GDD-PWR-05, GDD-PWR-02, GDD-PWR-06: piñata blocks are built for the head bump, releasing a walking taco in Base; the open and closed rules, the walking taco and the respawn reset are written out as proposals; one open question added about floor tacos against released ones.
@@ -282,7 +283,7 @@ Poncho is always in exactly one state. The hitbox does not change between states
 - A hit that downgrades the state still gives 2.0 s invulnerability and knockback (GDD-CMB-03).
 - Losing a life respawns Poncho in Base.
 - Picking up an item that would not improve the state gives hilos instead (GDD-WLD-04).
-- **Built (details Proposed):** Base and Taco only; Fuego waits for GDD-PWR-03. A taco pickup is a 12 x 12 px square in the middle of its tile (`TACO` in `src/config/tuning.ts`), picked up when the body box overlaps it. While in Taco, a taco pickup is left where it is. A pickup and a spike hit in the same step: the pickup is resolved first, so the taco is spent on that hit. Losing a life puts Poncho back in Base and every taco pickup comes back, so a level is never left without its taco. A spike hit in Taco gives 2.0 s of invulnerability like a respawn. Unlike a lethal hit, a Taco hit does not stop an ofrenda touched in the same step from activating, since Poncho is still alive. Poncho is in Base from the moment a life is lost, so the HUD icon goes during the wait. Poncho holds a small taco on the side he faces and the HUD shows a taco icon right of the triangles; both are placeholder art. `src/sim/taco.ts`, `src/sim/run.ts`.
+- **Built (details Proposed):** Base, Taco and Fuego (GDD-PWR-03). A taco pickup is a 12 x 12 px square in the middle of its tile (`TACO` in `src/config/tuning.ts`), picked up when the body box overlaps it. While in Taco, a taco pickup is left where it is. A pickup and a spike hit in the same step: the pickup is resolved first, so the taco is spent on that hit. Losing a life puts Poncho back in Base and every taco pickup comes back, so a level is never left without its taco. A spike hit in Taco gives 2.0 s of invulnerability like a respawn. Unlike a lethal hit, a Taco hit does not stop an ofrenda touched in the same step from activating, since Poncho is still alive. Poncho is in Base from the moment a life is lost, so the HUD icon goes during the wait. Poncho holds a small taco on the side he faces and the HUD shows a taco icon right of the triangles; in Fuego both also show a glowing chile beside the taco. All of it is placeholder art. A hit in Fuego goes back to Taco, with the same 2.0 s of invulnerability and push, no life lost. A taco released from a piñata or lying in the level does not improve Fuego: it is left (a floor taco) or used up (a released one, see Open Question 12). `src/sim/taco.ts`, `src/sim/run.ts`.
 - Lives are never granted by taco or chile. Only veladoras and ofrendas restore lives (GDD-LIFE-03).
 
 ### GDD-PWR-02 Taco (the mushroom)
@@ -302,6 +303,10 @@ Status: Proposed
 - Fireballs defeat most light enemies, melt ice and light unlit candles. Bosses take 1 damage per fireball unless a boss rule says otherwise (GDD-BOS-01).
 - The Fuego button is separate from Claw (GDD-CMB-02). On touch it appears only while in Fuego (GDD-CTL-03).
 
+- **Built (details Proposed):** the chile is a stationary pepper that stands on top of its piñata (GDD-PWR-05) and is eaten by touch (GDD-PWR-06): Taco becomes Fuego, Fuego stays Fuego and the pepper is used up (it would give hilos, GDD-PWR-01, not built yet), and Base becomes Taco (one step better, like a Mario flower picked up when small; the GDD did not say). A press of the Fuego button (C or K on the keyboard, the touch Fuego button, GDD-CTL-01, GDD-CTL-03) in Fuego spits one fireball on that press step; holding the button spits once. In Base or Taco it does nothing. At most 2 fireballs exist at once: a press while two are in flight is ignored.
+- The fireball is a 6 x 6 px square. It starts at Poncho's front edge, level with the middle of his body, heading the way he faces at 180 px/s, and is not falling yet. It falls at 1500 px/s squared and bounces off the ground at the speed that climbs 20 px (about 245 px/s), so it bounces along the ground in a 20 px arc. It vanishes on a wall, under a ceiling, below the bottom of the level and after 3 s (180 steps). It is not stopped by spikes, ofrendas, keys or pickups. A fireball in flight keeps going when Poncho is hit or leaves Fuego; a lost life clears them. Nothing is hurt by a fireball yet: there are no enemies, ice or candles. `FIREBALL` in `src/config/tuning.ts`, `src/sim/fireball.ts`.
+- Not built yet: what fireballs hit (GDD-ENM-01, GDD-BOS-01), the Fuego sound, the spit pose, a gamepad binding (east button, GDD-CTL-02).
+
 ### GDD-PWR-04 Chile Fantasma (the star)
 
 Status: Proposed. Post-MVP (GDD-MVP-02).
@@ -315,10 +320,10 @@ Status: Proposed
 Hanging piñatas that open when Poncho hits them from below (head bump) or with a claw swipe, releasing an item or hilos. A piñata releases a Taco if Poncho is Base, otherwise a Chile; a multi-piñata gives up to 10 hilos over 4 s. An opened piñata becomes a broken shell. Piñatas are drawn so players recognise them at a glance and never hide a lethal surprise.
 
 - **Built (details Proposed):** the head bump, in Base and Taco. A piñata is a solid tile, closed or open. A bump is a step that ends with the body's head flush against its underside after Poncho was rising, so standing or walking under it, and a corner clip that slides him past the edge (GDD-MOV-03), do not open it. The body box must overlap the tile's column; with two neighbouring piñatas, the one whose middle is nearer his own wins. A piñata opens once.
-- In Base it releases a taco standing on top of it (GDD-PWR-02). If there is no room above it (a wall or block in the way) it stays closed and releases nothing, so an item never spawns inside a wall (GDD-PWR-06). In Taco it opens empty for now: the chile (GDD-PWR-03) is not built.
+- In Base it releases a taco standing on top of it (GDD-PWR-02). If there is no room above it (a wall or block in the way) it stays closed and releases nothing, so an item never spawns inside a wall (GDD-PWR-06). In Taco or Fuego it releases a chile instead (GDD-PWR-03), by the same room rule. The kind is decided by Poncho's state at the moment of the hit.
 - Losing a life closes every piñata again and clears every released item, along with Poncho returning to Base (GDD-PWR-01).
 - A claw swipe opens a piñata that its box overlaps, by the same rules as a head bump (GDD-CMB-02), for instance from the top of a wall next to it. The sandbox piñata can be reached that way from the 2-tile wall at columns 10 and 11.
-- Not built yet: the multi-piñata with hilos, the empty piñata art that is not a shell, and sounds. The sandbox has one piñata, 32 px above the floor. `src/sim/pinata.ts`, `src/sim/run.ts`.
+- Not built yet: the multi-piñata with hilos, the empty piñata art that is not a shell, and sounds. The sandbox has two piñatas: one 32 px above the floor at column 9, and one at column 23, row 8, 32 px above the top of the 3-tile wall, which Poncho reaches by standing on the wall (a chile comes out when he is in Taco). `src/sim/pinata.ts`, `src/sim/run.ts`.
 
 ### GDD-PWR-06 Item rules
 
@@ -365,7 +370,8 @@ Status: Proposed. Required for the MVP (GDD-MVP-01).
 - **Built so far:** left and right buttons bottom-left and a larger jump button bottom-right, drawn as a framed triangle (the poncho motif) semi-transparent, brighter and orange while pressed (the exact opacity becomes a setting with GDD-UI-03). Buttons are 40 px (jump 56 px) with 6 px from the screen edge and a 4 px gap between left and right, and they grow on a small screen so none is under 48 CSS px (`TOUCH` in `src/config/tuning.ts`). They show only on devices that report touch and work together with the keyboard. Left and right pressed together cancel out. Moving and jumping at once works with two fingers.
 - **Slide stick (built, details Proposed):** a small switch above the left thumb zone swaps the left and right buttons for one track as wide as both, and back. The choice is remembered on the device (browser storage, where allowed). A finger anywhere in the lower left quarter of the screen steers, by how far it is left or right of the track's centre: nothing inside a dead zone of 0.2 of the half-track, then speed grows evenly to full at the track's edge and stays full beyond it (analog speed, GDD-MOV-01). Jump stays on the right and works together with the stick. The switch is as large as the other buttons (48 CSS px minimum).
 - **Claw button (built):** a button the size of the left and right buttons sits left of Jump on the same floor line, a gap of 4 px from it, drawn with three slanted claw marks; it works together with moving and jumping (GDD-CMB-02).
-- **Still missing:** the Fuego button (that action does not exist yet), mirrored layout and opacity setting, safe-area insets (the canvas is letterboxed, which keeps the buttons clear of notches on wide phones), vibration, pause.
+- **Fuego button (built):** the same size as the claw button, directly above it with a gap of 4 px, drawn as an orange flame. It exists only while Poncho is in Fuego: it appears when he becomes Fuego and goes when he is hit or loses a life (GDD-PWR-03). A press spits a fireball, and, like jump and the claw, a tap shorter than a frame still counts (GDD-CTL-04).
+- **Still missing:** mirrored layout and opacity setting, safe-area insets (the canvas is letterboxed, which keeps the buttons clear of notches on wide phones), vibration, pause.
 
 ### GDD-CTL-04 Input latency budget
 
