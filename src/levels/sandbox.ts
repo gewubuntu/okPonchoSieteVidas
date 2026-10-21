@@ -8,6 +8,7 @@ import type { Crumble } from '../sim/crumble';
 import type { MovingPlatform } from '../sim/platform';
 import type { Spring } from '../sim/spring';
 import type { Spike } from '../sim/hazards';
+import type { Pinata } from '../sim/pinata';
 import type { Taco } from '../sim/taco';
 import type { Ofrenda } from '../sim/run';
 
@@ -62,3 +63,10 @@ export const SANDBOX_PLATFORMS: readonly MovingPlatform[] = [{ x0: 240, y0: 128,
 
 /** GDD-PWR-02: a taco on the floor at tile column 18, just past the pit and one tile before the second ofrenda, so Poncho can pick it up and then meet the spikes. */
 export const SANDBOX_TACOS: readonly Taco[] = [{ col: 18, row: 13 }];
+
+/**
+ * GDD-PWR-05: a piñata at tile column 9, row 11 (underside y = 192): 32 px above the floor, so a standing Poncho's head is
+ * 18 px short of it and any jump bumps it. Row 10 above it is open, so the taco it releases has room, and it is clear of
+ * the platform above (columns 4 to 8) and of the touch buttons.
+ */
+export const SANDBOX_PINATAS: readonly Pinata[] = [{ col: 9, row: 11 }];
