@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LIVES_MAX, RESPAWN, TILE } from '../config/tuning';
+import { loseLife as loseLifeOnce } from './lives';
 import { spawn, type PlayerInput } from './movement';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { touchesTaco, type Taco } from './taco';
@@ -101,6 +102,13 @@ describe('GDD-PWR-01 and GDD-CMB-03 a hit in Taco', () => {
     expect(stepRun(onSpike('base'), idle, level)).toMatchObject({ phase: 'respawning', power: 'base' });
   });
 
+  it('an ofrenda touched in the same step as a Taco hit is still activated, since Poncho lives', () => {
+    const both: Level = { ...level, ofrendas: [{ id: 'o', x: 136, y: 64 }] };
+    const r = stepRun({ ...startRun(both), lives: loseLifeOnce(startRun(both).lives), power: 'taco', player: at(136, 64) }, idle, both);
+    expect(r).toMatchObject({ power: 'base', phase: 'playing', checkpointIndex: 0 });
+    expect(r.lives.lives).toBe(LIVES_MAX);
+  });
+
   it('a taco picked up in the same step as a hit is spent on it', () => {
     const both: Level = { ...level, spikes: [{ col: 3, row: 3 }] };
     const r = stepRun({ ...startRun(both), player: at(56, 64) }, idle, both);
@@ -113,7 +121,7 @@ describe('GDD-PWR-01 losing a life brings Poncho back in Base', () => {
     const pit: Level = { ...level, world: parseTiles(['...', '...', '...']), spikes: [] };
     let r: RunState = { ...startRun(pit), power: 'taco', tacosTaken: [true], player: at(24, 200) };
     r = stepRun(r, idle, pit);
-    expect(r.phase).toBe('respawning');
+    expect(r).toMatchObject({ phase: 'respawning', power: 'base' }); // the HUD icon goes with the life
     for (let i = 0; i < RESPAWN.delaySteps; i++) r = stepRun(r, idle, pit);
     expect(r).toMatchObject({ phase: 'playing', power: 'base', tacosTaken: [false] });
   });

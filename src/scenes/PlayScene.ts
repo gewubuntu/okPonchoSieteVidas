@@ -367,7 +367,7 @@ export class PlayScene extends Phaser.Scene {
     this.cracksDrawn = [];
     // GDD-UI-01: a small icon of the power-up state, to the right of the triangles. Nothing in Base.
     this.hudPower = this.run.power;
-    if (this.run.power === 'taco') this.paintTaco(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 6, LIVES_HUD.top + 3, 10);
+    if (this.run.power === 'taco') this.paintTaco(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 6, LIVES_HUD.top + 3, 13);
     layoutLives(this.run.lives.lives).forEach((triangle, index) => {
       const { points: [x1, y1, x2, y2, x3, y3], filled } = triangle;
       if (filled) {

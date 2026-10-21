@@ -127,7 +127,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
   if (isInPit(player, level.world)) {
     // Invulnerability does not protect from pits (GDD-CMB-03), so a life is lost even while it lasts.
-    return { ...run, player, crumbles, platformTick, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
+    return { ...run, player, crumbles, platformTick, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
   }
   // GDD-PWR-02: touching a taco in Base picks it up. In Taco it stays where it is. Picked up before a hit is resolved,
   // so a taco grabbed in the same step as a spike hit is spent on it.
@@ -142,7 +142,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   // (GDD-LIFE-02); in Taco the taco is spent instead, and Poncho is pushed away and invulnerable for 2.0 s.
   const spike = run.invulnerable === 0 ? level.spikes.find((s) => touchesSpike(player, s)) : undefined;
   if (spike && power === 'base') {
-    return { ...run, player, crumbles, platformTick, tacosTaken, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
+    return { ...run, player, crumbles, platformTick, tacosTaken, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
   }
   let hurt = player;
   if (spike) {

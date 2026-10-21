@@ -12,7 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
-- **0.4.22** (2026-10-21) GDD-PWR-01, GDD-PWR-02, GDD-CMB-03: the Taco state is built (pickup, spike hit spends the taco, knockback now 80 px/s, user-approved number); the edge cases are written out as proposals.
+- **0.4.22** (2026-10-21) GDD-PWR-01, GDD-PWR-02, GDD-CMB-03: the Taco state is built (pickup, spike hit spends the taco, knockback now 80 px/s, user-approved number); the edge cases (including the ofrenda and the HUD icon) are written out as proposals.
 - **0.4.21** (2026-10-21) GDD-WLD-05: a moving platform never carries Poncho into a solid tile, and platforms stand still during the respawn wait.
 - **0.4.20** (2026-10-21) GDD-WLD-05: moving platforms are built as one-way floors on a back-and-forth path; the speed, the one-way rule and the reset on respawn are written out as proposals.
 - **0.4.19** (2026-10-21) GDD-WLD-05: a spring gives a higher launch for a jump pressed just before landing (the user's rule: a timed press only); the sandbox gets a ledge only that launch reaches.
@@ -277,7 +277,7 @@ Poncho is always in exactly one state. The hitbox does not change between states
 - A hit that downgrades the state still gives 2.0 s invulnerability and knockback (GDD-CMB-03).
 - Losing a life respawns Poncho in Base.
 - Picking up an item that would not improve the state gives hilos instead (GDD-WLD-04).
-- **Built (details Proposed):** Base and Taco only; Fuego waits for GDD-PWR-03. A taco pickup is a 12 x 12 px square in the middle of its tile (`TACO` in `src/config/tuning.ts`), picked up when the body box overlaps it. While in Taco, a taco pickup is left where it is. A pickup and a spike hit in the same step: the pickup is resolved first, so the taco is spent on that hit. Losing a life puts Poncho back in Base and every taco pickup comes back, so a level is never left without its taco. A spike hit in Taco gives 2.0 s of invulnerability like a respawn. Poncho holds a small taco on the side he faces and the HUD shows a taco icon right of the triangles; both are placeholder art. `src/sim/taco.ts`, `src/sim/run.ts`.
+- **Built (details Proposed):** Base and Taco only; Fuego waits for GDD-PWR-03. A taco pickup is a 12 x 12 px square in the middle of its tile (`TACO` in `src/config/tuning.ts`), picked up when the body box overlaps it. While in Taco, a taco pickup is left where it is. A pickup and a spike hit in the same step: the pickup is resolved first, so the taco is spent on that hit. Losing a life puts Poncho back in Base and every taco pickup comes back, so a level is never left without its taco. A spike hit in Taco gives 2.0 s of invulnerability like a respawn. Unlike a lethal hit, a Taco hit does not stop an ofrenda touched in the same step from activating, since Poncho is still alive. Poncho is in Base from the moment a life is lost, so the HUD icon goes during the wait. Poncho holds a small taco on the side he faces and the HUD shows a taco icon right of the triangles; both are placeholder art. `src/sim/taco.ts`, `src/sim/run.ts`.
 - Lives are never granted by taco or chile. Only veladoras and ofrendas restore lives (GDD-LIFE-03).
 
 ### GDD-PWR-02 Taco (the mushroom)
