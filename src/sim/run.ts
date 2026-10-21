@@ -1,11 +1,12 @@
 // GDD-LIFE-02 and GDD-LIFE-05: one play-through of a level, tying movement, lives and respawn together.
 // Pure logic, no Phaser (GDD-TEC-02). The cracking animation and the "Siete vidas gastadas" screen arrive with their
 // own GDD IDs. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
-import { HITBOX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
+import { HIT, HITBOX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
 import { bounce, withSprings, type Spring } from './spring';
 import { touchesSpike, type Spike } from './hazards';
+import { freshTacos, touchesTaco, type Power, type Taco } from './taco';
 import { activateOfrenda, isOutOfLives, loseLife, startWorld, type LivesState } from './lives';
 import { spawn, step, type PlayerInput, type PlayerState } from './movement';
 import type { TileGrid } from './tilemap';
@@ -34,6 +35,8 @@ export interface Level {
   readonly springs: readonly Spring[];
   /** GDD-WLD-05: moving platforms. */
   readonly platforms: readonly MovingPlatform[];
+  /** GDD-PWR-02: taco pickups. */
+  readonly tacos: readonly Taco[];
 }
 
 export interface RunState {
@@ -48,6 +51,10 @@ export interface RunState {
   readonly crumbles: readonly CrumbleState[];
   /** Steps the moving platforms have travelled since the level start or the last respawn (GDD-WLD-05). */
   readonly platformTick: number;
+  /** GDD-PWR-01: the power-up state. A life lost always brings Poncho back in Base. */
+  readonly power: Power;
+  /** One flag per `Level.tacos` entry, in the same order: has it been picked up? They all come back on respawn. */
+  readonly tacosTaken: readonly boolean[];
   /** Where Poncho respawns: the level start, or the latest ofrenda he has reached (GDD-LIFE-02). */
   readonly checkpoint: Point;
   /** Position in `Level.ofrendas` of the ofrenda that is the checkpoint, or -1 for the level start. Only moves forward. */
@@ -55,7 +62,7 @@ export interface RunState {
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0 };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', tacosTaken: freshTacos(level.tacos) };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -104,6 +111,8 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       // GDD-WLD-05: the crumbled tiles come back with Poncho.
       crumbles: freshCrumbles(level.crumbles),
       platformTick: 0,
+      power: 'base',
+      tacosTaken: freshTacos(level.tacos),
     };
   }
 
@@ -120,9 +129,26 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     // Invulnerability does not protect from pits (GDD-CMB-03), so a life is lost even while it lasts.
     return { ...run, player, crumbles, platformTick, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
   }
-  // GDD-WLD-05, GDD-LIFE-02: touching a spike costs a life, unless Poncho is invulnerable (GDD-CMB-03).
-  if (run.invulnerable === 0 && level.spikes.some((spike) => touchesSpike(player, spike))) {
-    return { ...run, player, crumbles, platformTick, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
+  // GDD-PWR-02: touching a taco in Base picks it up. In Taco it stays where it is. Picked up before a hit is resolved,
+  // so a taco grabbed in the same step as a spike hit is spent on it.
+  let power = run.power;
+  const tacosTaken = level.tacos.map((t, i) => {
+    const taken = run.tacosTaken[i]!;
+    if (taken || power !== 'base' || !touchesTaco(player, t)) return taken;
+    power = 'taco';
+    return true;
+  });
+  // GDD-WLD-05, GDD-CMB-03: touching a spike is a hit, unless Poncho is invulnerable. In Base it costs a life
+  // (GDD-LIFE-02); in Taco the taco is spent instead, and Poncho is pushed away and invulnerable for 2.0 s.
+  const spike = run.invulnerable === 0 ? level.spikes.find((s) => touchesSpike(player, s)) : undefined;
+  if (spike && power === 'base') {
+    return { ...run, player, crumbles, platformTick, tacosTaken, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
+  }
+  let hurt = player;
+  if (spike) {
+    power = 'base';
+    const away = Math.sign(player.x - (spike.col * TILE + TILE / 2)) || -player.facing;
+    hurt = { ...player, vx: away * HIT.knockback };
   }
   // GDD-LIFE-03: touching an ofrenda restores a life the first time only. It becomes the checkpoint only if it is later
   // in the level than the current one, so walking back never moves the respawn point backwards. `Level.ofrendas` is in
@@ -136,5 +162,5 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       checkpointIndex = index;
     }
   });
-  return { ...run, player, crumbles, platformTick, lives, checkpoint, checkpointIndex, invulnerable: Math.max(0, run.invulnerable - 1) };
+  return { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, tacosTaken, invulnerable: spike ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
 }
