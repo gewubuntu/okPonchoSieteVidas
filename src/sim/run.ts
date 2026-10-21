@@ -2,6 +2,7 @@
 // Pure logic, no Phaser (GDD-TEC-02). The cracking animation and the "Siete vidas gastadas" screen arrive with their
 // own GDD IDs. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
 import { HITBOX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
+import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { touchesSpike, type Spike } from './hazards';
 import { activateOfrenda, isOutOfLives, loseLife, startWorld, type LivesState } from './lives';
 import { spawn, step, type PlayerInput, type PlayerState } from './movement';
@@ -25,6 +26,8 @@ export interface Level {
   readonly ofrendas: readonly Ofrenda[];
   /** GDD-WLD-05: spikes. */
   readonly spikes: readonly Spike[];
+  /** GDD-WLD-05: crumbling tiles. */
+  readonly crumbles: readonly Crumble[];
 }
 
 export interface RunState {
@@ -35,6 +38,8 @@ export interface RunState {
   readonly wait: number;
   /** Steps of invulnerability left (GDD-LIFE-02, GDD-CMB-03). */
   readonly invulnerable: number;
+  /** One state per `Level.crumbles` entry, in the same order (GDD-WLD-05). */
+  readonly crumbles: readonly CrumbleState[];
   /** Where Poncho respawns: the level start, or the latest ofrenda he has reached (GDD-LIFE-02). */
   readonly checkpoint: Point;
   /** Position in `Level.ofrendas` of the ofrenda that is the checkpoint, or -1 for the level start. Only moves forward. */
@@ -42,7 +47,7 @@ export interface RunState {
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1 };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles) };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -88,17 +93,20 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       phase: 'playing',
       wait: 0,
       invulnerable: RESPAWN.invulnerableSteps,
+      // GDD-WLD-05: the crumbled tiles come back with Poncho.
+      crumbles: freshCrumbles(level.crumbles),
     };
   }
 
-  const player = step(run.player, input, level.world);
+  const player = step(run.player, input, withCrumbles(level.world, level.crumbles, run.crumbles));
+  const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
   if (isInPit(player, level.world)) {
     // Invulnerability does not protect from pits (GDD-CMB-03), so a life is lost even while it lasts.
-    return { ...run, player, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
+    return { ...run, player, crumbles, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
   }
   // GDD-WLD-05, GDD-LIFE-02: touching a spike costs a life, unless Poncho is invulnerable (GDD-CMB-03).
   if (run.invulnerable === 0 && level.spikes.some((spike) => touchesSpike(player, spike))) {
-    return { ...run, player, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
+    return { ...run, player, crumbles, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
   }
   // GDD-LIFE-03: touching an ofrenda restores a life the first time only. It becomes the checkpoint only if it is later
   // in the level than the current one, so walking back never moves the respawn point backwards. `Level.ofrendas` is in
@@ -112,5 +120,5 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       checkpointIndex = index;
     }
   });
-  return { ...run, player, lives, checkpoint, checkpointIndex, invulnerable: Math.max(0, run.invulnerable - 1) };
+  return { ...run, player, crumbles, lives, checkpoint, checkpointIndex, invulnerable: Math.max(0, run.invulnerable - 1) };
 }

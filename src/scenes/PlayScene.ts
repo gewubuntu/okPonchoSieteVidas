@@ -2,7 +2,7 @@
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES } from '../levels/sandbox';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
@@ -17,7 +17,7 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -65,6 +65,8 @@ export interface PonchoDebug {
   step(n: number, input?: PlayerInput): void;
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed (GDD-CTL-03). */
   touch(): TouchDebug;
+  /** The crumbling tiles and their state, read from the run (GDD-WLD-05). */
+  crumbles(): { col: number; row: number; phase: string; steps: number }[];
   /** Where Poncho would respawn now (GDD-LIFE-02). */
   checkpoint(): { x: number; y: number };
 }
@@ -84,6 +86,8 @@ export class PlayScene extends Phaser.Scene {
   private lastPeak = 0;
   private hud!: Phaser.GameObjects.Graphics;
   private hudFilled = 0;
+  private crumbleGfx!: Phaser.GameObjects.Graphics;
+  private crumblesKey = '';
   private ofrendaGfx!: Phaser.GameObjects.Graphics;
   private ofrendasDrawn: { id: string; x: number; used: boolean }[] = [];
   private drawnLives = 0;
@@ -131,6 +135,8 @@ export class PlayScene extends Phaser.Scene {
     this.ofrendaGfx = this.add.graphics().setDepth(2);
     this.drawOfrendas();
     this.drawSpikes();
+    this.crumbleGfx = this.add.graphics().setDepth(1);
+    this.drawCrumbles();
 
     // GDD-MOV-06: body hitbox, feet at the origin.
     this.body = this.add
@@ -172,9 +178,11 @@ export class PlayScene extends Phaser.Scene {
           if (!this.paused) throw new Error('step() needs the game paused');
           for (let i = 0; i < n; i++) this.simStep(input);
           this.drawHud();
+          this.drawCrumbles();
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
         },
         ofrendas: () => this.ofrendasDrawn,
+        crumbles: () => level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
         checkpoint: () => this.run.checkpoint,
         sfx: () => this.sfxLog,
         touch: () => this.touch.debug(),
@@ -204,6 +212,26 @@ export class PlayScene extends Phaser.Scene {
         g.fillRect(tx * TILE, ty * TILE, TILE, TILE).strokeRect(tx * TILE + 0.5, ty * TILE + 0.5, TILE - 1, TILE - 1);
       }
     }
+  }
+
+  /**
+   * Placeholder crumbling tiles (GDD-WLD-05): sandy blocks with a crack. While warning they shake sideways and flash pale
+   * in turn, so the warning shows by movement and not only by colour (GDD-UI-03); once gone they are not drawn.
+   */
+  private drawCrumbles(): void {
+    this.crumblesKey = this.run.crumbles.map((c) => `${c.phase}${c.steps}`).join();
+    this.crumbleGfx.clear();
+    level.crumbles.forEach((c, i) => {
+      const state = this.run.crumbles[i]!;
+      if (state.phase === 'gone') return;
+      const warning = state.phase === 'warning';
+      const dx = warning ? (state.steps % 4 < 2 ? -1 : 1) : 0;
+      const x = c.col * TILE + dx;
+      const y = c.row * TILE;
+      this.crumbleGfx.fillStyle(warning && state.steps % 8 < 4 ? 0xe9d3a3 : 0xc9a46a, 1).fillRect(x, y, TILE, TILE);
+      this.crumbleGfx.lineStyle(1, 0x7d6038, 1).strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
+      this.crumbleGfx.lineBetween(x + 4, y + 1, x + 8, y + 7).lineBetween(x + 8, y + 7, x + 6, y + 14);
+    });
   }
 
   /** Placeholder spike art: two light points per tile with a dark outline, inside the lower half that hurts (GDD-WLD-05, GDD-UI-03 high-contrast hazards). */
@@ -337,6 +365,7 @@ export class PlayScene extends Phaser.Scene {
     const alpha = this.paused ? 1 : this.stepper.advance(deltaMs / 1000, () => this.simStep(input));
     // Redraw when the lives change, and on every step while a triangle is cracking.
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0) this.drawHud();
+    if (this.run.crumbles.map((c) => `${c.phase}${c.steps}`).join() !== this.crumblesKey) this.drawCrumbles();
     const key = this.usedKey();
     if (key !== this.ofrendasKey) {
       // GDD-AUD-02: the marimba plays when an ofrenda is used for the first time, not when a restart resets them.

@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.16
+Version: 0.4.17
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.17** (2026-10-21) GDD-WLD-05: crumbling platforms are built; how they trigger, how long they last and when they come back are written out as proposals.
 - **0.4.16** (2026-10-21) GDD-WLD-05: two spike edge cases are written out (invulnerability ending on a spike, a spike hit and an ofrenda in the same step). No behaviour changed.
 - **0.4.15** (2026-10-21) GDD-WLD-05, GDD-MOV-06, GDD-LIFE-02, GDD-CMB-03: spikes are built; where the hurtbox sits in the body and which part of a spike tile hurts are written out as proposals.
 - **0.4.14** (2026-10-21) GDD-CTL-03: the slide stick is built, with a mode switch to choose it over the buttons; its dead zone, zone and saved choice are written out as proposals.
@@ -402,6 +403,7 @@ Status: Proposed
 Core set: spikes (cactus, obsidian), pits, crumbling platforms (0.5 s warning), springs (bounce 480 px/s), moving platforms, fragile walls (claw-breakable), ofrendas (checkpoints), doors and keys. Each world adds one signature hazard (GDD-WLD-02).
 
 - **Spikes (built, details Proposed):** a spike stands in one tile and hurts through the lower half of it (16 px wide, 8 px tall), so a jump that clears the points by a hair is safe. Touching it with the hurtbox (GDD-MOV-06) from any side costs one life, like a pit: the wait, the flip and 2.0 s of invulnerability follow (GDD-LIFE-02). Unlike a pit, a spike does not hurt while Poncho is invulnerable (GDD-CMB-03). Invulnerability only skips the hit, it does not move Poncho: if he is still on a spike when the 2.0 s end, he loses a life on the next step. If a spike hit and an ofrenda touch happen in the same step, the hit wins and the ofrenda is not activated. No knockback yet: it only matters once a hit can leave Poncho alive (Taco or Fuego state, GDD-PWR-01). The sandbox level has two spikes between the second ofrenda and the 3-tile wall. Cactus and obsidian art, and the "not stompable" marking for spike enemies (GDD-CMB-01), come later. `SPIKE` in `src/config/tuning.ts`, `src/sim/hazards.ts`.
+- **Crumbling tiles (built, details Proposed):** one-tile ledges that are solid like a floor. A tile starts to crumble when Poncho lands on it: his body box over its column and his feet on its top. A jump up from below, or walking into its side, does nothing. The warning lasts 0.5 s (30 steps) from the step he lands, shown by the tile shaking sideways and flashing pale in turn (movement and colour, GDD-UI-03). Then it is gone: Poncho falls, with the usual 0.1 s of coyote time to still jump (GDD-MOV-03). The countdown cannot be stopped: if he walks off, the tile still goes. Each tile has its own timer, so standing on the join of two starts both. A gone tile stays gone until Poncho loses a life, and then every tile is whole again when he respawns (GDD-LIFE-02). The sandbox level has three at tile columns 24 to 26, a jump up from the 3-tile wall. Sand-coloured placeholder art with a crack. `CRUMBLE` in `src/config/tuning.ts`, `src/sim/crumble.ts`.
 - **Ofrenda:** one tile wide and two tiles tall (16 x 32 px), standing on the floor. It is activated when Poncho's body box (GDD-MOV-06) overlaps it; boxes that only share an edge do not touch. It does not need a button press and works in the air, so a jump through it counts.
 - Placeholder look until real art (GDD-ART-01): an outlined frame when unused, filled with a flame on top once used, so the two differ by shape and not only by colour (GDD-UI-03). The sandbox level has three, at about 25%, 65% and 85% of its width; the 55% spot of GDD-WLD-03 is in its pit.
 
