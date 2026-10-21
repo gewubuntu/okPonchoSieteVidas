@@ -12,7 +12,7 @@ const right: PlayerInput = { move: 1, jumpHeld: false };
 // Floor top at y = 64. One spike in tile column 5, row 3: its hurting lower half covers x 80 to 96 and y 56 to 64.
 const world = parseTiles(['..........', '..........', '..........', '..........', '##########']);
 const spike: Spike = { col: 5, row: 3 };
-const level: Level = { world, spawn: { x: 24, y: 4 * TILE }, ofrendas: [], spikes: [spike, { col: 6, row: 3 }], crumbles: [], springs: [], platforms: [], tacos: [], pinatas: [] };
+const level: Level = { world, spawn: { x: 24, y: 4 * TILE }, ofrendas: [], spikes: [spike, { col: 6, row: 3 }], crumbles: [], springs: [], platforms: [], tacos: [], pinatas: [], doors: [], keys: [] };
 const at = (x: number, y: number) => spawn(x, y);
 
 describe('GDD-WLD-05 and GDD-MOV-06 spike hit box', () => {

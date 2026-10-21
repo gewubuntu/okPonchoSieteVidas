@@ -3,6 +3,7 @@
 // own GDD IDs. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
 import { HIT, HITBOX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
+import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } from './door';
 import { releaseFrom, stepItem, touchesItem, type Item } from './item';
 import { bumpedPinata, freshPinatas, withPinatas, type Pinata } from './pinata';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
@@ -41,6 +42,9 @@ export interface Level {
   readonly tacos: readonly Taco[];
   /** GDD-PWR-05: piñata blocks. */
   readonly pinatas: readonly Pinata[];
+  /** GDD-WLD-05: doors and the keys that open them. */
+  readonly doors: readonly Door[];
+  readonly keys: readonly Key[];
 }
 
 export interface RunState {
@@ -63,6 +67,11 @@ export interface RunState {
   readonly pinatasOpen: readonly boolean[];
   /** GDD-PWR-02: tacos released from piñatas and still walking about. They are cleared on respawn. */
   readonly items: readonly Item[];
+  /** Keys Poncho is carrying (GDD-WLD-05). One opens one door. */
+  readonly keysHeld: number;
+  /** One flag per `Level.keys` entry: has it been picked up? And one per `Level.doors` entry: is it open? Both reset on respawn. */
+  readonly keysTaken: readonly boolean[];
+  readonly doorsOpen: readonly boolean[];
   /** Where Poncho respawns: the level start, or the latest ofrenda he has reached (GDD-LIFE-02). */
   readonly checkpoint: Point;
   /** Position in `Level.ofrendas` of the ofrenda that is the checkpoint, or -1 for the level start. Only moves forward. */
@@ -70,7 +79,7 @@ export interface RunState {
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [] };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors) };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -123,11 +132,14 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       tacosTaken: freshTacos(level.tacos),
       pinatasOpen: freshPinatas(level.pinatas),
       items: [],
+      keysHeld: 0,
+      keysTaken: freshFlags(level.keys),
+      doorsOpen: freshFlags(level.doors),
     };
   }
 
   // GDD-WLD-05: a platform carries Poncho, then he lands on the one he came down on.
-  const solid = withPinatas(withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles), level.pinatas);
+  const solid = withDoors(withPinatas(withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles), level.pinatas), level.doors, run.doorsOpen);
   const carried = carry(run.player, level.platforms, run.platformTick, solid);
   const stepped = step(carried, input, solid);
   const landed = landOnPlatforms(carried, stepped, level.platforms, run.platformTick);
@@ -165,6 +177,20 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   const kept = items.filter((it) => !touchesItem(player, it));
   if (kept.length < items.length && power === 'base') power = 'taco';
   items = kept;
+  // GDD-WLD-05: a key is picked up by touch. Then a shut door that Poncho touches at its side opens for good and uses up
+  // one key, so a key picked up the same step as a door is touched opens it.
+  let keysHeld = run.keysHeld;
+  const keysTaken = level.keys.map((k, i) => {
+    if (run.keysTaken[i] || !touchesKey(player, k)) return run.keysTaken[i]!;
+    keysHeld++;
+    return true;
+  });
+  const doorsOpen = level.doors.map((d, i) => {
+    if (run.doorsOpen[i]) return true;
+    if (keysHeld === 0 || !touchesDoor(player, d)) return false;
+    keysHeld--;
+    return true;
+  });
   // GDD-WLD-05, GDD-CMB-03: touching a spike is a hit, unless Poncho is invulnerable. In Base it costs a life
   // (GDD-LIFE-02); in Taco the taco is spent instead, and Poncho is pushed away and invulnerable for 2.0 s.
   const spike = run.invulnerable === 0 ? level.spikes.find((s) => touchesSpike(player, s)) : undefined;
@@ -189,5 +215,5 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       checkpointIndex = index;
     }
   });
-  return { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, tacosTaken, pinatasOpen, items, invulnerable: spike ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
+  return { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, invulnerable: spike ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
 }

@@ -105,3 +105,6 @@ export const HIT = { invulnerableSteps: Math.round(2.0 * TICK_HZ), knockback: 80
 
 /** GDD-PWR-02: a taco is a square this many px wide (a pickup sits centred in its tile); one released from a piñata walks at `walkSpeed` px/s. */
 export const TACO = { size: 12, walkSpeed: 40 } as const;
+
+/** GDD-WLD-05: a key pickup is a square this many px wide, centred in its tile. A door touches Poncho from the side within `doorReachPx`. */
+export const KEY = { size: 12, doorReachPx: 1 } as const;
