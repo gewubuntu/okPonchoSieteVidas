@@ -73,7 +73,7 @@ export interface PonchoDebug {
   crumbles(): { col: number; row: number; phase: string; steps: number }[];
   /** Where Poncho would respawn now (GDD-LIFE-02). */
   checkpoint(): { x: number; y: number };
-  /** The power-up state (GDD-PWR-01), and the taco pickups still drawn in the level (GDD-PWR-02). */
+  /** The power-up state (GDD-PWR-01), and the taco pickups the scene painted in the level (GDD-PWR-02). */
   power(): Power;
   tacosDrawn(): number;
   /** Whether the taco in Poncho's hand and the power-up icon on the HUD are drawn. Read from what was drawn. */
@@ -110,6 +110,10 @@ export class PlayScene extends Phaser.Scene {
   private tacoGfx!: Phaser.GameObjects.Graphics;
   private heldGfx!: Phaser.GameObjects.Graphics;
   private tacosKey = '';
+  private tacosPainted = 0;
+  private pinatasPainted: boolean[] = [];
+  private doorsPaintedShut: boolean[] = [];
+  private keysPainted = 0;
   private pinataGfx!: Phaser.GameObjects.Graphics;
   private itemGfx!: Phaser.GameObjects.Graphics;
   private pinatasKey = '';
@@ -233,14 +237,14 @@ export class PlayScene extends Phaser.Scene {
         crumbles: () => level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
         checkpoint: () => this.run.checkpoint,
         power: () => this.run.power,
-        tacosDrawn: () => this.run.tacosTaken.filter((t) => !t).length,
+        tacosDrawn: () => this.tacosPainted,
         heldTacoVisible: () => this.heldGfx.visible,
         hudPowerIcon: () => this.hudPower === 'taco',
-        pinatasDrawn: () => this.run.pinatasOpen.slice(),
+        pinatasDrawn: () => this.pinatasPainted,
         itemsDrawn: () => this.itemsDrawn,
         keysHeld: () => this.run.keysHeld,
-        keysDrawn: () => this.run.keysTaken.filter((t) => !t).length,
-        doorsDrawn: () => this.run.doorsOpen.slice(),
+        keysDrawn: () => this.keysPainted,
+        doorsDrawn: () => this.doorsPaintedShut.map((shut) => !shut),
         hudKeys: () => this.hudKeyCount,
         sfx: () => this.sfxLog,
         touch: () => this.touch.debug(),
@@ -323,8 +327,11 @@ export class PlayScene extends Phaser.Scene {
   private drawTacos(): void {
     this.tacosKey = this.run.tacosTaken.join();
     this.tacoGfx.clear();
+    this.tacosPainted = 0;
     level.tacos.forEach((t, i) => {
-      if (!this.run.tacosTaken[i]) this.paintTaco(this.tacoGfx, t.col * TILE + TILE / 2, t.row * TILE + TILE / 2 - 1, 12);
+      if (this.run.tacosTaken[i]) return;
+      this.tacosPainted++;
+      this.paintTaco(this.tacoGfx, t.col * TILE + TILE / 2, t.row * TILE + TILE / 2 - 1, 12);
     });
   }
 
@@ -336,12 +343,14 @@ export class PlayScene extends Phaser.Scene {
   private drawPinatas(): void {
     this.pinatasKey = this.run.pinatasOpen.join();
     this.pinataGfx.clear();
+    this.pinatasPainted = level.pinatas.map(() => false);
     level.pinatas.forEach((p, i) => {
       const x = p.col * TILE;
       const y = p.row * TILE;
       const cx = x + TILE / 2;
       const cy = y + TILE / 2;
       if (this.run.pinatasOpen[i]) {
+        this.pinatasPainted[i] = true; // painted as the open shell
         this.pinataGfx.fillStyle(0x8a7a62, 1).fillTriangle(x + 1, cy, cx, y + 2, x + TILE - 1, cy).fillTriangle(x + 1, cy, x + TILE - 1, cy, cx, y + TILE - 1);
         this.pinataGfx.fillStyle(0x2a2218, 1).fillRect(cx - 4, cy - 2, 8, 4);
         this.pinataGfx.lineStyle(1, 0x4a3f2e, 1).strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
@@ -371,8 +380,10 @@ export class PlayScene extends Phaser.Scene {
   private drawDoorsAndKeys(): void {
     this.doorsKey = `${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}`;
     this.doorGfx.clear();
+    this.doorsPaintedShut = level.doors.map(() => false);
     level.doors.forEach((d, i) => {
       if (this.run.doorsOpen[i]) return;
+      this.doorsPaintedShut[i] = true;
       const x = d.col * TILE;
       const y = d.row * TILE;
       const h = d.height * TILE;
@@ -382,8 +393,11 @@ export class PlayScene extends Phaser.Scene {
       this.doorGfx.fillStyle(0xf2c230, 1).fillCircle(x + TILE / 2, y + h / 2, 2).fillRect(x + TILE / 2 - 0.5, y + h / 2, 1, 4);
     });
     this.keyGfx.clear();
+    this.keysPainted = 0;
     level.keys.forEach((k, i) => {
-      if (!this.run.keysTaken[i]) this.paintKey(this.keyGfx, k.col * TILE + TILE / 2, k.row * TILE + TILE / 2, 12);
+      if (this.run.keysTaken[i]) return;
+      this.keysPainted++;
+      this.paintKey(this.keyGfx, k.col * TILE + TILE / 2, k.row * TILE + TILE / 2, 12);
     });
   }
 

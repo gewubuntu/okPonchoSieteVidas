@@ -12,7 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
-- **0.4.24** (2026-10-21) GDD-WLD-05: doors and keys are built; how a key is picked up, what opens a door, and the reset on respawn are written out as proposals.
+- **0.4.24** (2026-10-21) GDD-WLD-05, GDD-UI-01: doors and keys are built (and a key icon per key carried joins the HUD); how a key is picked up, what opens a door, and the reset on respawn are written out as proposals.
 - **0.4.23** (2026-10-21) GDD-PWR-05, GDD-PWR-02, GDD-PWR-06: piñata blocks are built for the head bump, releasing a walking taco in Base; the open and closed rules, the walking taco and the respawn reset are written out as proposals; one open question added about floor tacos against released ones.
 - **0.4.22** (2026-10-21) GDD-PWR-01, GDD-PWR-02, GDD-CMB-03: the Taco state is built (pickup, spike hit spends the taco, knockback now 80 px/s, user-approved number); the edge cases (including the ofrenda and the HUD icon) are written out as proposals.
 - **0.4.21** (2026-10-21) GDD-WLD-05: a moving platform never carries Poncho into a solid tile, and platforms stand still during the respawn wait.
@@ -494,7 +494,7 @@ Score from hilos, enemies and time. Level medals: Bronze (clear), Silver (all hi
 
 Status: Proposed
 
-- Top-left: seven triangles (GDD-LIFE-01), filled = life, outline = lost. Lives fill from the left, so a lost life empties the rightmost filled triangle. Filled and outline differ by shape, not colour alone (GDD-UI-03). Next to them, a small icon of the current power-up state (GDD-PWR-01).
+- Top-left: seven triangles (GDD-LIFE-01), filled = life, outline = lost. Lives fill from the left, so a lost life empties the rightmost filled triangle. Filled and outline differ by shape, not colour alone (GDD-UI-03). Next to them, a small icon of the current power-up state (GDD-PWR-01). After it, one small key per key carried (GDD-WLD-05).
 - Top-right: hilo counter.
 - Minimal, semi-transparent, hidden during cutscenes. On touch, controls are drawn under the safe-area insets (GDD-CTL-03).
 

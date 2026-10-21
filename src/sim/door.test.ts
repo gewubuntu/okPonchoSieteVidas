@@ -59,8 +59,10 @@ describe('WLD-05 picking up a key', () => {
   it('is a 12 x 12 box in the middle of its tile, touched by the body box', () => {
     // Key box x 34 to 46, y 50 to 62. The body is x - 6 to x + 6 and y - 14 to y.
     expect(touchesKey(at(27.99, 56), key)).toBe(false);
+    expect(touchesKey(at(28, 56), key)).toBe(false); // only touching its left edge
     expect(touchesKey(at(28.01, 56), key)).toBe(true);
     expect(touchesKey(at(51.99, 56), key)).toBe(true);
+    expect(touchesKey(at(52, 56), key)).toBe(false); // only touching its right edge
     expect(touchesKey(at(52.01, 56), key)).toBe(false);
     expect(touchesKey(at(40, 50), key)).toBe(false); // feet at the key's top edge
     expect(touchesKey(at(40, 50.01), key)).toBe(true);
@@ -81,6 +83,9 @@ describe('WLD-05 picking up a key', () => {
 
 /** Poncho standing on the floor at x, beside the door. */
 const doorSide = (x: number, y = 64): PlayerState => at(x, y);
+
+/** Holding a key and running right at full speed (2 px a step) from x. */
+const running = (x: number): RunState => withKeys(1, { player: { ...at(x, 64), vx: 120 } });
 
 describe('WLD-05 opening a door', () => {
   it('touching its side with a key opens it for good and uses the key up', () => {
@@ -116,6 +121,22 @@ describe('WLD-05 opening a door', () => {
     const both: Level = { ...level, keys: [{ col: 5, row: 3 }] };
     const r = stepRun({ ...startRun(both), player: at(89.5, 64) }, idle, both); // touches the key box (x 82 to 94) and the door
     expect(r).toMatchObject({ doorsOpen: [true], keysHeld: 0, keysTaken: [true] });
+  });
+  it('the touch is made by this step\'s own movement: the door opens on the step he reaches it, not one later', () => {
+    // Running right at full speed (2 px a step), a gap of 3 px from the door: the step brings him within reach.
+    const r = stepRun(running(87.5), right, level);
+    expect(r).toMatchObject({ doorsOpen: [true], keysHeld: 0 });
+    expect(stepRun(running(85), right, level).doorsOpen).toEqual([false]); // still too far after one step
+  });
+  it('a key and a door reached by the same step: both happen that step', () => {
+    const both: Level = { ...level, keys: [{ col: 5, row: 3 }] };
+    const r = stepRun({ ...startRun(both), player: { ...at(87.5, 64), vx: 120 } }, right, both);
+    expect(r).toMatchObject({ doorsOpen: [true], keysHeld: 0, keysTaken: [true] });
+  });
+  it('a key is picked up on the step he reaches it, not one later', () => {
+    // The key box starts at x = 34; a body 0.5 px short of it reaches it after one step at 2 px a step.
+    const r = stepRun({ ...startRun(level), player: { ...at(27.5, 64), vx: 120 } }, right, level);
+    expect(r).toMatchObject({ keysHeld: 1, keysTaken: [true] });
   });
   it('Poncho walks through the open door', () => {
     let r = startRun(level);
