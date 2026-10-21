@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.15
+Version: 0.4.16
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.16** (2026-10-21) GDD-WLD-05: two spike edge cases are written out (invulnerability ending on a spike, a spike hit and an ofrenda in the same step). No behaviour changed.
 - **0.4.15** (2026-10-21) GDD-WLD-05, GDD-MOV-06, GDD-LIFE-02, GDD-CMB-03: spikes are built; where the hurtbox sits in the body and which part of a spike tile hurts are written out as proposals.
 - **0.4.14** (2026-10-21) GDD-CTL-03: the slide stick is built, with a mode switch to choose it over the buttons; its dead zone, zone and saved choice are written out as proposals.
 - **0.4.13** (2026-10-21) No rule changed: the harness skills are renamed with a `harness-` prefix, so the process and playtest references point at the new names.
@@ -400,7 +401,7 @@ Status: Proposed
 
 Core set: spikes (cactus, obsidian), pits, crumbling platforms (0.5 s warning), springs (bounce 480 px/s), moving platforms, fragile walls (claw-breakable), ofrendas (checkpoints), doors and keys. Each world adds one signature hazard (GDD-WLD-02).
 
-- **Spikes (built, details Proposed):** a spike stands in one tile and hurts through the lower half of it (16 px wide, 8 px tall), so a jump that clears the points by a hair is safe. Touching it with the hurtbox (GDD-MOV-06) from any side costs one life, like a pit: the wait, the flip and 2.0 s of invulnerability follow (GDD-LIFE-02). Unlike a pit, a spike does not hurt while Poncho is invulnerable (GDD-CMB-03). No knockback yet: it only matters once a hit can leave Poncho alive (Taco or Fuego state, GDD-PWR-01). The sandbox level has two spikes between the second ofrenda and the 3-tile wall. Cactus and obsidian art, and the "not stompable" marking for spike enemies (GDD-CMB-01), come later. `SPIKE` in `src/config/tuning.ts`, `src/sim/hazards.ts`.
+- **Spikes (built, details Proposed):** a spike stands in one tile and hurts through the lower half of it (16 px wide, 8 px tall), so a jump that clears the points by a hair is safe. Touching it with the hurtbox (GDD-MOV-06) from any side costs one life, like a pit: the wait, the flip and 2.0 s of invulnerability follow (GDD-LIFE-02). Unlike a pit, a spike does not hurt while Poncho is invulnerable (GDD-CMB-03). Invulnerability only skips the hit, it does not move Poncho: if he is still on a spike when the 2.0 s end, he loses a life on the next step. If a spike hit and an ofrenda touch happen in the same step, the hit wins and the ofrenda is not activated. No knockback yet: it only matters once a hit can leave Poncho alive (Taco or Fuego state, GDD-PWR-01). The sandbox level has two spikes between the second ofrenda and the 3-tile wall. Cactus and obsidian art, and the "not stompable" marking for spike enemies (GDD-CMB-01), come later. `SPIKE` in `src/config/tuning.ts`, `src/sim/hazards.ts`.
 - **Ofrenda:** one tile wide and two tiles tall (16 x 32 px), standing on the floor. It is activated when Poncho's body box (GDD-MOV-06) overlaps it; boxes that only share an edge do not touch. It does not need a button press and works in the air, so a jump through it counts.
 - Placeholder look until real art (GDD-ART-01): an outlined frame when unused, filled with a flame on top once used, so the two differ by shape and not only by colour (GDD-UI-03). The sandbox level has three, at about 25%, 65% and 85% of its width; the 55% spot of GDD-WLD-03 is in its pit.
 
