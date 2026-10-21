@@ -71,17 +71,17 @@ describe('GDD-PWR-01 and GDD-CMB-03 a hit in Taco', () => {
     expect(r.lives.lives).toBe(LIVES_MAX);
   });
 
-  it('pushes Poncho away from the spike at 40 px/s: right when he is right of its middle', () => {
-    expect(stepRun(onSpike('taco', { player: at(140, 64) }), idle, level).player.vx).toBe(40);
+  it('pushes Poncho away from the spike at 80 px/s: right when he is right of its middle', () => {
+    expect(stepRun(onSpike('taco', { player: at(140, 64) }), idle, level).player.vx).toBe(80);
   });
 
   it('pushes him left when he is left of its middle', () => {
-    expect(stepRun(onSpike('taco', { player: at(132, 64) }), idle, level).player.vx).toBe(-40);
+    expect(stepRun(onSpike('taco', { player: at(132, 64) }), idle, level).player.vx).toBe(-80);
   });
 
   it('dead centre pushes him backwards, against the way he faces', () => {
-    expect(stepRun(onSpike('taco', { player: { ...at(136, 64), facing: 1 } }), idle, level).player.vx).toBe(-40);
-    expect(stepRun(onSpike('taco', { player: { ...at(136, 64), facing: -1 } }), idle, level).player.vx).toBe(40);
+    expect(stepRun(onSpike('taco', { player: { ...at(136, 64), facing: 1 } }), idle, level).player.vx).toBe(-80);
+    expect(stepRun(onSpike('taco', { player: { ...at(136, 64), facing: -1 } }), idle, level).player.vx).toBe(80);
   });
 
   it('the push is applied to the next step, so he really moves', () => {
