@@ -87,3 +87,6 @@ export const LIFE_LOSS = { crackSteps: Math.round(0.4 * TICK_HZ) } as const;
 
 /** GDD-LIFE-02 and GDD-MOV-05: in the last 0.35 s of the wait Poncho drops in 48 px above the respawn point, turning once, and lands feet-first. */
 export const FLIP = { steps: Math.round(0.35 * TICK_HZ), height: 48, turns: 1 } as const;
+
+/** GDD-WLD-05: a crumbling tile gives 0.5 s of warning from the step Poncho lands on it, then is gone. */
+export const CRUMBLE = { warningSteps: Math.round(0.5 * TICK_HZ) } as const;

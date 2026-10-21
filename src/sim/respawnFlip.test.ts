@@ -52,6 +52,7 @@ describe('GDD-LIFE-02 where the flip lands', () => {
     spawn: { x: 24, y: 4 * TILE },
     ofrendas: [{ id: 'a', x: 152, y: 4 * TILE }],
     spikes: [],
+    crumbles: [],
   };
 
   it('is the level start without an ofrenda, and the latest ofrenda after one', () => {
