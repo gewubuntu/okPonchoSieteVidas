@@ -5,6 +5,7 @@
 // 85%; 55% falls in the pit, so the second one stands just past it).
 import { TILE } from '../config/tuning';
 import type { Crumble } from '../sim/crumble';
+import type { MovingPlatform } from '../sim/platform';
 import type { Spring } from '../sim/spring';
 import type { Spike } from '../sim/hazards';
 import type { Ofrenda } from '../sim/run';
@@ -50,3 +51,10 @@ export const SANDBOX_SPRINGS: readonly Spring[] = [{ col: 12, row: 14 }];
 
 // GDD-WLD-05: the ledge at tile columns 13 and 14, row 8 (top y = 128), is 96 px above the floor: a plain spring launch
 // (about 77 px) falls short of it and a timed one (about 120 px) clears it.
+
+/**
+ * GDD-WLD-05: a moving platform 3 tiles wide at the height of the spring ledge (top y = 128). It starts against the
+ * ledge's right edge (x = 240) and travels 96 px right and back, so it carries Poncho from the ledge towards the crumbling
+ * tiles at x = 384, whose top is 32 px lower.
+ */
+export const SANDBOX_PLATFORMS: readonly MovingPlatform[] = [{ x0: 240, y0: 128, x1: 336, y1: 128, w: 48 }];

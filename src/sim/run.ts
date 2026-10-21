@@ -3,6 +3,7 @@
 // own GDD IDs. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
 import { HITBOX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
+import { carry, landOnPlatforms, type MovingPlatform } from './platform';
 import { bounce, withSprings, type Spring } from './spring';
 import { touchesSpike, type Spike } from './hazards';
 import { activateOfrenda, isOutOfLives, loseLife, startWorld, type LivesState } from './lives';
@@ -31,6 +32,8 @@ export interface Level {
   readonly crumbles: readonly Crumble[];
   /** GDD-WLD-05: springs. */
   readonly springs: readonly Spring[];
+  /** GDD-WLD-05: moving platforms. */
+  readonly platforms: readonly MovingPlatform[];
 }
 
 export interface RunState {
@@ -43,6 +46,8 @@ export interface RunState {
   readonly invulnerable: number;
   /** One state per `Level.crumbles` entry, in the same order (GDD-WLD-05). */
   readonly crumbles: readonly CrumbleState[];
+  /** Steps the moving platforms have travelled since the level start or the last respawn (GDD-WLD-05). */
+  readonly platformTick: number;
   /** Where Poncho respawns: the level start, or the latest ofrenda he has reached (GDD-LIFE-02). */
   readonly checkpoint: Point;
   /** Position in `Level.ofrendas` of the ofrenda that is the checkpoint, or -1 for the level start. Only moves forward. */
@@ -50,7 +55,7 @@ export interface RunState {
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles) };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0 };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -98,20 +103,25 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       invulnerable: RESPAWN.invulnerableSteps,
       // GDD-WLD-05: the crumbled tiles come back with Poncho.
       crumbles: freshCrumbles(level.crumbles),
+      platformTick: 0,
     };
   }
 
-  const stepped = step(run.player, input, withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles));
+  // GDD-WLD-05: a platform carries Poncho, then he lands on the one he came down on.
+  const carried = carry(run.player, level.platforms, run.platformTick);
+  const stepped = step(carried, input, withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles));
+  const landed = landOnPlatforms(carried, stepped, level.platforms, run.platformTick);
+  const platformTick = run.platformTick + 1;
   // GDD-WLD-05: a spring throws Poncho up the step he stands on it.
-  const player = bounce(stepped, level.springs);
+  const player = bounce(landed, level.springs);
   const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
   if (isInPit(player, level.world)) {
     // Invulnerability does not protect from pits (GDD-CMB-03), so a life is lost even while it lasts.
-    return { ...run, player, crumbles, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
+    return { ...run, player, crumbles, platformTick, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
   }
   // GDD-WLD-05, GDD-LIFE-02: touching a spike costs a life, unless Poncho is invulnerable (GDD-CMB-03).
   if (run.invulnerable === 0 && level.spikes.some((spike) => touchesSpike(player, spike))) {
-    return { ...run, player, crumbles, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
+    return { ...run, player, crumbles, platformTick, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0 };
   }
   // GDD-LIFE-03: touching an ofrenda restores a life the first time only. It becomes the checkpoint only if it is later
   // in the level than the current one, so walking back never moves the respawn point backwards. `Level.ofrendas` is in
@@ -125,5 +135,5 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       checkpointIndex = index;
     }
   });
-  return { ...run, player, crumbles, lives, checkpoint, checkpointIndex, invulnerable: Math.max(0, run.invulnerable - 1) };
+  return { ...run, player, crumbles, platformTick, lives, checkpoint, checkpointIndex, invulnerable: Math.max(0, run.invulnerable - 1) };
 }

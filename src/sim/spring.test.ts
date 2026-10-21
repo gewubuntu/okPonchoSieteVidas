@@ -4,7 +4,7 @@ import { spawn, step, type PlayerInput, type PlayerState } from './movement';
 import { bounce, withSprings, type Spring } from './spring';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { parseTiles } from './tilemap';
-import { SANDBOX_CRUMBLES, SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_SPRINGS } from '../levels/sandbox';
+import { SANDBOX_CRUMBLES, SANDBOX_OFRENDAS, SANDBOX_PLATFORMS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_SPRINGS } from '../levels/sandbox';
 
 const idle: PlayerInput = { move: 0, jumpHeld: false };
 const right: PlayerInput = { move: 1, jumpHeld: false };
@@ -12,7 +12,7 @@ const right: PlayerInput = { move: 1, jumpHeld: false };
 // A floor at row 8 (top y = 128) with a spring set into it at column 3 (x 48 to 64), flush with the floor.
 const world = parseTiles([...Array.from({ length: 8 }, () => '..........'), '###.######']);
 const spring: Spring = { col: 3, row: 8 };
-const level: Level = { world, spawn: { x: 24, y: 8 * TILE }, ofrendas: [], spikes: [], crumbles: [], springs: [spring] };
+const level: Level = { world, spawn: { x: 24, y: 8 * TILE }, ofrendas: [], spikes: [], crumbles: [], springs: [spring], platforms: [] };
 const onSpring: PlayerState = spawn(56, 8 * TILE);
 
 /** Plays from `r` with the given input for each step, returning every state, and the highest rise above the floor. */
@@ -151,6 +151,7 @@ describe('GDD-WLD-05 the sandbox spring and its ledge', () => {
     spikes: SANDBOX_SPIKES,
     crumbles: SANDBOX_CRUMBLES,
     springs: SANDBOX_SPRINGS,
+    platforms: SANDBOX_PLATFORMS,
   };
   /**
    * Drops onto the spring from 34 px up (he lands on step 11), optionally pressing jump on step 8, which is inside the

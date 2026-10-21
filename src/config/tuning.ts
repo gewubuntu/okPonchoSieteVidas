@@ -96,3 +96,6 @@ export const CRUMBLE = { warningSteps: Math.round(0.5 * TICK_HZ) } as const;
  * before he lands on it launches him at `boostVelocity` instead.
  */
 export const SPRING = { velocity: 480, boostVelocity: 600 } as const;
+
+/** GDD-WLD-05: a moving platform travels back and forth along its path at this speed (px/s) and is a one-way floor. */
+export const PLATFORM = { speed: 40 } as const;

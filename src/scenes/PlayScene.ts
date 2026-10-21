@@ -2,13 +2,14 @@
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_SPRINGS } from '../levels/sandbox';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import { activateOfrenda, collectVeladora, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { flipPose } from '../sim/respawnFlip';
+import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
@@ -17,7 +18,7 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -65,6 +66,8 @@ export interface PonchoDebug {
   step(n: number, input?: PlayerInput): void;
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed (GDD-CTL-03). */
   touch(): TouchDebug;
+  /** Where each moving platform is: the left end of its top surface and its width (GDD-WLD-05). */
+  platforms(): { x: number; y: number; w: number }[];
   /** The crumbling tiles and their state, read from the run (GDD-WLD-05). */
   crumbles(): { col: number; row: number; phase: string; steps: number }[];
   /** Where Poncho would respawn now (GDD-LIFE-02). */
@@ -86,6 +89,7 @@ export class PlayScene extends Phaser.Scene {
   private lastPeak = 0;
   private hud!: Phaser.GameObjects.Graphics;
   private hudFilled = 0;
+  private platformGfx!: Phaser.GameObjects.Graphics;
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
   private ofrendaGfx!: Phaser.GameObjects.Graphics;
@@ -136,6 +140,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawOfrendas();
     this.drawSpikes();
     this.drawSprings();
+    this.platformGfx = this.add.graphics().setDepth(1);
     this.crumbleGfx = this.add.graphics().setDepth(1);
     this.drawCrumbles();
 
@@ -180,9 +185,11 @@ export class PlayScene extends Phaser.Scene {
           for (let i = 0; i < n; i++) this.simStep(input);
           this.drawHud();
           this.drawCrumbles();
+          this.renderPlatforms(1);
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
         },
         ofrendas: () => this.ofrendasDrawn,
+        platforms: () => level.platforms.map((p) => platformAt(p, this.run.platformTick)),
         crumbles: () => level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
         checkpoint: () => this.run.checkpoint,
         sfx: () => this.sfxLog,
@@ -233,6 +240,21 @@ export class PlayScene extends Phaser.Scene {
       this.crumbleGfx.lineStyle(1, 0x7d6038, 1).strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
       this.crumbleGfx.lineBetween(x + 4, y + 1, x + 8, y + 7).lineBetween(x + 8, y + 7, x + 6, y + 14);
     });
+  }
+
+  /**
+   * Placeholder moving platforms (GDD-WLD-05): a teal slab, 8 px thick, with a darker underside and a pale top edge so it
+   * reads as a floor you can stand on and not as a tile. Drawn between the last two steps, like Poncho, so he does not
+   * slide on it.
+   */
+  private renderPlatforms(alpha: number): void {
+    this.platformGfx.clear();
+    for (const p of level.platforms) {
+      const at = platformAt(p, Math.max(0, this.run.platformTick - 1 + alpha));
+      this.platformGfx.fillStyle(0x3f8f8a, 1).fillRect(at.x, at.y, at.w, 8);
+      this.platformGfx.fillStyle(0x2a5f5c, 1).fillRect(at.x, at.y + 5, at.w, 3);
+      this.platformGfx.fillStyle(0xd7f2ee, 1).fillRect(at.x, at.y, at.w, 1);
+    }
   }
 
   /** Placeholder spring art (GDD-WLD-05): a red block with a pale zigzag coil and a bar on top, to read as springy and not as floor. */
@@ -388,6 +410,7 @@ export class PlayScene extends Phaser.Scene {
       if (activated) this.playSfx('ofrenda');
     }
 
+    this.renderPlatforms(alpha);
     this.renderBody(alpha);
   }
 }
