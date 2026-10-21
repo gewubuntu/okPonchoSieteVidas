@@ -148,6 +148,19 @@ describe('GDD-PWR-02 the walking taco', () => {
     expect(walker.x).toBeLessThanOrEqual(218);
   });
 
+  it('turns round against a wall on its left too, with its box flush against the wall', () => {
+    // The wall in column 14 ends at x = 240, so a left-moving taco turns with its middle at 246 (box from 240 to 252).
+    let walker: Item = { x: 250, y: 128, vx: -TACO.walkSpeed, vy: 0 };
+    for (let i = 0; i < 20 && walker.vx < 0; i++) walker = stepItem(walker, world);
+    expect(walker).toMatchObject({ x: 246, vx: TACO.walkSpeed });
+  });
+
+  it('turns right-hand walls with its box flush too: the middle stops at 218', () => {
+    let walker: Item = { ...onFloor, x: 210 };
+    for (let i = 0; i < 40 && walker.vx > 0; i++) walker = stepItem(walker, world);
+    expect(walker).toMatchObject({ x: 218, vx: -TACO.walkSpeed });
+  });
+
   it('falls off a ledge instead of turning', () => {
     const ledge: Item = { x: 94, y: 80, vx: TACO.walkSpeed, vy: 0 }; // on top of the piñata, which ends at x = 96
     const walker = stepsOf(ledge, 60);
@@ -171,6 +184,14 @@ describe('GDD-PWR-02 the walking taco', () => {
     expect(touchesItem(at(100, 141.99), item)).toBe(true);
     expect(touchesItem(at(100, 116), item)).toBe(false); // feet at its top
     expect(touchesItem(at(100, 116.01), item)).toBe(true);
+  });
+});
+
+describe('GDD-PWR-02 a released taco stands on the piñata it came from', () => {
+  it('in a run, the open piñata is a floor for it, not just a wall for Poncho', () => {
+    const standing: Item = { x: 88, y: 80, vx: 0, vy: 0 };
+    const r = run({ ...startRun(level), player: at(24, 128), items: [standing] }, idle, 10);
+    expect(r.items).toEqual([standing]);
   });
 });
 

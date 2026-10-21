@@ -152,7 +152,8 @@ describe('GDD-WLD-05 the sandbox spring and its ledge', () => {
     crumbles: SANDBOX_CRUMBLES,
     springs: SANDBOX_SPRINGS,
     platforms: SANDBOX_PLATFORMS,
-    tacos: [], pinatas: [],
+    tacos: [],
+    pinatas: [],
   };
   /**
    * Drops onto the spring from 34 px up (he lands on step 11), optionally pressing jump on step 8, which is inside the
