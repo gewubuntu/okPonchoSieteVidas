@@ -19,7 +19,7 @@ test('GDD-LIFE-02 falling into the pit costs one life, then Poncho respawns at t
 test('GDD-LIFE-02 walking off the edge into the pit loses exactly one life', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test; touch controls arrive with GDD-CTL-03');
   await boot(page);
-  await page.evaluate(() => window.__PONCHO__!.teleport(206, 224)); // on the floor just before the pit
+  await page.evaluate(() => window.__PONCHO__!.teleport(216, 224)); // on the floor just before the pit (the spring is the tile to its left)
   await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
   await page.keyboard.down('ArrowRight');
   await page.waitForFunction(() => window.__PONCHO__!.lives() === 6);

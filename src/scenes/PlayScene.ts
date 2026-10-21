@@ -2,7 +2,7 @@
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES } from '../levels/sandbox';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_SPRINGS } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
@@ -17,7 +17,7 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -135,6 +135,7 @@ export class PlayScene extends Phaser.Scene {
     this.ofrendaGfx = this.add.graphics().setDepth(2);
     this.drawOfrendas();
     this.drawSpikes();
+    this.drawSprings();
     this.crumbleGfx = this.add.graphics().setDepth(1);
     this.drawCrumbles();
 
@@ -232,6 +233,19 @@ export class PlayScene extends Phaser.Scene {
       this.crumbleGfx.lineStyle(1, 0x7d6038, 1).strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
       this.crumbleGfx.lineBetween(x + 4, y + 1, x + 8, y + 7).lineBetween(x + 8, y + 7, x + 6, y + 14);
     });
+  }
+
+  /** Placeholder spring art (GDD-WLD-05): a red block with a pale zigzag coil and a bar on top, to read as springy and not as floor. */
+  private drawSprings(): void {
+    const g = this.add.graphics().setDepth(1);
+    for (const sp of level.springs) {
+      const x = sp.col * TILE;
+      const y = sp.row * TILE;
+      g.fillStyle(0xb8453a, 1).fillRect(x, y, TILE, TILE);
+      g.lineStyle(1, 0x5e1f1a, 1).strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
+      g.fillStyle(0xfff3dc, 1).fillRect(x + 1, y + 1, TILE - 2, 3);
+      g.lineStyle(1, 0xfff3dc, 1).lineBetween(x + 3, y + 6, x + 13, y + 8).lineBetween(x + 13, y + 8, x + 3, y + 10).lineBetween(x + 3, y + 10, x + 13, y + 12);
+    }
   }
 
   /** Placeholder spike art: two light points per tile with a dark outline, inside the lower half that hurts (GDD-WLD-05, GDD-UI-03 high-contrast hazards). */

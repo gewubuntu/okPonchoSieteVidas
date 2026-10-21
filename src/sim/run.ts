@@ -3,6 +3,7 @@
 // own GDD IDs. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
 import { HITBOX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
+import { bounce, withSprings, type Spring } from './spring';
 import { touchesSpike, type Spike } from './hazards';
 import { activateOfrenda, isOutOfLives, loseLife, startWorld, type LivesState } from './lives';
 import { spawn, step, type PlayerInput, type PlayerState } from './movement';
@@ -28,6 +29,8 @@ export interface Level {
   readonly spikes: readonly Spike[];
   /** GDD-WLD-05: crumbling tiles. */
   readonly crumbles: readonly Crumble[];
+  /** GDD-WLD-05: springs. */
+  readonly springs: readonly Spring[];
 }
 
 export interface RunState {
@@ -98,7 +101,9 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     };
   }
 
-  const player = step(run.player, input, withCrumbles(level.world, level.crumbles, run.crumbles));
+  const stepped = step(run.player, input, withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles));
+  // GDD-WLD-05: a spring throws Poncho up the step he stands on it.
+  const player = bounce(stepped, level.springs);
   const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
   if (isInPit(player, level.world)) {
     // Invulnerability does not protect from pits (GDD-CMB-03), so a life is lost even while it lasts.

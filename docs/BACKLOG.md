@@ -39,7 +39,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-WLD-02 | todo |  |
 | GDD-WLD-03 | todo |  |
 | GDD-WLD-04 | todo |  |
-| GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs and the rest pending |
+| GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms and the rest pending |
 | GDD-ENM-01 | todo |  |
 | GDD-ENM-02 | todo |  |
 | GDD-BOS-01 | todo |  |
