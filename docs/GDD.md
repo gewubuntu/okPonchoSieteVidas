@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.11
+Version: 0.4.12
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.12** (2026-10-21) GDD-MOV-03: corner correction is built and its rule is written out (which side, how far, only while rising).
 - **0.4.11** (2026-10-20) GDD-LIFE-02 and GDD-MOV-05: the respawn flip is built. Poncho is hidden for the first 0.45 s of the wait, then drops in and turns once and lands feet-first as control returns (this changes "hidden while waiting" in GDD-LIFE-02).
 - **0.4.10** (2026-10-20) GDD-LIFE-02 and GDD-UI-01: the HUD crack animation for a lost life is built (the flip and feet-first landing are still to come).
 - **0.4.9** (2026-10-20) GDD-LIFE-03 and GDD-LIFE-02: only the latest ofrenda counts, so walking back never moves the respawn point backwards (user's decision, 2026-10-20; Open Question 12 answered and removed).
@@ -178,7 +179,7 @@ Status: Proposed
 
 - Coyote time: 100 ms after leaving a ledge, jump is still allowed.
 - Jump buffer: 100 ms. A jump pressed up to 100 ms before landing executes on landing.
-- Corner correction: if the head clips a block corner by 4 px or less, Poncho is nudged around it.
+- Corner correction (built, `FORGIVENESS.cornerPx` in `src/config/tuning.ts`): while rising, if his head clips a block corner with only one side of his body inside the block, and by 4 px or less, he is moved sideways by exactly that overlap, past the corner, and keeps his upward speed. A clip of more than 4 px, or a block over both sides of his body (a real ceiling), is a head bump as before. It never applies while falling.
 - Stomp bounce buffer: jump pressed within 100 ms of a stomp gives the high bounce (GDD-CMB-01).
 
 ### GDD-MOV-04 Gravity and falling
