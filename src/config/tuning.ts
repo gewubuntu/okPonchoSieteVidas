@@ -55,6 +55,9 @@ export const HITBOX = { width: 12, height: 14 } as const;
 export const HURTBOX = { width: 10, height: 12 } as const;
 export const SPRITE_FRAME = 32;
 
+/** GDD-WLD-05: a spike tile hurts only in its lower half, the full tile wide, so a graze over the points is safe. */
+export const SPIKE = { height: TILE / 2 } as const;
+
 /** GDD-LIFE-02: after a life is lost, wait, then respawn; any input skips the wait after a short while. */
 export const RESPAWN = {
   delaySteps: Math.round(0.8 * TICK_HZ),
