@@ -113,6 +113,7 @@ export class TouchControls {
       else if (b.id === 'right') this.gfx.fillTriangle(cx + r, cy, cx - r, cy - r, cx - r, cy + r);
       else if (b.id === 'stick') this.drawStick(b);
       else if (b.id === 'mode') this.drawModeIcon(b);
+      else if (b.id === 'claw') this.drawClawIcon(b, down);
       else this.gfx.fillTriangle(cx, cy - r, cx - r, cy + r, cx + r, cy + r);
     }
   }
@@ -129,6 +130,15 @@ export class TouchControls {
     const thumbX = b.x + b.w / 2 + this.stick * travel;
     this.gfx.fillStyle(live ? 0xe8a33d : 0xfff3dc, live ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
     this.gfx.fillCircle(thumbX, cy, b.h * 0.3);
+  }
+
+  /** Placeholder: three slanted claw marks, the same as the swipe. */
+  private drawClawIcon(b: TouchButton, down: boolean): void {
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    const r = b.w * 0.28;
+    this.gfx.lineStyle(2, down ? 0xe8a33d : 0xfff3dc, down ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
+    for (const dx of [-r * 0.7, 0, r * 0.7]) this.gfx.lineBetween(cx + dx - r * 0.4, cy - r, cx + dx + r * 0.4, cy + r);
   }
 
   /** The switch shows what a tap changes to: the stick's groove while on buttons, a pair of triangles while on the stick. */

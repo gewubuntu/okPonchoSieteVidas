@@ -25,6 +25,7 @@ const level: Level = {
   pinatas: [],
   doors: [door],
   keys: [key],
+  fragiles: [],
 };
 const at = (x: number, y: number): PlayerState => spawn(x, y);
 const run = (r: RunState, input: PlayerInput, steps: number): RunState => {

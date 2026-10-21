@@ -10,9 +10,9 @@ const centre = (b: TouchButton) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
 describe('GDD-CTL-03 touch button layout', () => {
   const buttons = layoutTouchButtons(PHONE);
 
-  it('has a left, a right and a jump button and the mode switch', () => {
-    expect(new Set(buttons.map((b) => b.id))).toEqual(new Set(['left', 'right', 'jump', 'mode']));
-    expect(buttons).toHaveLength(4);
+  it('has a left, a right, a jump and a claw button and the mode switch', () => {
+    expect(new Set(buttons.map((b) => b.id))).toEqual(new Set(['left', 'right', 'jump', 'claw', 'mode']));
+    expect(buttons).toHaveLength(5);
   });
 
   it('puts move buttons bottom-left and jump bottom-right, inside the screen', () => {
@@ -63,15 +63,15 @@ describe('GDD-CTL-03 touch input', () => {
   });
 
   it('moving and jumping at the same time works with two fingers', () => {
-    expect(touchInput(press('right', 'jump'))).toEqual({ move: 1, jumpHeld: true });
-    expect(touchInput(press('left', 'jump'))).toEqual({ move: -1, jumpHeld: true });
+    expect(touchInput(press('right', 'jump'))).toEqual({ move: 1, jumpHeld: true, claw: false });
+    expect(touchInput(press('left', 'jump'))).toEqual({ move: -1, jumpHeld: true, claw: false });
   });
 
   it('one button each, and nothing pressed means no input', () => {
-    expect(touchInput(press('left'))).toEqual({ move: -1, jumpHeld: false });
-    expect(touchInput(press('right'))).toEqual({ move: 1, jumpHeld: false });
-    expect(touchInput(press('jump'))).toEqual({ move: 0, jumpHeld: true });
-    expect(touchInput(press())).toEqual({ move: 0, jumpHeld: false });
+    expect(touchInput(press('left'))).toEqual({ move: -1, jumpHeld: false, claw: false });
+    expect(touchInput(press('right'))).toEqual({ move: 1, jumpHeld: false, claw: false });
+    expect(touchInput(press('jump'))).toEqual({ move: 0, jumpHeld: true, claw: false });
+    expect(touchInput(press())).toEqual({ move: 0, jumpHeld: false, claw: false });
   });
 
   it('left and right together cancel out, as on the keyboard', () => {
@@ -80,7 +80,36 @@ describe('GDD-CTL-03 touch input', () => {
 
   it('two fingers on the same button still count as one press', () => {
     const c = centre(find(buttons, 'jump'));
-    expect(touchInput(pressedButtons(buttons, [c, c]))).toEqual({ move: 0, jumpHeld: true });
+    expect(touchInput(pressedButtons(buttons, [c, c]))).toEqual({ move: 0, jumpHeld: true, claw: false });
+  });
+});
+
+describe('GDD-CMB-02 the claw button', () => {
+  const buttons = layoutTouchButtons(PHONE);
+  const press = (...ids: string[]) => pressedButtons(buttons, ids.map((id) => centre(find(buttons, id))));
+  it('sits next to jump on the right, on the floor line, a full gap away from it', () => {
+    const claw = find(buttons, 'claw');
+    const jump = find(buttons, 'jump');
+    expect(claw.x + claw.w + TOUCH.gap).toBe(jump.x);
+    expect(claw.y + claw.h).toBe(jump.y + jump.h);
+  });
+  it('a finger on it presses the claw, and jump and claw work together', () => {
+    expect(touchInput(press('claw'))).toEqual({ move: 0, jumpHeld: false, claw: true });
+    expect(touchInput(press('claw', 'jump'))).toEqual({ move: 0, jumpHeld: true, claw: true });
+    expect(touchInput(press('right', 'claw'))).toEqual({ move: 1, jumpHeld: false, claw: true });
+  });
+  it('is at least 48 CSS px on a small screen, like every button', () => {
+    const small = layoutTouchButtons(0.5);
+    const claw = find(small, 'claw');
+    expect(claw.w * 0.5).toBeGreaterThanOrEqual(TOUCH.minCssPx);
+    expect(claw.h * 0.5).toBeGreaterThanOrEqual(TOUCH.minCssPx);
+  });
+  it('does not overlap any other button', () => {
+    const claw = find(buttons, 'claw');
+    for (const other of buttons.filter((b) => b.id !== 'claw')) {
+      const apart = claw.x + claw.w <= other.x || other.x + other.w <= claw.x || claw.y + claw.h <= other.y || other.y + other.h <= claw.y;
+      expect(apart).toBe(true);
+    }
   });
 });
 
@@ -93,7 +122,7 @@ describe('GDD-CTL-03 slide stick', () => {
   const at = (dx: number, y = track.y + track.h / 2) => [{ x: mid + dx, y }];
 
   it('swaps the left and right buttons for one track as wide as both, and keeps jump and the switch', () => {
-    expect(new Set(stick.map((b) => b.id))).toEqual(new Set(['stick', 'jump', 'mode']));
+    expect(new Set(stick.map((b) => b.id))).toEqual(new Set(['stick', 'jump', 'claw', 'mode']));
     const buttons = layoutTouchButtons(PHONE);
     const [left, right] = [find(buttons, 'left'), find(buttons, 'right')];
     expect([track.x, track.w, track.y]).toEqual([left.x, right.x + right.w - left.x, left.y]);
@@ -143,8 +172,8 @@ describe('GDD-CTL-03 slide stick', () => {
   });
 
   it('feeds the move input and adds up with the buttons without leaving -1 to 1', () => {
-    expect(touchInput(new Set(), 0.5)).toEqual({ move: 0.5, jumpHeld: false });
-    expect(touchInput(new Set(['jump']), -0.5)).toEqual({ move: -0.5, jumpHeld: true });
+    expect(touchInput(new Set(), 0.5)).toEqual({ move: 0.5, jumpHeld: false, claw: false });
+    expect(touchInput(new Set(['jump']), -0.5)).toEqual({ move: -0.5, jumpHeld: true, claw: false });
     expect(touchInput(new Set(['right']), 0.5).move).toBe(1);
     expect(pressedButtons(stick, [centre(track)]).size).toBe(0); // the stick is read by stickMove, not as a press
     expect([...pressedButtons(stick, [centre(mode)])]).toEqual(['mode']);

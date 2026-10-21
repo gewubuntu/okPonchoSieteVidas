@@ -4,7 +4,7 @@ import { boot } from './helpers';
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 
 /** Where the centre of a touch button is on the page, in CSS px. */
-async function buttonAt(page: Page, id: 'left' | 'right' | 'jump' | 'stick' | 'mode') {
+async function buttonAt(page: Page, id: 'left' | 'right' | 'jump' | 'claw' | 'stick' | 'mode') {
   const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === id)!;
   const box = (await page.locator('canvas').boundingBox())!;
   const k = box.width / 480; // CSS px per virtual px
@@ -19,14 +19,14 @@ test('GDD-CTL-03 touch buttons show on a touch device and not on a desktop', asy
   await boot(page);
   const touch = await api(page, () => window.__PONCHO__!.touch());
   expect(touch.visible).toBe(isMobile);
-  expect(new Set(touch.buttons.map((b) => b.id))).toEqual(new Set(isMobile ? ['left', 'right', 'jump', 'mode'] : []));
-  expect(touch.buttons).toHaveLength(isMobile ? 4 : 0);
+  expect(new Set(touch.buttons.map((b) => b.id))).toEqual(new Set(isMobile ? ['left', 'right', 'jump', 'claw', 'mode'] : []));
+  expect(touch.buttons).toHaveLength(isMobile ? 5 : 0);
 });
 
 test('GDD-CTL-03 every touch button is at least 48 CSS px on screen', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch device only');
   await boot(page);
-  for (const id of ['left', 'right', 'jump', 'mode'] as const) {
+  for (const id of ['left', 'right', 'jump', 'claw', 'mode'] as const) {
     const b = await buttonAt(page, id);
     expect(b.widthCss).toBeGreaterThanOrEqual(48);
     expect(b.heightCss).toBeGreaterThanOrEqual(48);
@@ -67,6 +67,23 @@ test('GDD-CTL-03 moving and jumping at the same time works with two fingers', as
   expect(await api(page, () => window.__PONCHO__!.peakRise())).toBeGreaterThan(50); // a full jump is about 56 px (GDD-MOV-02)
 });
 
+test('GDD-CMB-02 a finger on the claw button swings the claw, together with moving', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await boot(page);
+  await page.evaluate(() => window.__PONCHO__!.teleport(280, 224));
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+  const cdp = await page.context().newCDPSession(page);
+  const claw = await buttonAt(page, 'claw');
+  const right = await buttonAt(page, 'right');
+  await fingers(cdp, 'touchStart', [
+    { x: claw.x, y: claw.y, id: 1 },
+    { x: right.x, y: right.y, id: 2 },
+  ]);
+  await page.waitForFunction(() => window.__PONCHO__!.claw() !== 'idle');
+  expect(await api(page, () => window.__PONCHO__!.touch().pressed)).toEqual(expect.arrayContaining(['claw', 'right']));
+  await fingers(cdp, 'touchEnd', []);
+});
+
 test('GDD-CTL-03 a cancelled touch (a call or a system gesture) releases the buttons', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch device only');
   await boot(page);
@@ -102,7 +119,7 @@ test('GDD-CTL-03 the buttons are laid out again, and stay at least 48 CSS px, wh
   const before = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((b) => b.id === 'left')!.w;
   await page.setViewportSize({ width: 360, height: 200 }); // a very small landscape screen
   await page.waitForFunction((w) => window.__PONCHO__!.touch().buttons.find((b) => b.id === 'left')!.w > w, before);
-  for (const id of ['left', 'right', 'jump', 'mode'] as const) {
+  for (const id of ['left', 'right', 'jump', 'claw', 'mode'] as const) {
     const b = await buttonAt(page, id);
     expect(b.widthCss).toBeGreaterThanOrEqual(48);
     expect(b.heightCss).toBeGreaterThanOrEqual(48);
@@ -123,12 +140,12 @@ test('GDD-CTL-03 the mode switch swaps the buttons for the slide stick and back,
   const cdp = await page.context().newCDPSession(page);
   expect((await api(page, () => window.__PONCHO__!.touch())).mode).toBe('buttons');
   await switchTo(page, cdp, 'stick');
-  expect(new Set((await api(page, () => window.__PONCHO__!.touch())).buttons.map((b) => b.id))).toEqual(new Set(['stick', 'jump', 'mode']));
+  expect(new Set((await api(page, () => window.__PONCHO__!.touch())).buttons.map((b) => b.id))).toEqual(new Set(['stick', 'jump', 'claw', 'mode']));
   await page.reload();
   await boot(page);
   expect((await api(page, () => window.__PONCHO__!.touch())).mode).toBe('stick');
   await switchTo(page, cdp, 'buttons');
-  expect(new Set((await api(page, () => window.__PONCHO__!.touch())).buttons.map((b) => b.id))).toEqual(new Set(['left', 'right', 'jump', 'mode']));
+  expect(new Set((await api(page, () => window.__PONCHO__!.touch())).buttons.map((b) => b.id))).toEqual(new Set(['left', 'right', 'jump', 'claw', 'mode']));
 });
 
 test('GDD-CTL-03 sliding the finger right of the stick centre runs right, slower near the centre than at the end', async ({ page, isMobile }) => {

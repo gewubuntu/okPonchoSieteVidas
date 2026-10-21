@@ -8,6 +8,7 @@ import type { Crumble } from '../sim/crumble';
 import type { MovingPlatform } from '../sim/platform';
 import type { Spring } from '../sim/spring';
 import type { Spike } from '../sim/hazards';
+import type { Fragile } from '../sim/fragile';
 import type { Door, Key } from '../sim/door';
 import type { Pinata } from '../sim/pinata';
 import type { Taco } from '../sim/taco';
@@ -80,3 +81,9 @@ export const SANDBOX_DOORS: readonly Door[] = [{ col: 8, row: 11, height: 3 }];
 
 /** GDD-WLD-05: a key on the floor at tile column 5, on the way from the start to the door. */
 export const SANDBOX_KEYS: readonly Key[] = [{ col: 5, row: 13 }];
+
+/**
+ * GDD-WLD-05: a fragile wall four tiles tall (rows 10 to 13, 64 px) at tile column 27, in the pocket at the right end, past
+ * the third ofrenda. A full jump reaches 56 px, so it cannot be jumped over: only a claw swipe gets through.
+ */
+export const SANDBOX_FRAGILES: readonly Fragile[] = [10, 11, 12, 13].map((row) => ({ col: 27, row }));

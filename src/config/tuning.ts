@@ -108,3 +108,10 @@ export const TACO = { size: 12, walkSpeed: 40 } as const;
 
 /** GDD-WLD-05: a key pickup is a square this many px wide, centred in its tile. A door touches Poncho from the side within `doorReachPx`. */
 export const KEY = { size: 12, doorReachPx: 1 } as const;
+
+/**
+ * GDD-CMB-02: the claw swipe. A press starts a 2-step wind-up, then a 3-step swing that hits a box `reach` px long and
+ * `height` px tall, level with the body and starting at the body's front edge. The next swing may start `cooldownSteps`
+ * (0.25 s) after the press that started the last one.
+ */
+export const CLAW = { windupSteps: 2, activeSteps: 3, cooldownSteps: Math.round(0.25 * TICK_HZ), reach: 20, height: 14 } as const;
