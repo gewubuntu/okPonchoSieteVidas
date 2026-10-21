@@ -6,6 +6,7 @@ import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleSt
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
 import { withFragiles, type Fragile } from './fragile';
 import { spawnFireball, stepFireball, type Fireball } from './fireball';
+import { squareBlocked } from './item';
 import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } from './door';
 import { releaseFrom, stepItem, touchesItem, type Item } from './item';
 import { bumpedPinata, freshPinatas, withPinatas, type Pinata } from './pinata';
@@ -203,7 +204,12 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   });
   // GDD-PWR-03: in Fuego a press of the Fuego button spits a fireball, up to FIREBALL.maxActive at once. The ones in flight move on.
   const spits = (input.fuego ?? false) && !run.fuegoHeld && run.power === 'fuego' && run.fireballs.length < FIREBALL.maxActive;
-  const fireballs = [...run.fireballs.flatMap((f) => stepFireball(f, solid) ?? []), ...(spits ? [spawnFireball(player)] : [])];
+  // With no room in front of Poncho (a wall right against him) the press does nothing, so a fireball never starts inside a wall (GDD-PWR-06).
+  const spat = spits ? spawnFireball(player) : null;
+  const fireballs = [
+    ...run.fireballs.flatMap((f) => stepFireball(f, solid) ?? []),
+    ...(spat && !squareBlocked(solid, spat.x, spat.y, FIREBALL.size) ? [spat] : []),
+  ];
   // GDD-WLD-05: a key is picked up by touch. Then a shut door that Poncho touches at its side opens for good and uses up
   // one key, so a key picked up the same step as a door is touched opens it.
   let keysHeld = run.keysHeld;

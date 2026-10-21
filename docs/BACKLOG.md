@@ -68,7 +68,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-PWR-02 | doing | static taco pickup and the walking taco from a piñata (src/sim/item.ts); the chomp and freeze-frame pending |
 | GDD-PWR-03 | doing | chile from piñatas, Fuego state, fireball and Fuego touch button (src/sim/fireball.ts, src/sim/run.ts); what fireballs hit, sound and gamepad pending |
 | GDD-PWR-04 | todo |  |
-| GDD-PWR-05 | doing | head-bump piñata releasing a walking taco in Base (src/sim/pinata.ts, one in the sandbox); multi-piñata hilos pending; a chile comes out in Taco or Fuego |
+| GDD-PWR-05 | doing | head-bump piñata releasing a walking taco in Base (src/sim/pinata.ts, two in the sandbox); multi-piñata hilos pending; a chile comes out in Taco or Fuego |
 | GDD-PWR-06 | doing | collect by touch and no spawn inside a wall (src/sim/item.ts); the reserve-slot question stays open |
 | GDD-VIS-05 | todo |  |
 | GDD-TEC-07 | todo |  |

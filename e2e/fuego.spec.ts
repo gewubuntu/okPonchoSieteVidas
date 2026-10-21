@@ -54,6 +54,8 @@ test('GDD-PWR-03 a Fuego press spits a fireball that flies, bounces and is drawn
   expect(core!.r).toBeGreaterThan(200); // the yellow core, 255 226 122
   expect(core!.g).toBeGreaterThan(170);
   expect(core!.b).toBeLessThan(170);
+  // The orange ring around the core, 2 px out from the middle of the 6 px ball.
+  expect((await pixelsAt(page, around(f!.x + 2.2, f!.y - 3))).some(orange)).toBe(true);
 });
 
 test('GDD-PWR-03 only in Fuego: a press in Taco spits nothing', async ({ page }) => {
@@ -64,6 +66,8 @@ test('GDD-PWR-03 only in Fuego: a press in Taco spits nothing', async ({ page })
 });
 
 type Colour = { r: number; g: number; b: number };
+const orange = (c: Colour) => c.r > 200 && c.g > 60 && c.g < 140 && c.b < 90; // the fireball's ring, 232 96 45
+const gold = (c: Colour) => c.r > 200 && c.g > 150 && c.b < 110; // the key, 242 194 48
 const red = (c: Colour) => c.r > 170 && c.g < 90 && c.b < 80; // the chile's red, 209 40 28
 /** A few points around a spot, so a pixel that lands on an edge of a small shape still finds it. */
 const around = (x: number, y: number) => [-1, 0, 1].flatMap((dx) => [-1, 0, 1].map((dy) => ({ x: x + dx, y: y + dy })));
@@ -100,4 +104,14 @@ test('GDD-CTL-03 the Fuego button has its flame drawn', async ({ page, isMobile 
   const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'fuego')!;
   const [flame] = await pixelsAt(page, [{ x: b.x + b.w / 2, y: b.y + b.h / 2 + b.w * 0.08 }]);
   expect(flame!.r - flame!.b).toBeGreaterThan(70); // orange over the dark button, not the dark button itself
+});
+
+test('GDD-WLD-05 a key icon on the HUD sits clear of the Fuego icon, to its right', async ({ page }) => {
+  await start(page, 88, 224); // on the key at column 5
+  await page.evaluate(() => window.__PONCHO__!.setPower('fuego'));
+  await page.evaluate(() => window.__PONCHO__!.step(2));
+  await frames(page);
+  expect(await api(page, () => window.__PONCHO__!.hudKeys())).toBe(1);
+  expect((await pixelsAt(page, around(8 + 7 * 13 + 34, 8 + 5 - 3))).some(gold)).toBe(true); // the key's ring
+  expect((await pixelsAt(page, around(8 + 7 * 13 + 24, 8 + 5 - 3))).some(gold)).toBe(false); // not where it was before the chile icon
 });

@@ -125,9 +125,14 @@ describe('GDD-PWR-03 the fireball', () => {
     }
     expect(bounces).toBe(3);
     expect(tops).toHaveLength(2);
-    for (const top of tops) expect(64 - top).toBeGreaterThan(FIREBALL.bounceHeight - 1.5);
-    for (const top of tops) expect(64 - top).toBeLessThan(FIREBALL.bounceHeight + 1.5);
-    expect(BOUNCE_SPEED).toBeCloseTo(Math.sqrt(2 * FIREBALL.gravity * FIREBALL.bounceHeight), 9);
+    for (const top of tops) expect(64 - top).toBeCloseTo(20, 0); // a 20 px arc, within half a pixel
+    expect(BOUNCE_SPEED).toBeCloseTo(244.9, 1); // the GDD's "about 245"
+  });
+
+  it('falls at 1500 px/s squared from rest: 10 steps drop it about 20.8 px', () => {
+    let f: Fireball | null = flying({ vx: 0, y: 10 });
+    for (let i = 0; i < 10; i++) f = f && stepFireball(f, parseTiles([row, row, row, row, row, row]));
+    expect(f!.y).toBeCloseTo(10 + 0.5 * 1500 * (10 / 60) ** 2, 2);
   });
 
   it('vanishes against a wall', () => {
@@ -203,12 +208,30 @@ describe('GDD-PWR-03 spitting', () => {
     expect(r.fireballs[0]!.x).toBeGreaterThan(144);
   });
 
-  it('the fireballs in flight keep going when Poncho takes a hit or leaves Fuego', () => {
+  it('a fireball in flight keeps going when Poncho takes a hit', () => {
+    const flyingOn: Fireball = { x: 60, y: 40, vx: 180, vy: 0, age: 0 };
+    const r = stepRun({ ...onSpike('fuego'), fireballs: [flyingOn] }, idle, level);
+    expect(r.power).toBe('taco'); // he did take the hit
+    expect(r.fireballs).toHaveLength(1);
+    expect(r.fireballs[0]!.x).toBeCloseTo(63, 6);
+  });
+
+  it('and when he leaves Fuego some other way', () => {
     let r = run(as('fuego'), spit, 1);
     r = { ...r, power: 'taco' };
     r = run(r, idle, 5);
     expect(r.fireballs).toHaveLength(1);
     expect(r.fireballs[0]!.x).toBeGreaterThan(33 + 10);
+  });
+
+  it('with a wall right against his front the press does nothing, and a press a pixel further back spits', () => {
+    const wall = parseTiles([row, row, row, row, '#'.repeat(40), '#'.repeat(40)].map((r, i) => (i === 3 ? '.'.repeat(2) + '#' + '.'.repeat(37) : r)));
+    const walled: Level = { ...level, world: wall, spikes: [] };
+    // The wall is column 2 (x 32 to 48). Poncho at x = 25.99 has his front at 31.99 and the fireball would start inside it.
+    const against = stepRun({ ...startRun(walled), power: 'fuego', player: at(25.99) }, spit, walled);
+    expect(against.fireballs).toEqual([]);
+    const back = stepRun({ ...startRun(walled), power: 'fuego', player: at(20) }, spit, walled);
+    expect(back.fireballs).toHaveLength(1);
   });
 
   it('a death ends the fireballs in flight, and Poncho comes back in Base so a held button spits nothing', () => {

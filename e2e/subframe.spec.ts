@@ -122,8 +122,12 @@ test('GDD-PWR-03 the Fuego button shows only in Fuego, and a touch tap inside on
   const box = (await page.locator('canvas').boundingBox())!;
   const k = box.width / 480;
   expect(b.w * k).toBeGreaterThanOrEqual(48);
-  await tapTouch(page, { x: box.x + (b.x + b.w / 2) * k, y: box.y + (b.y + b.h / 2) * k });
+  const centre = { x: box.x + (b.x + b.w / 2) * k, y: box.y + (b.y + b.h / 2) * k };
+  await tapTouch(page, centre);
   await page.waitForFunction(() => window.__PONCHO__!.spits() === 1);
+  await page.waitForTimeout(500);
+  await tapTouch(page, centre); // a second tap: the first one's latch must have been spent
+  await page.waitForFunction(() => window.__PONCHO__!.spits() === 2);
   await page.evaluate(() => window.__PONCHO__!.setPower('taco'));
   await page.waitForFunction(() => !window.__PONCHO__!.touch().buttons.some((x) => x.id === 'fuego'));
 });
