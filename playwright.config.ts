@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { defineConfig } from '@playwright/test';
 
-// The cloud environment ships Chromium; do not download browsers there (see the playtest skill).
+// The cloud environment ships Chromium; do not download browsers there (see the harness-playtest skill).
 const preinstalled = '/opt/pw-browsers/chromium';
 const executablePath = process.env['PLAYWRIGHT_CHROMIUM_PATH'] || (existsSync(preinstalled) ? preinstalled : undefined);
 
@@ -29,7 +29,7 @@ export default defineConfig({
       testIgnore: /shots\//,
       use: { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true },
     },
-    // Screenshots for visual review, run with `npm run shots` (see the playtest skill). Same viewports as above.
+    // Screenshots for visual review, run with `npm run shots` (see the harness-playtest skill). Same viewports as above.
     { name: 'shots-desktop', testMatch: /shots\/.*\.spec\.ts/, use: { viewport: { width: 1280, height: 720 } } },
     {
       name: 'shots-phone',

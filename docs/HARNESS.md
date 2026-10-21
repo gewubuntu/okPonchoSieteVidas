@@ -34,7 +34,7 @@ project get better at itself over time.
 ## The improvement loop
 
 ```
-task --> mistake or friction --> LESSON (retro skill)
+task --> mistake or friction --> LESSON (harness-retro skill)
                                    |
                        Recurrence >= 2 ?  --yes--> PROMOTE
                                    |                 |-- automated check in scripts/check.mjs (preferred)
