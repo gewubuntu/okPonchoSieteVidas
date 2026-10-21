@@ -43,6 +43,8 @@ export class TouchControls {
   private drawnPressed: TouchButtonId[] = [];
   private mode: TouchMode = loadMode();
   private stick = 0;
+  /** Fingers that already flipped the mode, so one touch flips it once. */
+  private readonly flipped = new Set<number>();
 
   constructor(private readonly scene: Phaser.Scene) {
     this.enabled = scene.sys.game.device.input.touch;
@@ -60,8 +62,16 @@ export class TouchControls {
     if (!this.enabled) return { move: 0, jumpHeld: false };
     const fingers = this.scene.input.manager.pointers.filter((p) => p.isDown);
     const pressed = pressedButtons(this.buttons, fingers);
-    // A new press on the mode switch flips the zone; holding it does not flip it again.
-    if (pressed.has('mode') && !this.pressed.has('mode')) this.setMode(this.mode === 'stick' ? 'buttons' : 'stick');
+    // A finger that went down on the mode switch flips the zone once. A finger that slid onto it from the stick, or
+    // that stays on it, does not.
+    const live = new Set(fingers.map((f) => f.id));
+    for (const id of this.flipped) if (!live.has(id)) this.flipped.delete(id);
+    const mode = this.buttons.filter((b) => b.id === 'mode');
+    const flip = fingers.find((f) => !this.flipped.has(f.id) && pressedButtons(mode, [{ x: f.downX, y: f.downY }]).size > 0);
+    if (flip) {
+      this.flipped.add(flip.id);
+      this.setMode(this.mode === 'stick' ? 'buttons' : 'stick');
+    }
     const stick = stickMove(this.buttons, fingers);
     if (pressed.size !== this.pressed.size || [...pressed].some((id) => !this.pressed.has(id)) || stick !== this.stick) {
       this.pressed = pressed;

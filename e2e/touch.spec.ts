@@ -153,3 +153,23 @@ test('GDD-CTL-03 sliding the finger right of the stick centre runs right, slower
   expect(await speedAt(0.1)).toBe(0); // inside the dead zone
   expect(await speedAt(-1)).toBeCloseTo(-120, 0);
 });
+
+test('GDD-CTL-03 a finger that slides from the stick onto the mode switch does not flip the mode', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await boot(page);
+  const cdp = await page.context().newCDPSession(page);
+  await switchTo(page, cdp, 'stick');
+  const track = await buttonAt(page, 'stick');
+  const sw = await buttonAt(page, 'mode');
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: track.x, y: track.y, id: 1 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: sw.x, y: sw.y, id: 1 }] });
+  await page.waitForTimeout(300);
+  expect((await api(page, () => window.__PONCHO__!.touch())).mode).toBe('stick');
+  await fingers(cdp, 'touchEnd', []);
+  // and a finger that stays on the switch flips it once, not every frame
+  await fingers(cdp, 'touchStart', [{ x: sw.x, y: sw.y, id: 2 }]);
+  await page.waitForFunction(() => window.__PONCHO__!.touch().mode === 'buttons');
+  await page.waitForTimeout(300);
+  expect((await api(page, () => window.__PONCHO__!.touch())).mode).toBe('buttons');
+  await fingers(cdp, 'touchEnd', []);
+});
