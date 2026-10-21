@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CLAW, LIVES_MAX, RESPAWN, TILE } from '../config/tuning';
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
 import type { Fragile } from './fragile';
+import type { Item } from './item';
 import { spawn, type PlayerInput, type PlayerState } from './movement';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { parseTiles } from './tilemap';
@@ -170,7 +171,7 @@ describe('GDD-WLD-05 the claw breaks a fragile wall', () => {
 
 describe('GDD-WLD-05 an unbroken fragile wall is a wall for a walking taco', () => {
   it('turns it round with its box flush against the wall, and walks through once it is broken', () => {
-    const walker = { x: 80, y: 64, vx: 40, vy: 0 };
+    const walker: Item = { x: 80, y: 64, vx: 40, vy: 0, kind: 'taco' };
     let r: RunState = { ...startRun(level), player: spawn(24, 64), items: [walker] };
     for (let i = 0; i < 60 && r.items[0]!.vx > 0; i++) r = stepRun(r, idle, level);
     expect(r.items[0]).toMatchObject({ x: 90, vx: -40 }); // the wall starts at x = 96
@@ -192,11 +193,12 @@ describe('GDD-PWR-05 the claw opens a piñata', () => {
     expect(r.items).toHaveLength(1);
     expect(r.items[0]).toMatchObject({ x: 88, vx: 40 });
   });
-  it('in Taco it opens empty', () => {
+  it('in Taco it opens and a chile comes out, staying where it is', () => {
     let r = swingFrom(70, hanging, { power: 'taco' });
     r = stepRun(r, swipe, hanging);
     r = run(r, idle, SWING_AT - 1, hanging);
-    expect(r).toMatchObject({ pinatasOpen: [true], items: [] });
+    expect(r.pinatasOpen).toEqual([true]);
+    expect(r.items).toEqual([{ x: 88, y: 48, vx: 0, vy: 0, kind: 'chile' }]);
   });
   it('a swing that does not reach it opens nothing', () => {
     let r = swingFrom(40, hanging);

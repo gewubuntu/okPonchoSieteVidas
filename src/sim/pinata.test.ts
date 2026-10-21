@@ -91,7 +91,7 @@ describe('GDD-PWR-05 opening a piñata', () => {
   it('a jump from underneath opens it in Base and a taco appears on top of it, heading right at 40 px/s', () => {
     const r = bump(under());
     expect(r.pinatasOpen).toEqual([true]);
-    expect(r.items).toEqual([{ x: 88, y: 80, vx: TACO.walkSpeed, vy: 0 }]);
+    expect(r.items).toEqual([{ x: 88, y: 80, vx: TACO.walkSpeed, vy: 0, kind: 'taco' }]);
   });
 
   it('opening one takes no life and does not change the state by itself', () => {
@@ -106,10 +106,12 @@ describe('GDD-PWR-05 opening a piñata', () => {
     expect(r.pinatasOpen).toEqual([true]);
   });
 
-  it('in Taco it opens but releases nothing (the chile arrives with GDD-PWR-03)', () => {
-    const r = bump(under(88, 'taco'));
-    expect(r.pinatasOpen).toEqual([true]);
-    expect(r.items).toEqual([]);
+  it('in Taco, or in Fuego, a chile comes out instead, and it stays where it is', () => {
+    for (const power of ['taco', 'fuego'] as const) {
+      const r = bump(under(88, power));
+      expect(r.pinatasOpen).toEqual([true]);
+      expect(r.items).toEqual([{ x: 88, y: 80, vx: 0, vy: 0, kind: 'chile' }]);
+    }
   });
 
   it('a bump that only clips the corner slides past and opens nothing', () => {
@@ -136,7 +138,7 @@ const stepsOf = (item: Item, n: number): Item => {
 };
 
 describe('GDD-PWR-02 the walking taco', () => {
-  const onFloor: Item = { x: 100, y: 128, vx: TACO.walkSpeed, vy: 0 };
+  const onFloor: Item = { x: 100, y: 128, vx: TACO.walkSpeed, vy: 0, kind: 'taco' };
 
   it('walks along the ground at 40 px/s', () => {
     const walker = stepsOf(onFloor, 60);
@@ -153,7 +155,7 @@ describe('GDD-PWR-02 the walking taco', () => {
 
   it('turns round against a wall on its left too, with its box flush against the wall', () => {
     // The wall in column 14 ends at x = 240, so a left-moving taco turns with its middle at 246 (box from 240 to 252).
-    let walker: Item = { x: 250, y: 128, vx: -TACO.walkSpeed, vy: 0 };
+    let walker: Item = { x: 250, y: 128, vx: -TACO.walkSpeed, vy: 0, kind: 'taco' };
     for (let i = 0; i < 20 && walker.vx < 0; i++) walker = stepItem(walker, world);
     expect(walker).toMatchObject({ x: 246, vx: TACO.walkSpeed });
   });
@@ -165,7 +167,7 @@ describe('GDD-PWR-02 the walking taco', () => {
   });
 
   it('falls off a ledge instead of turning', () => {
-    const ledge: Item = { x: 94, y: 80, vx: TACO.walkSpeed, vy: 0 }; // on top of the piñata, which ends at x = 96
+    const ledge: Item = { x: 94, y: 80, vx: TACO.walkSpeed, vy: 0, kind: 'taco' }; // on top of the piñata, which ends at x = 96
     const walker = stepsOf(ledge, 60);
     expect(walker.y).toBe(128);
     expect(walker.vx).toBe(TACO.walkSpeed);
@@ -173,12 +175,13 @@ describe('GDD-PWR-02 the walking taco', () => {
   });
 
   it('is released only where there is room', () => {
-    expect(releaseFrom(pinata, world)).toEqual({ x: 88, y: 80, vx: TACO.walkSpeed, vy: 0 });
-    expect(releaseFrom(pinata, withPinatas(world, [{ col: 5, row: 4 }]))).toBeNull();
+    expect(releaseFrom(pinata, world, 'taco')).toEqual({ x: 88, y: 80, vx: TACO.walkSpeed, vy: 0, kind: 'taco' });
+    expect(releaseFrom(pinata, world, 'chile')).toEqual({ x: 88, y: 80, vx: 0, vy: 0, kind: 'chile' });
+    expect(releaseFrom(pinata, withPinatas(world, [{ col: 5, row: 4 }]), 'taco')).toBeNull();
   });
 
   it('is touched by the 12 x 14 body: edges that only meet do not count', () => {
-    const item: Item = { x: 100, y: 128, vx: 0, vy: 0 }; // box x 94 to 106, y 116 to 128
+    const item: Item = { x: 100, y: 128, vx: 0, vy: 0, kind: 'taco' }; // box x 94 to 106, y 116 to 128
     expect(touchesItem(at(87.99, 128), item)).toBe(false); // body right edge 93.99
     expect(touchesItem(at(88.01, 128), item)).toBe(true);
     expect(touchesItem(at(111.99, 128), item)).toBe(true);
@@ -192,7 +195,7 @@ describe('GDD-PWR-02 the walking taco', () => {
 
 describe('GDD-PWR-02 a released taco stands on the piñata it came from', () => {
   it('in a run, the open piñata is a floor for it, not just a wall for Poncho', () => {
-    const standing: Item = { x: 88, y: 80, vx: 0, vy: 0 };
+    const standing: Item = { x: 88, y: 80, vx: 0, vy: 0, kind: 'taco' };
     const r = run({ ...startRun(level), player: at(24, 128), items: [standing] }, idle, 10);
     expect(r.items).toEqual([standing]);
   });
@@ -202,14 +205,14 @@ describe('GDD-PWR-02 a piñata is a wall for a walking taco', () => {
   it('a taco walking into the side of a piñata turns round with its box flush against it', () => {
     // A floor at row 6 (top y = 96), so a taco on it is level with the piñata in column 5, row 5 (x from 80).
     const shelf: Level = { ...level, world: parseTiles([...Array.from({ length: 6 }, () => '..........'), '##########', '..........']) };
-    let r: RunState = { ...startRun(shelf), player: at(24, 96), items: [{ x: 60, y: 96, vx: TACO.walkSpeed, vy: 0 }] };
+    let r: RunState = { ...startRun(shelf), player: at(24, 96), items: [{ x: 60, y: 96, vx: TACO.walkSpeed, vy: 0, kind: 'taco' }] };
     for (let i = 0; i < 60 && r.items[0]!.vx > 0; i++) r = stepRun(r, idle, shelf);
     expect(r.items[0]).toMatchObject({ x: 74, y: 96, vx: -TACO.walkSpeed });
   });
 });
 
 describe('GDD-PWR-06 collecting a released taco', () => {
-  const item: Item = { x: 100, y: 128, vx: 0, vy: 0 };
+  const item: Item = { x: 100, y: 128, vx: 0, vy: 0, kind: 'taco' };
   it('in Base it makes Poncho Taco and is used up', () => {
     const r = stepRun({ ...startRun(level), player: at(100, 128), items: [item] }, idle, level);
     expect(r).toMatchObject({ power: 'taco', items: [] });
@@ -220,7 +223,7 @@ describe('GDD-PWR-06 collecting a released taco', () => {
   });
   it('one that falls into a pit is gone', () => {
     const pitLevel: Level = { ...level, world: parseTiles(['....', '....', '#...']) }; // Poncho keeps his floor in column 0
-    let r: RunState = { ...startRun(pitLevel), player: at(8, 32), items: [{ x: 40, y: 30, vx: 0, vy: 0 }] };
+    let r: RunState = { ...startRun(pitLevel), player: at(8, 32), items: [{ x: 40, y: 30, vx: 0, vy: 0, kind: 'taco' }] };
     for (let i = 0; i < 80 && r.items.length > 0; i++) r = stepRun(r, idle, pitLevel);
     expect(r.items).toEqual([]);
   });

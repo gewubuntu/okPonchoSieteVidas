@@ -9,6 +9,7 @@ import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import { activateOfrenda, collectVeladora, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { clawBox } from '../sim/claw';
+import { FIREBALL } from '../config/tuning';
 import { flipPose } from '../sim/respawnFlip';
 import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
@@ -82,7 +83,7 @@ export interface PonchoDebug {
   heldTacoVisible(): boolean;
   /** Each piñata as drawn: whether it is drawn open (GDD-PWR-05). And the walking tacos as drawn: where their feet are (GDD-PWR-02). */
   pinatasDrawn(): boolean[];
-  itemsDrawn(): { x: number; y: number }[];
+  itemsDrawn(): { x: number; y: number; kind: string }[];
   /** Keys Poncho carries, the keys still drawn on the floor, the doors drawn open, and the key icons on the HUD (GDD-WLD-05). Read from what was drawn. */
   keysHeld(): number;
   keysDrawn(): number;
@@ -95,6 +96,16 @@ export interface PonchoDebug {
   clawDrawn(): 'none' | 'windup' | 'swing';
   fragilesDrawn(): number;
   hudPowerIcon(): boolean;
+  /** The power-up state painted in Poncho's hand and on the HUD, and the fireballs in the simulation and the ones painted (GDD-PWR-03). */
+  heldPowerDrawn(): Power;
+  hudPowerDrawn(): Power;
+  fireballs(): number;
+  /** Fireballs spat since the page loaded, and where the ones in flight are (GDD-PWR-03). */
+  spits(): number;
+  fireballAt(): { x: number; y: number }[];
+  fireballsDrawn(): number;
+  /** Test hook: puts Poncho in a power-up state without playing for it. */
+  setPower(power: Power): void;
 }
 
 declare global {
@@ -129,8 +140,12 @@ export class PlayScene extends Phaser.Scene {
   private keyGfx!: Phaser.GameObjects.Graphics;
   private doorsKey = '';
   private hudKeyCount = 0;
-  private itemsDrawn: { x: number; y: number }[] = [];
+  private itemsDrawn: { x: number; y: number; kind: string }[] = [];
   private hudPower: Power = 'base';
+  private heldPower: Power = 'base';
+  private fireballGfx!: Phaser.GameObjects.Graphics;
+  private fireballsPainted = 0;
+  private readonly fuegoLatch = new InputLatch();
   private ofrendaGfx!: Phaser.GameObjects.Graphics;
   private ofrendasDrawn: { id: string; x: number; used: boolean }[] = [];
   private drawnLives = 0;
@@ -146,7 +161,7 @@ export class PlayScene extends Phaser.Scene {
   /** Placeholder body: a red box with a pale strip along the feet, so a flip shows which way up he is. */
   private body!: Phaser.GameObjects.Container;
   private touch!: TouchControls;
-  private keys!: Record<'left' | 'right' | 'jump' | 'claw', Phaser.Input.Keyboard.Key[]>;
+  private keys!: Record<'left' | 'right' | 'jump' | 'claw' | 'fuego', Phaser.Input.Keyboard.Key[]>;
   private fragileGfx!: Phaser.GameObjects.Graphics;
   private clawGfx!: Phaser.GameObjects.Graphics;
   private fragilesKey = '';
@@ -155,6 +170,7 @@ export class PlayScene extends Phaser.Scene {
   private readonly jumpLatch = new InputLatch();
   private readonly clawLatch = new InputLatch();
   private swings = 0;
+  private spits = 0;
   private clawPainted: 'none' | 'windup' | 'swing' = 'none';
 
   constructor() {
@@ -191,6 +207,7 @@ export class PlayScene extends Phaser.Scene {
     this.tacoGfx = this.add.graphics().setDepth(2);
     this.drawTacos();
     this.heldGfx = this.add.graphics().setDepth(4);
+    this.fireballGfx = this.add.graphics().setDepth(4);
     this.pinataGfx = this.add.graphics().setDepth(1);
     this.drawPinatas();
     this.itemGfx = this.add.graphics().setDepth(2);
@@ -220,10 +237,12 @@ export class PlayScene extends Phaser.Scene {
       right: [kb.addKey(K.RIGHT), kb.addKey(K.D)],
       jump: [kb.addKey(K.SPACE), kb.addKey(K.Z), kb.addKey(K.UP), kb.addKey(K.W)],
       claw: [kb.addKey(K.X), kb.addKey(K.J)],
+      fuego: [kb.addKey(K.C), kb.addKey(K.K)],
     };
     // The Key 'down' event fires once per press, even when the press ends before the next frame. Repeats only set the latch again.
     for (const k of this.keys.jump) k.on('down', () => this.jumpLatch.press());
     for (const k of this.keys.claw) k.on('down', () => this.clawLatch.press());
+    for (const k of this.keys.fuego) k.on('down', () => this.fuegoLatch.press());
 
     // GDD-CTL-03: on-screen buttons on touch devices, merged with the keyboard below.
     this.touch = new TouchControls(this);
@@ -263,7 +282,17 @@ export class PlayScene extends Phaser.Scene {
         power: () => this.run.power,
         tacosDrawn: () => this.tacosPainted,
         heldTacoVisible: () => this.heldGfx.visible,
-        hudPowerIcon: () => this.hudPower === 'taco',
+        hudPowerIcon: () => this.hudPower !== 'base',
+        heldPowerDrawn: () => this.heldPower,
+        hudPowerDrawn: () => this.hudPower,
+        fireballs: () => this.run.fireballs.length,
+        spits: () => this.spits,
+        fireballAt: () => this.run.fireballs.map((f) => ({ x: f.x, y: f.y })),
+        fireballsDrawn: () => this.fireballsPainted,
+        setPower: (power) => {
+          this.run = { ...this.run, power };
+          this.drawHud();
+        },
         pinatasDrawn: () => this.pinatasPainted,
         itemsDrawn: () => this.itemsDrawn,
         keysHeld: () => this.run.keysHeld,
@@ -349,6 +378,36 @@ export class PlayScene extends Phaser.Scene {
     g.fillStyle(0x6fae4a, 1).fillRect(cx - r, cy + r / 2 - 1, size, 1);
     g.fillStyle(0xc2392d, 1).fillRect(cx - r / 2, cy - 1, 1.5, 1.5).fillRect(cx + r / 4, cy - 1.5, 1.5, 1.5);
     g.lineStyle(1, 0x5a3a14, 1).beginPath().arc(cx, cy + r / 2, r, Math.PI, 0, false).strokePath();
+  }
+
+  /**
+   * Placeholder chile (GDD-PWR-03): a curved red pepper with a green stem, on a soft orange glow so it reads as hot. `size` is
+   * its length in px. Used for the pepper from a piñata, the chile in Poncho's hand and the HUD icon.
+   */
+  private paintChile(g: Phaser.GameObjects.Graphics, cx: number, cy: number, size: number): void {
+    const r = size / 2;
+    g.fillStyle(0xffd27a, 0.45).fillCircle(cx, cy, r + 1.5);
+    g.fillStyle(0xd1281c, 1).fillTriangle(cx - r, cy - r * 0.2, cx + r * 0.5, cy - r * 0.6, cx + r, cy + r * 0.7);
+    g.fillStyle(0xd1281c, 1).fillTriangle(cx - r, cy - r * 0.2, cx + r, cy + r * 0.7, cx - r * 0.1, cy + r * 0.5);
+    g.fillStyle(0x4f9a3a, 1).fillRect(cx - r - 1, cy - r * 0.5, 2.5, 2.5);
+    g.lineStyle(1, 0x5e0f0a, 1).lineBetween(cx - r, cy - r * 0.2, cx + r, cy + r * 0.7);
+  }
+
+  /** The tacos and the chile in Poncho's hand: a taco, and for Fuego a glowing chile tucked beside it. */
+  private paintHeld(g: Phaser.GameObjects.Graphics, cx: number, cy: number, power: Power, size: number): void {
+    if (power === 'base') return;
+    this.paintTaco(g, cx, cy, size);
+    if (power === 'fuego') this.paintChile(g, cx + size * 0.55, cy - size * 0.35, size * 0.8);
+  }
+
+  /** Fireballs in flight (GDD-PWR-03): an orange ball with a pale yellow core. */
+  private drawFireballs(): void {
+    this.fireballGfx.clear();
+    this.fireballsPainted = this.run.fireballs.length;
+    for (const f of this.run.fireballs) {
+      this.fireballGfx.fillStyle(0xe8602d, 1).fillCircle(f.x, f.y - FIREBALL.size / 2, FIREBALL.size / 2);
+      this.fireballGfx.fillStyle(0xffe27a, 1).fillCircle(f.x, f.y - FIREBALL.size / 2, FIREBALL.size / 4);
+    }
   }
 
   /** The taco pickups still waiting in the level (GDD-PWR-02). Redrawn when one is picked up or they all come back. */
@@ -478,8 +537,11 @@ export class PlayScene extends Phaser.Scene {
   /** The tacos walking about after a piñata (GDD-PWR-02), drawn where the simulation has them. */
   private drawItems(): void {
     this.itemGfx.clear();
-    this.itemsDrawn = this.run.items.map((it) => ({ x: it.x, y: it.y }));
-    for (const it of this.run.items) this.paintTaco(this.itemGfx, it.x, it.y - 7, 12);
+    this.itemsDrawn = this.run.items.map((it) => ({ x: it.x, y: it.y, kind: it.kind }));
+    for (const it of this.run.items) {
+      if (it.kind === 'chile') this.paintChile(this.itemGfx, it.x, it.y - 6, 12);
+      else this.paintTaco(this.itemGfx, it.x, it.y - 7, 12);
+    }
   }
 
   /** Placeholder spring art (GDD-WLD-05): a red block with a pale zigzag coil and a bar on top, to read as springy and not as floor. */
@@ -552,10 +614,10 @@ export class PlayScene extends Phaser.Scene {
     this.cracksDrawn = [];
     // GDD-UI-01: a small icon of the power-up state, to the right of the triangles. Nothing in Base.
     this.hudPower = this.run.power;
-    if (this.run.power === 'taco') this.paintTaco(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 6, LIVES_HUD.top + 3, 13);
+    this.paintHeld(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 6, LIVES_HUD.top + 3, this.run.power, 13);
     // GDD-WLD-05: one small key per key Poncho carries, after the power-up icon.
     this.hudKeyCount = this.run.keysHeld;
-    for (let i = 0; i < this.run.keysHeld; i++) this.paintKey(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 24 + i * 9, LIVES_HUD.top + 5, 12);
+    for (let i = 0; i < this.run.keysHeld; i++) this.paintKey(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 34 + i * 9, LIVES_HUD.top + 5, 12);
     layoutLives(this.run.lives.lives).forEach((triangle, index) => {
       const { points: [x1, y1, x2, y2, x3, y3], filled } = triangle;
       if (filled) {
@@ -586,6 +648,7 @@ export class PlayScene extends Phaser.Scene {
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
     this.ticks++;
     if (before.claw.phase === 'idle' && this.run.claw.phase === 'windup') this.swings++;
+    this.spits += this.run.fireballs.filter((f) => f.age === 0).length;
     const { player } = this.run;
     if (player.grounded) {
       if (this.peak > 0) this.lastPeak = this.peak;
@@ -614,8 +677,9 @@ export class PlayScene extends Phaser.Scene {
     // 0.1 s after a respawn, then dim and bright in turn.
     this.body.setAlpha(Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
     // GDD-PWR-01: in Taco he holds a taco in front of him, on the side he faces. It follows the body, blink and all.
-    this.heldGfx.clear().setVisible(this.run.power === 'taco' && this.run.phase === 'playing').setAlpha(this.body.alpha);
-    if (this.heldGfx.visible) this.paintTaco(this.heldGfx, this.body.x + player.facing * (HITBOX.width / 2 + 1), this.body.y - 1, 10);
+    this.heldGfx.clear().setVisible(this.run.power !== 'base' && this.run.phase === 'playing').setAlpha(this.body.alpha);
+    this.heldPower = this.heldGfx.visible ? this.run.power : 'base';
+    if (this.heldGfx.visible) this.paintHeld(this.heldGfx, this.body.x + player.facing * (HITBOX.width / 2 + 1), this.body.y - 1, this.run.power, 10);
   }
 
   override update(_time: number, deltaMs: number): void {
@@ -627,11 +691,13 @@ export class PlayScene extends Phaser.Scene {
     }
 
     // Keyboard and touch work together: either can move or jump (GDD-CTL-01, GDD-CTL-03).
+    this.touch.setFuego(this.run.power === 'fuego'); // the Fuego button is there only in the Fuego state (GDD-CTL-03)
     const touch = this.touch.read();
     const input: PlayerInput = {
       move: Math.max(-1, Math.min(1, (down(this.keys.right) ? 1 : 0) - (down(this.keys.left) ? 1 : 0) + touch.move)),
       jumpHeld: effectiveHeld(down(this.keys.jump), this.jumpLatch) || touch.jumpHeld,
       claw: effectiveHeld(down(this.keys.claw), this.clawLatch) || touch.claw === true,
+      fuego: effectiveHeld(down(this.keys.fuego), this.fuegoLatch) || touch.fuego === true,
     };
 
     let stepped = false;
@@ -645,6 +711,7 @@ export class PlayScene extends Phaser.Scene {
     if (stepped) {
       this.jumpLatch.consume();
       this.clawLatch.consume();
+      this.fuegoLatch.consume();
       this.touch.consume();
     }
     // Redraw when the lives change, and on every step while a triangle is cracking.
@@ -654,6 +721,7 @@ export class PlayScene extends Phaser.Scene {
     if (this.run.pinatasOpen.join() !== this.pinatasKey) this.drawPinatas();
     if (this.run.fragilesBroken.join() !== this.fragilesKey) this.drawFragiles();
     this.drawItems();
+    this.drawFireballs();
     if (this.run.crumbles.map((c) => `${c.phase}${c.steps}`).join() !== this.crumblesKey) this.drawCrumbles();
     const key = this.usedKey();
     if (key !== this.ofrendasKey) {

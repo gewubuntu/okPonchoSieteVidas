@@ -89,3 +89,41 @@ test('L-006 a touch tap on the Jump button shorter than one frame still makes Po
   await tapTouch(page, await buttonCentre(page, 'jump'));
   await page.waitForFunction(() => !window.__PONCHO__!.state().grounded);
 });
+
+test('GDD-CTL-01 a real keyboard press of C and of K spits a fireball, and a tap inside one frame does too', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  await page.evaluate(() => window.__PONCHO__!.setPower('fuego'));
+  await page.keyboard.press('KeyC', { delay: 60 });
+  await page.waitForFunction(() => window.__PONCHO__!.spits() === 1);
+  await page.waitForTimeout(1500); // let it fly into a wall and vanish
+  await page.keyboard.press('KeyK', { delay: 60 });
+  await page.waitForFunction(() => window.__PONCHO__!.spits() === 2);
+  await page.waitForTimeout(1500);
+  await tapKey(page, 'KeyC', 67, 1);
+  expect(await api(page, () => window.__PONCHO__!.spits())).toBe(3);
+  await page.waitForTimeout(1500);
+  await tapKey(page, 'KeyK', 75, 1);
+  expect(await api(page, () => window.__PONCHO__!.spits())).toBe(4);
+});
+
+test('GDD-PWR-03 the Fuego button shows only in Fuego, and a touch tap inside one frame spits', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  expect((await api(page, () => window.__PONCHO__!.touch())).buttons.some((b) => b.id === 'fuego')).toBe(false);
+  await page.evaluate(() => window.__PONCHO__!.setPower('taco'));
+  await page.waitForTimeout(150);
+  expect((await api(page, () => window.__PONCHO__!.touch())).buttons.some((b) => b.id === 'fuego')).toBe(false);
+  await page.evaluate(() => window.__PONCHO__!.setPower('fuego'));
+  await page.waitForFunction(() => window.__PONCHO__!.touch().buttons.some((b) => b.id === 'fuego'));
+  const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'fuego')!;
+  const box = (await page.locator('canvas').boundingBox())!;
+  const k = box.width / 480;
+  expect(b.w * k).toBeGreaterThanOrEqual(48);
+  await tapTouch(page, { x: box.x + (b.x + b.w / 2) * k, y: box.y + (b.y + b.h / 2) * k });
+  await page.waitForFunction(() => window.__PONCHO__!.spits() === 1);
+  await page.evaluate(() => window.__PONCHO__!.setPower('taco'));
+  await page.waitForFunction(() => !window.__PONCHO__!.touch().buttons.some((x) => x.id === 'fuego'));
+});

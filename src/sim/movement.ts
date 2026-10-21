@@ -24,6 +24,8 @@ export interface PlayerInput {
   jumpHeld: boolean;
   /** The claw button is down (GDD-CMB-02). A swing starts on the press. Left out means not pressed. */
   claw?: boolean;
+  /** The Fuego button is down (GDD-PWR-03). A fireball is spat on the press. Left out means not pressed. */
+  fuego?: boolean;
 }
 
 export interface World {
