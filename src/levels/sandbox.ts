@@ -5,6 +5,7 @@
 // 85%; 55% falls in the pit, so the second one stands just past it).
 import { TILE } from '../config/tuning';
 import type { Crumble } from '../sim/crumble';
+import type { Spring } from '../sim/spring';
 import type { Spike } from '../sim/hazards';
 import type { Ofrenda } from '../sim/run';
 
@@ -17,13 +18,13 @@ export const SANDBOX_ROWS: readonly string[] = [
   '..............................',
   '..............................',
   '..............................',
-  '..............................',
+  '.............##...............',
   '..............................',
   '....#####.....................',
   '......................##......',
   '..........##..........##......',
   '..........##..........##......',
-  '##############...#############',
+  '############.#...#############',
   '##############...#############',
   '##############...#############',
 ];
@@ -43,3 +44,9 @@ export const SANDBOX_SPIKES: readonly Spike[] = [20, 21].map((col) => ({ col, ro
 
 /** GDD-WLD-05: three crumbling tiles at columns 24 to 26, one tile above the 3-tile wall's top, a jump up from it. */
 export const SANDBOX_CRUMBLES: readonly Crumble[] = [24, 25, 26].map((col) => ({ col, row: 10 }));
+
+/** GDD-WLD-05: a spring set into the floor at tile column 12, flush with the floor, between the 2-tile wall and the pit, clear of the touch buttons. */
+export const SANDBOX_SPRINGS: readonly Spring[] = [{ col: 12, row: 14 }];
+
+// GDD-WLD-05: the ledge at tile columns 13 and 14, row 8 (top y = 128), is 96 px above the floor: a plain spring launch
+// (about 77 px) falls short of it and a timed one (about 120 px) clears it.

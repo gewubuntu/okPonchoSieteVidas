@@ -14,7 +14,7 @@ const crumbles: Crumble[] = [
   { col: 2, row: 5 },
   { col: 3, row: 5 },
 ];
-const level: Level = { world, spawn: { x: 24, y: 8 * TILE }, ofrendas: [], spikes: [], crumbles };
+const level: Level = { world, spawn: { x: 24, y: 8 * TILE }, ofrendas: [], spikes: [], crumbles, springs: [] };
 /** Poncho standing on the crumbling tiles, in the middle of column `col`. */
 const onTile = (col: number): PlayerState => spawn(col * TILE + TILE / 2, 5 * TILE);
 const standingRun = (col: number): RunState => ({ ...startRun(level), player: onTile(col) });

@@ -10,7 +10,7 @@ const right: PlayerInput = { move: 1, jumpHeld: false };
 
 // Floor on the left (x < 80), a 3-tile pit (x 80 to 128), floor again on the right. Floor top is y = 64.
 const world = parseTiles(['..............', '..............', '..............', '..............', '#####...######', '#####...######']);
-const level: Level = { world, spawn: { x: 24, y: 4 * TILE }, ofrendas: [], spikes: [], crumbles: [] };
+const level: Level = { world, spawn: { x: 24, y: 4 * TILE }, ofrendas: [], spikes: [], crumbles: [], springs: [] };
 
 const run = (r: RunState, input: PlayerInput, steps: number): RunState => {
   for (let i = 0; i < steps; i++) r = stepRun(r, input, level);

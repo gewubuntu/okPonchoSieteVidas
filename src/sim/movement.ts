@@ -14,6 +14,8 @@ export interface PlayerState {
   /** Steps left in which an early jump press is remembered (GDD-MOV-03). */
   jumpBuffer: number;
   jumpWasHeld: boolean;
+  /** Launched by a spring and still rising: releasing jump does not cut it short (GDD-WLD-05). */
+  bounced: boolean;
 }
 
 export interface PlayerInput {
@@ -47,7 +49,7 @@ function blocked(world: World, x: number, y: number): boolean {
 }
 
 export function spawn(x: number, y: number): PlayerState {
-  return { x, y, vx: 0, vy: 0, grounded: true, facing: 1, coyote: 0, jumpBuffer: 0, jumpWasHeld: false };
+  return { x, y, vx: 0, vy: 0, grounded: true, facing: 1, coyote: 0, jumpBuffer: 0, jumpWasHeld: false, bounced: false };
 }
 
 /**
@@ -108,7 +110,7 @@ export function step(prev: PlayerState, input: PlayerInput, world: World): Playe
   }
 
   // GDD-MOV-02: variable jump height, cut once on release while rising
-  if (prev.jumpWasHeld && !input.jumpHeld && s.vy < 0) s.vy *= JUMP.cutMultiplier;
+  if (prev.jumpWasHeld && !input.jumpHeld && s.vy < 0 && !prev.bounced) s.vy *= JUMP.cutMultiplier;
 
   // GDD-MOV-04: gravity, then terminal velocity, then move. Movement uses the average of the old and new
   // velocity (exact for constant acceleration), so jump height does not depend on the step rate.
@@ -116,6 +118,7 @@ export function step(prev: PlayerState, input: PlayerInput, world: World): Playe
   let g = vy0 < 0 ? GRAVITY.rising : GRAVITY.falling;
   if (Math.abs(vy0) < GRAVITY.hangSpeed) g *= GRAVITY.hangMultiplier;
   s.vy = Math.min(vy0 + g * STEP, GRAVITY.terminalVelocity);
+  if (s.vy >= 0) s.bounced = false;
 
   // GDD-MOV-06: move one axis at a time and snap to the tile edge that was hit. The fastest speed is the 410 px/s jump
   // takeoff, about 6.8 px per step and far less than a 16 px tile, so the box can never jump over a tile (a test
