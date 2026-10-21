@@ -125,6 +125,17 @@ describe('WLD-05 opening a door', () => {
   });
 });
 
+describe('WLD-05 a shut door is a wall for a walking taco', () => {
+  it('turns it round with its box flush against the door, and walks through once the door is open', () => {
+    const walker = { x: 80, y: 64, vx: 40, vy: 0 };
+    let r: RunState = { ...startRun(level), keysTaken: [true], player: at(24, 64), items: [walker] };
+    for (let i = 0; i < 60 && r.items[0]!.vx > 0; i++) r = stepRun(r, idle, level);
+    expect(r.items[0]).toMatchObject({ x: 90, vx: -40 }); // the door starts at x = 96
+    const open: RunState = { ...startRun(level), keysTaken: [true], doorsOpen: [true], player: at(24, 64), items: [walker] };
+    expect(run(open, idle, 60).items[0]!.x).toBeGreaterThan(112);
+  });
+});
+
 describe('WLD-05 losing a life puts keys and doors back', () => {
   it('after a pit: no keys held, the key is back on the floor and the door is shut again', () => {
     const pit: Level = { ...level, world: parseTiles(['...', '...']) };
