@@ -49,7 +49,7 @@ test('GDD-CTL-03 holding the right button runs Poncho right, and he stops when t
 test('GDD-CTL-03 moving and jumping at the same time works with two fingers', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch device only');
   await boot(page);
-  await page.evaluate(() => window.__PONCHO__!.teleport(290, 224)); // open ground: no platform overhead to bump his head
+  await page.evaluate(() => window.__PONCHO__!.teleport(280, 224)); // open ground: no platform overhead to bump his head
   await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
   const cdp = await page.context().newCDPSession(page);
   const right = await buttonAt(page, 'right');
@@ -138,7 +138,7 @@ test('GDD-CTL-03 sliding the finger right of the stick centre runs right, slower
   await switchTo(page, cdp, 'stick');
   const track = await buttonAt(page, 'stick');
   const speedAt = async (frac: number) => {
-    await page.evaluate(() => window.__PONCHO__!.teleport(290, 224));
+    await page.evaluate(() => window.__PONCHO__!.teleport(280, 224));
     await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
     await fingers(cdp, 'touchStart', [{ x: track.x + frac * (track.widthCss / 2), y: track.y, id: 1 }]);
     await page.waitForTimeout(300); // long enough to reach that stick position's top speed, short of the wall at x 352

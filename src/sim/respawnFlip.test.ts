@@ -54,7 +54,7 @@ describe('GDD-LIFE-02 where the flip lands', () => {
     spikes: [],
     crumbles: [],
     springs: [],
-    platforms: [],
+    platforms: [], tacos: [],
   };
 
   it('is the level start without an ofrenda, and the latest ofrenda after one', () => {

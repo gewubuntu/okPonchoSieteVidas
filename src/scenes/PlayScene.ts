@@ -2,7 +2,7 @@
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS } from '../levels/sandbox';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
@@ -12,13 +12,14 @@ import { flipPose } from '../sim/respawnFlip';
 import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
+import type { Power } from '../sim/taco';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
-import { layoutLives } from '../ui/livesLayout';
+import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -72,6 +73,12 @@ export interface PonchoDebug {
   crumbles(): { col: number; row: number; phase: string; steps: number }[];
   /** Where Poncho would respawn now (GDD-LIFE-02). */
   checkpoint(): { x: number; y: number };
+  /** The power-up state (GDD-PWR-01), and the taco pickups still drawn in the level (GDD-PWR-02). */
+  power(): Power;
+  tacosDrawn(): number;
+  /** Whether the taco in Poncho's hand and the power-up icon on the HUD are drawn. Read from what was drawn. */
+  heldTacoVisible(): boolean;
+  hudPowerIcon(): boolean;
 }
 
 declare global {
@@ -92,6 +99,10 @@ export class PlayScene extends Phaser.Scene {
   private platformGfx!: Phaser.GameObjects.Graphics;
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
+  private tacoGfx!: Phaser.GameObjects.Graphics;
+  private heldGfx!: Phaser.GameObjects.Graphics;
+  private tacosKey = '';
+  private hudPower: Power = 'base';
   private ofrendaGfx!: Phaser.GameObjects.Graphics;
   private ofrendasDrawn: { id: string; x: number; used: boolean }[] = [];
   private drawnLives = 0;
@@ -140,6 +151,9 @@ export class PlayScene extends Phaser.Scene {
     this.drawOfrendas();
     this.drawSpikes();
     this.drawSprings();
+    this.tacoGfx = this.add.graphics().setDepth(2);
+    this.drawTacos();
+    this.heldGfx = this.add.graphics().setDepth(4);
     this.platformGfx = this.add.graphics().setDepth(1);
     this.crumbleGfx = this.add.graphics().setDepth(1);
     this.drawCrumbles();
@@ -185,6 +199,7 @@ export class PlayScene extends Phaser.Scene {
           for (let i = 0; i < n; i++) this.simStep(input);
           this.drawHud();
           this.drawCrumbles();
+          this.drawTacos();
           this.renderPlatforms(1);
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
         },
@@ -192,6 +207,10 @@ export class PlayScene extends Phaser.Scene {
         platforms: () => level.platforms.map((p) => platformAt(p, this.run.platformTick)),
         crumbles: () => level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
         checkpoint: () => this.run.checkpoint,
+        power: () => this.run.power,
+        tacosDrawn: () => this.run.tacosTaken.filter((t) => !t).length,
+        heldTacoVisible: () => this.heldGfx.visible,
+        hudPowerIcon: () => this.hudPower === 'taco',
         sfx: () => this.sfxLog,
         touch: () => this.touch.debug(),
         sfxLoaded: () => this.cache.audio.exists('sfx-ofrenda'),
@@ -255,6 +274,27 @@ export class PlayScene extends Phaser.Scene {
       this.platformGfx.fillStyle(0x2a5f5c, 1).fillRect(at.x, at.y + 5, at.w, 3);
       this.platformGfx.fillStyle(0xd7f2ee, 1).fillRect(at.x, at.y, at.w, 1);
     }
+  }
+
+  /**
+   * Placeholder taco (GDD-PWR-02, GDD-VIS-01): a tan shell folded into a half circle, green lettuce along the open edge and
+   * two red tomato dots. `size` is the width in px. Used for the pickup, the taco in Poncho's hand and the HUD icon.
+   */
+  private paintTaco(g: Phaser.GameObjects.Graphics, cx: number, cy: number, size: number): void {
+    const r = size / 2;
+    g.fillStyle(0xe8b755, 1).beginPath().arc(cx, cy + r / 2, r, Math.PI, 0, false).closePath().fillPath();
+    g.fillStyle(0x6fae4a, 1).fillRect(cx - r, cy + r / 2 - 1, size, 1);
+    g.fillStyle(0xc2392d, 1).fillRect(cx - r / 2, cy - 1, 1.5, 1.5).fillRect(cx + r / 4, cy - 1.5, 1.5, 1.5);
+    g.lineStyle(1, 0x5a3a14, 1).beginPath().arc(cx, cy + r / 2, r, Math.PI, 0, false).strokePath();
+  }
+
+  /** The taco pickups still waiting in the level (GDD-PWR-02). Redrawn when one is picked up or they all come back. */
+  private drawTacos(): void {
+    this.tacosKey = this.run.tacosTaken.join();
+    this.tacoGfx.clear();
+    level.tacos.forEach((t, i) => {
+      if (!this.run.tacosTaken[i]) this.paintTaco(this.tacoGfx, t.col * TILE + TILE / 2, t.row * TILE + TILE / 2 - 1, 12);
+    });
   }
 
   /** Placeholder spring art (GDD-WLD-05): a red block with a pale zigzag coil and a bar on top, to read as springy and not as floor. */
@@ -325,6 +365,9 @@ export class PlayScene extends Phaser.Scene {
     this.cracks = updateCracks(this.cracks, this.drawnLives, this.run.lives.lives, this.ticks);
     this.drawnLives = this.run.lives.lives;
     this.cracksDrawn = [];
+    // GDD-UI-01: a small icon of the power-up state, to the right of the triangles. Nothing in Base.
+    this.hudPower = this.run.power;
+    if (this.run.power === 'taco') this.paintTaco(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 6, LIVES_HUD.top + 3, 13);
     layoutLives(this.run.lives.lives).forEach((triangle, index) => {
       const { points: [x1, y1, x2, y2, x3, y3], filled } = triangle;
       if (filled) {
@@ -381,6 +424,9 @@ export class PlayScene extends Phaser.Scene {
     // The blink phase comes from the invulnerability counter, so it is the same every time: bright for the first
     // 0.1 s after a respawn, then dim and bright in turn.
     this.body.setAlpha(Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
+    // GDD-PWR-01: in Taco he holds a taco in front of him, on the side he faces. It follows the body, blink and all.
+    this.heldGfx.clear().setVisible(this.run.power === 'taco' && this.run.phase === 'playing').setAlpha(this.body.alpha);
+    if (this.heldGfx.visible) this.paintTaco(this.heldGfx, this.body.x + player.facing * (HITBOX.width / 2 + 1), this.body.y - 1, 10);
   }
 
   override update(_time: number, deltaMs: number): void {
@@ -400,7 +446,8 @@ export class PlayScene extends Phaser.Scene {
 
     const alpha = this.paused ? 1 : this.stepper.advance(deltaMs / 1000, () => this.simStep(input));
     // Redraw when the lives change, and on every step while a triangle is cracking.
-    if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0) this.drawHud();
+    if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.run.power !== this.hudPower) this.drawHud();
+    if (this.run.tacosTaken.join() !== this.tacosKey) this.drawTacos();
     if (this.run.crumbles.map((c) => `${c.phase}${c.steps}`).join() !== this.crumblesKey) this.drawCrumbles();
     const key = this.usedKey();
     if (key !== this.ofrendasKey) {
