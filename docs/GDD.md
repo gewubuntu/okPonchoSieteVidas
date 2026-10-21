@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.22
+Version: 0.4.23
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.23** (2026-10-21) GDD-PWR-05, GDD-PWR-02, GDD-PWR-06: piñata blocks are built for the head bump, releasing a walking taco in Base; the open and closed rules, the walking taco and the respawn reset are written out as proposals.
 - **0.4.22** (2026-10-21) GDD-PWR-01, GDD-PWR-02, GDD-CMB-03: the Taco state is built (pickup, spike hit spends the taco, knockback now 80 px/s, user-approved number); the edge cases (including the ofrenda and the HUD icon) are written out as proposals.
 - **0.4.21** (2026-10-21) GDD-WLD-05: a moving platform never carries Poncho into a solid tile, and platforms stand still during the respawn wait.
 - **0.4.20** (2026-10-21) GDD-WLD-05: moving platforms are built as one-way floors on a back-and-forth path; the speed, the one-way rule and the reset on respawn are written out as proposals.
@@ -286,6 +287,8 @@ Status: Proposed
 
 Base to Taco. A taco walks away from a broken piñata at 40 px/s, turns at walls and falls off ledges, like a Mario mushroom. Collecting it plays a chomp, a 0.3 s freeze-frame and a sparkle. Poncho keeps the taco in hand until hit.
 
+- **Built (details Proposed):** a taco released from a piñata (GDD-PWR-05) stands on top of it and walks right at 40 px/s (`TACO.walkSpeed`), turns round at walls, falls off ledges and is gone once it falls below the level. It is a 12 x 12 px square, collected by touch (GDD-PWR-06). Collecting one in Base gives Taco. In Taco it would not improve the state, which gives hilos (GDD-PWR-01); those are not built, so it is just used up. `src/sim/item.ts`.
+
 ### GDD-PWR-03 Chile and Fuego (the fire flower)
 
 Status: Proposed
@@ -306,6 +309,11 @@ A rare ghost pepper hidden in special piñatas. For 8 s: Poncho is invulnerable 
 Status: Proposed
 
 Hanging piñatas that open when Poncho hits them from below (head bump) or with a claw swipe, releasing an item or hilos. A piñata releases a Taco if Poncho is Base, otherwise a Chile; a multi-piñata gives up to 10 hilos over 4 s. An opened piñata becomes a broken shell. Piñatas are drawn so players recognise them at a glance and never hide a lethal surprise.
+
+- **Built (details Proposed):** the head bump, in Base and Taco. A piñata is a solid tile, closed or open. A bump is a step that ends with the body's head flush against its underside after Poncho was rising, so standing or walking under it, and a corner clip that slides him past the edge (GDD-MOV-03), do not open it. The body box must overlap the tile's column; with two neighbouring piñatas, the one whose middle is nearer his own wins. A piñata opens once.
+- In Base it releases a taco standing on top of it (GDD-PWR-02). If there is no room above it (a wall or block in the way) it stays closed and releases nothing, so an item never spawns inside a wall (GDD-PWR-06). In Taco it opens empty for now: the chile (GDD-PWR-03) is not built.
+- Losing a life closes every piñata again and clears every released item, along with Poncho returning to Base (GDD-PWR-01).
+- Not built yet: the claw swipe (GDD-CMB-02), the multi-piñata with hilos, the empty piñata art that is not a shell, and sounds. The sandbox has one piñata, 32 px above the floor. `src/sim/pinata.ts`, `src/sim/run.ts`.
 
 ### GDD-PWR-06 Item rules
 
