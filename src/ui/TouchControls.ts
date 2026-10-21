@@ -3,16 +3,36 @@
 import Phaser from 'phaser';
 import { BASE_WIDTH } from '../config/tuning';
 import type { PlayerInput } from '../sim/movement';
-import { layoutTouchButtons, pressedButtons, touchInput, type TouchButton, type TouchButtonId } from './touchLayout';
+import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchButton, type TouchButtonId, type TouchMode } from './touchLayout';
 
 const IDLE_ALPHA = 0.35;
 const PRESSED_ALPHA = 0.75;
+const MODE_KEY = 'poncho.touchMode';
+
+/** The player's choice survives a reload; storage can be blocked, so it is only a convenience (GDD-CTL-03). */
+const loadMode = (): TouchMode => {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'stick' ? 'stick' : 'buttons';
+  } catch {
+    return 'buttons';
+  }
+};
+const saveMode = (mode: TouchMode): void => {
+  try {
+    localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    // ignore: the choice just lasts until the page closes
+  }
+};
 
 export interface TouchDebug {
   visible: boolean;
   buttons: readonly TouchButton[];
   /** Buttons drawn as pressed, read from what was drawn. */
   pressed: readonly TouchButtonId[];
+  /** Whether the left thumb zone holds buttons or the slide stick, and the stick's last analog move (-1 to 1). */
+  mode: TouchMode;
+  stick: number;
 }
 
 export class TouchControls {
@@ -21,6 +41,8 @@ export class TouchControls {
   private buttons: TouchButton[] = [];
   private pressed = new Set<TouchButtonId>();
   private drawnPressed: TouchButtonId[] = [];
+  private mode: TouchMode = loadMode();
+  private stick = 0;
 
   constructor(private readonly scene: Phaser.Scene) {
     this.enabled = scene.sys.game.device.input.touch;
@@ -38,19 +60,29 @@ export class TouchControls {
     if (!this.enabled) return { move: 0, jumpHeld: false };
     const fingers = this.scene.input.manager.pointers.filter((p) => p.isDown);
     const pressed = pressedButtons(this.buttons, fingers);
-    if (pressed.size !== this.pressed.size || [...pressed].some((id) => !this.pressed.has(id))) {
+    // A new press on the mode switch flips the zone; holding it does not flip it again.
+    if (pressed.has('mode') && !this.pressed.has('mode')) this.setMode(this.mode === 'stick' ? 'buttons' : 'stick');
+    const stick = stickMove(this.buttons, fingers);
+    if (pressed.size !== this.pressed.size || [...pressed].some((id) => !this.pressed.has(id)) || stick !== this.stick) {
       this.pressed = pressed;
+      this.stick = stick;
       this.draw();
     }
-    return touchInput(pressed);
+    return touchInput(pressed, stick);
   }
 
   debug(): TouchDebug {
-    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed };
+    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick };
+  }
+
+  private setMode(mode: TouchMode): void {
+    this.mode = mode;
+    saveMode(mode);
+    this.relayout();
   }
 
   private relayout(): void {
-    this.buttons = layoutTouchButtons(this.scene.scale.displaySize.width / BASE_WIDTH);
+    this.buttons = layoutTouchButtons(this.scene.scale.displaySize.width / BASE_WIDTH, this.mode);
     this.draw();
   }
 
@@ -69,7 +101,38 @@ export class TouchControls {
       this.gfx.fillStyle(down ? 0xe8a33d : 0xfff3dc, down ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
       if (b.id === 'left') this.gfx.fillTriangle(cx - r, cy, cx + r, cy - r, cx + r, cy + r);
       else if (b.id === 'right') this.gfx.fillTriangle(cx + r, cy, cx - r, cy - r, cx - r, cy + r);
+      else if (b.id === 'stick') this.drawStick(b);
+      else if (b.id === 'mode') this.drawModeIcon(b);
       else this.gfx.fillTriangle(cx, cy - r, cx - r, cy + r, cx + r, cy + r);
+    }
+  }
+
+  /** Placeholder: a groove with the two directions as small triangles and a thumb where the finger steers. */
+  private drawStick(b: TouchButton): void {
+    const cy = b.y + b.h / 2;
+    const r = b.h * 0.18;
+    const live = this.stick !== 0;
+    this.gfx.fillStyle(0xfff3dc, IDLE_ALPHA + 0.1);
+    this.gfx.fillTriangle(b.x + 6, cy, b.x + 6 + r, cy - r, b.x + 6 + r, cy + r);
+    this.gfx.fillTriangle(b.x + b.w - 6, cy, b.x + b.w - 6 - r, cy - r, b.x + b.w - 6 - r, cy + r);
+    const travel = b.w / 2 - b.h * 0.3;
+    const thumbX = b.x + b.w / 2 + this.stick * travel;
+    this.gfx.fillStyle(live ? 0xe8a33d : 0xfff3dc, live ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
+    this.gfx.fillCircle(thumbX, cy, b.h * 0.3);
+  }
+
+  /** The switch shows what a tap changes to: the stick's groove while on buttons, a pair of triangles while on the stick. */
+  private drawModeIcon(b: TouchButton): void {
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    const r = b.w * 0.14;
+    this.gfx.fillStyle(0xfff3dc, IDLE_ALPHA + 0.25);
+    if (this.mode === 'buttons') {
+      this.gfx.fillRect(cx - b.w * 0.3, cy - 1, b.w * 0.6, 2);
+      this.gfx.fillCircle(cx, cy, r);
+    } else {
+      this.gfx.fillTriangle(cx - 2, cy, cx - 2 - r * 2, cy - r, cx - 2 - r * 2, cy + r);
+      this.gfx.fillTriangle(cx + 2, cy, cx + 2 + r * 2, cy - r, cx + 2 + r * 2, cy + r);
     }
   }
 }

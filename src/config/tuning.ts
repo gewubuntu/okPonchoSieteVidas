@@ -75,6 +75,8 @@ export const TOUCH = {
   gap: 4,
   /** A button is never smaller than this on the player's screen, in CSS pixels (GDD-CTL-03). */
   minCssPx: 48,
+  /** Slide stick: the share of the half-track around its centre that does nothing (same 0.2 as the gamepad, GDD-CTL-02). */
+  stickDeadZone: 0.2,
 } as const;
 
 /** GDD-LIFE-02: the lost triangle on the HUD cracks and fades to an outline in 0.4 s. */

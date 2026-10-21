@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BASE_HEIGHT, BASE_WIDTH, TOUCH } from '../config/tuning';
-import { layoutTouchButtons, pressedButtons, touchInput, type TouchButton } from './touchLayout';
+import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchButton } from './touchLayout';
 
 /** CSS px per virtual px on an 844 x 390 landscape phone: the 480 x 270 canvas is limited by the height, 390 / 270. */
 const PHONE = 390 / 270;
@@ -10,9 +10,9 @@ const centre = (b: TouchButton) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
 describe('GDD-CTL-03 touch button layout', () => {
   const buttons = layoutTouchButtons(PHONE);
 
-  it('has a left, a right and a jump button', () => {
-    expect(new Set(buttons.map((b) => b.id))).toEqual(new Set(['left', 'right', 'jump']));
-    expect(buttons).toHaveLength(3);
+  it('has a left, a right and a jump button and the mode switch', () => {
+    expect(new Set(buttons.map((b) => b.id))).toEqual(new Set(['left', 'right', 'jump', 'mode']));
+    expect(buttons).toHaveLength(4);
   });
 
   it('puts move buttons bottom-left and jump bottom-right, inside the screen', () => {
@@ -20,7 +20,7 @@ describe('GDD-CTL-03 touch button layout', () => {
     expect(left.x).toBe(TOUCH.margin);
     expect(right.x).toBeGreaterThan(left.x + left.w);
     expect(jump.x + jump.w).toBe(BASE_WIDTH - TOUCH.margin);
-    for (const b of buttons) {
+    for (const b of buttons.filter((x) => x.id !== 'mode')) {
       expect(b.y + b.h).toBe(BASE_HEIGHT - TOUCH.margin);
       expect(b.x).toBeGreaterThanOrEqual(0);
       expect(b.x + b.w).toBeLessThanOrEqual(BASE_WIDTH);
@@ -81,5 +81,72 @@ describe('GDD-CTL-03 touch input', () => {
   it('two fingers on the same button still count as one press', () => {
     const c = centre(find(buttons, 'jump'));
     expect(touchInput(pressedButtons(buttons, [c, c]))).toEqual({ move: 0, jumpHeld: true });
+  });
+});
+
+describe('GDD-CTL-03 slide stick', () => {
+  const stick = layoutTouchButtons(PHONE, 'stick');
+  const track = find(stick, 'stick');
+  const mode = find(stick, 'mode');
+  const mid = track.x + track.w / 2;
+  const half = track.w / 2;
+  const at = (dx: number, y = track.y + track.h / 2) => [{ x: mid + dx, y }];
+
+  it('swaps the left and right buttons for one track as wide as both, and keeps jump and the switch', () => {
+    expect(new Set(stick.map((b) => b.id))).toEqual(new Set(['stick', 'jump', 'mode']));
+    const buttons = layoutTouchButtons(PHONE);
+    const [left, right] = [find(buttons, 'left'), find(buttons, 'right')];
+    expect([track.x, track.w, track.y]).toEqual([left.x, right.x + right.w - left.x, left.y]);
+    for (const b of stick) {
+      expect(b.w * PHONE).toBeGreaterThanOrEqual(TOUCH.minCssPx);
+      expect(b.h * PHONE).toBeGreaterThanOrEqual(TOUCH.minCssPx);
+    }
+  });
+
+  it('puts the mode switch in the same place in both modes, above the left zone and clear of it', () => {
+    expect(find(layoutTouchButtons(PHONE), 'mode')).toEqual(mode);
+    expect(mode.y + mode.h).toBeLessThanOrEqual(track.y);
+  });
+
+  it('does nothing with no finger, in the dead zone, or on the centre', () => {
+    expect(stickMove(stick, [])).toBe(0);
+    expect(stickMove(stick, at(0))).toBe(0);
+    expect(stickMove(stick, at(0.2 * half - 0.01))).toBe(0);
+    expect(stickMove(stick, at(-0.2 * half + 0.01))).toBe(0);
+  });
+
+  it('ramps up from the 0.2 dead zone to full speed at the edge, either way', () => {
+    expect(stickMove(stick, at(0.6 * half))).toBeCloseTo(0.5, 5); // (0.6 - 0.2) / 0.8
+    expect(stickMove(stick, at(-0.6 * half))).toBeCloseTo(-0.5, 5);
+    expect(stickMove(stick, at(half))).toBeCloseTo(1, 5);
+    expect(stickMove(stick, at(-half))).toBeCloseTo(-1, 5);
+  });
+
+  it('stays at full speed when the finger slides past either end of the track', () => {
+    expect(stickMove(stick, at(half + 30))).toBe(1);
+    expect(stickMove(stick, [{ x: 0, y: track.y }])).toBe(-1);
+  });
+
+  it('follows a finger above the track too, anywhere in the lower left quarter', () => {
+    expect(stickMove(stick, at(half, BASE_HEIGHT / 2))).toBeCloseTo(1, 5);
+    expect(stickMove(stick, at(half, BASE_HEIGHT / 2 - 1))).toBe(0); // the quarter starts at mid height
+    expect(stickMove(stick, [{ x: BASE_WIDTH / 2, y: track.y }])).toBe(0); // and ends at mid width
+    expect(stickMove(stick, [{ x: BASE_WIDTH / 2 - 1, y: track.y }])).toBe(1);
+  });
+
+  it('a finger on the mode switch does not steer', () => {
+    expect(stickMove(stick, [centre(mode)])).toBe(0);
+  });
+
+  it('in button mode there is no stick', () => {
+    expect(stickMove(layoutTouchButtons(PHONE), at(half))).toBe(0);
+  });
+
+  it('feeds the move input and adds up with the buttons without leaving -1 to 1', () => {
+    expect(touchInput(new Set(), 0.5)).toEqual({ move: 0.5, jumpHeld: false });
+    expect(touchInput(new Set(['jump']), -0.5)).toEqual({ move: -0.5, jumpHeld: true });
+    expect(touchInput(new Set(['right']), 0.5).move).toBe(1);
+    expect(pressedButtons(stick, [centre(track)]).size).toBe(0); // the stick is read by stickMove, not as a press
+    expect([...pressedButtons(stick, [centre(mode)])]).toEqual(['mode']);
   });
 });
