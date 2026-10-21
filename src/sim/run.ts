@@ -3,6 +3,8 @@
 // own GDD IDs. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
 import { HIT, HITBOX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
+import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
+import { withFragiles, type Fragile } from './fragile';
 import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } from './door';
 import { releaseFrom, stepItem, touchesItem, type Item } from './item';
 import { bumpedPinata, freshPinatas, withPinatas, type Pinata } from './pinata';
@@ -45,6 +47,8 @@ export interface Level {
   /** GDD-WLD-05: doors and the keys that open them. */
   readonly doors: readonly Door[];
   readonly keys: readonly Key[];
+  /** GDD-WLD-05: fragile walls, broken by the claw. */
+  readonly fragiles: readonly Fragile[];
 }
 
 export interface RunState {
@@ -72,6 +76,10 @@ export interface RunState {
   /** One flag per `Level.keys` entry: has it been picked up? And one per `Level.doors` entry: is it open? Both reset on respawn. */
   readonly keysTaken: readonly boolean[];
   readonly doorsOpen: readonly boolean[];
+  /** GDD-CMB-02: the claw swipe in progress, if any. */
+  readonly claw: ClawState;
+  /** One flag per `Level.fragiles` entry: has the claw broken it? They all come back on respawn. */
+  readonly fragilesBroken: readonly boolean[];
   /** Where Poncho respawns: the level start, or the latest ofrenda he has reached (GDD-LIFE-02). */
   readonly checkpoint: Point;
   /** Position in `Level.ofrendas` of the ofrenda that is the checkpoint, or -1 for the level start. Only moves forward. */
@@ -79,7 +87,7 @@ export interface RunState {
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors) };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles) };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -135,11 +143,14 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       keysHeld: 0,
       keysTaken: freshFlags(level.keys),
       doorsOpen: freshFlags(level.doors),
+      // A claw button held through the respawn does not swing the moment control returns (like jump, GDD-MOV-05).
+      claw: { ...IDLE_CLAW, held: input.claw ?? false },
+      fragilesBroken: freshFlags(level.fragiles),
     };
   }
 
   // GDD-WLD-05: a platform carries Poncho, then he lands on the one he came down on.
-  const solid = withDoors(withPinatas(withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles), level.pinatas), level.doors, run.doorsOpen);
+  const solid = withFragiles(withDoors(withPinatas(withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles), level.pinatas), level.doors, run.doorsOpen), level.fragiles, run.fragilesBroken);
   const carried = carry(run.player, level.platforms, run.platformTick, solid);
   const stepped = step(carried, input, solid);
   const landed = landOnPlatforms(carried, stepped, level.platforms, run.platformTick);
@@ -160,18 +171,23 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     power = 'taco';
     return true;
   });
-  // GDD-PWR-05: a head bump opens a closed piñata once. In Base it releases a taco, if there is room above it. In Taco
-  // there is no item to release yet (the chile arrives with GDD-PWR-03), so it opens empty.
+  // GDD-CMB-02: the claw swing hits a box in front of Poncho. It breaks the fragile walls it overlaps for good (GDD-WLD-05).
+  const claw = stepClaw(run.claw, input.claw ?? false, player.facing);
+  const box = clawBox(player, claw);
+  const fragilesBroken = level.fragiles.map((f, i) => run.fragilesBroken[i]! || (box !== null && boxTouchesTile(box, f.col, f.row)));
+  // GDD-PWR-05: a head bump or a claw swipe opens a closed piñata once. In Base it releases a taco, if there is room above
+  // it. In Taco there is no item to release yet (the chile arrives with GDD-PWR-03), so it opens empty.
   const bumped = bumpedPinata(run.player, player, level.pinatas);
   let pinatasOpen = run.pinatasOpen;
   let items = run.items.map((it) => stepItem(it, solid)).filter((it) => it.y - TACO.size <= level.world.height * TILE);
-  if (bumped >= 0 && !run.pinatasOpen[bumped]) {
-    const released = run.power === 'base' ? releaseFrom(level.pinatas[bumped]!, solid) : null;
+  level.pinatas.forEach((p, i) => {
+    if (run.pinatasOpen[i] || !(i === bumped || (box !== null && boxTouchesTile(box, p.col, p.row)))) return;
+    const released = run.power === 'base' ? releaseFrom(p, solid) : null;
     if (run.power !== 'base' || released) {
-      pinatasOpen = pinatasOpen.map((open, i) => open || i === bumped);
+      pinatasOpen = pinatasOpen.map((open, j) => open || j === i);
       if (released) items = [...items, released];
     }
-  }
+  });
   // GDD-PWR-06: an item is collected by touch. In Base it is Taco; in Taco it would not improve the state, which gives
   // hilos instead (GDD-PWR-01), and those are not built yet, so it is just used up.
   const kept = items.filter((it) => !touchesItem(player, it));
@@ -195,7 +211,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   // (GDD-LIFE-02); in Taco the taco is spent instead, and Poncho is pushed away and invulnerable for 2.0 s.
   const spike = run.invulnerable === 0 ? level.spikes.find((s) => touchesSpike(player, s)) : undefined;
   if (spike && power === 'base') {
-    return { ...run, player, crumbles, platformTick, tacosTaken, pinatasOpen, items, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
+    return { ...run, player, crumbles, platformTick, tacosTaken, pinatasOpen, items, fragilesBroken, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
   }
   let hurt = player;
   if (spike) {
@@ -215,5 +231,5 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       checkpointIndex = index;
     }
   });
-  return { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, invulnerable: spike ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
+  return { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, claw: spike ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: spike ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
 }

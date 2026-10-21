@@ -3,6 +3,7 @@
 import Phaser from 'phaser';
 import { BASE_WIDTH } from '../config/tuning';
 import type { PlayerInput } from '../sim/movement';
+import { effectiveHeld, InputLatch } from './inputLatch';
 import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchButton, type TouchButtonId, type TouchMode } from './touchLayout';
 
 const IDLE_ALPHA = 0.35;
@@ -43,6 +44,9 @@ export class TouchControls {
   private drawnPressed: TouchButtonId[] = [];
   private mode: TouchMode = loadMode();
   private stick = 0;
+  /** L-006: a tap on Jump or Claw that is over before the next poll still counts for one step. */
+  private readonly jumpLatch = new InputLatch();
+  private readonly clawLatch = new InputLatch();
   /** Fingers that already flipped the mode, so one touch flips it once. */
   private readonly flipped = new Set<number>();
 
@@ -54,6 +58,11 @@ export class TouchControls {
     // Buttons keep their size on the player's screen, so lay them out again when the canvas is resized.
     const onResize = () => this.relayout();
     scene.scale.on(Phaser.Scale.Events.RESIZE, onResize);
+    scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      const hit = pressedButtons(this.buttons, [{ x: p.x, y: p.y }]);
+      if (hit.has('jump')) this.jumpLatch.press();
+      if (hit.has('claw')) this.clawLatch.press();
+    });
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off(Phaser.Scale.Events.RESIZE, onResize));
   }
 
@@ -78,7 +87,16 @@ export class TouchControls {
       this.stick = stick;
       this.draw();
     }
-    return touchInput(pressed, stick);
+    const effective = new Set(pressed);
+    if (effectiveHeld(false, this.jumpLatch)) effective.add('jump');
+    if (effectiveHeld(false, this.clawLatch)) effective.add('claw');
+    return touchInput(effective, stick);
+  }
+
+  /** A simulation step has used what was read: the taps latched since the last step are spent. */
+  consume(): void {
+    this.jumpLatch.consume();
+    this.clawLatch.consume();
   }
 
   debug(): TouchDebug {
@@ -113,6 +131,7 @@ export class TouchControls {
       else if (b.id === 'right') this.gfx.fillTriangle(cx + r, cy, cx - r, cy - r, cx - r, cy + r);
       else if (b.id === 'stick') this.drawStick(b);
       else if (b.id === 'mode') this.drawModeIcon(b);
+      else if (b.id === 'claw') this.drawClawIcon(b, down);
       else this.gfx.fillTriangle(cx, cy - r, cx - r, cy + r, cx + r, cy + r);
     }
   }
@@ -129,6 +148,15 @@ export class TouchControls {
     const thumbX = b.x + b.w / 2 + this.stick * travel;
     this.gfx.fillStyle(live ? 0xe8a33d : 0xfff3dc, live ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
     this.gfx.fillCircle(thumbX, cy, b.h * 0.3);
+  }
+
+  /** Placeholder: three slanted claw marks, the same as the swipe. */
+  private drawClawIcon(b: TouchButton, down: boolean): void {
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    const r = b.w * 0.28;
+    this.gfx.lineStyle(2, down ? 0xe8a33d : 0xfff3dc, down ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
+    for (const dx of [-r * 0.7, 0, r * 0.7]) this.gfx.lineBetween(cx + dx - r * 0.4, cy - r, cx + dx + r * 0.4, cy + r);
   }
 
   /** The switch shows what a tap changes to: the stick's groove while on buttons, a pair of triangles while on the stick. */

@@ -22,6 +22,7 @@ const level: Level = {
   platforms: [],
   tacos: [taco],
   pinatas: [], doors: [], keys: [],
+  fragiles: [],
 };
 const at = (x: number, y: number) => spawn(x, y);
 const run = (r: RunState, input: PlayerInput, steps: number): RunState => {

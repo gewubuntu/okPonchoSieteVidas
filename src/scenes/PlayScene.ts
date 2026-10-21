@@ -2,24 +2,26 @@
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS } from '../levels/sandbox';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import { activateOfrenda, collectVeladora, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
+import { clawBox } from '../sim/claw';
 import { flipPose } from '../sim/respawnFlip';
 import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import type { Power } from '../sim/taco';
+import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
 import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS, fragiles: SANDBOX_FRAGILES };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -86,6 +88,12 @@ export interface PonchoDebug {
   keysDrawn(): number;
   doorsDrawn(): boolean[];
   hudKeys(): number;
+  /** The claw phase in the simulation, what was drawn for it, and the fragile wall tiles the scene painted (GDD-CMB-02, GDD-WLD-05). */
+  claw(): 'idle' | 'windup' | 'swing';
+  /** How many swings have started since the page loaded (GDD-CMB-02). */
+  swings(): number;
+  clawDrawn(): 'none' | 'windup' | 'swing';
+  fragilesDrawn(): number;
   hudPowerIcon(): boolean;
 }
 
@@ -138,7 +146,16 @@ export class PlayScene extends Phaser.Scene {
   /** Placeholder body: a red box with a pale strip along the feet, so a flip shows which way up he is. */
   private body!: Phaser.GameObjects.Container;
   private touch!: TouchControls;
-  private keys!: Record<'left' | 'right' | 'jump', Phaser.Input.Keyboard.Key[]>;
+  private keys!: Record<'left' | 'right' | 'jump' | 'claw', Phaser.Input.Keyboard.Key[]>;
+  private fragileGfx!: Phaser.GameObjects.Graphics;
+  private clawGfx!: Phaser.GameObjects.Graphics;
+  private fragilesKey = '';
+  private fragilesPainted = 0;
+  /** L-006: key presses latched from raw key events, so a tap shorter than a frame still reaches a step. */
+  private readonly jumpLatch = new InputLatch();
+  private readonly clawLatch = new InputLatch();
+  private swings = 0;
+  private clawPainted: 'none' | 'windup' | 'swing' = 'none';
 
   constructor() {
     super('play');
@@ -180,6 +197,9 @@ export class PlayScene extends Phaser.Scene {
     this.doorGfx = this.add.graphics().setDepth(1);
     this.keyGfx = this.add.graphics().setDepth(2);
     this.drawDoorsAndKeys();
+    this.fragileGfx = this.add.graphics().setDepth(1);
+    this.drawFragiles();
+    this.clawGfx = this.add.graphics().setDepth(5);
     this.platformGfx = this.add.graphics().setDepth(1);
     this.crumbleGfx = this.add.graphics().setDepth(1);
     this.drawCrumbles();
@@ -199,7 +219,11 @@ export class PlayScene extends Phaser.Scene {
       left: [kb.addKey(K.LEFT), kb.addKey(K.A)],
       right: [kb.addKey(K.RIGHT), kb.addKey(K.D)],
       jump: [kb.addKey(K.SPACE), kb.addKey(K.Z), kb.addKey(K.UP), kb.addKey(K.W)],
+      claw: [kb.addKey(K.X), kb.addKey(K.J)],
     };
+    // The Key 'down' event fires once per press, even when the press ends before the next frame. Repeats only set the latch again.
+    for (const k of this.keys.jump) k.on('down', () => this.jumpLatch.press());
+    for (const k of this.keys.claw) k.on('down', () => this.clawLatch.press());
 
     // GDD-CTL-03: on-screen buttons on touch devices, merged with the keyboard below.
     this.touch = new TouchControls(this);
@@ -246,6 +270,10 @@ export class PlayScene extends Phaser.Scene {
         keysDrawn: () => this.keysPainted,
         doorsDrawn: () => this.doorsPaintedShut.map((shut) => !shut),
         hudKeys: () => this.hudKeyCount,
+        claw: () => this.run.claw.phase,
+        swings: () => this.swings,
+        clawDrawn: () => this.clawPainted,
+        fragilesDrawn: () => this.fragilesPainted,
         sfx: () => this.sfxLog,
         touch: () => this.touch.debug(),
         sfxLoaded: () => this.cache.audio.exists('sfx-ofrenda'),
@@ -363,6 +391,52 @@ export class PlayScene extends Phaser.Scene {
       this.pinataGfx.lineStyle(1, 0x3a1530, 1).strokeTriangle(x + 1, cy, cx, y + 1, x + TILE - 1, cy).strokeTriangle(x + 1, cy, cx, y + TILE - 1, x + TILE - 1, cy);
       this.pinataGfx.fillStyle(0xfff3dc, 1).fillRect(x + 3, y, TILE - 6, 1);
     });
+  }
+
+  /**
+   * Placeholder fragile wall (GDD-WLD-05): papel picado, a pink paper tile with cut-out diamonds and a scalloped pale top
+   * edge, so it reads as thin paper and not as a solid block. Broken tiles are not drawn.
+   */
+  private drawFragiles(): void {
+    this.fragilesKey = this.run.fragilesBroken.join();
+    this.fragileGfx.clear();
+    this.fragilesPainted = 0;
+    level.fragiles.forEach((f, i) => {
+      if (this.run.fragilesBroken[i]) return;
+      this.fragilesPainted++;
+      const x = f.col * TILE;
+      const y = f.row * TILE;
+      this.fragileGfx.fillStyle(0xe0508a, 1).fillRect(x, y, TILE, TILE);
+      this.fragileGfx.fillStyle(0x1b2036, 1).fillTriangle(x + 8, y + 3, x + 12, y + 8, x + 8, y + 13).fillTriangle(x + 8, y + 3, x + 4, y + 8, x + 8, y + 13);
+      this.fragileGfx.fillStyle(0xfff3dc, 1).fillRect(x, y, 3, 2).fillRect(x + 6, y, 4, 2).fillRect(x + 13, y, 3, 2);
+      this.fragileGfx.lineStyle(1, 0x7a2a4a, 1).strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
+    });
+  }
+
+  /**
+   * The claw swipe (GDD-CMB-02): while winding up, a small raised paw mark in front of Poncho; while swinging, three slanted
+   * pale slashes across the hit box, so the reach shows. Read from the simulation, drawn every frame.
+   */
+  private drawClaw(): void {
+    const { player, claw } = this.run;
+    this.clawGfx.clear();
+    this.clawPainted = 'none';
+    if (this.run.phase !== 'playing' || claw.phase === 'idle') return;
+    const dir = claw.dir;
+    if (claw.phase === 'windup') {
+      this.clawPainted = 'windup';
+      const px = player.x + dir * (HITBOX.width / 2 + 2);
+      this.clawGfx.fillStyle(0xfff3dc, 1).fillCircle(px, player.y - HITBOX.height - 1, 2);
+      return;
+    }
+    const box = clawBox(player, claw);
+    if (!box) return;
+    this.clawPainted = 'swing';
+    this.clawGfx.lineStyle(2, 0xfff3dc, 1);
+    for (let i = 0; i < 3; i++) {
+      const x = dir > 0 ? box.x0 + 3 + i * 6 : box.x1 - 3 - i * 6;
+      this.clawGfx.lineBetween(x, box.y0, x + dir * 4, box.y1);
+    }
   }
 
   /** A small golden key: a ring for the head, a shaft and two teeth. `size` is the height in px. */
@@ -511,6 +585,7 @@ export class PlayScene extends Phaser.Scene {
     // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
     this.ticks++;
+    if (before.claw.phase === 'idle' && this.run.claw.phase === 'windup') this.swings++;
     const { player } = this.run;
     if (player.grounded) {
       if (this.peak > 0) this.lastPeak = this.peak;
@@ -555,15 +630,29 @@ export class PlayScene extends Phaser.Scene {
     const touch = this.touch.read();
     const input: PlayerInput = {
       move: Math.max(-1, Math.min(1, (down(this.keys.right) ? 1 : 0) - (down(this.keys.left) ? 1 : 0) + touch.move)),
-      jumpHeld: down(this.keys.jump) || touch.jumpHeld,
+      jumpHeld: effectiveHeld(down(this.keys.jump), this.jumpLatch) || touch.jumpHeld,
+      claw: effectiveHeld(down(this.keys.claw), this.clawLatch) || touch.claw === true,
     };
 
-    const alpha = this.paused ? 1 : this.stepper.advance(deltaMs / 1000, () => this.simStep(input));
+    let stepped = false;
+    const alpha = this.paused
+      ? 1
+      : this.stepper.advance(deltaMs / 1000, () => {
+          stepped = true;
+          this.simStep(input);
+        });
+    // A latched tap is spent once a step has used it; if the frame ran no step it waits for the next one.
+    if (stepped) {
+      this.jumpLatch.consume();
+      this.clawLatch.consume();
+      this.touch.consume();
+    }
     // Redraw when the lives change, and on every step while a triangle is cracking.
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
     if (`${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}` !== this.doorsKey) this.drawDoorsAndKeys();
     if (this.run.tacosTaken.join() !== this.tacosKey) this.drawTacos();
     if (this.run.pinatasOpen.join() !== this.pinatasKey) this.drawPinatas();
+    if (this.run.fragilesBroken.join() !== this.fragilesKey) this.drawFragiles();
     this.drawItems();
     if (this.run.crumbles.map((c) => `${c.phase}${c.steps}`).join() !== this.crumblesKey) this.drawCrumbles();
     const key = this.usedKey();
@@ -576,5 +665,6 @@ export class PlayScene extends Phaser.Scene {
 
     this.renderPlatforms(alpha);
     this.renderBody(alpha);
+    this.drawClaw();
   }
 }

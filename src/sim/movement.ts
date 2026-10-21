@@ -22,6 +22,8 @@ export interface PlayerInput {
   /** -1 to 1. Keyboard is digital, gamepad and touch stick may be analog. */
   move: number;
   jumpHeld: boolean;
+  /** The claw button is down (GDD-CMB-02). A swing starts on the press. Left out means not pressed. */
+  claw?: boolean;
 }
 
 export interface World {
