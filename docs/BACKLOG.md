@@ -29,17 +29,17 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-MOV-07 | todo |  |
 | GDD-MOV-08 | todo |  |
 | GDD-CMB-01 | todo |  |
-| GDD-CMB-02 | todo |  |
+| GDD-CMB-02 | doing | claw swing, hit box, cooldown, input and touch button in src/sim/claw.ts; it opens piñatas and breaks fragile walls; enemies, stun and sound pending |
 | GDD-CMB-03 | doing | spike hit: 2.0 s invulnerability and 80 px/s knockback in Taco; enemy hits pending |
 | GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W wired; remap and claw pending |
 | GDD-CTL-02 | todo |  |
-| GDD-CTL-03 | doing | left, right and jump buttons with multi-touch, and the slide stick with a mode switch, in src/ui/touchLayout.ts and TouchControls.ts; claw and Fuego buttons, mirroring, opacity, vibration pending |
+| GDD-CTL-03 | doing | left, right and jump buttons with multi-touch, and the slide stick with a mode switch, in src/ui/touchLayout.ts and TouchControls.ts; the claw button is built; Fuego button, mirroring, opacity, vibration pending |
 | GDD-CTL-04 | todo | note: quick taps can fit inside one frame; latch presses from raw key events, see L-006 |
 | GDD-WLD-01 | todo |  |
 | GDD-WLD-02 | todo |  |
 | GDD-WLD-03 | todo |  |
 | GDD-WLD-04 | todo |  |
-| GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls pending |
+| GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls in src/sim/fragile.ts (one in the sandbox) |
 | GDD-ENM-01 | todo |  |
 | GDD-ENM-02 | todo |  |
 | GDD-BOS-01 | todo |  |

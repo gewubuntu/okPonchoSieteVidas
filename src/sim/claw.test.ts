@@ -168,6 +168,17 @@ describe('GDD-WLD-05 the claw breaks a fragile wall', () => {
   });
 });
 
+describe('GDD-WLD-05 an unbroken fragile wall is a wall for a walking taco', () => {
+  it('turns it round with its box flush against the wall, and walks through once it is broken', () => {
+    const walker = { x: 80, y: 64, vx: 40, vy: 0 };
+    let r: RunState = { ...startRun(level), player: spawn(24, 64), items: [walker] };
+    for (let i = 0; i < 60 && r.items[0]!.vx > 0; i++) r = stepRun(r, idle, level);
+    expect(r.items[0]).toMatchObject({ x: 90, vx: -40 }); // the wall starts at x = 96
+    const broken: RunState = { ...startRun(level), player: spawn(24, 64), fragilesBroken: [true], items: [walker] };
+    expect(run(broken, idle, 60).items[0]!.x).toBeGreaterThan(112);
+  });
+});
+
 describe('GDD-PWR-05 the claw opens a piñata', () => {
   // Poncho stands on the floor at y = 64 and the piñata hangs in column 5, row 2 (x 80 to 96, y 32 to 48): out of reach of
   // a standing claw (y 50 to 64). From a ledge one tile lower the box overlaps it.
