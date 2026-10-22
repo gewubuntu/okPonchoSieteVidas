@@ -41,7 +41,7 @@ test('GDD-ENM-02 the Zopilote cruises on its line, bobbing, and is painted where
   expect(lowest).toBeGreaterThanOrEqual(64 - 12);
   await frames(page);
   const now = await vulture(page);
-  const painted = (await api(page, () => window.__PONCHO__!.enemiesDrawn())).find((e) => e.y !== 160)!;
+  const painted = (await api(page, () => window.__PONCHO__!.enemiesDrawn())).find((e) => e.y < 120)!;
   expect([painted.x, painted.y]).toEqual([now.x, now.y]);
   expect((await pixelsAt(page, [{ x: Math.round(now.x), y: Math.round(now.y) + 1 }])).some(brown)).toBe(true);
 });
@@ -103,7 +103,7 @@ test('GDD-CMB-02 a claw swipe defeats it, and it is gone from the picture', asyn
   expect((await vulture(page)).alive).toBe(false);
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   await frames(page);
-  expect((await api(page, () => window.__PONCHO__!.enemiesDrawn())).filter((e) => e.y !== 160)).toEqual([]);
+  expect((await api(page, () => window.__PONCHO__!.enemiesDrawn())).filter((e) => e.y < 120)).toEqual([]);
 });
 
 test('GDD-PWR-03 a fireball defeats it and is used up', async ({ page }) => {

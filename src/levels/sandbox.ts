@@ -105,4 +105,7 @@ export const SANDBOX_ENEMIES: readonly Enemy[] = [
   // 153 px below it and never spots it; on the Alacrán's platform he is 89 px below it, spotted only at the low end of its bob; the
   // spring ledge and the moving platform are well within reach.
   { x: 216, y: 64, kind: 'zopilote' },
+  // GDD-ENM-02: a cactus buddy on the right half of the top of the 2-tile wall (columns 10 and 11, top y = 192), at x = 184, so the left
+  // 18 px of the top stay free to stand on and jump to the Alacrán's platform from.
+  { x: 184, y: 12 * TILE, kind: 'cactus' },
 ];

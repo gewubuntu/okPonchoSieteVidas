@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { TILE } from '../config/tuning';
-import { freshEnemies, stepEnemy } from '../sim/enemy';
+import { freshEnemies, stepEnemy, touchesEnemy } from '../sim/enemy';
 import { spawn, type PlayerState } from '../sim/movement';
 import { parseTiles } from '../sim/tilemap';
-import { SANDBOX_ENEMIES, SANDBOX_ROWS } from './sandbox';
+import { SANDBOX_ENEMIES, SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN } from './sandbox';
 
 const world = parseTiles(SANDBOX_ROWS);
 const def = SANDBOX_ENEMIES.find((e) => e.kind === 'zopilote')!;
@@ -32,5 +32,25 @@ describe('GDD-ENM-02 the sandbox Zopilote', () => {
 
   it('does not spot him on the Alacrán platform at the far left end, out of its sideways reach', () => {
     expect(spotted(standing(68, 10 * TILE))).toBe(false);
+  });
+});
+
+describe('GDD-ENM-01 no enemy starts within 3 tiles of a respawn', () => {
+  it('holds for every enemy in the sandbox against Poncho\'s spawn and every ofrenda', () => {
+    const respawns = [SANDBOX_SPAWN, ...SANDBOX_OFRENDAS];
+    for (const e of SANDBOX_ENEMIES) {
+      const kind = e.kind ?? 'alacran';
+      for (const r of respawns) expect(Math.hypot(e.x - r.x, e.y - r.y), `${kind} at ${e.x},${e.y} against ${r.x},${r.y}`).toBeGreaterThanOrEqual(3 * TILE);
+    }
+  });
+});
+
+describe('GDD-ENM-02 the sandbox cactus buddy', () => {
+  const cactus = SANDBOX_ENEMIES.find((e) => e.kind === 'cactus')!;
+  const state = freshEnemies([cactus])[0]!;
+  it('leaves room on top of the 2-tile wall to stand on, from the wall\'s left edge (x = 160) to just short of it', () => {
+    expect(cactus.y).toBe(12 * TILE); // on the wall top
+    for (const x of [166, 170, 173]) expect(touchesEnemy(standing(x, 12 * TILE), cactus, state), `x = ${x}`).toBe(false);
+    expect(touchesEnemy(standing(174, 12 * TILE), cactus, state)).toBe(true);
   });
 });

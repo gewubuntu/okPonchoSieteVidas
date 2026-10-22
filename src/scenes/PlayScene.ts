@@ -421,6 +421,7 @@ export class PlayScene extends Phaser.Scene {
       if (!e.alive) return;
       const g = this.enemyGfx;
       if (kindOf(def) === 'zopilote') return this.drawZopilote(e);
+      if (kindOf(def) === 'cactus') return this.drawCactus(e, def.y);
       this.enemiesPainted.push({ x: e.x, y: def.y });
       const d = e.dir;
       g.fillStyle(0x9a3a2a, 1).fillRect(e.x - 5, def.y - 6, 10, 5);
@@ -431,6 +432,20 @@ export class PlayScene extends Phaser.Scene {
       g.lineStyle(1, 0x4a1a12, 1);
       for (const lx of [-3, -1, 1, 3]) g.lineBetween(e.x + lx, def.y - 1, e.x + lx, def.y);
     });
+  }
+
+  /**
+   * Placeholder cactus buddy (GDD-ENM-02): a green cactus 12 x 16 px with two arms and three pale thorns on top, the mark of an
+   * enemy that cannot be stomped (GDD-CMB-01).
+   */
+  private drawCactus(e: EnemyState, y: number): void {
+    const g = this.enemyGfx;
+    const x = e.x;
+    this.enemiesPainted.push({ x, y });
+    g.fillStyle(0x4f9a4a, 1).fillRect(x - 3, y - 16, 6, 16).fillRect(x - 6, y - 11, 3, 2).fillRect(x - 6, y - 14, 2, 4).fillRect(x + 3, y - 8, 3, 2).fillRect(x + 4, y - 11, 2, 4);
+    g.lineStyle(1, 0x2f5f2c, 1).lineBetween(x, y - 15, x, y);
+    g.fillStyle(0xf2efe6, 1);
+    for (const tx of [-3, -1, 1]) g.fillTriangle(x + tx, y - 16, x + tx + 2, y - 16, x + tx + 1, y - 19);
   }
 
   /**

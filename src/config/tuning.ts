@@ -128,6 +128,9 @@ export const FIREBALL = { speed: 180, bounceHeight: 20, gravity: 1500, lifeSteps
  */
 export const ENEMY = { width: 14, height: 10, speed: 30 } as const;
 
+/** GDD-ENM-02: the cactus buddy is a static, spiky `width` x `height` px enemy standing on the ground. */
+export const CACTUS = { width: 12, height: 16 } as const;
+
 /**
  * GDD-ENM-02: the Zopilote (vulture) is `width` x `height` px. It cruises at `speed` px/s between `range` px either side of
  * its start, bobbing `amplitude` px up and down with a period of `periodSteps` (2.5 s). When Poncho is within `triggerX` px

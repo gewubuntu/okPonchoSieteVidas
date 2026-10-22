@@ -26,19 +26,21 @@ test('GDD-ENM-02 the Alacrán patrols its platform, turns at both ends and is pa
   expect(x0).toBeLessThan(137 - 10);
   await step(page, 20);
   expect((await enemy(page)).x).toBe(x0 + 10); // 0.5 px a step, heading right
-  let min = Infinity;
-  let max = -Infinity;
-  for (let i = 0; i < 40; i++) {
-    await step(page, 10);
-    const { x } = await enemy(page);
-    min = Math.min(min, x);
-    max = Math.max(max, x);
-  }
-  // Sampled every 10 steps, so the very ends (71 and 137) can fall between two samples, half a pixel short.
+  // Every step for two full round trips (264 steps each), so the turns at 71 and 137 are caught whatever the phase it started in.
+  const { min, max } = await page.evaluate(() => {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = 0; i < 600; i++) {
+      window.__PONCHO__!.step(1, { move: 0, jumpHeld: false });
+      const { x } = window.__PONCHO__!.enemies()[0]!;
+      lo = Math.min(lo, x);
+      hi = Math.max(hi, x);
+    }
+    return { min: lo, max: hi };
+  });
   expect(min).toBeGreaterThanOrEqual(71);
-  expect(min).toBeLessThanOrEqual(71.5);
-  expect(max).toBeLessThanOrEqual(137);
-  expect(max).toBeGreaterThanOrEqual(136.5);
+  expect(min).toBe(71);
+  expect(max).toBe(137);
   await frames(page);
   const [painted] = await scorpionsDrawn(page);
   expect(painted!.x).toBe((await enemy(page)).x);
