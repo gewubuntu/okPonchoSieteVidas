@@ -145,8 +145,12 @@ test('GDD-LIFE-04 in real play the pulse keeps moving after the crack is over, a
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   for (let i = 0; i < 5; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
-  await page.evaluate(() => window.__PONCHO__!.loseLife()); // down to one: the pulse starts here, at 1.0x
-  expect(await page.evaluate(() => window.__PONCHO__!.hudPulse())).toBe(1);
+  // Down to one: the pulse starts here, at 1.0x. Read in the same call, before the running game takes another step.
+  const first = await page.evaluate(() => {
+    window.__PONCHO__!.loseLife();
+    return window.__PONCHO__!.hudPulse();
+  });
+  expect(first).toBe(1);
   // Not paused: frames run through the scene's own update, as in play. Wait past the 24-step crack, then sample.
   const start = await page.evaluate(() => window.__PONCHO__!.ticks());
   await page.waitForFunction((s) => window.__PONCHO__!.ticks() >= s + 30, start);
