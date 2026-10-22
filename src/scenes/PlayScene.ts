@@ -14,6 +14,7 @@ import { FIREBALL, TLACUACHE } from '../config/tuning';
 import { flipPose } from '../sim/respawnFlip';
 import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
+import { isPortrait, pauseEvent, PLAYING, resumeHeld, type PauseEvent, type PauseState } from '../sim/pause';
 import { parseTiles } from '../sim/tilemap';
 import type { Power } from '../sim/taco';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
@@ -70,8 +71,12 @@ export interface PonchoDebug {
   hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
   /** The scale the last triangle was drawn at while one life is left, or null when it does not pulse (GDD-LIFE-04). */
   hudPulse(): number | null;
-  /** Freezes the simulation and the animations on the current frame, for screenshots and pixel tests. */
+  /** Freezes the simulation and the animations on the current frame, for screenshots and pixel tests. Not the player's pause. */
   pause(on: boolean): void;
+  /** The player's pause (GDD-UI-02): whether the level is paused, and whether because the phone is upright. */
+  playerPause(): PauseState;
+  /** The pause screen as drawn: whether it is shown, its title and its prompt line. */
+  pauseDrawn(): { shown: boolean; title: string; prompt: string; promptSize: number };
   /** While paused, runs exactly `n` simulation steps, with no input unless given, so a frame can be reached without timing luck. */
   step(n: number, input?: PlayerInput): void;
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed (GDD-CTL-03). */
@@ -166,6 +171,14 @@ export class PlayScene extends Phaser.Scene {
   private cracks: Crack[] = [];
   private cracksDrawn: { index: number; fillAlpha: number; crackAlpha: number }[] = [];
   private paused = false;
+  /** GDD-UI-02: the player's pause, the events that change it since the last frame, and the pause screen. */
+  private pauseState: PauseState = PLAYING;
+  private pauseEvents: PauseEvent[] = [];
+  private pauseScreen!: Phaser.GameObjects.Container;
+  private pauseTitle!: Phaser.GameObjects.Text;
+  private pausePrompt!: Phaser.GameObjects.Text;
+  /** The last render interpolation factor, so a paused frame keeps the picture it had. */
+  private alpha = 0;
   /** Which ofrendas the drawing shows as used, as a key, so a change of the set itself (not only its size) redraws. */
   private ofrendasKey = '';
   private sfxLog: string[] = [];
@@ -290,6 +303,37 @@ export class PlayScene extends Phaser.Scene {
     // GDD-CTL-03: on-screen buttons on touch devices, merged with the keyboard below.
     this.touch = new TouchControls(this);
 
+    // GDD-UI-02: the pause screen, over the level and the Siete vidas gastadas screen, under the HUD and the touch buttons
+    // (so the pause button stays there to resume with).
+    const dim = this.add.rectangle(0, 0, BASE_WIDTH, BASE_HEIGHT, 0x0d1020, 0.75).setOrigin(0);
+    this.pauseTitle = this.add.text(BASE_WIDTH / 2, 120, 'Paused', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
+    this.pausePrompt = this.add.text(BASE_WIDTH / 2, 146, '', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
+    this.pauseScreen = this.add.container(0, 0, [dim, this.pauseTitle, this.pausePrompt]).setScrollFactor(0).setDepth(9.5).setVisible(false);
+    // Escape or P pauses and resumes; a tap or click anywhere resumes; the touch pause button does both.
+    for (const k of [kb.addKey(K.ESC), kb.addKey(K.P)]) k.on('down', () => this.pauseEvents.push('key'));
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.pauseEvents.push(this.touch.isPauseButton(p.x, p.y) ? 'button' : 'tap'));
+    // It pauses by itself when the tab or window loses focus, or a phone is turned upright, and never resumes by itself.
+    const onBlur = () => this.pauseEvents.push('blur');
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') onBlur();
+    };
+    const touchDevice = this.sys.game.device.input.touch;
+    let upright = false;
+    const onResize = () => {
+      const now = isPortrait(window.innerWidth, window.innerHeight, touchDevice);
+      if (now !== upright) this.pauseEvents.push(now ? 'portrait' : 'landscape');
+      upright = now;
+    };
+    onResize();
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('resize', onResize);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('resize', onResize);
+    });
+
     if (import.meta.env.DEV) {
       window.__PONCHO__ = {
         state: () => this.run.player,
@@ -308,6 +352,8 @@ export class PlayScene extends Phaser.Scene {
         pause: (on) => {
           this.paused = on;
         },
+        playerPause: () => this.pauseState,
+        pauseDrawn: () => ({ shown: this.pauseScreen.visible, title: this.pauseTitle.text, prompt: this.pausePrompt.text, promptSize: Number.parseInt(String(this.pausePrompt.style.fontSize), 10) }),
         step: (n, input = { move: 0, jumpHeld: false }) => {
           if (!this.paused) throw new Error('step() needs the game paused');
           for (let i = 0; i < n; i++) this.simStep(input);
@@ -365,7 +411,9 @@ export class PlayScene extends Phaser.Scene {
       // Polled with JustDown, not 'keydown-X' events: Phaser 4.2.1 can fire those more than once when several
       // key events land in the same frame (see docs/LESSONS.md L-006).
       this.devKeys = { lose: kb.addKey(K.L), ofrenda: kb.addKey(K.O), veladora: kb.addKey(K.V) };
-      this.add.text(BASE_WIDTH - 6, 6, 'dev: L lose life, O ofrenda, V veladora', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(1, 0);
+      // Left of the touch pause button, where there is one.
+      const pauseButton = this.touch.debug().buttons.find((b) => b.id === 'pause');
+      this.add.text(pauseButton ? pauseButton.x - 4 : BASE_WIDTH - 6, 6, 'dev: L lose life, O ofrenda, V veladora', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(1, 0);
     }
   }
 
@@ -861,13 +909,23 @@ export class PlayScene extends Phaser.Scene {
       fuego: effectiveHeld(down(this.keys.fuego), this.fuegoLatch) || touch.fuego === true,
     };
 
+    // GDD-UI-02: apply the pause events since the last frame. While paused no step runs; on resume
+    // every button down counts as already held, so a press made while paused does nothing until pressed again.
+    const wasPaused = this.pauseState.paused;
+    for (const e of this.pauseEvents) this.pauseState = pauseEvent(this.pauseState, e);
+    this.pauseEvents = [];
+    if (wasPaused && !this.pauseState.paused) this.run = resumeHeld(this.run, input);
+
     let stepped = false;
-    const alpha = this.paused
-      ? 1
-      : this.stepper.advance(deltaMs / 1000, () => {
-          stepped = true;
-          this.simStep(input);
-        });
+    if (!this.paused && !this.pauseState.paused) {
+      this.alpha = this.stepper.advance(deltaMs / 1000, () => {
+        stepped = true;
+        this.simStep(input);
+      });
+    } else if (this.paused) {
+      this.alpha = 1;
+    }
+    const alpha = this.alpha;
     // A latched tap is spent once a step has used it; if the frame ran no step it waits for the next one.
     if (stepped) {
       this.jumpLatch.consume();
@@ -899,5 +957,14 @@ export class PlayScene extends Phaser.Scene {
     this.renderBody(alpha);
     this.drawClaw();
     this.drawGameOver();
+    this.drawPause();
+  }
+
+  /** GDD-UI-02: the pause screen and its prompt, which tells an upright phone to turn sideways first. */
+  private drawPause(): void {
+    this.pauseScreen.setVisible(this.pauseState.paused);
+    const prompt = this.pauseState.portrait ? 'Turn your device sideways' : this.sys.game.device.input.touch ? 'Tap to resume' : 'Press Escape or P to resume';
+    // Upright, the whole level is drawn small, so the prompt is set larger.
+    if (this.pausePrompt.text !== prompt) this.pausePrompt.setText(prompt).setFontSize(this.pauseState.portrait ? 12 : 8);
   }
 }

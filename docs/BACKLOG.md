@@ -31,9 +31,9 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-CMB-01 | doing | stomp with 260 and 410 px/s bounces in src/sim/enemy.ts and run.ts; the not-stompable marking (three pale thorns) is built for the Zopilote and the cactus buddy; the Tlacuache's first stomp makes it play dead |
 | GDD-CMB-02 | doing | claw swing, hit box, cooldown, input and touch button in src/sim/claw.ts; it opens piñatas, breaks fragile walls and defeats the Alacrán, Zopilote and Tlacuache (also while it plays dead); stun and sound pending |
 | GDD-CMB-03 | doing | spike and enemy hits: 2.0 s invulnerability and 80 px/s knockback in Taco and Fuego; crushing pending |
-| GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W, claw (X, J) and Fuego (C, K) wired; remap pending |
+| GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W, claw (X, J), Fuego (C, K) and pause (Escape, P) wired; remap pending |
 | GDD-CTL-02 | todo |  |
-| GDD-CTL-03 | doing | left, right and jump buttons with multi-touch, and the slide stick with a mode switch, in src/ui/touchLayout.ts and TouchControls.ts; the claw and Fuego buttons are built; mirroring, opacity, vibration pending |
+| GDD-CTL-03 | doing | left, right and jump buttons with multi-touch, and the slide stick with a mode switch, in src/ui/touchLayout.ts and TouchControls.ts; the claw, Fuego and pause buttons are built; mirroring, opacity, vibration pending |
 | GDD-CTL-04 | todo | note: quick taps can fit inside one frame; latch presses from raw key events, see L-006 |
 | GDD-WLD-01 | todo |  |
 | GDD-WLD-02 | todo |  |
@@ -48,7 +48,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-PRG-02 | todo |  |
 | GDD-PRG-03 | todo |  |
 | GDD-UI-01 | doing | lives triangles drawn and tested (src/ui/livesLayout.ts); power-up icon and hilo counter pending |
-| GDD-UI-02 | todo |  |
+| GDD-UI-02 | doing | the pause in a level (keys, touch button, tap to resume, focus and portrait auto-pause) in src/sim/pause.ts and PlayScene; boot, title, world map, results and settings pending |
 | GDD-UI-03 | todo |  |
 | GDD-AUD-01 | todo | audio unlock on first gesture is handled by the engine; music and volume settings pending |
 | GDD-AUD-02 | doing | ofrenda sound only (generated marimba placeholder); jump, land, claw, stomp, hilo, life lost, meow pending |

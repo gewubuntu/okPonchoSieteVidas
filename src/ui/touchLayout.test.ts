@@ -12,9 +12,9 @@ const pressIn = (buttons: TouchButton[], ...ids: string[]) => pressedButtons(but
 describe('GDD-CTL-03 touch button layout', () => {
   const buttons = layoutTouchButtons(PHONE);
 
-  it('has a left, a right, a jump and a claw button and the mode switch', () => {
-    expect(new Set(buttons.map((b) => b.id))).toEqual(new Set(['left', 'right', 'jump', 'claw', 'mode']));
-    expect(buttons).toHaveLength(5);
+  it('has a left, a right, a jump and a claw button, the mode switch and the pause button', () => {
+    expect(new Set(buttons.map((b) => b.id))).toEqual(new Set(['left', 'right', 'jump', 'claw', 'mode', 'pause']));
+    expect(buttons).toHaveLength(6);
   });
 
   it('puts move buttons bottom-left and jump bottom-right, inside the screen', () => {
@@ -22,7 +22,7 @@ describe('GDD-CTL-03 touch button layout', () => {
     expect(left.x).toBe(TOUCH.margin);
     expect(right.x).toBeGreaterThan(left.x + left.w);
     expect(jump.x + jump.w).toBe(BASE_WIDTH - TOUCH.margin);
-    for (const b of buttons.filter((x) => x.id !== 'mode')) {
+    for (const b of buttons.filter((x) => x.id !== 'mode' && x.id !== 'pause')) {
       expect(b.y + b.h).toBe(BASE_HEIGHT - TOUCH.margin);
       expect(b.x).toBeGreaterThanOrEqual(0);
       expect(b.x + b.w).toBeLessThanOrEqual(BASE_WIDTH);
@@ -45,6 +45,25 @@ describe('GDD-CTL-03 touch button layout', () => {
     expect(find(tiny, 'left').w).toBeGreaterThan(find(buttons, 'left').w);
     // and they do not shrink below the design size on a big one
     expect(find(layoutTouchButtons(3), 'left').w).toBe(TOUCH.size);
+  });
+});
+
+describe('GDD-UI-02 the touch pause button', () => {
+  it('sits in the top-right corner, 6 px from both edges, 24 px on a big screen', () => {
+    const big = find(layoutTouchButtons(3), 'pause');
+    expect(big).toEqual({ id: 'pause', x: BASE_WIDTH - 6 - 24, y: 6, w: 24, h: 24 });
+  });
+
+  it('grows to 48 CSS px on a phone, still in the corner', () => {
+    const p = find(layoutTouchButtons(PHONE), 'pause');
+    expect(p.w * PHONE).toBeGreaterThanOrEqual(48);
+    expect((p.w - 1) * PHONE).toBeLessThan(48);
+    expect([p.x + p.w, p.y]).toEqual([BASE_WIDTH - 6, 6]);
+  });
+
+  it('is there in both modes and in Fuego, and is no game input', () => {
+    for (const b of [layoutTouchButtons(PHONE, 'stick'), layoutTouchButtons(PHONE, 'buttons', true)]) expect(b.some((x) => x.id === 'pause')).toBe(true);
+    expect(touchInput(pressIn(layoutTouchButtons(PHONE), 'pause'))).toEqual({ move: 0, jumpHeld: false, claw: false, fuego: false, left: false, right: false });
   });
 });
 
@@ -155,7 +174,7 @@ describe('GDD-CTL-03 slide stick', () => {
   const at = (dx: number, y = track.y + track.h / 2) => [{ x: mid + dx, y }];
 
   it('swaps the left and right buttons for one track as wide as both, and keeps jump and the switch', () => {
-    expect(new Set(stick.map((b) => b.id))).toEqual(new Set(['stick', 'jump', 'claw', 'mode']));
+    expect(new Set(stick.map((b) => b.id))).toEqual(new Set(['stick', 'jump', 'claw', 'mode', 'pause']));
     const buttons = layoutTouchButtons(PHONE);
     const [left, right] = [find(buttons, 'left'), find(buttons, 'right')];
     expect([track.x, track.w, track.y]).toEqual([left.x, right.x + right.w - left.x, left.y]);

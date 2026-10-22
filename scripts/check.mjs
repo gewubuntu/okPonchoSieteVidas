@@ -272,7 +272,13 @@ function checkToolchain() {
   return errors;
 }
 
+// L-020: a mutation run that was killed leaves its marker, and the mutated file, behind (scripts/mutate.mjs).
+function checkNoMutation() {
+  return exists('.mutating.json') ? ['.mutating.json exists: a mutation run was interrupted and a file may still be mutated. Run node scripts/mutate.mjs --restore'] : [];
+}
+
 const checks = [
+  ['no-mutation', checkNoMutation],
   ['gdd', checkGdd],
   ['gdd-references', checkReferences],
   ['backlog', checkBacklog],
