@@ -99,4 +99,10 @@ export const SANDBOX_FRAGILES: readonly Fragile[] = [10, 11, 12, 13].map((row) =
  * heading right. It patrols that platform and turns at both ends. Poncho gets up there from the top of the 2-tile wall at
  * columns 10 and 11 (32 px below it), clear of the first ofrenda's respawn (the platform is 64 px above it).
  */
-export const SANDBOX_ENEMIES: readonly Enemy[] = [{ x: 104, y: 160 }];
+export const SANDBOX_ENEMIES: readonly Enemy[] = [
+  { x: 104, y: 160 },
+  // GDD-ENM-02: a Zopilote cruises above the middle of the level, at y = 64 from x = 216, so it flies 168 to 264. Poncho on the floor is
+  // 153 px below it and never spots it; on the Alacrán's platform he is 89 px below it, spotted only at the low end of its bob; the
+  // spring ledge and the moving platform are well within reach.
+  { x: 216, y: 64, kind: 'zopilote' },
+];

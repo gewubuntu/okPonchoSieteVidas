@@ -2,6 +2,7 @@
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
+import { kindOf, type EnemyState } from '../sim/enemy';
 import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES, SANDBOX_ENEMIES } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
@@ -105,7 +106,7 @@ export interface PonchoDebug {
   fireballAt(): { x: number; y: number }[];
   fireballsDrawn(): number;
   /** The Alacranes in the simulation, and where the scene painted the live ones (GDD-ENM-02). */
-  enemies(): { x: number; alive: boolean; dir: number }[];
+  enemies(): { x: number; y: number; alive: boolean; dir: number; phase: string }[];
   enemiesDrawn(): { x: number; y: number }[];
   /** Test hook: puts Poncho in a power-up state without playing for it. */
   setPower(power: Power): void;
@@ -295,7 +296,7 @@ export class PlayScene extends Phaser.Scene {
         spits: () => this.spits,
         fireballAt: () => this.run.fireballs.map((f) => ({ x: f.x, y: f.y })),
         fireballsDrawn: () => this.fireballsPainted,
-        enemies: () => this.run.enemies.map((e) => ({ x: e.x, alive: e.alive, dir: e.dir })),
+        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? level.enemies[i]!.y, alive: e.alive, dir: e.dir, phase: e.flight?.phase ?? 'walk' })),
         enemiesDrawn: () => this.enemiesPainted,
         setPower: (power) => {
           this.run = { ...this.run, power };
@@ -418,9 +419,10 @@ export class PlayScene extends Phaser.Scene {
     level.enemies.forEach((def, i) => {
       const e = this.run.enemies[i]!;
       if (!e.alive) return;
+      const g = this.enemyGfx;
+      if (kindOf(def) === 'zopilote') return this.drawZopilote(e);
       this.enemiesPainted.push({ x: e.x, y: def.y });
       const d = e.dir;
-      const g = this.enemyGfx;
       g.fillStyle(0x9a3a2a, 1).fillRect(e.x - 5, def.y - 6, 10, 5);
       g.lineStyle(1, 0x4a1a12, 1).strokeRect(e.x - 4.5, def.y - 5.5, 9, 4);
       g.fillStyle(0xe9d3a3, 1).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), def.y - 7, 3, 3).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), def.y - 3, 3, 2);
@@ -429,6 +431,28 @@ export class PlayScene extends Phaser.Scene {
       g.lineStyle(1, 0x4a1a12, 1);
       for (const lx of [-3, -1, 1, 3]) g.lineBetween(e.x + lx, def.y - 1, e.x + lx, def.y);
     });
+  }
+
+  /**
+   * Placeholder Zopilote (GDD-ENM-02): a dark brown vulture 16 x 10 px with a pink head and beak facing the way it flies, wings
+   * that flap while it cruises and are raised for its telegraph (which also flashes the body red, GDD-ENM-01), and three pale
+   * thorns along its back, the mark of an enemy that cannot be stomped (GDD-CMB-01).
+   */
+  private drawZopilote(e: EnemyState): void {
+    const f = e.flight!;
+    const g = this.enemyGfx;
+    const { x, y } = { x: e.x, y: f.y };
+    const d = e.dir;
+    this.enemiesPainted.push({ x, y });
+    const flash = f.phase === 'telegraph' && Math.floor(f.age / 4) % 2 === 0;
+    const up = f.phase === 'telegraph' || (f.phase !== 'dive' && Math.floor(f.age / 8) % 2 === 0);
+    const wingY = up ? y - 7 : y + 4;
+    g.fillStyle(0x6b5340, 1).fillTriangle(x - 7, y - 1, x - 1, y - 1, x - 8, wingY).fillTriangle(x + 1, y - 1, x + 7, y - 1, x + 8, wingY);
+    g.fillStyle(flash ? 0xff5030 : 0x4a3a30, 1).fillRect(x - 6, y - 2, 12, 6);
+    g.fillStyle(0xd98c7a, 1).fillRect(x + d * 6 - (d < 0 ? 3 : 0), y - 3, 3, 3);
+    g.fillStyle(0xe9d3a3, 1).fillRect(x + d * 8 - (d < 0 ? 2 : 0), y - 1, 2, 1);
+    g.fillStyle(0xf2efe6, 1);
+    for (const tx of [-5, -1, 3]) g.fillTriangle(x + tx, y - 2, x + tx + 3, y - 2, x + tx + 1.5, y - 5);
   }
 
   /** Fireballs in flight (GDD-PWR-03): an orange ball with a pale yellow core. */

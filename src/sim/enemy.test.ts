@@ -34,6 +34,8 @@ const baseLevel: Level = {
   fragiles: [],
   enemies: [def],
 };
+/** Poncho well out of any enemy's way, for tests that only watch the enemy. */
+const far = spawn(24, 128);
 const alive = (x: number, dir: 1 | -1 = 1): EnemyState => ({ x, dir, alive: true });
 const at = (x: number, y: number, vy = 0): PlayerState => ({ ...spawn(x, y), vy, grounded: false });
 const run = (r: RunState, input: PlayerInput, steps: number, l: Level = baseLevel): RunState => {
@@ -45,11 +47,11 @@ const withPlayer = (player: PlayerState, extra: Partial<RunState> = {}, l: Level
 /** Walks until it turns round (or 200 steps), returning where it was when it did. */
 const walkToTurn = (state: EnemyState, w = world): EnemyState => {
   const dir = state.dir;
-  for (let i = 0; i < 200 && state.dir === dir; i++) state = stepEnemy(def, state, w);
+  for (let i = 0; i < 200 && state.dir === dir; i++) state = stepEnemy(def, state, w, far);
   return state;
 };
 const walk = (state: EnemyState, steps: number, w = world): EnemyState => {
-  for (let i = 0; i < steps; i++) state = stepEnemy(def, state, w);
+  for (let i = 0; i < steps; i++) state = stepEnemy(def, state, w, far);
   return state;
 };
 
@@ -75,7 +77,7 @@ describe('GDD-ENM-02 the Alacrán patrols', () => {
     let leftEnd = Infinity;
     let rightEnd = -Infinity;
     for (let i = 0; i < 600; i++) {
-      state = stepEnemy(def, state, world);
+      state = stepEnemy(def, state, world, far);
       leftEnd = Math.min(leftEnd, state.x);
       rightEnd = Math.max(rightEnd, state.x);
     }
@@ -92,7 +94,7 @@ describe('GDD-ENM-02 the Alacrán patrols', () => {
 
   it('a defeated one stays where it is', () => {
     const dead: EnemyState = { x: 120, dir: 1, alive: false };
-    expect(stepEnemy(def, dead, world)).toBe(dead);
+    expect(stepEnemy(def, dead, world, far)).toBe(dead);
   });
 });
 

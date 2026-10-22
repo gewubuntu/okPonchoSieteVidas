@@ -16,7 +16,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-LOOP-02 | todo |  |
 | GDD-LOOP-03 | todo |  |
 | GDD-LIFE-01 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
-| GDD-LIFE-02 | doing | pit loss, 0.8 s wait with skip, hidden while waiting, invulnerability timer and blink, respawn at the latest ofrenda in src/sim/run.ts, HUD crack animation (src/ui/lifeCrack.ts), respawn flip (src/sim/respawnFlip.ts); the Alacrán hit is built, other enemies pending |
+| GDD-LIFE-02 | doing | pit loss, 0.8 s wait with skip, hidden while waiting, invulnerability timer and blink, respawn at the latest ofrenda in src/sim/run.ts, HUD crack animation (src/ui/lifeCrack.ts), respawn flip (src/sim/respawnFlip.ts); the Alacrán and Zopilote hits are built, other enemies pending |
 | GDD-LIFE-03 | doing | rules as pure logic in src/sim/lives.ts; touching an ofrenda restores a life and, if it is later in the level, sets the checkpoint (only forward) in src/sim/run.ts; ofrendas drawn as placeholders and placed in the sandbox level; the marimba sound plays on first use (GDD-AUD-02) |
 | GDD-LIFE-04 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
 | GDD-LIFE-05 | doing | restart with 7 lives at zero is built; the Siete vidas gastadas screen and per-world scope pending |
@@ -28,7 +28,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-MOV-06 | doing | body box collides with tiles (floors, walls, ceilings, 1-tile gap) in src/sim; hurtbox and final sprite size pending |
 | GDD-MOV-07 | todo |  |
 | GDD-MOV-08 | todo |  |
-| GDD-CMB-01 | doing | stomp with 260 and 410 px/s bounces in src/sim/enemy.ts and run.ts; the not-stompable marking pending |
+| GDD-CMB-01 | doing | stomp with 260 and 410 px/s bounces in src/sim/enemy.ts and run.ts; the not-stompable marking (three pale thorns) is built for the Zopilote |
 | GDD-CMB-02 | doing | claw swing, hit box, cooldown, input and touch button in src/sim/claw.ts; it opens piñatas and breaks fragile walls; enemies, stun and sound pending |
 | GDD-CMB-03 | doing | spike and enemy hits: 2.0 s invulnerability and 80 px/s knockback in Taco and Fuego; crushing pending |
 | GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W, claw (X, J) and Fuego (C, K) wired; remap pending |
@@ -41,7 +41,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-WLD-04 | todo |  |
 | GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls in src/sim/fragile.ts (one in the sandbox) |
 | GDD-ENM-01 | doing | enemy contact is one hit, never more than a life; the 3-tile spawn rule is for the level validator |
-| GDD-ENM-02 | doing | the Alacrán in src/sim/enemy.ts (one in the sandbox); Zopilote, cactus buddy and Tlacuache pending |
+| GDD-ENM-02 | doing | the Alacrán and the Zopilote in src/sim/enemy.ts (one of each in the sandbox); cactus buddy and Tlacuache pending |
 | GDD-BOS-01 | todo |  |
 | GDD-BOS-02 | todo |  |
 | GDD-PRG-01 | todo |  |

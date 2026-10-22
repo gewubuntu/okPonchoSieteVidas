@@ -129,6 +129,26 @@ export const FIREBALL = { speed: 180, bounceHeight: 20, gravity: 1500, lifeSteps
 export const ENEMY = { width: 14, height: 10, speed: 30 } as const;
 
 /**
+ * GDD-ENM-02: the Zopilote (vulture) is `width` x `height` px. It cruises at `speed` px/s between `range` px either side of
+ * its start, bobbing `amplitude` px up and down with a period of `periodSteps` (2.5 s). When Poncho is within `triggerX` px
+ * to either side and between 0 and `triggerY` px below it, it freezes for `telegraphSteps` (0.5 s, GDD-ENM-01), then dives
+ * at `diveSpeed` px/s to where he was, and climbs back to its cruise line at `returnSpeed` px/s.
+ */
+export const ZOPILOTE = {
+  width: 16,
+  height: 10,
+  speed: 40,
+  range: 48,
+  amplitude: 12,
+  periodSteps: Math.round(2.5 * TICK_HZ),
+  triggerX: 96,
+  triggerY: 80,
+  telegraphSteps: Math.round(0.5 * TICK_HZ),
+  diveSpeed: 150,
+  returnSpeed: 60,
+} as const;
+
+/**
  * GDD-CMB-01: landing on top of a stompable enemy bounces Poncho up at `bounce` px/s, or at `boostBounce` (the jump
  * velocity) if jump is held or was pressed in the buffer window. A stomp counts if his feet were no more than `tolerance`
  * px below the enemy's top on the step before.

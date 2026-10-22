@@ -16,6 +16,8 @@ type Colour = { r: number; g: number; b: number };
 const body = (c: Colour) => c.r > 130 && c.r < 180 && c.g < 90 && c.b < 70; // the scorpion's dark red, 154 58 42
 const pale = (c: Colour) => c.r > 200 && c.g > 190 && c.b > 140; // the claws' 233 211 163
 const enemy = async (page: Page) => (await api(page, () => window.__PONCHO__!.enemies()))[0]!;
+// The sandbox also has a Zopilote, high up (e2e/zopilote.spec.ts); the Alacrán is the one standing on y = 160.
+const scorpionsDrawn = (page: Page) => api(page, () => window.__PONCHO__!.enemiesDrawn().filter((e) => e.y === 160));
 
 test('GDD-ENM-02 the Alacrán patrols its platform, turns at both ends and is painted where it is', async ({ page }) => {
   await start(page);
@@ -38,7 +40,7 @@ test('GDD-ENM-02 the Alacrán patrols its platform, turns at both ends and is pa
   expect(max).toBeLessThanOrEqual(137);
   expect(max).toBeGreaterThanOrEqual(136.5);
   await frames(page);
-  const [painted] = await api(page, () => window.__PONCHO__!.enemiesDrawn());
+  const [painted] = await scorpionsDrawn(page);
   expect(painted!.x).toBe((await enemy(page)).x);
 });
 
@@ -51,7 +53,7 @@ test('GDD-CMB-01 landing on it defeats it and bounces Poncho, and it is gone fro
   expect((await api(page, () => window.__PONCHO__!.state())).vy).toBeLessThan(0); // thrown up
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   await frames(page);
-  expect(await api(page, () => window.__PONCHO__!.enemiesDrawn())).toEqual([]);
+  expect(await scorpionsDrawn(page)).toEqual([]);
 });
 
 test('GDD-CMB-03 walking into it costs a life in Base', async ({ page }) => {
@@ -128,7 +130,7 @@ test('GDD-ENM-02 the pale claws are on the side it is walking towards, and swap 
   expect(turned).toBe(-first);
   expect(await clawsAt(turned)).toBe(true);
   expect(await clawsAt(-turned)).toBe(false);
-  const [painted] = await api(page, () => window.__PONCHO__!.enemiesDrawn());
+  const [painted] = await scorpionsDrawn(page);
   expect(painted!.y).toBe(160);
 });
 
