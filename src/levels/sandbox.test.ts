@@ -1,0 +1,36 @@
+import { describe, expect, it } from 'vitest';
+import { TILE } from '../config/tuning';
+import { freshEnemies, stepEnemy } from '../sim/enemy';
+import { spawn, type PlayerState } from '../sim/movement';
+import { parseTiles } from '../sim/tilemap';
+import { SANDBOX_ENEMIES, SANDBOX_ROWS } from './sandbox';
+
+const world = parseTiles(SANDBOX_ROWS);
+const def = SANDBOX_ENEMIES.find((e) => e.kind === 'zopilote')!;
+const standing = (x: number, y: number): PlayerState => ({ ...spawn(x, y), grounded: true });
+
+/** Does the sandbox Zopilote spot Poncho standing still at (x, y) at some point in 600 steps (4 bobs), if nothing else changes? */
+function spotted(p: PlayerState): boolean {
+  let s = freshEnemies([def])[0]!;
+  for (let i = 0; i < 600; i++) {
+    s = stepEnemy(def, s, world, p);
+    if (s.flight!.phase === 'telegraph') return true;
+  }
+  return false;
+}
+
+describe('GDD-ENM-02 the sandbox Zopilote', () => {
+  it('never spots Poncho standing on the floor, wherever he is along it', () => {
+    for (let x = 8; x < 30 * TILE; x += 8) expect(spotted(standing(x, 14 * TILE))).toBe(false);
+  });
+
+  it('spots him on the spring ledge, on the Alacrán platform, and in the moving platform route', () => {
+    expect(spotted(standing(224, 8 * TILE))).toBe(true); // the spring ledge, columns 13 and 14
+    expect(spotted(standing(140, 10 * TILE))).toBe(true); // the Alacrán's platform, at its low bob only
+    expect(spotted(standing(300, 8 * TILE))).toBe(true); // the moving platform (top y = 128)
+  });
+
+  it('does not spot him on the Alacrán platform at the far left end, out of its sideways reach', () => {
+    expect(spotted(standing(68, 10 * TILE))).toBe(false);
+  });
+});

@@ -5,7 +5,7 @@ const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
 
 // The sandbox has a Zopilote cruising at y = 64 from x = 216, between x = 168 and 264. Poncho on the floor is far below its 80 px
-// reach, so it only spots him from the spring ledge (columns 13 and 14, top y = 128) or the moving platform.
+// reach; it spots him from the spring ledge (columns 13 and 14, top y = 128), the moving platform, and the Alacrán's platform at the low end of its bob.
 const start = async (page: Page) => {
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
