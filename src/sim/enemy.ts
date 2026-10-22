@@ -1,16 +1,16 @@
 // GDD-ENM-02, GDD-CMB-01: the Alacrán (scorpion) patrols a platform and turns at walls and at ledge edges; stomp, claw or
-// fireball defeat it. The Zopilote (vulture) cruises, telegraphs and dives; it cannot be stomped. Touching either otherwise
+// fireball defeat it. The Zopilote (vulture) cruises, telegraphs and dives; the cactus buddy just stands there. Neither can be stomped. Touching either otherwise
 // is a hit (GDD-CMB-03). Pure logic, no Phaser (GDD-TEC-02).
-import { ENEMY, STEP, STOMP, TILE, ZOPILOTE } from '../config/tuning';
+import { CACTUS, ENEMY, STEP, STOMP, TILE, ZOPILOTE } from '../config/tuning';
 import { hurtbox } from './hazards';
 import type { PlayerState } from './movement';
 import type { TileGrid } from './tilemap';
 
-export type EnemyKind = 'alacran' | 'zopilote';
+export type EnemyKind = 'alacran' | 'zopilote' | 'cactus';
 
 /**
  * Where an enemy starts, heading right. An Alacrán (the default kind) gives the middle of it and the y of its feet, like
- * Poncho's own position; a Zopilote gives the middle of it and the y of its cruise line.
+ * Poncho's own position, and so does a cactus buddy; a Zopilote gives the middle of it and the y of its cruise line.
  */
 export interface Enemy {
   readonly x: number;
@@ -114,6 +114,7 @@ function stepZopilote(def: Enemy, state: EnemyState, player: PlayerState): Enemy
 export function stepEnemy(def: Enemy, state: EnemyState, world: TileGrid, player: PlayerState): EnemyState {
   if (!state.alive) return state;
   if (kindOf(def) === 'zopilote') return stepZopilote(def, state, player);
+  if (kindOf(def) === 'cactus') return state; // static (GDD-ENM-02)
   const x = state.x + state.dir * ENEMY.speed * STEP;
   if (blockedAt(world, x, def.y)) {
     const flush = state.dir > 0 ? Math.floor((x + HALF - EDGE) / TILE) * TILE - HALF : (Math.floor((x - HALF) / TILE) + 1) * TILE + HALF;
@@ -129,7 +130,19 @@ export function enemyBox(def: Enemy, state: EnemyState): Box {
     const y = state.flight!.y;
     return { x0: state.x - ZOPILOTE.width / 2, x1: state.x + ZOPILOTE.width / 2, y0: y - ZOPILOTE.height / 2, y1: y + ZOPILOTE.height / 2 };
   }
-  return { x0: state.x - HALF, x1: state.x + HALF, y0: def.y - ENEMY.height, y1: def.y };
+  const size = kindOf(def) === 'cactus' ? CACTUS : ENEMY;
+  return { x0: state.x - size.width / 2, x1: state.x + size.width / 2, y0: def.y - size.height, y1: def.y };
+}
+
+/** Can the claw, a fireball or a stomp defeat it? The cactus buddy cannot be defeated at all, only avoided (GDD-ENM-02). */
+export const defeatable = (def: Enemy): boolean => kindOf(def) !== 'cactus';
+
+/**
+ * Is a contact harmless (GDD-ENM-02)? Only with a cactus buddy, and only while Poncho is rising into it from beneath: moving
+ * up, with his head below its underside a step before.
+ */
+export function harmlessFromBelow(before: PlayerState, after: PlayerState, def: Enemy, state: EnemyState): boolean {
+  return kindOf(def) === 'cactus' && after.vy < 0 && hurtbox(before).y >= enemyBox(def, state).y1;
 }
 
 const overlaps = (a: Box, b: Box): boolean => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;

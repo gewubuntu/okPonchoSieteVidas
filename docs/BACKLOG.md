@@ -28,7 +28,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-MOV-06 | doing | body box collides with tiles (floors, walls, ceilings, 1-tile gap) in src/sim; hurtbox and final sprite size pending |
 | GDD-MOV-07 | todo |  |
 | GDD-MOV-08 | todo |  |
-| GDD-CMB-01 | doing | stomp with 260 and 410 px/s bounces in src/sim/enemy.ts and run.ts; the not-stompable marking (three pale thorns) is built for the Zopilote |
+| GDD-CMB-01 | doing | stomp with 260 and 410 px/s bounces in src/sim/enemy.ts and run.ts; the not-stompable marking (three pale thorns) is built for the Zopilote and the cactus buddy |
 | GDD-CMB-02 | doing | claw swing, hit box, cooldown, input and touch button in src/sim/claw.ts; it opens piñatas and breaks fragile walls; enemies, stun and sound pending |
 | GDD-CMB-03 | doing | spike and enemy hits: 2.0 s invulnerability and 80 px/s knockback in Taco and Fuego; crushing pending |
 | GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W, claw (X, J) and Fuego (C, K) wired; remap pending |
@@ -41,7 +41,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-WLD-04 | todo |  |
 | GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls in src/sim/fragile.ts (one in the sandbox) |
 | GDD-ENM-01 | doing | enemy contact is one hit, never more than a life; the 3-tile spawn rule is for the level validator |
-| GDD-ENM-02 | doing | the Alacrán and the Zopilote in src/sim/enemy.ts (one of each in the sandbox); cactus buddy and Tlacuache pending |
+| GDD-ENM-02 | doing | the Alacrán, the Zopilote and the cactus buddy in src/sim/enemy.ts (one of each in the sandbox); Tlacuache pending |
 | GDD-BOS-01 | todo |  |
 | GDD-BOS-02 | todo |  |
 | GDD-PRG-01 | todo |  |

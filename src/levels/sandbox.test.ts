@@ -3,7 +3,7 @@ import { TILE } from '../config/tuning';
 import { freshEnemies, stepEnemy } from '../sim/enemy';
 import { spawn, type PlayerState } from '../sim/movement';
 import { parseTiles } from '../sim/tilemap';
-import { SANDBOX_ENEMIES, SANDBOX_ROWS } from './sandbox';
+import { SANDBOX_ENEMIES, SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN } from './sandbox';
 
 const world = parseTiles(SANDBOX_ROWS);
 const def = SANDBOX_ENEMIES.find((e) => e.kind === 'zopilote')!;
@@ -32,5 +32,15 @@ describe('GDD-ENM-02 the sandbox Zopilote', () => {
 
   it('does not spot him on the Alacrán platform at the far left end, out of its sideways reach', () => {
     expect(spotted(standing(68, 10 * TILE))).toBe(false);
+  });
+});
+
+describe('GDD-ENM-01 no enemy starts within 3 tiles of a respawn', () => {
+  it('holds for every enemy in the sandbox against Poncho\'s spawn and every ofrenda', () => {
+    const respawns = [SANDBOX_SPAWN, ...SANDBOX_OFRENDAS];
+    for (const e of SANDBOX_ENEMIES) {
+      const kind = e.kind ?? 'alacran';
+      for (const r of respawns) expect(Math.hypot(e.x - r.x, e.y - r.y), `${kind} at ${e.x},${e.y} against ${r.x},${r.y}`).toBeGreaterThanOrEqual(3 * TILE);
+    }
   });
 });

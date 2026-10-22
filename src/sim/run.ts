@@ -5,7 +5,7 @@ import { FIREBALL, HIT, HITBOX, OFRENDA, RESPAWN, TACO, TILE } from '../config/t
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
 import { withFragiles, type Fragile } from './fragile';
-import { boxHitsEnemy, freshEnemies, isStomp, stepEnemy, stompBounce, touchesEnemy, type Enemy, type EnemyState } from './enemy';
+import { boxHitsEnemy, defeatable, freshEnemies, harmlessFromBelow, isStomp, stepEnemy, stompBounce, touchesEnemy, type Enemy, type EnemyState } from './enemy';
 import { spawnFireball, stepFireball, type Fireball } from './fireball';
 import { squareBlocked } from './item';
 import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } from './door';
@@ -238,16 +238,16 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     return true;
   });
   // GDD-CMB-02, GDD-PWR-03: the claw and a fireball defeat the enemies they overlap, besides a stomp. Every fireball that
-  // overlaps a live enemy is used up, whatever defeats the enemy that step.
+  // overlaps a live enemy is used up, whatever defeats the enemy that step (and even the cactus buddy, which nothing defeats).
   const fireballHits = (f: Fireball, i: number): boolean =>
     patrolled[i]!.alive && boxHitsEnemy({ x0: f.x - FIREBALL.size / 2, x1: f.x + FIREBALL.size / 2, y0: f.y - FIREBALL.size, y1: f.y }, level.enemies[i]!, patrolled[i]!);
-  const enemies = patrolled.map((e, i) => (e.alive && (stomped[i]! || (box !== null && boxHitsEnemy(box, level.enemies[i]!, e)) || fireballs.some((f) => fireballHits(f, i))) ? { ...e, alive: false } : e));
+  const enemies = patrolled.map((e, i) => (e.alive && defeatable(level.enemies[i]!) && (stomped[i]! || (box !== null && boxHitsEnemy(box, level.enemies[i]!, e)) || fireballs.some((f) => fireballHits(f, i))) ? { ...e, alive: false } : e));
   const flying = fireballs.filter((f) => !patrolled.some((_, i) => fireballHits(f, i)));
   // GDD-WLD-05, GDD-ENM-02, GDD-CMB-03: touching a spike or an enemy is a hit, unless Poncho is invulnerable. In Base it
   // costs a life (GDD-LIFE-02); in Taco the taco is spent instead, in Fuego the Fuego, and Poncho is pushed away from what
   // hit him and invulnerable for 2.0 s.
   const spike = run.invulnerable === 0 ? level.spikes.find((s) => touchesSpike(player, s)) : undefined;
-  const enemy = run.invulnerable === 0 ? enemies.findIndex((e, i) => touchesEnemy(player, level.enemies[i]!, e)) : -1;
+  const enemy = run.invulnerable === 0 ? enemies.findIndex((e, i) => touchesEnemy(player, level.enemies[i]!, e) && !harmlessFromBelow(run.player, player, level.enemies[i]!, e)) : -1;
   const hitFrom = spike ? spike.col * TILE + TILE / 2 : enemy >= 0 ? enemies[enemy]!.x : undefined;
   if (hitFrom !== undefined && power === 'base') {
     return { ...run, player, crumbles, platformTick, tacosTaken, pinatasOpen, items, fragilesBroken, enemies, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
