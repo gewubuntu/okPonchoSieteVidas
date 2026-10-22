@@ -2,7 +2,7 @@
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
-import { kindOf, type EnemyState } from '../sim/enemy';
+import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES, SANDBOX_ENEMIES } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
@@ -107,7 +107,7 @@ export interface PonchoDebug {
   fireballsDrawn(): number;
   /** The enemies in the simulation, and where the scene painted the live ones (GDD-ENM-02). */
   enemies(): { x: number; y: number; alive: boolean; dir: number; phase: string }[];
-  enemiesDrawn(): { x: number; y: number }[];
+  enemiesDrawn(): { x: number; y: number; kind: EnemyKind }[];
   /** Test hook: puts Poncho in a power-up state without playing for it. */
   setPower(power: Power): void;
 }
@@ -150,7 +150,7 @@ export class PlayScene extends Phaser.Scene {
   private fireballGfx!: Phaser.GameObjects.Graphics;
   private fireballsPainted = 0;
   private enemyGfx!: Phaser.GameObjects.Graphics;
-  private enemiesPainted: { x: number; y: number }[] = [];
+  private enemiesPainted: { x: number; y: number; kind: EnemyKind }[] = [];
   private readonly fuegoLatch = new InputLatch();
   private ofrendaGfx!: Phaser.GameObjects.Graphics;
   private ofrendasDrawn: { id: string; x: number; used: boolean }[] = [];
@@ -423,7 +423,7 @@ export class PlayScene extends Phaser.Scene {
       if (kindOf(def) === 'zopilote') return this.drawZopilote(e);
       if (kindOf(def) === 'cactus') return this.drawCactus(e, def.y);
       if (kindOf(def) === 'tlacuache') return this.drawTlacuache(e, def.y);
-      this.enemiesPainted.push({ x: e.x, y: def.y });
+      this.enemiesPainted.push({ x: e.x, y: def.y, kind: 'alacran' });
       const d = e.dir;
       g.fillStyle(0x9a3a2a, 1).fillRect(e.x - 5, def.y - 6, 10, 5);
       g.lineStyle(1, 0x4a1a12, 1).strokeRect(e.x - 4.5, def.y - 5.5, 9, 4);
@@ -442,7 +442,7 @@ export class PlayScene extends Phaser.Scene {
   private drawCactus(e: EnemyState, y: number): void {
     const g = this.enemyGfx;
     const x = e.x;
-    this.enemiesPainted.push({ x, y });
+    this.enemiesPainted.push({ x, y, kind: 'cactus' });
     g.fillStyle(0x4f9a4a, 1).fillRect(x - 3, y - 16, 6, 16).fillRect(x - 6, y - 11, 3, 2).fillRect(x - 6, y - 14, 2, 4).fillRect(x + 3, y - 8, 3, 2).fillRect(x + 4, y - 11, 2, 4);
     g.lineStyle(1, 0x2f5f2c, 1).lineBetween(x, y - 15, x, y);
     g.fillStyle(0xf2efe6, 1);
@@ -458,14 +458,16 @@ export class PlayScene extends Phaser.Scene {
     const g = this.enemyGfx;
     const { x, dir: d } = e;
     const gait = e.gait!;
-    this.enemiesPainted.push({ x, y });
+    this.enemiesPainted.push({ x, y, kind: 'tlacuache' });
     g.lineStyle(1, 0xd98c9a, 1).beginPath().moveTo(x - d * 6, y - 3).lineTo(x - d * 9, y - 2).lineTo(x - d * 8, y - 5).strokePath();
     if (gait.phase === 'dead') {
-      const twitch = gait.age >= TLACUACHE.playDeadSteps - TLACUACHE.twitchSteps && Math.floor(gait.age / 4) % 2 === 0 ? 1 : 0;
+      // Two pairs of feet, 2 px wide, stick 4 px straight up; in the last 0.5 s they curl to 1 px every other 4 steps.
+      const twitch = gait.age >= TLACUACHE.playDeadSteps - TLACUACHE.twitchSteps && Math.floor(gait.age / 4) % 2 === 0;
       g.fillStyle(0x8c8a94, 1).fillRect(x - 6, y - 5, 12, 5);
       g.fillStyle(0xf2efe6, 1).fillRect(x + d * 5 - (d < 0 ? 3 : 0), y - 5, 3, 4);
+      g.fillStyle(0x4a4850, 1);
+      for (const lx of [-4, 2]) g.fillRect(Math.round(x) + lx, twitch ? y - 6 : y - 9, 2, twitch ? 1 : 4);
       g.lineStyle(1, 0x4a4850, 1);
-      for (const lx of [-4, -2, 1, 3]) g.lineBetween(x + lx, y - 5, x + lx + twitch, y - 8);
       g.lineBetween(x + d * 6 - 1, y - 4, x + d * 6 + 1, y - 2).lineBetween(x + d * 6 - 1, y - 2, x + d * 6 + 1, y - 4);
       g.fillStyle(0xe89aa8, 1).fillRect(x + d * 8 - (d < 0 ? 1 : 0), y - 2, 1, 2);
       return;
@@ -489,7 +491,7 @@ export class PlayScene extends Phaser.Scene {
     const g = this.enemyGfx;
     const { x, y } = { x: e.x, y: f.y };
     const d = e.dir;
-    this.enemiesPainted.push({ x, y });
+    this.enemiesPainted.push({ x, y, kind: 'zopilote' });
     const flash = f.phase === 'telegraph' && Math.floor(f.age / 4) % 2 === 0;
     const up = f.phase === 'telegraph' || (f.phase !== 'dive' && Math.floor(f.age / 8) % 2 === 0);
     const wingY = up ? y - 7 : y + 4;

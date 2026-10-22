@@ -215,6 +215,14 @@ describe('GDD-CMB-02 and GDD-PWR-03 the claw and a fireball defeat it while awak
     expect(r.fireballs).toEqual([]);
   });
 
+  it('a claw swing on the step of a first stomp defeats it, rather than letting it play dead', () => {
+    // Falling onto its left edge (hurtbox x 83 to 93 against its 92 to 108) with a live swing whose box (x 94 to 114) reaches it.
+    const swing = { phase: 'swing', steps: 1, cooldown: 10, dir: 1, held: true } as const;
+    const r = run(withPlayer({ ...falling(88, 150), facing: 1 }, { claw: swing }), 1);
+    expect(r.enemies[0]!.alive).toBe(false);
+    expect(r.player.vy).toBe(-260); // the stomp still bounces him
+  });
+
   it('a fireball on the step of a first stomp defeats it, rather than letting it play dead', () => {
     const fb: Fireball = { x: 95, y: 159, vx: 180, vy: 0, age: 0 };
     const r = run(withPlayer(falling(100, 150), { fireballs: [fb] }), 1);

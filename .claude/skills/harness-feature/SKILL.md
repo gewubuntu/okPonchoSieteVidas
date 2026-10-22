@@ -15,7 +15,7 @@ Implements exactly one GDD ID (or a small named group of them) from spec to test
 4. **Mark `doing`** in `docs/BACKLOG.md`.
 5. **Write tests first** for the pure logic (Vitest, no Phaser imports). Test names include the GDD ID, e.g. `describe('GDD-MOV-02 jump', ...)`. Numbers come from `src/config/tuning.ts`, which mirrors the GDD.
 6. **Implement** the minimum that satisfies the GDD text. No extras the GDD does not list.
-   **Prove each new test can fail:** for every new rule or bullet in the GDD diff, break the code (remove the rule, move a threshold by one), see a test go red, then restore it (L-010). Write expected values from the GDD into the test, not read back from the code under test. List the mutations in the PR description.
+   **Prove each new test can fail:** for every new rule or bullet in the GDD diff, break the code (remove the rule, move a threshold by one), see a test go red, then restore it (L-010). Write expected values from the GDD into the test, not read back from the code under test. Go sentence by sentence, not bullet by bullet: split each new GDD bullet into its clauses ("A or B wins over C" is two rules; a warning or a pose drawn on screen is a rule too) and give each clause its own mutation. List the mutations in the PR description.
 7. **Playtest** with the `harness-playtest` skill when the feature is visible or interactive.
    **If anything visible changed**, follow the screenshot approval rule in `CLAUDE.md` now: `npm run shots`, look at the images, show them to the user with `SendUserFile`, and wait for their approval before opening the PR.
 8. **Update docs.** Mark the backlog row `done`. If implementation forced a rule change, update the GDD with `harness-gdd-update`.

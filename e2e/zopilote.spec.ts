@@ -5,7 +5,7 @@ const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
 
 // The sandbox has a Zopilote cruising at y = 64 from x = 216, between x = 168 and 264. Poncho on the floor is far below its 80 px
-// reach; the Tlacuache's ledge (x 400 and up) is out of it. It spots him from the spring ledge (columns 13 and 14, top y = 128), the moving platform, and the Alacrán's platform at the low end of its bob.
+// reach. It spots him from the spring ledge (columns 13 and 14, top y = 128), the moving platform, and the Alacrán's platform at the low end of its bob.
 const start = async (page: Page) => {
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
@@ -41,7 +41,7 @@ test('GDD-ENM-02 the Zopilote cruises on its line, bobbing, and is painted where
   expect(lowest).toBeGreaterThanOrEqual(64 - 12);
   await frames(page);
   const now = await vulture(page);
-  const painted = (await api(page, () => window.__PONCHO__!.enemiesDrawn())).find((e) => e.y < 120 && e.x < 400)!;
+  const painted = (await api(page, () => window.__PONCHO__!.enemiesDrawn())).find((e) => e.kind === 'zopilote')!;
   expect([painted.x, painted.y]).toEqual([now.x, now.y]);
   expect((await pixelsAt(page, [{ x: Math.round(now.x), y: Math.round(now.y) + 1 }])).some(brown)).toBe(true);
 });
@@ -103,7 +103,7 @@ test('GDD-CMB-02 a claw swipe defeats it, and it is gone from the picture', asyn
   expect((await vulture(page)).alive).toBe(false);
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   await frames(page);
-  expect((await api(page, () => window.__PONCHO__!.enemiesDrawn())).filter((e) => e.y < 120 && e.x < 400)).toEqual([]);
+  expect((await api(page, () => window.__PONCHO__!.enemiesDrawn())).filter((e) => e.kind === 'zopilote')).toEqual([]);
 });
 
 test('GDD-PWR-03 a fireball defeats it and is used up', async ({ page }) => {
