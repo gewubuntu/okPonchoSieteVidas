@@ -103,6 +103,18 @@ test('GDD-UI-02 every real press of P or Escape toggles the pause exactly once, 
     await page.waitForFunction((want) => window.__PONCHO__!.playerPause().paused === want, i % 2 === 1, { timeout: 2000 });
   }
   expect(await paused(page)).toBe(false);
+  // The key labelled P pauses on any layout: on Dvorak it sits where QWERTY has R (code KeyR, keyCode 80), and the key in
+  // QWERTY's P position types L there (code KeyP, keyCode 76), which does not pause.
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyP', key: 'l', keyCode: 76, bubbles: true })));
+  await frames(page);
+  expect(await paused(page)).toBe(false);
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyR', key: 'p', keyCode: 80, bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyR', key: 'p', keyCode: 80, bubbles: true }));
+  });
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
   // A held key's auto-repeat is no new press.
   await page.evaluate(() => {
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyP', keyCode: 80, bubbles: true }));

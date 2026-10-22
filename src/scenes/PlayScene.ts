@@ -318,7 +318,8 @@ export class PlayScene extends Phaser.Scene {
     // from raw browser events, one per press with auto-repeat ignored: Phaser's Key 'down' event can fire again on the
     // release when a press and release land in one frame (L-006), and here every extra event would toggle the pause back.
     const onPauseKey = (e: KeyboardEvent) => {
-      if (!e.repeat && (e.code === 'Escape' || e.code === 'KeyP')) this.pauseEvents.push('key');
+      // By keyCode, the key's label, as Phaser matches the other keys: on Dvorak or Colemak the P key still pauses.
+      if (!e.repeat && (e.keyCode === K.ESC || e.keyCode === K.P)) this.pauseEvents.push('key');
     };
     window.addEventListener('keydown', onPauseKey);
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.pauseEvents.push(this.touch.isPauseButton(p.x, p.y) ? 'button' : 'tap'));

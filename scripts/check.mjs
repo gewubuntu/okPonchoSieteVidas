@@ -272,6 +272,21 @@ function checkToolchain() {
   return errors;
 }
 
+// L-006: Phaser's Key 'down' event can fire again for a press when a press and release land in one frame. Only an
+// idempotent latch press may hang on it; anything that toggles or counts must read raw keydown events instead.
+function checkKeyDownHandlers() {
+  const errors = [];
+  const handler = /\.on\(\s*['"]down['"]\s*,\s*\([^)]*\)\s*=>\s*([^;\n]*)\)/g;
+  for (const f of textFiles().filter((p) => p.startsWith(join('src', '')) && p.endsWith('.ts') && !p.endsWith('.test.ts'))) {
+    read(f).split('\n').forEach((line, i) => {
+      for (const m of line.matchAll(handler)) {
+        if (!/^this\.\w+Latch\.press\(\)$/.test(m[1].trim())) errors.push(`${f.split(sep).join('/')}:${i + 1}: a Phaser Key 'down' handler may only press a latch (L-006), found: ${m[1].trim()}`);
+      }
+    });
+  }
+  return errors;
+}
+
 // L-020: a mutation run that was killed leaves its marker, and the mutated file, behind (scripts/mutate.mjs).
 function checkNoMutation() {
   return exists('.mutating.json') ? ['.mutating.json exists: a mutation run was interrupted and a file may still be mutated. Run node scripts/mutate.mjs --restore'] : [];
@@ -279,6 +294,7 @@ function checkNoMutation() {
 
 const checks = [
   ['no-mutation', checkNoMutation],
+  ['key-down-handlers', checkKeyDownHandlers],
   ['gdd', checkGdd],
   ['gdd-references', checkReferences],
   ['backlog', checkBacklog],
