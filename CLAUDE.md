@@ -75,7 +75,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 
 - Cite GDD IDs in code comments only where a number or rule comes from the GDD.
 - Keep simulation logic (movement, lives, damage) free of Phaser imports so it is unit-testable.
-- Input that starts something on a press (jump, claw, and later Fuego) is latched from raw key and pointer events with `src/ui/inputLatch.ts` and cleared by the step that uses it, never only polled once per frame (L-006). A new press-driven action needs a test in `e2e/subframe.spec.ts` that taps it inside one task.
+- Input that starts something on a press (jump, claw, and later Fuego) is latched from raw key and pointer events with `src/ui/inputLatch.ts` and cleared by the step that uses it, never only polled once per frame (L-006). A new press-driven action needs a test in `e2e/subframe.spec.ts` that taps it inside one task. Pause (Escape, P) is the exception: it is applied per frame, not per step, from Phaser `Key` `down` events, which fire once per press and ignore auto-repeat, so it needs no latch; its one-task tap test is in `e2e/pause.spec.ts`.
 - Do not add game code that no GDD ID asks for.
 - Do not name AI models in repository files or in commit subjects and bodies. Attribution trailers (such as `Co-Authored-By`) follow the session's own instructions.
 - Commit on the branch the session designates. Do not open a PR unless the user asks.

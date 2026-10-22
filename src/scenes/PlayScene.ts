@@ -320,7 +320,7 @@ export class PlayScene extends Phaser.Scene {
     const touchDevice = this.sys.game.device.input.touch;
     let upright = false;
     const onResize = () => {
-      const now = isPortrait(window.innerWidth, window.innerHeight, touchDevice);
+      const now = isPortrait(window.screen.orientation?.type, window.innerWidth, window.innerHeight, touchDevice);
       if (now !== upright) this.pauseEvents.push(now ? 'portrait' : 'landscape');
       upright = now;
     };

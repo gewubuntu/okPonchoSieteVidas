@@ -36,8 +36,13 @@ export function pauseEvent(state: PauseState, event: PauseEvent): PauseState {
   return { ...state, portrait: false };
 }
 
-/** Only on a touch device: a desktop window made taller than wide is not a phone turned upright. */
-export const isPortrait = (width: number, height: number, touch: boolean): boolean => touch && height > width;
+/**
+ * A touch device whose screen is upright. The screen's orientation decides, not the window's shape, so a touchscreen laptop
+ * in a tall window is not upright (its screen stays landscape). Where the browser has no screen orientation, the window's
+ * shape is used.
+ */
+export const isPortrait = (orientation: string | undefined, width: number, height: number, touch: boolean): boolean =>
+  touch && (orientation === undefined ? height > width : orientation.startsWith('portrait'));
 
 /**
  * On resume, every button down now counts as already held, so a press made while paused (the jump button under the tap that

@@ -223,3 +223,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** In a playtest, after releasing a held button and before pressing it again, wait until a step has seen the release (for jump, `state().jumpWasHeld` is false). Run a new real-time playtest with `--repeat-each=3` before trusting it.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-023 A layer's "stays on top" and a check made once at start had no test
+
+- **Date:** 2026-10-22
+- **What went wrong:** The review of GDD-UI-02 found two scene rules no playtest could fail. Raising the pause screen above the HUD and touch buttons stayed green, because the only pixel check was on a level tile. Removing the orientation check at start stayed green, because the portrait test always booted in landscape and rotated later.
+- **Root cause:** The pixel test only checked what the overlay covers, not what must show through it. And the tests only reached the state by changing into it, never by starting in it.
+- **Rule:** For an overlay, sample one pixel it must dim and one it must leave alone (HUD, buttons). For anything checked on an event and also once at start (orientation, focus, storage), add a test that starts in that state.
+- **Recurrence:** 1
+- **Promoted:** no

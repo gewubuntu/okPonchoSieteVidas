@@ -24,6 +24,9 @@ const started = async (page: Page) => {
 };
 // A floor tile right of the spawn, clear of the touch buttons and of the pause screen's text.
 const floorTile = { x: 120, y: 248 };
+// Inside the second life triangle on the HUD (x 21 to 31, y 8 to 17), in its red fill.
+const hudTriangle = { x: 26, y: 14 };
+const brightness = (c: { r: number; g: number; b: number }) => c.r + c.g + c.b;
 
 test('GDD-UI-02 Escape pauses the level under a dimmed screen, and Escape again resumes it', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
@@ -40,6 +43,24 @@ test('GDD-UI-02 Escape pauses the level under a dimmed screen, and Escape again 
   await page.waitForFunction(() => !window.__PONCHO__!.pauseDrawn().shown);
   const t = await ticks(page);
   await page.waitForFunction((t0) => window.__PONCHO__!.ticks() > t0 + 10, t);
+});
+
+test('GDD-UI-02 the HUD, and on touch the pause button, stay on top of the dim layer', async ({ page, isMobile }) => {
+  await started(page);
+  const spots = [floorTile, hudTriangle];
+  if (isMobile) {
+    // In the left bar of the pause sign: the bars are about 0.12 of the button wide, either side of its centre.
+    const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'pause')!;
+    spots.push({ x: b.x + b.w / 2 - b.w * 0.12, y: b.y + b.h / 2 });
+  }
+  await frames(page);
+  const lit = await pixelsAt(page, spots);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
+  await frames(page);
+  const dim = await pixelsAt(page, spots);
+  expect(brightness(dim[0]!)).toBeLessThan(brightness(lit[0]!) / 2); // the level is dimmed
+  for (let i = 1; i < spots.length; i++) expect(brightness(dim[i]!), JSON.stringify(spots[i])).toBeGreaterThan(brightness(lit[i]!) * 0.9);
 });
 
 test('GDD-UI-02 P pauses and resumes too, and a click anywhere resumes', async ({ page, isMobile }) => {
@@ -160,6 +181,27 @@ test('GDD-UI-02 a phone turned upright pauses and asks to turn it sideways; only
   await standsStill(page);
   await page.touchscreen.tap(420, 150);
   await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+});
+
+test('GDD-UI-02 a phone already upright when the level starts is paused from the start', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().prompt === 'Turn your device sideways');
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: true, portrait: true });
+  expect(await ticks(page)).toBe(0);
+});
+
+test('GDD-UI-02 a touchscreen laptop in a tall window does not pause: its screen stays landscape', async ({ browser, isMobile }) => {
+  test.skip(isMobile, 'desktop test');
+  const context = await browser.newContext({ hasTouch: true, viewport: { width: 1280, height: 720 }, baseURL: test.info().project.use.baseURL! });
+  const page = await context.newPage();
+  await started(page);
+  expect((await api(page, () => window.__PONCHO__!.touch())).visible).toBe(true); // a touch device, with the buttons
+  await page.setViewportSize({ width: 700, height: 900 });
+  await page.waitForTimeout(200);
+  expect(await paused(page)).toBe(false);
+  await context.close();
 });
 
 test('GDD-UI-02 a narrow desktop window is not a phone: it does not pause', async ({ page, isMobile }) => {

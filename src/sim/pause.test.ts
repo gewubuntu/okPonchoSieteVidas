@@ -44,11 +44,22 @@ describe('GDD-UI-02 pausing and resuming', () => {
     expect(pauseEvent(PLAYING, 'landscape')).toEqual(PLAYING);
   });
 
-  it('upright means a touch device taller than wide; a narrow desktop window is not', () => {
-    expect(isPortrait(390, 844, true)).toBe(true);
-    expect(isPortrait(844, 390, true)).toBe(false);
-    expect(isPortrait(500, 500, true)).toBe(false);
-    expect(isPortrait(390, 844, false)).toBe(false);
+  it('upright means a touch device whose screen is upright', () => {
+    expect(isPortrait('portrait-primary', 390, 844, true)).toBe(true);
+    expect(isPortrait('portrait-secondary', 390, 844, true)).toBe(true);
+    expect(isPortrait('landscape-primary', 844, 390, true)).toBe(false);
+    expect(isPortrait('portrait-primary', 390, 844, false)).toBe(false); // no touch: a desktop
+  });
+
+  it('a touchscreen laptop in a tall window is not upright: its screen stays landscape', () => {
+    expect(isPortrait('landscape-primary', 700, 900, true)).toBe(false);
+  });
+
+  it('without a screen orientation, the window shape decides', () => {
+    expect(isPortrait(undefined, 390, 844, true)).toBe(true);
+    expect(isPortrait(undefined, 844, 390, true)).toBe(false);
+    expect(isPortrait(undefined, 500, 500, true)).toBe(false);
+    expect(isPortrait(undefined, 390, 844, false)).toBe(false);
   });
 });
 
