@@ -88,6 +88,9 @@ export const TOUCH = {
  */
 export const GAME_OVER = { lockoutSteps: Math.round(1.0 * TICK_HZ) } as const;
 
+/** GDD-LIFE-04: with one life left, the last triangle on the HUD grows to `pulseScale` and back every `pulseSteps` (0.8 s). */
+export const LAST_LIFE = { pulseSteps: Math.round(0.8 * TICK_HZ), pulseScale: 1.4 } as const;
+
 /** GDD-LIFE-02: the lost triangle on the HUD cracks and fades to an outline in 0.4 s. */
 export const LIFE_LOSS = { crackSteps: Math.round(0.4 * TICK_HZ) } as const;
 

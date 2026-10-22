@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.32
+Version: 0.4.33
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.33** (2026-10-22) GDD-LIFE-04: the last-life pulse is built: with one life left its HUD triangle grows to 1.4x and back every 0.8 s; the size and timing are written out as proposals. The music shift and the double hilo score wait for music and hilos.
 - **0.4.32** (2026-10-22) GDD-LIFE-02: "any input" that skips the respawn wait now really is any input: claw, Fuego, and left and right held together count too, as jump and a direction already did (a gap the GDD-LIFE-05 review found; user, 2026-10-22: fix it).
 - **0.4.31** (2026-10-22) GDD-LIFE-05, GDD-LIFE-02, GDD-CTL-04: the *Siete vidas gastadas* screen is built: it replaces the respawn after the last life and stays until a press of any button, ignoring presses for its first 1.0 s; the world then restarts with the respawn flip at the level start (user decisions, 2026-10-22: press to continue; title and seven empty triangles; "Game over" and "Press any button to Retry" below them). Left and right are now latched like jump and claw, so a quick tap of either counts (L-006). Its look and the exact press rule are written out as proposals.
 - **0.4.30** (2026-10-22) GDD-ENM-02, GDD-ENM-01, GDD-CMB-01, GDD-CMB-02, GDD-CMB-03, GDD-PWR-03, GDD-WLD-05: the Tlacuache is built: it walks, spots Poncho in front of it, telegraphs for 0.5 s and charges; its first stomp makes it play dead for 2.0 s, out of play, and a stomp after it wakes defeats it, as does the claw or a fireball while it is awake (user decisions, 2026-10-22: stomp twice, sight then dash); the claw defeats it even while it plays dead (user decision, 2026-10-22); its size, speeds, sight and timings are written out as proposals. The sandbox gets a ledge in the top right corner for it, reached from the moving platform.
@@ -161,6 +162,8 @@ Status: Proposed (that only the latest ofrenda counts as the checkpoint is Decid
 Status: Proposed
 
 When exactly 1 life remains: the music shifts to a tense variation, the last triangle pulses, and a *Última Vida* bonus applies: hilos give double score (GDD-PRG-03). Risk and reward, never an added penalty.
+
+- **Pulse, built (details Proposed):** while exactly one life is left, its triangle on the HUD (the leftmost) grows to 1.4 times its size and back, about its centre, smoothly (a cosine), every 0.8 s (48 steps), and keeps pulsing as long as one life is left, through the respawn wait too. It counts simulation steps, so it pauses with the game, like the crack (GDD-LIFE-02). With no lives (the Siete vidas gastadas screen, GDD-LIFE-05) or two or more it does not pulse. `LAST_LIFE` in `src/config/tuning.ts`, `src/ui/lastLife.ts`. Not built yet: the tense music (GDD-AUD-01) and the double hilo score (GDD-PRG-03), which wait for music and hilos.
 
 ### GDD-LIFE-05 Out of lives
 
