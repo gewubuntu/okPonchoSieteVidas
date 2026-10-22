@@ -205,9 +205,13 @@ describe('GDD-CTL-03 slide stick', () => {
   });
 
   it('feeds the move input and adds up with the buttons without leaving -1 to 1', () => {
-    expect(touchInput(new Set(), 0.5)).toEqual({ move: 0.5, jumpHeld: false, claw: false, fuego: false, left: false, right: false });
-    expect(touchInput(new Set(['jump']), -0.5)).toEqual({ move: -0.5, jumpHeld: true, claw: false, fuego: false, left: false, right: false });
+    expect(touchInput(new Set(), 0.5)).toEqual({ move: 0.5, jumpHeld: false, claw: false, fuego: false, left: false, right: true });
+    expect(touchInput(new Set(['jump']), -0.5)).toEqual({ move: -0.5, jumpHeld: true, claw: false, fuego: false, left: true, right: false });
     expect(touchInput(new Set(['right']), 0.5).move).toBe(1);
+    // GDD-LIFE-05: a push of the stick is a press of left or right for the Siete vidas gastadas screen; inside its dead zone it is 0.
+    expect(touchInput(new Set(), -1)).toMatchObject({ left: true, right: false });
+    expect(touchInput(new Set(), 0.3)).toMatchObject({ left: false, right: true });
+    expect(touchInput(new Set(), 0)).toMatchObject({ left: false, right: false });
     expect(pressedButtons(stick, [centre(track)]).size).toBe(0); // the stick is read by stickMove, not as a press
     expect([...pressedButtons(stick, [centre(mode)])]).toEqual(['mode']);
   });
