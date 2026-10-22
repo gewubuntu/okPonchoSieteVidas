@@ -82,6 +82,12 @@ export const TOUCH = {
   stickDeadZone: 0.2,
 } as const;
 
+/**
+ * GDD-LIFE-05: the "Siete vidas gastadas" screen after the last life waits for a press of any button, but ignores presses for its
+ * first `lockoutSteps` (1.0 s).
+ */
+export const GAME_OVER = { lockoutSteps: Math.round(1.0 * TICK_HZ) } as const;
+
 /** GDD-LIFE-02: the lost triangle on the HUD cracks and fades to an outline in 0.4 s. */
 export const LIFE_LOSS = { crackSteps: Math.round(0.4 * TICK_HZ) } as const;
 

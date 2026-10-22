@@ -26,6 +26,12 @@ export interface PlayerInput {
   claw?: boolean;
   /** The Fuego button is down (GDD-PWR-03). A fireball is spat on the press. Left out means not pressed. */
   fuego?: boolean;
+  /**
+   * The left and right buttons, before they are combined into `move` (where holding both cancels out). The screen after the
+   * last life counts a press of either (GDD-LIFE-05). Left out, they are read from the sign of `move`.
+   */
+  left?: boolean;
+  right?: boolean;
 }
 
 export interface World {

@@ -83,6 +83,8 @@ describe('GDD-LIFE-02 touching a spike', () => {
     r = stepRun(r, idle, level);
     expect(r.lives.lives).toBe(0);
     r = run(r, idle, RESPAWN.delaySteps);
+    expect(r).toMatchObject({ phase: 'gameover' }); // the Siete vidas gastadas screen (GDD-LIFE-05)
+    r = run(stepRun(run(r, idle, 60), { move: 0, jumpHeld: true }, level), idle, 21);
     expect(r).toMatchObject({ phase: 'playing' });
     expect(r.lives.lives).toBe(LIVES_MAX);
   });

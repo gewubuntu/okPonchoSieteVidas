@@ -1,13 +1,13 @@
 // Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
+import { BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES, SANDBOX_ENEMIES } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
-import { activateOfrenda, collectVeladora, loseLife } from '../sim/lives';
+import { activateOfrenda, collectVeladora, isOutOfLives, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { clawBox } from '../sim/claw';
 import { FIREBALL, TLACUACHE } from '../config/tuning';
@@ -48,8 +48,10 @@ export interface PonchoDebug {
   activateOfrenda(id: string): void;
   /** Puts Poncho at (x, y), feet position, at rest and in the air. */
   teleport(x: number, y: number): void;
-  /** 'playing', or 'respawning' while waiting after a lost life (GDD-LIFE-02). */
+  /** 'playing', 'respawning' while waiting after a lost life (GDD-LIFE-02), or 'gameover' on the Siete vidas gastadas screen (GDD-LIFE-05). */
   phase(): RunState['phase'];
+  /** The Siete vidas gastadas screen as drawn: whether it is shown, its title and "Game over" lines, and whether its prompt line is (GDD-LIFE-05). */
+  gameOverDrawn(): { shown: boolean; title: string; subtitle: string; prompt: boolean; promptText: string };
   /** Steps of invulnerability left after a respawn (GDD-LIFE-02). */
   invulnerable(): number;
   /** Whether Poncho's body is drawn, and how opaque (hidden while waiting to respawn, dim half of the blink). */
@@ -174,7 +176,15 @@ export class PlayScene extends Phaser.Scene {
   private fragilesPainted = 0;
   /** L-006: key presses latched from raw key events, so a tap shorter than a frame still reaches a step. */
   private readonly jumpLatch = new InputLatch();
+  /** GDD-LIFE-05: the Siete vidas gastadas screen and its prompt line. */
+  private gameOver!: Phaser.GameObjects.Container;
+  private gameOverTitle!: Phaser.GameObjects.Text;
+  private gameOverSubtitle!: Phaser.GameObjects.Text;
+  private gameOverPrompt!: Phaser.GameObjects.Text;
   private readonly clawLatch = new InputLatch();
+  /** Left and right are latched too: a tap of either ends the Siete vidas gastadas screen (GDD-LIFE-05). */
+  private readonly leftLatch = new InputLatch();
+  private readonly rightLatch = new InputLatch();
   private swings = 0;
   private spits = 0;
   private clawPainted: 'none' | 'windup' | 'swing' = 'none';
@@ -228,6 +238,24 @@ export class PlayScene extends Phaser.Scene {
     this.crumbleGfx = this.add.graphics().setDepth(1);
     this.drawCrumbles();
 
+    // GDD-LIFE-05: the Siete vidas gastadas screen, over the level and under the HUD and the touch buttons (so Jump stays
+    // pressable). Hidden until the last life is spent.
+    const g = this.add.graphics();
+    g.fillStyle(0x0d1020, 0.82).fillRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
+    // Seven empty triangles, the HUD's look for lost lives, larger and centred, with 2 px lines (L-017).
+    const size = { w: 14, h: 12, gap: 6 };
+    const left = (BASE_WIDTH - (7 * size.w + 6 * size.gap)) / 2;
+    g.lineStyle(2, 0x9ba3c4, 1);
+    for (let i = 0; i < 7; i++) {
+      const x = left + i * (size.w + size.gap);
+      g.strokeTriangle(x + size.w / 2, 138, x, 138 + size.h, x + size.w, 138 + size.h);
+    }
+    this.gameOverTitle = this.add.text(BASE_WIDTH / 2, 112, 'Siete vidas gastadas', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
+    // Below the triangles (user, 2026-10-22): "Game over", then the prompt.
+    this.gameOverSubtitle = this.add.text(BASE_WIDTH / 2, 168, 'Game over', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3dc' }).setOrigin(0.5);
+    this.gameOverPrompt = this.add.text(BASE_WIDTH / 2, 186, 'Press any button to Retry', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
+    this.gameOver = this.add.container(0, 0, [g, this.gameOverTitle, this.gameOverSubtitle, this.gameOverPrompt]).setScrollFactor(0).setDepth(9).setVisible(false);
+
     // GDD-MOV-06: body hitbox, feet at the origin.
     this.body = this.add
       .container(this.run.player.x, this.run.player.y - HITBOX.height / 2, [
@@ -250,6 +278,8 @@ export class PlayScene extends Phaser.Scene {
     for (const k of this.keys.jump) k.on('down', () => this.jumpLatch.press());
     for (const k of this.keys.claw) k.on('down', () => this.clawLatch.press());
     for (const k of this.keys.fuego) k.on('down', () => this.fuegoLatch.press());
+    for (const k of this.keys.left) k.on('down', () => this.leftLatch.press());
+    for (const k of this.keys.right) k.on('down', () => this.rightLatch.press());
 
     // GDD-CTL-03: on-screen buttons on touch devices, merged with the keyboard below.
     this.touch = new TouchControls(this);
@@ -261,6 +291,7 @@ export class PlayScene extends Phaser.Scene {
         peakRise: () => this.lastPeak,
         lives: () => this.run.lives.lives,
         phase: () => this.run.phase,
+        gameOverDrawn: () => ({ shown: this.gameOver.visible, title: this.gameOverTitle.text, subtitle: this.gameOverSubtitle.text, prompt: this.gameOverPrompt.visible, promptText: this.gameOverPrompt.text }),
         invulnerable: () => this.run.invulnerable,
         bodyVisible: () => this.body.visible,
         bodyAlpha: () => this.body.alpha,
@@ -281,6 +312,7 @@ export class PlayScene extends Phaser.Scene {
           this.drawDoorsAndKeys();
           this.renderPlatforms(1);
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
+          this.drawGameOver();
         },
         ofrendas: () => this.ofrendasDrawn,
         platforms: () => level.platforms.map((p) => platformAt(p, this.run.platformTick)),
@@ -743,6 +775,13 @@ export class PlayScene extends Phaser.Scene {
     });
   }
 
+  /** GDD-LIFE-05: the screen is up while the run shows it; its prompt only once a press would be taken (after 1.0 s). */
+  private drawGameOver(): void {
+    const shown = this.run.phase === 'gameover';
+    this.gameOver.setVisible(shown);
+    this.gameOverPrompt.setVisible(shown && this.run.wait >= GAME_OVER.lockoutSteps);
+  }
+
   /** One fixed simulation step with the given input. */
   private simStep(input: PlayerInput): void {
     const before = this.run;
@@ -768,7 +807,10 @@ export class PlayScene extends Phaser.Scene {
   private renderBody(alpha: number): void {
     const lerp = (a: number, b: number) => a + (b - a) * alpha;
     const { player } = this.run;
-    if (this.run.phase === 'respawning') {
+    if (this.run.phase === 'gameover' || (this.run.phase === 'respawning' && isOutOfLives(this.run.lives))) {
+      // GDD-LIFE-05: no flip after the last life; he stays hidden until the screen is done and the restart flips him in.
+      this.body.setVisible(false);
+    } else if (this.run.phase === 'respawning') {
       // GDD-LIFE-02: hidden at first, then he drops in above the respawn point, turning once, and lands feet-first.
       const pose = flipPose(this.run.wait);
       const at = respawnPoint(this.run, level);
@@ -796,8 +838,13 @@ export class PlayScene extends Phaser.Scene {
     // Keyboard and touch work together: either can move or jump (GDD-CTL-01, GDD-CTL-03).
     this.touch.setFuego(this.run.power === 'fuego'); // the Fuego button is there only in the Fuego state (GDD-CTL-03)
     const touch = this.touch.read();
+    // Left and right also go in raw, before they cancel out in `move`: the Siete vidas gastadas screen counts a press of either (GDD-LIFE-05).
+    const left = effectiveHeld(down(this.keys.left), this.leftLatch) || touch.left === true;
+    const right = effectiveHeld(down(this.keys.right), this.rightLatch) || touch.right === true;
     const input: PlayerInput = {
-      move: Math.max(-1, Math.min(1, (down(this.keys.right) ? 1 : 0) - (down(this.keys.left) ? 1 : 0) + touch.move)),
+      left,
+      right,
+      move: Math.max(-1, Math.min(1, (effectiveHeld(down(this.keys.right), this.rightLatch) ? 1 : 0) - (effectiveHeld(down(this.keys.left), this.leftLatch) ? 1 : 0) + touch.move)),
       jumpHeld: effectiveHeld(down(this.keys.jump), this.jumpLatch) || touch.jumpHeld,
       claw: effectiveHeld(down(this.keys.claw), this.clawLatch) || touch.claw === true,
       fuego: effectiveHeld(down(this.keys.fuego), this.fuegoLatch) || touch.fuego === true,
@@ -815,6 +862,8 @@ export class PlayScene extends Phaser.Scene {
       this.jumpLatch.consume();
       this.clawLatch.consume();
       this.fuegoLatch.consume();
+      this.leftLatch.consume();
+      this.rightLatch.consume();
       this.touch.consume();
     }
     // Redraw when the lives change, and on every step while a triangle is cracking.
@@ -838,5 +887,6 @@ export class PlayScene extends Phaser.Scene {
     this.renderPlatforms(alpha);
     this.renderBody(alpha);
     this.drawClaw();
+    this.drawGameOver();
   }
 }

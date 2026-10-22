@@ -177,3 +177,21 @@ Prefer an automated check over a prose rule.
 - **Rule:** Anything an e2e test reads by pixels must be at least 2 px in each direction, and sample it in its middle, 1 px or more from any edge. Run pixel tests on both viewports before pushing.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-018 A pixel sample on the phone landed under a touch button
+
+- **Date:** 2026-10-22
+- **What went wrong:** The game-over test checked that the level is dimmed by reading a floor tile at the bottom left. On the phone viewport that spot is under the touch Left button, which is drawn above the screen, so the test failed there. The same thing happened before: a fragile-tile pixel test is skipped on the phone because the Jump button covers its tile.
+- **Root cause:** Pixel sample points were chosen on the desktop picture. On the phone the touch buttons cover the bottom corners and sit on top of everything.
+- **Rule:** Choose pixel sample points clear of the touch buttons (their boxes come from `touch().buttons`), and run pixel tests on both viewports before pushing.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-playtest (step 6 of "Writing a scenario")
+
+## L-019 A press was read from a value that had already combined two buttons
+
+- **Date:** 2026-10-22
+- **What went wrong:** The Siete vidas gastadas screen counts a new press of any button. Left and right reached the simulation only as `move`, their sum, so with right held a press of left made `move` 0: the press was lost, and its release then looked like a new press of right. The reviewer found it with a probe. My test held right and pressed jump, never the opposite direction.
+- **Root cause:** I tested the rule with buttons that are independent in the input and missed the two that are not. The input had already merged them before the new rule needed them apart.
+- **Rule:** When a rule counts presses or releases of single buttons, read each button raw, never a value that combines several (`move`), and test the pairs that combine: both directions at once.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-feature (step 5: list every input source that produces each button the rule reads, and test each). (Second time, the same PR: the fix passed raw left/right from the keys and touch buttons, but set them to false in slide-stick mode, so a stick push stopped counting. The reviewer found it.)

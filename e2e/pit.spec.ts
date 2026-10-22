@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot } from './helpers';
+import { boot, passGameOver } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 
@@ -33,6 +33,7 @@ test('GDD-LIFE-05 losing the last life restarts the world with seven lives', asy
   for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(1);
   await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
+  await passGameOver(page); // the Siete vidas gastadas screen first
   await page.waitForFunction(() => window.__PONCHO__!.lives() === 7 && window.__PONCHO__!.phase() === 'playing');
   expect(await api(page, () => window.__PONCHO__!.hudFilled())).toBe(7);
   expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: 224 });

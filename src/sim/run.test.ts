@@ -130,7 +130,9 @@ describe('GDD-LIFE-05 out of lives', () => {
     expect(r.lives.lives).toBe(1);
     const fallen = fallIn(r);
     expect(fallen.lives.lives).toBe(0);
-    const back = run(fallen, idle, RESPAWN.delaySteps);
+    const screen = run(fallen, idle, RESPAWN.delaySteps);
+    expect(screen.phase).toBe('gameover'); // the Siete vidas gastadas screen, until a press of any button after 1.0 s
+    const back = run(stepRun(run(screen, idle, 60), { move: 0, jumpHeld: true }, level), idle, 21);
     expect(back.lives.lives).toBe(LIVES_MAX);
     expect(back.phase).toBe('playing');
   });
@@ -250,7 +252,9 @@ describe('GDD-LIFE-03 ofrenda checkpoints', () => {
     for (let i = 0; i < LIVES_MAX - 1; i++) r = hurt(r);
     r = fallIn(r);
     expect(r.lives.lives).toBe(0);
-    r = go(r, idle, RESPAWN.delaySteps);
+    r = go(r, idle, RESPAWN.delaySteps + 60); // the wait, then the screen's first second
+    r = go(r, { move: 0, jumpHeld: true }, 1);
+    r = go(r, idle, 21); // the respawn flip
     expect(r.lives.lives).toBe(LIVES_MAX);
     expect(r.player).toMatchObject({ x: 24, y: 64 });
     expect(r.checkpoint).toEqual({ x: 24, y: 64 });

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot } from './helpers';
+import { boot, passGameOver } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 /** Puts Poncho on the floor inside the ofrenda at x, then waits for the game to notice. */
@@ -63,6 +63,7 @@ test('GDD-LIFE-05 losing the last life puts the ofrendas back and restarts at th
   await page.waitForFunction(() => window.__PONCHO__!.ofrendas()[0]!.used);
   for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
   await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
+  await passGameOver(page); // the Siete vidas gastadas screen first
   await page.waitForFunction(() => window.__PONCHO__!.lives() === 7 && window.__PONCHO__!.phase() === 'playing');
   expect(await api(page, () => window.__PONCHO__!.ofrendas().every((o) => !o.used))).toBe(true);
   expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: 224 });
@@ -80,7 +81,8 @@ test('GDD-AUD-02 the ofrenda sound plays on the first touch of each ofrenda, not
   await page.waitForTimeout(200);
   expect(await api(page, () => window.__PONCHO__!.sfx())).toEqual(['ofrenda', 'ofrenda']);
   for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
-  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150)); // lose the last life: the ofrendas reset
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150)); // lose the last life: the ofrendas reset on the restart
+  await passGameOver(page);
   await page.waitForFunction(() => window.__PONCHO__!.ofrendas().every((o) => !o.used));
   await page.waitForTimeout(200);
   expect(await api(page, () => window.__PONCHO__!.sfx())).toEqual(['ofrenda', 'ofrenda']);

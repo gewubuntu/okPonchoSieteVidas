@@ -24,6 +24,7 @@ npm run test:e2e
 3. Assert on game state through `window.__PONCHO__` (see `PonchoDebug` in `src/scenes/PlayScene.ts`). It only exists in the dev server, never in production builds. Extend that interface when a test needs more state.
 4. Fail on console errors (see `boot()` in `e2e/boot.spec.ts`).
 5. For anything visual, also take a screenshot into the scratchpad and look at it. Pixels are for people; tests assert on state.
+6. When a test does read pixels (`pixelsAt` in `e2e/helpers.ts`), pick points the phone's touch buttons do not cover: they sit on top of everything in the bottom corners, and `window.__PONCHO__.touch().buttons` says where (L-018). Read features at least 2 px across, from their middle (L-017).
 
 ## Screenshots for visual review
 
