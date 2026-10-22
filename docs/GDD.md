@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.26
+Version: 0.4.27
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.27** (2026-10-22) GDD-ENM-02, GDD-ENM-01, GDD-CMB-01, GDD-CMB-03, GDD-CMB-02, GDD-PWR-03: the first enemy, the Alacrán, is built, with the stomp, enemy hits, and defeat by claw and fireball; its size and speed, what counts as a stomp, how an enemy hit pushes Poncho and how enemies reset are written out as proposals.
 - **0.4.26** (2026-10-21) GDD-PWR-03, GDD-PWR-01, GDD-PWR-05, GDD-CTL-03: the chile, the Fuego state and its fireball are built (a piñata releases a chile when Poncho is not in Base); what a chile does in Base, the fireball's fall and bounce, and the Fuego touch button are written out as proposals.
 - **0.4.25** (2026-10-21) GDD-CMB-02, GDD-WLD-05, GDD-PWR-05, GDD-CTL-03: the claw swipe is built as a standard mechanic (the user's call), with fragile walls and claw-opened piñatas; the swing timing, hit box, what interrupts it and the reset on respawn are written out as proposals, and a Claw touch button is added. GDD-CTL-04: a jump or claw press that is over before the next frame still counts for one step.
 - **0.4.24** (2026-10-21) GDD-WLD-05, GDD-UI-01: doors and keys are built (and a key icon per key carried joins the HUD); how a key is picked up, what opens a door, and the reset on respawn are written out as proposals.
@@ -246,6 +247,8 @@ Status: Proposed
 
 Landing on top of a stompable enemy defeats it and bounces Poncho: 260 px/s up, or 410 px/s up if jump is held or buffered. Some enemies are not stompable (spikes) and are marked visually.
 
+- **Built (details Proposed):** a landing counts as a stomp when Poncho is falling, his hurtbox (GDD-MOV-06) overlaps the enemy's box, and on the step before his feet were at most 4 px below the enemy's top. That makes a landing on top a stomp and walking into the side or from below a hit (GDD-CMB-03). A stomp is checked before the hit, so a stomp never hurts, and it works while Poncho is invulnerable. The bounce is 410 px/s if jump is held or was pressed within the buffer window (0.1 s, GDD-MOV-03), otherwise 260 px/s, and releasing jump cuts the rise short like any jump. Several enemies stomped in one step give one bounce. Every enemy built so far is stompable; the marking for the ones that are not comes with the first of them (the cactus buddy). `STOMP` in `src/config/tuning.ts`, `src/sim/enemy.ts`.
+
 ### GDD-CMB-02 Claw swipe
 
 Status: Proposed
@@ -259,8 +262,9 @@ A short-range melee on the action button, a standard mechanic that Poncho always
 Status: Proposed
 
 - A hit is resolved by the power-up state (GDD-PWR-01): in Base it costs exactly 1 life (GDD-LIFE-02); in Taco or Fuego it only downgrades the state and costs no life. There is no separate health bar.
-- After a hit Poncho is invulnerable for 2.0 s and knocked back 80 px/s away from the source (user, 2026-10-21; built for spike hits, `HIT` in `src/config/tuning.ts`). The push is a starting speed: the run controls take over at once, so it is a nudge off the hazard, not a launch. When Poncho is dead centre on the source, the push goes against the way he faces.
+- After a hit Poncho is invulnerable for 2.0 s and knocked back 80 px/s away from the source (user, 2026-10-21; built for spike hits and the Alacrán, `HIT` in `src/config/tuning.ts`). The push is a starting speed: the run controls take over at once, so it is a nudge off the hazard, not a launch. When Poncho is dead centre on the source, the push goes against the way he faces.
 - Invulnerability does not protect from pits or crushing.
+- **Enemy hits (built, details Proposed):** touching a live enemy is a hit like a spike: the push goes away from the enemy's middle, and the hit also ends a claw swing in progress. A hit is never taken while Poncho is invulnerable (a stomp, a claw swipe and a fireball still defeat the enemy). If a spike and an enemy touch him in the same step it is one hit, from the spike.
 
 ---
 
@@ -305,7 +309,7 @@ Status: Proposed
 
 - **Built (details Proposed):** the chile is a stationary pepper that stands on top of its piñata (GDD-PWR-05) and is eaten by touch (GDD-PWR-06): Taco becomes Fuego, Fuego stays Fuego and the pepper is used up (it would give hilos, GDD-PWR-01, not built yet), and Base becomes Taco (one step better, like a Mario flower picked up when small; the GDD did not say). A press of the Fuego button (C or K on the keyboard, the touch Fuego button, GDD-CTL-01, GDD-CTL-03) in Fuego spits one fireball on that press step; holding the button spits once. In Base or Taco it does nothing. At most 2 fireballs exist at once: a press while two are in flight is ignored. With a wall right against Poncho's front there is no room for it (GDD-PWR-06): the press does nothing.
 - The fireball is a 6 x 6 px square. It starts at Poncho's front edge, level with the middle of his body, heading the way he faces at 180 px/s, and is not falling yet. It falls at 1500 px/s squared and bounces off the ground at the speed that climbs 20 px (about 245 px/s), so it bounces along the ground in a 20 px arc. It vanishes on a wall, under a ceiling, below the bottom of the level and after 3 s (180 steps). It is not stopped by spikes, ofrendas, keys or pickups. A fireball in flight keeps going when Poncho is hit or leaves Fuego; a lost life clears them. Nothing is hurt by a fireball yet: there are no enemies, ice or candles. `FIREBALL` in `src/config/tuning.ts`, `src/sim/fireball.ts`.
-- Not built yet: what fireballs hit (GDD-ENM-01, GDD-BOS-01), the Fuego sound, the spit pose, a gamepad binding (east button, GDD-CTL-02).
+- A fireball defeats the Alacrán it overlaps (GDD-ENM-02) and is used up by it. Not built yet: the other things fireballs hit (ice, candles, bosses; GDD-BOS-01), the Fuego sound, the spit pose, a gamepad binding (east button, GDD-CTL-02).
 
 ### GDD-PWR-04 Chile Fantasma (the star)
 
@@ -448,7 +452,7 @@ Status: Proposed
 - One idea per enemy, readable at a glance, with a 0.5 s telegraph before any attack.
 - Every enemy can be beaten at least one way: stomp, claw or avoidance.
 - Enemies never spawn on screen within 3 tiles of Poncho's respawn.
-- Enemy contact is resolved by GDD-CMB-03 and never costs more than 1 life.
+- Enemy contact is resolved by GDD-CMB-03 and never costs more than 1 life. (Built for the Alacrán: it is a hit like a spike, one life in Base.)
 
 ### GDD-ENM-02 World 1 bestiary
 
@@ -456,10 +460,12 @@ Status: Proposed
 
 | Enemy | Behaviour | Defeated by |
 | --- | --- | --- |
-| Alacrán (scorpion) | Patrols a platform, turns at edges | Stomp or claw |
+| Alacrán (scorpion) | Patrols a platform, turns at edges | Stomp or claw (also a fireball, GDD-PWR-03) |
 | Zopilote (vulture) | Flies a sine path, swoops after a 0.5 s telegraph | Claw |
 | Cactus buddy | Static, spiky, harmless from below | Avoid only |
 | Tlacuache (opossum) | Fast charger, plays dead after hit | Claw, stomp after wake |
+
+- **Alacrán (built, details Proposed):** a 14 x 10 px scorpion standing on the ground that walks at 30 px/s (`ENEMY` in `src/config/tuning.ts`). It starts at the place the level gives it, heading right. It turns round when its box meets a wall, flush against it, and when the ground under its leading edge ends, so it never walks off a ledge and never falls. A stomp (GDD-CMB-01), a claw swipe whose box overlaps it (GDD-CMB-02) or a fireball that overlaps it (GDD-PWR-03) defeats it; it is then gone, and a fireball that hit it is used up. Touching it any other way is a hit (GDD-CMB-03). It uses Poncho's hurtbox against its own box, like spikes: boxes that only share an edge do not touch. A defeated one stays defeated until a life is lost, when every enemy is alive again and back at its start, heading right (GDD-LIFE-02). It is a placeholder drawing of a dark red scorpion with pale claws and tail. The sandbox has one, on the platform at row 10, columns 4 to 8, which Poncho reaches from the top of the 2-tile wall; the platform is 64 px above the first ofrenda, clear of its respawn (GDD-ENM-01). Not built yet: the other three enemies, sounds, a defeat animation. `src/sim/enemy.ts`.
 
 ### GDD-BOS-01 Boss structure
 

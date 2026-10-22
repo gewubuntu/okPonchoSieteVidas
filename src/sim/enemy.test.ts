@@ -170,6 +170,24 @@ const bump = (r: RunState): RunState => {
   return r;
 };
 
+describe('GDD-CMB-01 stomp details', () => {
+  it('two enemies stomped in one step give one bounce, and both are defeated', () => {
+    const two: Level = { ...baseLevel, enemies: [def, { x: 106, y: 80 }] };
+    let r: RunState = { ...startRun(two), player: at(105, 62, 150), enemies: [alive(104), alive(106)] };
+    for (let i = 0; i < 20 && r.enemies.every((e) => e.alive); i++) r = stepRun(r, idle, two);
+    expect(r.enemies.map((e) => e.alive)).toEqual([false, false]);
+    expect(r.player.vy).toBe(-260);
+  });
+
+  it('releasing jump after the bounce cuts the rise short, like any jump', () => {
+    let r = withPlayer({ ...at(104, 62, 150), jumpWasHeld: true }, { enemies: [alive(104)] });
+    for (let i = 0; i < 20 && r.enemies[0]!.alive; i++) r = stepRun(r, { move: 0, jumpHeld: true }, baseLevel);
+    expect(r.player.vy).toBe(-410);
+    r = stepRun(r, idle, baseLevel); // jump let go while rising
+    expect(r.player.vy).toBeGreaterThan(-410 * 0.5);
+  });
+});
+
 describe('GDD-CMB-03 and GDD-ENM-01 an Alacrán hit', () => {
   it('costs a life in Base, like any hit, and the enemy stays', () => {
     const r = bump(beside('base'));
@@ -206,6 +224,16 @@ describe('GDD-CMB-03 and GDD-ENM-01 an Alacrán hit', () => {
   it('a hit from the side, not from above: standing on the same platform is not a stomp', () => {
     const r = bump(beside('taco'));
     expect(r.enemies[0]!.alive).toBe(true);
+  });
+});
+
+describe('GDD-CMB-03 a spike and an Alacrán touching him in one step', () => {
+  it('is one hit, pushed away from the spike', () => {
+    // The spike is the tile right of him (column 6, x 96 to 112) and the Alacrán is to his left, both touching.
+    const level: Level = { ...baseLevel, spikes: [{ col: 6, row: 4 }] };
+    const r = stepRun({ ...startRun(level), power: 'fuego', player: { ...spawn(100, 80), facing: 1 }, enemies: [alive(96, 1)] }, idle, level);
+    expect(r.power).toBe('taco'); // one level down, not two
+    expect(r.player.vx).toBe(-HIT.knockback); // the spike's middle (104) is to his right
   });
 });
 
