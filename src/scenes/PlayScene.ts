@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES, SANDBOX_ENEMIES } from '../levels/sandbox';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES, SANDBOX_ENEMIES, SANDBOX_ABILITIES } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
@@ -25,7 +25,7 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS, fragiles: SANDBOX_FRAGILES, enemies: SANDBOX_ENEMIES };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS, fragiles: SANDBOX_FRAGILES, enemies: SANDBOX_ENEMIES, abilities: SANDBOX_ABILITIES };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -118,6 +118,8 @@ export interface PonchoDebug {
   /** The enemies in the simulation, and where the scene painted the live ones (GDD-ENM-02). */
   enemies(): { x: number; y: number; alive: boolean; dir: number; phase: string }[];
   enemiesDrawn(): { x: number; y: number; kind: EnemyKind }[];
+  /** GDD-MOV-07: whether the spread poncho is drawn over Poncho (gliding). Read from what was drawn. */
+  glideDrawn(): boolean;
   /** Test hook: puts Poncho in a power-up state without playing for it. */
   setPower(power: Power): void;
 }
@@ -187,6 +189,8 @@ export class PlayScene extends Phaser.Scene {
   private devKeys?: Record<'lose' | 'ofrenda' | 'veladora', Phaser.Input.Keyboard.Key>;
   /** Placeholder body: a red box with a pale strip along the feet, so a flip shows which way up he is. */
   private body!: Phaser.GameObjects.Container;
+  /** GDD-MOV-07: the poncho spread like a parachute over the body while gliding (placeholder). */
+  private glideGfx!: Phaser.GameObjects.Graphics;
   private touch!: TouchControls;
   private keys!: Record<'left' | 'right' | 'jump' | 'claw' | 'fuego', Phaser.Input.Keyboard.Key[]>;
   private fragileGfx!: Phaser.GameObjects.Graphics;
@@ -280,6 +284,7 @@ export class PlayScene extends Phaser.Scene {
       .container(this.run.player.x, this.run.player.y - HITBOX.height / 2, [
         this.add.rectangle(0, 0, HITBOX.width, HITBOX.height, 0xb94842),
         this.add.rectangle(0, (HITBOX.height - FEET_HEIGHT) / 2, HITBOX.width, FEET_HEIGHT, 0xfff3dc),
+        (this.glideGfx = this.paintGlide()),
       ])
       .setDepth(3);
 
@@ -293,7 +298,8 @@ export class PlayScene extends Phaser.Scene {
       claw: [kb.addKey(K.X), kb.addKey(K.J)],
       fuego: [kb.addKey(K.C), kb.addKey(K.K)],
     };
-    // The Key 'down' event fires once per press, even when the press ends before the next frame. Repeats only set the latch again.
+    // The Key 'down' event fires for a press even when it ends before the next frame. It can fire twice for one press, and
+    // repeats fire it too (L-006), but pressing a latch again changes nothing, so only latch presses may hang on it.
     for (const k of this.keys.jump) k.on('down', () => this.jumpLatch.press());
     for (const k of this.keys.claw) k.on('down', () => this.clawLatch.press());
     for (const k of this.keys.fuego) k.on('down', () => this.fuegoLatch.press());
@@ -309,8 +315,14 @@ export class PlayScene extends Phaser.Scene {
     this.pauseTitle = this.add.text(BASE_WIDTH / 2, 120, 'Paused', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
     this.pausePrompt = this.add.text(BASE_WIDTH / 2, 146, '', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
     this.pauseScreen = this.add.container(0, 0, [dim, this.pauseTitle, this.pausePrompt]).setScrollFactor(0).setDepth(9.5).setVisible(false);
-    // Escape or P pauses and resumes; a tap or click anywhere resumes; the touch pause button does both.
-    for (const k of [kb.addKey(K.ESC), kb.addKey(K.P)]) k.on('down', () => this.pauseEvents.push('key'));
+    // Escape or P pauses and resumes; a tap or click anywhere resumes; the touch pause button does both. The keys are read
+    // from raw browser events, one per press with auto-repeat ignored: Phaser's Key 'down' event can fire again on the
+    // release when a press and release land in one frame (L-006), and here every extra event would toggle the pause back.
+    const onPauseKey = (e: KeyboardEvent) => {
+      // By keyCode, the key's label, as Phaser matches the other keys: on Dvorak or Colemak the P key still pauses.
+      if (!e.repeat && (e.keyCode === K.ESC || e.keyCode === K.P)) this.pauseEvents.push('key');
+    };
+    window.addEventListener('keydown', onPauseKey);
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.pauseEvents.push(this.touch.isPauseButton(p.x, p.y) ? 'button' : 'tap'));
     // It pauses by itself when the tab or window loses focus, or a phone is turned upright, and never resumes by itself.
     const onBlur = () => this.pauseEvents.push('blur');
@@ -329,6 +341,7 @@ export class PlayScene extends Phaser.Scene {
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('resize', onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener('keydown', onPauseKey);
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('resize', onResize);
@@ -383,6 +396,7 @@ export class PlayScene extends Phaser.Scene {
         fireballsDrawn: () => this.fireballsPainted,
         enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? level.enemies[i]!.y, alive: e.alive, dir: e.dir, phase: e.flight?.phase ?? e.gait?.phase ?? 'walk' })),
         enemiesDrawn: () => this.enemiesPainted,
+        glideDrawn: () => this.glideGfx.visible,
         setPower: (power) => {
           this.run = { ...this.run, power };
           this.drawHud();
@@ -427,6 +441,18 @@ export class PlayScene extends Phaser.Scene {
         g.fillRect(tx * TILE, ty * TILE, TILE, TILE).strokeRect(tx * TILE + 0.5, ty * TILE + 0.5, TILE - 1, TILE - 1);
       }
     }
+  }
+
+  /**
+   * Placeholder spread poncho (GDD-MOV-07): a bar 28 px wide and 4 px tall just above the body, in red and cream stripes 4 px
+   * wide (the serape), with a dark edge, drawn while gliding.
+   */
+  private paintGlide(): Phaser.GameObjects.Graphics {
+    const g = this.add.graphics().setVisible(false);
+    const top = -HITBOX.height / 2 - 6;
+    for (let i = 0; i < 7; i++) g.fillStyle(i % 2 === 0 ? 0xb94842 : 0xfff3dc, 1).fillRect(-14 + i * 4, top, 4, 4);
+    g.lineStyle(1, 0x5e0f0a, 1).strokeRect(-14.5, top - 0.5, 29, 5);
+    return g;
   }
 
   /**
@@ -877,6 +903,7 @@ export class PlayScene extends Phaser.Scene {
     } else {
       this.body.setPosition(lerp(this.prevPlayer.x, player.x), lerp(this.prevPlayer.y, player.y) - HITBOX.height / 2).setRotation(0).setVisible(true);
     }
+    this.glideGfx.setVisible(this.run.phase === 'playing' && player.gliding === true);
     // The blink phase comes from the invulnerability counter, so it is the same every time: bright for the first
     // 0.1 s after a respawn, then dim and bright in turn.
     this.body.setAlpha(Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);

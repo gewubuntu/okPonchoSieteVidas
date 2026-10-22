@@ -1,7 +1,7 @@
 // GDD-LIFE-02 and GDD-LIFE-05: one play-through of a level, tying movement, lives and respawn together.
 // Pure logic, no Phaser (GDD-TEC-02). After the last life the run shows the "Siete vidas gastadas" screen until a press
 // of any button, then restarts the world. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
-import { FIREBALL, FLIP, GAME_OVER, HIT, HITBOX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
+import { FIREBALL, FLIP, GAME_OVER, GLIDE, HIT, HITBOX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
 import { withFragiles, type Fragile } from './fragile';
@@ -16,7 +16,7 @@ import { bounce, withSprings, type Spring } from './spring';
 import { touchesSpike, type Spike } from './hazards';
 import { eat, freshTacos, touchesTaco, type Power, type Taco } from './taco';
 import { activateOfrenda, isOutOfLives, loseLife, startWorld, type LivesState } from './lives';
-import { spawn, step, type PlayerInput, type PlayerState } from './movement';
+import { spawn, step, type Abilities, type PlayerInput, type PlayerState } from './movement';
 import type { TileGrid } from './tilemap';
 
 export interface Point {
@@ -54,6 +54,8 @@ export interface Level {
   readonly fragiles: readonly Fragile[];
   /** GDD-ENM-02: where the enemies start. */
   readonly enemies: readonly Enemy[];
+  /** GDD-MOV-07, GDD-PRG-01: the abilities unlocked here. Left out means none. */
+  readonly abilities?: Abilities;
 }
 
 export interface RunState {
@@ -187,7 +189,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   // GDD-WLD-05: a platform carries Poncho, then he lands on the one he came down on.
   const solid = withFragiles(withDoors(withPinatas(withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles), level.pinatas), level.doors, run.doorsOpen), level.fragiles, run.fragilesBroken);
   const carried = carry(run.player, level.platforms, run.platformTick, solid);
-  const stepped = step(carried, input, solid);
+  const stepped = step(carried, input, solid, level.abilities);
   const landed = landOnPlatforms(carried, stepped, level.platforms, run.platformTick);
   const platformTick = run.platformTick + 1;
   // GDD-WLD-05: a spring throws Poncho up the step he stands on it.
@@ -197,7 +199,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   const patrolled = level.enemies.map((d, i) => stepEnemy(d, run.enemies[i]!, solid, run.player));
   const stomped = patrolled.map((e, i) => isStomp(run.player, sprung, level.enemies[i]!, e));
   const player = stomped.some(Boolean)
-    ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0 }
+    ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0, gliding: false, glideLock: GLIDE.stompLockSteps }
     : sprung;
   const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
   if (isInPit(player, level.world)) {

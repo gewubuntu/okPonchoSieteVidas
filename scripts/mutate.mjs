@@ -51,7 +51,8 @@ for (const m of mutants) {
   writeFileSync(MARKER, JSON.stringify({ file: m.file, original }));
   try {
     writeFileSync(path, original.replace(m.from, () => m.to));
-    const r = spawnSync(test, { cwd: ROOT, shell: true, stdio: 'ignore' });
+    // PONCHO_MUTATING tells scripts/check.mjs not to fail on this run's own marker, so the gate can be a mutant's test.
+    const r = spawnSync(test, { cwd: ROOT, shell: true, stdio: 'ignore', env: { ...process.env, PONCHO_MUTATING: '1' } });
     if (r.status === 0) survived++;
     console.log(`${r.status === 0 ? 'GREEN (survived)' : 'RED  '} ${m.name}`);
   } finally {

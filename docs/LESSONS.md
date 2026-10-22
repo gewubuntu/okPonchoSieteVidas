@@ -76,8 +76,9 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** The HUD's dev key used `keydown-L` event handlers. When three presses landed in one frame (as Playwright's instant `press()` does), Phaser 4.2.1 ran the handler up to seven times, so lives dropped by 6 or 7 instead of 3. Switching to `JustDown` polling then missed taps that started and ended inside one frame, because `Key.onUp` clears the just-pressed flag.
 - **Root cause:** Keyboard input was handled through the engine's convenience layer without checking how it treats several events in one frame. The e2e test only pressed one key once, so it passed; a screenshot taken after three quick presses exposed it.
 - **Rule:** For game input, test taps that are quick and repeated, and test with a realistic key hold time. Do not rely on `keydown-X` event handlers for game logic. Poll key state per fixed step. For the jump button (GDD-CTL-04, GDD-MOV-03) a press shorter than one frame must still count, so latch presses from raw key events before relying on polling.
-- **Recurrence:** 2
-- **Promoted:** (second time, PR #27: the claw press, which needs an edge, was polled the same way and a tap inside one frame was lost; the reviewer measured 0 swings of 8) `src/ui/inputLatch.ts` (jump and claw, keyboard and touch, are latched from raw events and cleared by the step that uses them), `e2e/subframe.spec.ts` (taps dispatched inside one task for X, J, Space and both touch buttons), and a rule in CLAUDE.md
+- **Recurrence 3 (2026-10-22, PR #37):** the pause keys (GDD-UI-02) used Phaser `Key` `down` events. A probe of 40 real presses showed one press firing `down` twice in most runs, toggling the pause straight back; it surfaced as a CI flake in `e2e/pause.spec.ts`. Pause now reads raw `keydown` events by `keyCode` (the key's label, so the P key pauses on Dvorak too), auto-repeat ignored. A playtest of 40 real presses fails with the old wiring only in some runs (about one in four), so the deterministic guard is a gate check: `scripts/check.mjs` (`key-down-handlers`) allows a Phaser key-down event (`'down'`, `Events.DOWN`, `'keydown-X'`) in `src/` only in the one-line form that presses a latch, so a multi-line, named or `once` handler fails by default. Gate-check mutants run through `scripts/mutate.mjs` are judged correctly: the runner sets `PONCHO_MUTATING` so `no-mutation` does not fail on the run's own marker.
+- **Recurrence:** 3
+- **Promoted:** `scripts/check.mjs` (`key-down-handlers`, Recurrence 3); before that (second time, PR #27: the claw press, which needs an edge, was polled the same way and a tap inside one frame was lost; the reviewer measured 0 swings of 8) `src/ui/inputLatch.ts` (jump and claw, keyboard and touch, are latched from raw events and cleared by the step that uses them), `e2e/subframe.spec.ts` (taps dispatched inside one task for X, J, Space and both touch buttons), and a rule in CLAUDE.md
 
 ## L-007 A visible change was built and merged without the user seeing it
 
@@ -232,3 +233,13 @@ Prefer an automated check over a prose rule.
 - **Rule:** For an overlay, sample one pixel it must dim and one it must leave alone (HUD, buttons). For anything checked on an event and also once at start (orientation, focus, storage), add a test that starts in that state.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-024 A new rule on a held button took a short press away from an older rule
+
+- **Date:** 2026-10-22
+- **What went wrong:** The glide read "jump held while falling". A one-step jump press just before landing, which the jump buffer (GDD-MOV-03) turns into a jump on landing, now also glided for that step, slowed the fall, and landed after the buffer had run out: no jump. The new unit tests were green; the old spring playtest that times a buffered press caught it.
+- **Root cause:** The new rule and the jump buffer both read the jump button while falling, and nothing checked them together.
+- **Rule:** When a new rule reads a button that an existing rule already reads (jump buffer, coyote time, variable jump, stomp boost), list those rules, write a unit test that plays each one with the new rule switched on, and run the whole playtest suite before showing screenshots.
+- **Recurrence 2 (2026-10-22, same PR, found by the review):** the list missed GDD-UI-02. A jump pressed while paused and held through the resume (marked as held by `resumeHeld`) still glided, because the glide counted any held input instead of a press the simulation saw.
+- **Recurrence:** 2
+- **Promoted:** step 5 of the `harness-feature` skill (input rules): list every rule that already reads the button, including the "already held" marks of the respawn and of the pause resume, and test each with the new rule on.

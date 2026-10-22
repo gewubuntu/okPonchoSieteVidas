@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.34
+Version: 0.4.35
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.35** (2026-10-22) GDD-MOV-07, GDD-PRG-01, GDD-MVP-02: the glide is built ahead of the MVP, behind an ability flag a level turns on (the sandbox does, until World 2 can unlock it): holding jump while falling caps the fall at 70 px/s, sideways movement unchanged, as long as jump is held; not within 150 ms of a stomp bounce; a placeholder spread poncho is drawn (user decisions, 2026-10-22: unlock flag on in the sandbox, jump held as he falls, a wide poncho bar). New proposal: a glide starts only once jump has been held longer than the 0.1 s jump buffer (GDD-MOV-03), so a press just before landing stays a buffered jump. The hold counts from a press the game saw, so a jump pressed while paused or held through a respawn does not glide (GDD-UI-02). GDD-UI-02, GDD-CTL-01: Escape and P now pause on every keyboard layout and every quick press counts once (they are read from the browser's own key events by the key's label).
 - **0.4.34** (2026-10-22) GDD-UI-02, GDD-UI-01, GDD-CTL-01, GDD-CTL-03: the pause in a level is built: Escape or P, or a touch pause button in the top-right corner, pauses under a dimmed screen; the same key or button, or a tap anywhere, resumes; losing focus or a hidden tab pauses, and so does a phone turned upright, which first asks to be turned sideways; a press made while paused does nothing until pressed again (user decisions, 2026-10-22: resume only, button top-right, auto-pause on focus and portrait, resume with the pause key or a tap). The rest of the menus wait for a title screen.
 - **0.4.33** (2026-10-22) GDD-LIFE-04: the last-life pulse is built: with one life left its HUD triangle grows to 1.4x and back every 0.8 s; the size and timing are written out as proposals. The music shift and the double hilo score wait for music and hilos.
 - **0.4.32** (2026-10-22) GDD-LIFE-02: "any input" that skips the respawn wait now really is any input: claw, Fuego, and left and right held together count too, as jump and a direction already did (a gap the GDD-LIFE-05 review found; user, 2026-10-22: fix it).
@@ -241,6 +242,11 @@ Status: Proposed. Post-MVP (GDD-MVP-02), unlocked by GDD-PRG-01.
 
 Hold jump while falling: the poncho spreads like a parachute. Fall speed capped at 70 px/s, horizontal speed unchanged. Lasts as long as the button is held. Cannot be started within 150 ms of a stomp bounce.
 
+- **Built (unlock flag, start and look decided by the user 2026-10-22, details Proposed):** an ability flag on the level turns the glide on (`abilities` in `src/sim/run.ts`); the sandbox level has it on so it can be played until clearing World 2 unlocks it (GDD-PRG-01). Holding jump (any jump key or the touch Jump button) while falling glides: a jump held from takeoff glides as soon as he starts to fall, and a press while already falling (off a ledge, or after letting go) glides too. While gliding the fall speed is capped at 70 px/s (a slower fall speeds up to it as usual), and running and steering in the air are as in any fall. Letting go ends it and he falls as usual; pressing again glides again. Landing, on tiles or a moving platform, ends it.
+- **Start after the jump buffer (Proposed):** a glide starts only once jump has been held for more than 0.1 s (6 steps, the jump buffer of GDD-MOV-03), so a press just before landing is still a buffered jump and does not glide him past the window. A jump held from takeoff is long past that at the top. The hold counts from a press the game saw: a jump still held after a respawn, or pressed while paused and held through the resume (GDD-UI-02), does not glide until it is pressed again; a glide held through a pause carries on.
+- **Stomp lock:** a stomp bounce (GDD-CMB-01) starts a 150 ms lock (9 steps) in which a glide cannot start; a spring launch has none (it rises far longer than that). `GLIDE` in `src/config/tuning.ts`, `src/sim/movement.ts`.
+- **Look (placeholder):** a bar 28 x 4 px in red and cream serape stripes 4 px wide, just above the body, drawn while gliding. Not built yet: the glide sprite and sound.
+
 ### GDD-MOV-08 Wall cling and kick
 
 Status: Proposed. Post-MVP (GDD-MVP-02), unlocked by GDD-PRG-01.
@@ -364,7 +370,7 @@ Status: Proposed
 | Fuego (fireball) | C or K |
 | Pause | Escape or P |
 
-Keys are remappable (GDD-UI-03). Pause is built (GDD-UI-02).
+Keys are remappable (GDD-UI-03). Pause is built (GDD-UI-02); its keys go by their label, so they work on any layout.
 
 ### GDD-CTL-02 Gamepad
 
@@ -501,7 +507,7 @@ A giant vulture, Don Zopilote, circles the arena and drops cactus fruit. Phase 1
 
 Status: Proposed
 
-- Clearing worlds unlocks permanent **abilities** in order (these are not the temporary power-ups of section 6): Glide (GDD-MOV-07, after World 2), Wall cling (GDD-MOV-08, after World 3). Further powers are open (GDD-MVP-02).
+- Clearing worlds unlocks permanent **abilities** in order (these are not the temporary power-ups of section 6): Glide (GDD-MOV-07, after World 2), Wall cling (GDD-MOV-08, after World 3). Further powers are open (GDD-MVP-02). Until there are worlds, a level turns an ability on itself: the sandbox has the glide on.
 - Hilos buy cosmetics for the poncho (patterns and colours). Cosmetics never change gameplay.
 
 ### GDD-PRG-02 Save system
@@ -537,7 +543,7 @@ Status: Proposed
 Boot, title, world map, level, pause, results, settings. Fully operable by touch, keyboard and gamepad. Pause happens automatically if the tab loses focus or the device rotates to portrait.
 
 - **Pause in a level (built; resume only, the button top-right, auto-pause on focus and portrait and resume with the pause key or a tap decided by the user 2026-10-22, details Proposed):** Escape or P (GDD-CTL-01), or the touch pause button, pauses. The pause button sits in the top-right corner, 6 px from both edges, 24 px, growing like the other buttons so it is never under 48 CSS px (`TOUCH.pauseSize` in `src/config/tuning.ts`); it shows only on touch devices, drawn as two upright bars. The level stands still under a dim layer with "Paused" and a prompt: "Press Escape or P to resume" on a keyboard, "Tap to resume" on touch. The HUD and the touch buttons stay on top. The pause screen offers only resuming until there is a title screen and settings.
-- **Resume:** Escape or P again, the pause button, or a tap or click anywhere. The game keys (jump, claw, Fuego, moving) do not resume; on touch any tap does, on a game button too, but that tap is no game press. A button pressed while paused (the Jump button under the tap that resumed, a key pressed while the game stood still) does nothing until it is released and pressed again, also on the *Siete vidas gastadas* screen (GDD-LIFE-05); a button held since before the pause stays held, so a run or a jump carries on.
+- **Resume:** Escape or P again (each press counts once, on any keyboard layout), the pause button, or a tap or click anywhere. The game keys (jump, claw, Fuego, moving) do not resume; on touch any tap does, on a game button too, but that tap is no game press. A button pressed while paused (the Jump button under the tap that resumed, a key pressed while the game stood still) does nothing until it is released and pressed again, also on the *Siete vidas gastadas* screen (GDD-LIFE-05); a button held since before the pause stays held, so a run or a jump carries on.
 - **Automatic pause:** the tab or window losing focus or being hidden pauses; it never resumes by itself. A touch device whose screen is upright pauses (the screen's orientation decides, or the window's shape where the browser has none), also when the level starts that way, and the prompt reads "Turn your device sideways", larger (12 px, against 8 px), since the whole level is drawn small; no key, button or tap resumes until it is sideways again, and then it stays paused until the player resumes. A desktop window made taller than wide does not pause, nor does a touchscreen laptop's, whose screen stays landscape. `src/sim/pause.ts`.
 - **Not built yet:** boot, title, world map, results and settings screens; the gamepad start button (GDD-CTL-02).
 
@@ -703,6 +709,8 @@ Done means: the `harness-playtest` skill passes on desktop and a phone viewport,
 Status: Proposed
 
 Worlds 2 to 7, Chile Fantasma (GDD-PWR-04), glide, wall cling, further powers, medals and score, cosmetics shop, full soundtrack, localisation beyond English and Spanish, native packaging (new ADR).
+
+The glide is built early but stays off in real levels; only the sandbox turns it on (GDD-MOV-07).
 
 ---
 

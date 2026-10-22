@@ -93,6 +93,38 @@ test('GDD-UI-02 a pause key tapped inside one frame still pauses (L-006)', async
   await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
 });
 
+test('GDD-UI-02 every real press of P or Escape toggles the pause exactly once, and auto-repeat is no press (L-006)', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await started(page);
+  // Phaser's Key 'down' event, which pause used before, fired a second time for some quick presses (measured: about one
+  // run in two of 40 presses), toggling the pause straight back. Each press here must land.
+  for (let i = 1; i <= 40; i++) {
+    await page.keyboard.press(i % 3 === 0 ? 'Escape' : 'KeyP');
+    await page.waitForFunction((want) => window.__PONCHO__!.playerPause().paused === want, i % 2 === 1, { timeout: 2000 });
+  }
+  expect(await paused(page)).toBe(false);
+  // The key labelled P pauses on any layout: on Dvorak it sits where QWERTY has R (code KeyR, keyCode 80), and the key in
+  // QWERTY's P position types L there (code KeyP, keyCode 76), which does not pause.
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyP', key: 'l', keyCode: 76, bubbles: true })));
+  await frames(page);
+  expect(await paused(page)).toBe(false);
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyR', key: 'p', keyCode: 80, bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyR', key: 'p', keyCode: 80, bubbles: true }));
+  });
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+  // A held key's auto-repeat is no new press.
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyP', keyCode: 80, bubbles: true }));
+    for (let n = 0; n < 5; n++) window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyP', keyCode: 80, repeat: true, bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyP', keyCode: 80, bubbles: true }));
+  });
+  await frames(page);
+  expect(await paused(page)).toBe(true);
+});
+
 test('GDD-UI-02 losing focus pauses, and it does not resume by itself', async ({ page }) => {
   await started(page);
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));

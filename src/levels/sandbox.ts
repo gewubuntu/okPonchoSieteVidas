@@ -113,3 +113,6 @@ export const SANDBOX_ENEMIES: readonly Enemy[] = [
   // reach and 128 px above the third ofrenda.
   { x: 440, y: 6 * TILE, kind: 'tlacuache' },
 ];
+
+/** GDD-MOV-07: the glide is on in the sandbox, so it can be played, until clearing World 2 unlocks it (GDD-PRG-01). */
+export const SANDBOX_ABILITIES = { glide: true } as const;

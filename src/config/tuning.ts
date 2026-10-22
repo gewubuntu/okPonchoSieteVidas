@@ -50,6 +50,13 @@ export const GRAVITY = {
   hangMultiplier: 0.5,
 } as const;
 
+/**
+ * GDD-MOV-07: holding jump while falling caps the fall at `fallSpeed`; not within `stompLockSteps` (150 ms) of a stomp bounce,
+ * and only once jump has been held for more than `holdSteps`, the jump buffer (GDD-MOV-03), so a press just before landing
+ * stays a buffered jump.
+ */
+export const GLIDE = { fallSpeed: 70, stompLockSteps: Math.round(0.15 * TICK_HZ), holdSteps: FORGIVENESS.bufferSteps } as const;
+
 /** GDD-MOV-06: body hitbox for ground and walls, hurtbox for enemies and hazards, sprite frame. */
 export const HITBOX = { width: 12, height: 14 } as const;
 export const HURTBOX = { width: 10, height: 12 } as const;

@@ -272,13 +272,33 @@ function checkToolchain() {
   return errors;
 }
 
-// L-020: a mutation run that was killed leaves its marker, and the mutated file, behind (scripts/mutate.mjs).
+// L-006: Phaser's Key 'down' event can fire again for a press when a press and release land in one frame. Only an
+// idempotent latch press may hang on a Phaser key event. An allowlist: every line in src/ (tests aside) that names a Phaser
+// key-down event ('down', Events.DOWN, 'keydown-X') must be exactly that one-line form, so a multi-line or named handler
+// fails by default. Raw window 'keydown' listeners are not Phaser's and are allowed.
+function checkKeyDownHandlers() {
+  const errors = [];
+  const names = /['"]down['"]|Events\.DOWN\b|['"]keydown-/;
+  const allowed = /^\s*for \(const k of this\.keys\.\w+\) k\.on\('down', \(\) => this\.\w+Latch\.press\(\)\);$/;
+  for (const f of textFiles().filter((p) => p.startsWith(join('src', '')) && p.endsWith('.ts') && !p.endsWith('.test.ts'))) {
+    read(f).split('\n').forEach((line, i) => {
+      if (/^\s*(\/\/|\*|\/\*)/.test(line)) return; // comments may name the events
+      if (names.test(line) && !allowed.test(line)) errors.push(`${f.split(sep).join('/')}:${i + 1}: a Phaser key-down event may only press a latch, as \`for (const k of this.keys.x) k.on('down', () => this.xLatch.press());\` (L-006)`);
+    });
+  }
+  return errors;
+}
+
+// L-020: a mutation run that was killed leaves its marker, and the mutated file, behind (scripts/mutate.mjs). The runner
+// itself sets PONCHO_MUTATING for the test it runs, so a mutant tested against the gate is judged by the other checks.
 function checkNoMutation() {
+  if (process.env['PONCHO_MUTATING'] === '1') return [];
   return exists('.mutating.json') ? ['.mutating.json exists: a mutation run was interrupted and a file may still be mutated. Run node scripts/mutate.mjs --restore'] : [];
 }
 
 const checks = [
   ['no-mutation', checkNoMutation],
+  ['key-down-handlers', checkKeyDownHandlers],
   ['gdd', checkGdd],
   ['gdd-references', checkReferences],
   ['backlog', checkBacklog],
