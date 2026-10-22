@@ -36,7 +36,7 @@ test('GDD-LIFE-05 the screen comes up when the wait after the last life ends, ov
   await step(page, 1);
   await frames(page);
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('gameover');
-  expect(await drawn(page)).toEqual({ shown: true, title: 'Siete vidas gastadas', prompt: false });
+  expect(await drawn(page)).toEqual({ shown: true, title: 'Siete vidas gastadas', subtitle: 'Game over', prompt: false, promptText: 'Press any button to Retry' });
   expect(await api(page, () => window.__PONCHO__!.bodyVisible())).toBe(false);
   const after = (await pixelsAt(page, [floorTile]))[0]!;
   expect(brightness(after)).toBeLessThan(brightness(before) / 2);
@@ -71,7 +71,7 @@ test('GDD-LIFE-05 it waits for a jump press; the prompt and the press both start
   expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: 224 });
 });
 
-test('GDD-LIFE-05 a real Space press ends the screen', async ({ page }) => {
+test('GDD-LIFE-05 a real key press ends the screen: Space, or any other game button such as X', async ({ page }) => {
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());

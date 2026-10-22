@@ -44,8 +44,11 @@ export class TouchControls {
   private drawnPressed: TouchButtonId[] = [];
   private mode: TouchMode = loadMode();
   private stick = 0;
-  /** L-006: a tap on Jump or Claw that is over before the next poll still counts for one step. */
+  /** L-006: a tap on Jump or Claw that is over before the next poll still counts for one step. Left and right too: a tap of
+   * either ends the Siete vidas gastadas screen (GDD-LIFE-05). */
   private readonly jumpLatch = new InputLatch();
+  private readonly leftLatch = new InputLatch();
+  private readonly rightLatch = new InputLatch();
   private readonly clawLatch = new InputLatch();
   private readonly fuegoLatch = new InputLatch();
   /** GDD-PWR-03: whether the Fuego button is shown, which is only while Poncho is in the Fuego state. */
@@ -66,6 +69,8 @@ export class TouchControls {
       if (hit.has('jump')) this.jumpLatch.press();
       if (hit.has('claw')) this.clawLatch.press();
       if (hit.has('fuego')) this.fuegoLatch.press();
+      if (hit.has('left')) this.leftLatch.press();
+      if (hit.has('right')) this.rightLatch.press();
     });
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off(Phaser.Scale.Events.RESIZE, onResize));
   }
@@ -95,6 +100,8 @@ export class TouchControls {
     if (effectiveHeld(false, this.jumpLatch)) effective.add('jump');
     if (effectiveHeld(false, this.clawLatch)) effective.add('claw');
     if (effectiveHeld(false, this.fuegoLatch)) effective.add('fuego');
+    if (effectiveHeld(false, this.leftLatch)) effective.add('left');
+    if (effectiveHeld(false, this.rightLatch)) effective.add('right');
     return touchInput(effective, stick);
   }
 
@@ -103,6 +110,8 @@ export class TouchControls {
     this.jumpLatch.consume();
     this.clawLatch.consume();
     this.fuegoLatch.consume();
+    this.leftLatch.consume();
+    this.rightLatch.consume();
   }
 
   /** Shows or hides the Fuego button (GDD-PWR-03, GDD-CTL-03). */

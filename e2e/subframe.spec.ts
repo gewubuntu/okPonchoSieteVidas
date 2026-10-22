@@ -52,7 +52,7 @@ test('L-006 a jump tap shorter than one frame still makes Poncho jump', async ({
 });
 
 /** Where the centre of a touch button is on the page, in CSS px. */
-async function buttonCentre(page: Page, id: 'claw' | 'jump') {
+async function buttonCentre(page: Page, id: 'claw' | 'jump' | 'left' | 'right') {
   const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === id)!;
   const box = (await page.locator('canvas').boundingBox())!;
   const k = box.width / 480;
@@ -131,3 +131,32 @@ test('GDD-PWR-03 the Fuego button shows only in Fuego, and a touch tap inside on
   await page.evaluate(() => window.__PONCHO__!.setPower('taco'));
   await page.waitForFunction(() => !window.__PONCHO__!.touch().buttons.some((x) => x.id === 'fuego'));
 });
+
+/** GDD-LIFE-05: loses the last life and waits until the Siete vidas gastadas screen takes presses. */
+async function onGameOver(page: Page): Promise<void> {
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
+  await page.waitForFunction(() => window.__PONCHO__!.gameOverDrawn().prompt);
+}
+
+for (const [code, keyCode] of [['ArrowLeft', 37], ['ArrowRight', 39], ['KeyX', 88], ['KeyC', 67]] as const) {
+  test(`GDD-LIFE-05 a ${code} tap inside one frame ends the Siete vidas gastadas screen`, async ({ page, isMobile }) => {
+    test.skip(isMobile, 'keyboard test');
+    await onGameOver(page);
+    await tapKey(page, code, keyCode, 1);
+    await page.waitForFunction(() => window.__PONCHO__!.phase() !== 'gameover');
+    expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  });
+}
+
+for (const id of ['left', 'right', 'claw'] as const) {
+  test(`GDD-LIFE-05 a touch tap on ${id} inside one frame ends the Siete vidas gastadas screen`, async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'touch device only');
+    await onGameOver(page);
+    await tapTouch(page, await buttonCentre(page, id));
+    await page.waitForFunction(() => window.__PONCHO__!.phase() !== 'gameover');
+    expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  });
+}

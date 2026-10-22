@@ -52,18 +52,30 @@ describe('GDD-LIFE-05 the Siete vidas gastadas screen', () => {
     expect(stepRun(r, right, level).phase).toBe('gameover');
   });
 
-  it('stays up for as long as no jump is pressed, whatever else is held', () => {
+  it('stays up for as long as nothing is pressed', () => {
     expect(run(onScreen(), idle, 600).phase).toBe('gameover');
-    expect(run(onScreen(), right, 600).phase).toBe('gameover');
-    expect(run(onScreen(), { move: 0, jumpHeld: false, claw: true, fuego: true }, 600).phase).toBe('gameover');
   });
 
-  it('a jump held since before it appeared does not count: it takes a new press', () => {
+  it('any button ends it: jump, claw, Fuego, left or right', () => {
+    for (const input of [jump, right, { move: -1, jumpHeld: false }, { move: 0, jumpHeld: false, claw: true }, { move: 0, jumpHeld: false, fuego: true }] as PlayerInput[]) {
+      expect(stepRun(run(onScreen(), idle, 60), input, level).phase, JSON.stringify(input)).toBe('respawning');
+    }
+  });
+
+  it('a button held since before it appeared does not count: it takes a new press', () => {
+    for (const held of [jump, right, { move: 0, jumpHeld: false, claw: true }] as PlayerInput[]) {
+      let r = run(lastLifeLost(), idle, 47);
+      r = run(r, held, 300); // pressed on the last wait step and held throughout
+      expect(r.phase, JSON.stringify(held)).toBe('gameover');
+      r = run(r, idle, 1);
+      expect(stepRun(r, held, level).phase, JSON.stringify(held)).toBe('respawning'); // released and pressed again
+    }
+  });
+
+  it('holding one button and pressing another counts as a press', () => {
     let r = run(lastLifeLost(), idle, 47);
-    r = run(r, jump, 300); // pressed on the last wait step and held throughout
-    expect(r.phase).toBe('gameover');
-    r = run(r, idle, 1);
-    expect(stepRun(r, jump, level).phase).toBe('respawning'); // released and pressed again
+    r = run(r, right, 300);
+    expect(stepRun(r, { move: 1, jumpHeld: true }, level).phase).toBe('respawning');
   });
 
   it('ignores a press in its first 1.0 s (60 steps) and takes one after', () => {
