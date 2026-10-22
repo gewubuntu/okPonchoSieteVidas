@@ -25,7 +25,7 @@ test('GDD-ENM-02 the cactus buddy stands still on top of the 2-tile wall and is 
   await step(page, 120);
   expect(await cactus(page)).toEqual(first);
   await frames(page);
-  const painted = (await api(page, () => window.__PONCHO__!.enemiesDrawn())).find((e) => e.y === 192)!;
+  const painted = (await api(page, () => window.__PONCHO__!.enemiesDrawn())).find((e) => e.kind === 'cactus')!;
   expect([painted.x, painted.y]).toEqual([184, 192]);
   expect((await pixelsAt(page, [{ x: 182, y: 186 }, { x: 186, y: 184 }, { x: 183, y: 180 }])).some(green)).toBe(true);
 });

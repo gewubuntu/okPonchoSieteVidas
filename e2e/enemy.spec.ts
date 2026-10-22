@@ -17,7 +17,7 @@ const body = (c: Colour) => c.r > 130 && c.r < 180 && c.g < 90 && c.b < 70; // t
 const pale = (c: Colour) => c.r > 200 && c.g > 190 && c.b > 140; // the claws' 233 211 163
 const enemy = async (page: Page) => (await api(page, () => window.__PONCHO__!.enemies()))[0]!;
 // The sandbox also has a Zopilote, high up (e2e/zopilote.spec.ts); the Alacrán is the one standing on y = 160.
-const scorpionsDrawn = (page: Page) => api(page, () => window.__PONCHO__!.enemiesDrawn().filter((e) => e.y === 160));
+const scorpionsDrawn = (page: Page) => api(page, () => window.__PONCHO__!.enemiesDrawn().filter((e) => e.kind === 'alacran'));
 
 test('GDD-ENM-02 the Alacrán patrols its platform, turns at both ends and is painted where it is', async ({ page }) => {
   await start(page);

@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { TILE } from '../config/tuning';
 import { freshEnemies, stepEnemy, touchesEnemy } from '../sim/enemy';
 import { spawn, type PlayerState } from '../sim/movement';
+import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
-import { SANDBOX_ENEMIES, SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN } from './sandbox';
+import { SANDBOX_ENEMIES, SANDBOX_OFRENDAS, SANDBOX_PINATAS, SANDBOX_PLATFORMS, SANDBOX_ROWS, SANDBOX_SPAWN } from './sandbox';
 
 const world = parseTiles(SANDBOX_ROWS);
 const def = SANDBOX_ENEMIES.find((e) => e.kind === 'zopilote')!;
@@ -52,5 +53,41 @@ describe('GDD-ENM-02 the sandbox cactus buddy', () => {
     expect(cactus.y).toBe(12 * TILE); // on the wall top
     for (const x of [166, 170, 173]) expect(touchesEnemy(standing(x, 12 * TILE), cactus, state), `x = ${x}`).toBe(false);
     expect(touchesEnemy(standing(174, 12 * TILE), cactus, state)).toBe(true);
+  });
+});
+
+describe('GDD-ENM-02 the sandbox Tlacuache and its ledge (row 6, columns 25 to 29, x 400 to 480, top y = 96)', () => {
+  const tlacuache = SANDBOX_ENEMIES.find((e) => e.kind === 'tlacuache')!;
+  const away = standing(24, 14 * TILE);
+
+  it('stands on the ledge and walks it end to end without leaving it', () => {
+    expect(tlacuache.y).toBe(6 * TILE);
+    let s = freshEnemies([tlacuache])[0]!;
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = 0; i < 2000; i++) {
+      s = stepEnemy(tlacuache, s, world, away);
+      min = Math.min(min, s.x);
+      max = Math.max(max, s.x);
+    }
+    expect(min).toBeCloseTo(400 + 8, 6); // it turns where the ground under its leading edge ends
+    expect(max).toBe(480 - 8); // flush against the right edge of the level
+  });
+
+  it('Poncho gets onto it from the moving platform at its right end, with a jump to the right', () => {
+    const sandbox: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: [], spikes: [], crumbles: [], springs: [], platforms: SANDBOX_PLATFORMS, tacos: [], pinatas: SANDBOX_PINATAS, doors: [], keys: [], fragiles: [], enemies: [] };
+    // The platform reaches its right end (x 336 to 384) after 96 px at 40 px/s, 144 steps.
+    let r: RunState = { ...startRun(sandbox), player: standing(378, 128), platformTick: 144 };
+    let landed = false;
+    for (let i = 0; i < 120 && !landed; i++) {
+      r = stepRun(r, { move: 1, jumpHeld: i < 20 }, sandbox);
+      landed = r.player.grounded && r.player.y === 96;
+    }
+    expect(landed).toBe(true);
+    expect(r.player.x).toBeGreaterThan(400);
+  });
+
+  it('is out of the Zopilote\'s reach: it never spots Poncho anywhere on the ledge', () => {
+    for (let x = 406; x <= 474; x += 4) expect(spotted(standing(x, 6 * TILE)), `x = ${x}`).toBe(false);
   });
 });

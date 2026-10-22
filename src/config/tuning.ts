@@ -132,6 +132,24 @@ export const ENEMY = { width: 14, height: 10, speed: 30 } as const;
 export const CACTUS = { width: 12, height: 16 } as const;
 
 /**
+ * GDD-ENM-02: the Tlacuache (opossum) is `width` x `height` px, standing on the ground, and walks at `speed` px/s. When
+ * Poncho's feet are within `sightY` px of its own, up or down, and his hurtbox centre is up to `sightX` px in front of it, it
+ * freezes for `telegraphSteps` (0.5 s, GDD-ENM-01), then charges at `chargeSpeed` px/s. The first stomp makes it play dead for
+ * `playDeadSteps` (2.0 s); it twitches in the last `twitchSteps` (0.5 s) of that.
+ */
+export const TLACUACHE = {
+  width: 16,
+  height: 10,
+  speed: 24,
+  sightX: 80,
+  sightY: 16,
+  telegraphSteps: Math.round(0.5 * TICK_HZ),
+  chargeSpeed: 150,
+  playDeadSteps: Math.round(2.0 * TICK_HZ),
+  twitchSteps: Math.round(0.5 * TICK_HZ),
+} as const;
+
+/**
  * GDD-ENM-02: the Zopilote (vulture) is `width` x `height` px. It cruises at `speed` px/s between `range` px either side of
  * its start, bobbing `amplitude` px up and down with a period of `periodSteps` (2.5 s). When Poncho is within `triggerX` px
  * to either side and between 0 and `triggerY` px below it, it freezes for `telegraphSteps` (0.5 s, GDD-ENM-01), then dives

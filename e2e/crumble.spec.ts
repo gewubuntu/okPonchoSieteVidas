@@ -8,7 +8,7 @@ const phases = (page: Page) => api(page, () => window.__PONCHO__!.crumbles().map
 test('GDD-WLD-05 a crumbling tile warns when stood on, then drops Poncho, and comes back after a lost life', async ({ page }) => {
   await boot(page);
   expect(await phases(page)).toEqual(['idle', 'idle', 'idle']);
-  await page.evaluate(() => window.__PONCHO__!.teleport(408, 120)); // lands on the middle tile
+  await page.evaluate(() => window.__PONCHO__!.teleport(408, 150)); // lands on the middle tile (from below the Tlacuache's ledge, whose underside is y = 112)
   await page.waitForFunction(() => window.__PONCHO__!.crumbles()[1]!.phase === 'warning');
   expect(await phases(page)).toEqual(['idle', 'warning', 'idle']);
   expect(await api(page, () => window.__PONCHO__!.state().y)).toBe(160);

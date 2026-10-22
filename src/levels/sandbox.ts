@@ -1,8 +1,8 @@
 // A one-screen test level, 30 x 17 tiles (480 x 272 px). A stand-in until levels are authored in Tiled (GDD-TEC-04).
 // `#` is solid, `.` is empty. It has a floor with a pit 3 tiles wide (the World 1 limit, GDD-WLD-03), a floating platform
 // to bump a head on, a wall 2 tiles high and a wall 3 tiles high, the tallest a full jump can climb (GDD-MOV-02,
-// GDD-MOV-06). It has three ofrenda checkpoints at about 25%, 65% and 85% of its width (GDD-WLD-03 asks for 25%, 55% and
-// 85%; 55% falls in the pit, so the second one stands just past it).
+// GDD-MOV-06), and a ledge 5 tiles long in the top right corner. It has three ofrenda checkpoints at about 25%, 65% and
+// 85% of its width (GDD-WLD-03 asks for 25%, 55% and 85%; 55% falls in the pit, so the second one stands just past it).
 import { TILE } from '../config/tuning';
 import type { Crumble } from '../sim/crumble';
 import type { MovingPlatform } from '../sim/platform';
@@ -22,7 +22,7 @@ export const SANDBOX_ROWS: readonly string[] = [
   '..............................',
   '..............................',
   '..............................',
-  '..............................',
+  '.........................#####',
   '..............................',
   '.............##...............',
   '..............................',
@@ -108,4 +108,8 @@ export const SANDBOX_ENEMIES: readonly Enemy[] = [
   // GDD-ENM-02: a cactus buddy on the right half of the top of the 2-tile wall (columns 10 and 11, top y = 192), at x = 184, so the left
   // 18 px of the top stay free to stand on and jump to the Alacrán's platform from.
   { x: 184, y: 12 * TILE, kind: 'cactus' },
+  // GDD-ENM-02: a Tlacuache on the ledge in the top right corner (row 6, columns 25 to 29, x 400 to 480, top y = 96), in its middle. Poncho
+  // gets up there from the moving platform at its right end (top y = 128, 32 px lower); the ledge is out of the Zopilote's sideways
+  // reach and 128 px above the third ofrenda.
+  { x: 440, y: 6 * TILE, kind: 'tlacuache' },
 ];
