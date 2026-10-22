@@ -252,7 +252,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   // costs a life (GDD-LIFE-02); in Taco the taco is spent instead, in Fuego the Fuego, and Poncho is pushed away from what
   // hit him and invulnerable for 2.0 s.
   const spike = run.invulnerable === 0 ? level.spikes.find((s) => touchesSpike(player, s)) : undefined;
-  const enemy = run.invulnerable === 0 && !spike ? enemies.findIndex((e, i) => touchesEnemy(player, level.enemies[i]!, e)) : -1;
+  const enemy = run.invulnerable === 0 ? enemies.findIndex((e, i) => touchesEnemy(player, level.enemies[i]!, e)) : -1;
   const hitFrom = spike ? spike.col * TILE + TILE / 2 : enemy >= 0 ? enemies[enemy]!.x : undefined;
   if (hitFrom !== undefined && power === 'base') {
     return { ...run, player, crumbles, platformTick, tacosTaken, pinatasOpen, items, fragilesBroken, enemies, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
