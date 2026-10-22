@@ -237,17 +237,12 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     keysHeld--;
     return true;
   });
-  // GDD-CMB-02, GDD-PWR-03: the claw and a fireball defeat the enemies they overlap, besides a stomp. A fireball that hits one
-  // is used up.
-  let spent = new Set<number>();
-  const hitByFireball = (e: EnemyState, i: number): boolean =>
-    fireballs.some((f, k) => {
-      const hit = boxHitsEnemy({ x0: f.x - FIREBALL.size / 2, x1: f.x + FIREBALL.size / 2, y0: f.y - FIREBALL.size, y1: f.y }, level.enemies[i]!, e);
-      if (hit) spent = new Set(spent).add(k);
-      return hit;
-    });
-  const enemies = patrolled.map((e, i) => (e.alive && (stomped[i]! || (box !== null && boxHitsEnemy(box, level.enemies[i]!, e)) || hitByFireball(e, i)) ? { ...e, alive: false } : e));
-  const flying = fireballs.filter((_, k) => !spent.has(k));
+  // GDD-CMB-02, GDD-PWR-03: the claw and a fireball defeat the enemies they overlap, besides a stomp. Every fireball that
+  // overlaps a live enemy is used up, whatever defeats the enemy that step.
+  const fireballHits = (f: Fireball, i: number): boolean =>
+    patrolled[i]!.alive && boxHitsEnemy({ x0: f.x - FIREBALL.size / 2, x1: f.x + FIREBALL.size / 2, y0: f.y - FIREBALL.size, y1: f.y }, level.enemies[i]!, patrolled[i]!);
+  const enemies = patrolled.map((e, i) => (e.alive && (stomped[i]! || (box !== null && boxHitsEnemy(box, level.enemies[i]!, e)) || fireballs.some((f) => fireballHits(f, i))) ? { ...e, alive: false } : e));
+  const flying = fireballs.filter((f) => !patrolled.some((_, i) => fireballHits(f, i)));
   // GDD-WLD-05, GDD-ENM-02, GDD-CMB-03: touching a spike or an enemy is a hit, unless Poncho is invulnerable. In Base it
   // costs a life (GDD-LIFE-02); in Taco the taco is spent instead, in Fuego the Fuego, and Poncho is pushed away from what
   // hit him and invulnerable for 2.0 s.

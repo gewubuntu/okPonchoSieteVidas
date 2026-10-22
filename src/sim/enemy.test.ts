@@ -170,6 +170,14 @@ const bump = (r: RunState): RunState => {
   return r;
 };
 
+/** Stomps the Alacrán from above with the given player fields and returns Poncho afterwards. */
+const stomp = (player: Partial<PlayerState>): PlayerState => {
+  let r = withPlayer({ ...at(104, 62, 150), ...player }, { enemies: [alive(104)] });
+  for (let i = 0; i < 20 && r.enemies[0]!.alive; i++) r = stepRun(r, idle, baseLevel);
+  expect(r.enemies[0]!.alive).toBe(false);
+  return r.player;
+};
+
 describe('GDD-CMB-01 stomp details', () => {
   it('two enemies stomped in one step give one bounce, and both are defeated', () => {
     const two: Level = { ...baseLevel, enemies: [def, { x: 106, y: 80 }] };
@@ -185,6 +193,11 @@ describe('GDD-CMB-01 stomp details', () => {
     expect(r.player.vy).toBe(-410);
     r = stepRun(r, idle, baseLevel); // jump let go while rising
     expect(r.player.vy).toBeGreaterThan(-410 * 0.5);
+  });
+
+  it('uses up the coyote time and the jump buffer, so one stomp cannot become a second jump', () => {
+    expect(stomp({ coyote: 5 }).coyote).toBe(0);
+    expect(stomp({ jumpBuffer: 5 }).jumpBuffer).toBe(0);
   });
 });
 
@@ -227,6 +240,19 @@ describe('GDD-CMB-03 and GDD-ENM-01 an Alacrán hit', () => {
   });
 });
 
+describe('GDD-CMB-02 and GDD-CMB-03 a hit during a claw swing', () => {
+  it('ends the swing but not its cooldown', () => {
+    // Facing left with the swing going away from the Alacrán on his right, so only the hit can end it.
+    const swinging = { phase: 'swing', steps: 1, cooldown: 10, dir: -1, held: false } as const;
+    const r = stepRun(beside('taco', { claw: swinging, player: { ...spawn(95, 80), facing: -1, grounded: true } }), idle, baseLevel);
+    expect(r.power).toBe('base');
+    expect(r.enemies[0]!.alive).toBe(true);
+    expect(r.claw.phase).toBe('idle');
+    expect(r.claw.steps).toBe(0);
+    expect(r.claw.cooldown).toBe(9);
+  });
+});
+
 describe('GDD-CMB-03 a spike and an Alacrán touching him in one step', () => {
   it('is one hit, pushed away from the spike', () => {
     // The spike is the tile right of him (column 6, x 96 to 112) and the Alacrán is to his left, both touching.
@@ -236,6 +262,8 @@ describe('GDD-CMB-03 a spike and an Alacrán touching him in one step', () => {
     expect(r.player.vx).toBe(-HIT.knockback); // the spike's middle (104) is to his right
   });
 });
+
+const fireballAt = (x: number): Fireball => ({ x, y: 78, vx: 180, vy: 0, age: 0 }); // box y 72 to 78, level with the Alacrán
 
 describe('GDD-CMB-02 and GDD-PWR-03 the claw and a fireball defeat it', () => {
   it('a claw swing that reaches it defeats it, with no hit', () => {
@@ -260,6 +288,15 @@ describe('GDD-CMB-02 and GDD-PWR-03 the claw and a fireball defeat it', () => {
     for (let i = 0; i < 12 && r.enemies[0]!.alive; i++) r = stepRun(r, idle, baseLevel);
     expect(r.enemies[0]!.alive).toBe(false);
     expect(r.fireballs).toEqual([]);
+  });
+
+  it('every fireball that overlaps it is used up, even when something else defeats it that step', () => {
+    const two = withPlayer(spawn(24, 128), { enemies: [alive(104)], fireballs: [fireballAt(95), fireballAt(96)] });
+    expect(stepRun(two, idle, baseLevel).fireballs).toEqual([]); // two on one enemy
+    const swing = { phase: 'swing', steps: 1, cooldown: 10, dir: 1, held: true } as const; // reaches x 90 to 110
+    const clawed = stepRun(withPlayer({ ...spawn(84, 80), facing: 1, grounded: true }, { enemies: [alive(104)], fireballs: [fireballAt(98)], claw: swing }), idle, baseLevel);
+    expect(clawed.enemies[0]!.alive).toBe(false); // the swing defeats it, and the fireball over it is spent on it all the same
+    expect(clawed.fireballs).toEqual([]);
   });
 
   it('a fireball that passes over it hits nothing and keeps flying', () => {

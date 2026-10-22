@@ -14,6 +14,7 @@ const start = async (page: Page) => {
 const step = (page: Page, n: number, input: { move: number; jumpHeld: boolean; claw?: boolean; fuego?: boolean } = { move: 0, jumpHeld: false }) => page.evaluate(({ k, i }) => window.__PONCHO__!.step(k, i), { k: n, i: input });
 type Colour = { r: number; g: number; b: number };
 const body = (c: Colour) => c.r > 130 && c.r < 180 && c.g < 90 && c.b < 70; // the scorpion's dark red, 154 58 42
+const pale = (c: Colour) => c.r > 200 && c.g > 190 && c.b > 140; // the claws' 233 211 163
 const enemy = async (page: Page) => (await api(page, () => window.__PONCHO__!.enemies()))[0]!;
 
 test('GDD-ENM-02 the Alacrán patrols its platform, turns at both ends and is painted where it is', async ({ page }) => {
@@ -53,7 +54,16 @@ test('GDD-CMB-01 landing on it defeats it and bounces Poncho, and it is gone fro
   expect(await api(page, () => window.__PONCHO__!.enemiesDrawn())).toEqual([]);
 });
 
-test('GDD-CMB-03 walking into it costs a life in Base, and only the taco in Taco', async ({ page }) => {
+test('GDD-CMB-03 walking into it costs a life in Base', async ({ page }) => {
+  await start(page);
+  await page.evaluate(() => window.__PONCHO__!.teleport(80, 160));
+  await step(page, 2);
+  await step(page, 60, { move: 1, jumpHeld: false });
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(6);
+  expect((await enemy(page)).alive).toBe(true);
+});
+
+test('GDD-CMB-03 walking into it in Taco costs only the taco', async ({ page }) => {
   await start(page);
   await page.evaluate(() => window.__PONCHO__!.teleport(80, 160));
   await step(page, 2);
@@ -99,6 +109,27 @@ test('GDD-LIFE-02 losing a life brings it back to life', async ({ page }) => {
   });
   const back = await enemy(page); // it has been patrolling again since the respawn, so only its being alive is read here
   expect(back.alive).toBe(true);
+});
+
+test('GDD-ENM-02 the pale claws are on the side it is walking towards, and swap when it turns', async ({ page }) => {
+  await start(page);
+  const clawsAt = async (side: number) => {
+    const { x } = await enemy(page);
+    const cx = Math.round(x + side * 6.5);
+    return (await pixelsAt(page, [-1, 0, 1].flatMap((dx) => [154, 155, 158].map((y) => ({ x: cx + dx, y }))))).some(pale);
+  };
+  await frames(page);
+  const first = (await enemy(page)).dir;
+  expect(await clawsAt(first)).toBe(true);
+  expect(await clawsAt(-first)).toBe(false);
+  while ((await enemy(page)).dir === first) await step(page, 10); // walks on until it turns round
+  await frames(page);
+  const turned = (await enemy(page)).dir;
+  expect(turned).toBe(-first);
+  expect(await clawsAt(turned)).toBe(true);
+  expect(await clawsAt(-turned)).toBe(false);
+  const [painted] = await api(page, () => window.__PONCHO__!.enemiesDrawn());
+  expect(painted!.y).toBe(160);
 });
 
 test('GDD-ENM-02 the scorpion is painted as a dark red body, and a defeated one leaves the picture', async ({ page }) => {

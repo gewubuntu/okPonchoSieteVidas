@@ -105,7 +105,7 @@ export interface PonchoDebug {
   fireballAt(): { x: number; y: number }[];
   fireballsDrawn(): number;
   /** The Alacranes in the simulation, and where the scene painted the live ones (GDD-ENM-02). */
-  enemies(): { x: number; alive: boolean }[];
+  enemies(): { x: number; alive: boolean; dir: number }[];
   enemiesDrawn(): { x: number; y: number }[];
   /** Test hook: puts Poncho in a power-up state without playing for it. */
   setPower(power: Power): void;
@@ -295,7 +295,7 @@ export class PlayScene extends Phaser.Scene {
         spits: () => this.spits,
         fireballAt: () => this.run.fireballs.map((f) => ({ x: f.x, y: f.y })),
         fireballsDrawn: () => this.fireballsPainted,
-        enemies: () => this.run.enemies.map((e) => ({ x: e.x, alive: e.alive })),
+        enemies: () => this.run.enemies.map((e) => ({ x: e.x, alive: e.alive, dir: e.dir })),
         enemiesDrawn: () => this.enemiesPainted,
         setPower: (power) => {
           this.run = { ...this.run, power };
