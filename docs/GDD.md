@@ -163,7 +163,7 @@ Status: Proposed
 
 When exactly 1 life remains: the music shifts to a tense variation, the last triangle pulses, and a *Última Vida* bonus applies: hilos give double score (GDD-PRG-03). Risk and reward, never an added penalty.
 
-- **Pulse, built (details Proposed):** while exactly one life is left, its triangle on the HUD (the leftmost) grows to 1.4 times its size and back, about its centre, smoothly (a cosine), every 0.8 s (48 steps), and keeps pulsing as long as one life is left, through the respawn wait too. It counts simulation steps, so it pauses with the game, like the crack (GDD-LIFE-02). With no lives (the Siete vidas gastadas screen, GDD-LIFE-05) or two or more it does not pulse. `LAST_LIFE` in `src/config/tuning.ts`, `src/ui/lastLife.ts`. Not built yet: the tense music (GDD-AUD-01) and the double hilo score (GDD-PRG-03), which wait for music and hilos.
+- **Pulse, built (details Proposed):** while exactly one life is left, its triangle on the HUD (the leftmost) grows to 1.4 times its size and back, about its centre, smoothly (a cosine), every 0.8 s (48 steps), counted from the step the lives drop to one, so it always starts at its normal size; it keeps pulsing as long as one life is left, through the respawn wait too. It counts simulation steps, so it pauses with the game, like the crack (GDD-LIFE-02). With no lives (the Siete vidas gastadas screen, GDD-LIFE-05) or two or more it does not pulse. `LAST_LIFE` in `src/config/tuning.ts`, `src/ui/lastLife.ts`. Not built yet: the tense music (GDD-AUD-01) and the double hilo score (GDD-PRG-03), which wait for music and hilos.
 
 ### GDD-LIFE-05 Out of lives
 

@@ -10,7 +10,7 @@ describe('GDD-LIFE-04 the last triangle pulses', () => {
     for (const lives of [0, 2, 3, 7]) expect(lastLifePulse(lives, 24), `lives ${lives}`).toBeNull();
   });
 
-  it('grows from 1.0x to 1.4x and back over 0.8 s (48 steps), counted in simulation steps', () => {
+  it('grows from 1.0x to 1.4x and back over 0.8 s (48 steps), counted in simulation steps from when the lives dropped to one', () => {
     expect(lastLifePulse(1, 0)).toBeCloseTo(1, 9);
     expect(lastLifePulse(1, 12)).toBeCloseTo(1.2, 9); // a quarter of the way: halfway up
     expect(lastLifePulse(1, 24)).toBeCloseTo(1.4, 9); // the peak, half way through

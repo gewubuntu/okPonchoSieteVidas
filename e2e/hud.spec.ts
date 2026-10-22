@@ -140,3 +140,20 @@ test('GDD-LIFE-04 with one life left the last triangle pulses, drawn larger at t
   expect(small).toBeGreaterThan(0);
   expect(large).toBeGreaterThan(small * 1.5); // the area nearly doubles at 1.4x
 });
+
+test('GDD-LIFE-04 in real play the pulse keeps moving after the crack is over, and starts at the normal size', async ({ page }) => {
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  for (let i = 0; i < 5; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
+  await page.evaluate(() => window.__PONCHO__!.loseLife()); // down to one: the pulse starts here, at 1.0x
+  expect(await page.evaluate(() => window.__PONCHO__!.hudPulse())).toBe(1);
+  // Not paused: frames run through the scene's own update, as in play. Wait past the 24-step crack, then sample.
+  const start = await page.evaluate(() => window.__PONCHO__!.ticks());
+  await page.waitForFunction((s) => window.__PONCHO__!.ticks() >= s + 30, start);
+  const seen = new Set<number>();
+  for (let i = 0; i < 20; i++) {
+    seen.add(Math.round((await page.evaluate(() => window.__PONCHO__!.hudPulse()))! * 1000));
+    await page.waitForTimeout(50);
+  }
+  expect(seen.size).toBeGreaterThan(8);
+});

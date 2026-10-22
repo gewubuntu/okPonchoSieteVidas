@@ -3,10 +3,13 @@
 import { LAST_LIFE } from '../config/tuning';
 import type { LifeTriangle } from './livesLayout';
 
-/** How large the last triangle is drawn on step `now`, 1 to LAST_LIFE.pulseScale, or null when it does not pulse. */
-export function lastLifePulse(lives: number, now: number): number | null {
+/**
+ * How large the last triangle is drawn `steps` steps after the lives dropped to one, 1 to LAST_LIFE.pulseScale, or null
+ * when it does not pulse. Counting from that step makes every pulse start at its normal size and grow smoothly.
+ */
+export function lastLifePulse(lives: number, steps: number): number | null {
   if (lives !== 1) return null;
-  const phase = (now % LAST_LIFE.pulseSteps) / LAST_LIFE.pulseSteps;
+  const phase = (steps % LAST_LIFE.pulseSteps) / LAST_LIFE.pulseSteps;
   return 1 + (LAST_LIFE.pulseScale - 1) * (1 - Math.cos(2 * Math.PI * phase)) / 2;
 }
 

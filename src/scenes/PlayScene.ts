@@ -132,8 +132,9 @@ export class PlayScene extends Phaser.Scene {
   private lastPeak = 0;
   private hud!: Phaser.GameObjects.Graphics;
   private hudFilled = 0;
-  /** GDD-LIFE-04: the scale the last triangle was drawn at, or null. */
+  /** GDD-LIFE-04: the scale the last triangle was drawn at, or null, and the step its pulse started on. */
   private pulseDrawn: number | null = null;
+  private pulseStart: number | null = null;
   private platformGfx!: Phaser.GameObjects.Graphics;
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
@@ -759,8 +760,10 @@ export class PlayScene extends Phaser.Scene {
     // GDD-WLD-05: one small key per key Poncho carries, after the power-up icon.
     this.hudKeyCount = this.run.keysHeld;
     for (let i = 0; i < this.run.keysHeld; i++) this.paintKey(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 34 + i * 9, LIVES_HUD.top + 5, 12);
-    // GDD-LIFE-04: with one life left, its triangle pulses.
-    this.pulseDrawn = lastLifePulse(this.run.lives.lives, this.ticks);
+    // GDD-LIFE-04: with one life left, its triangle pulses, counted from the step the lives dropped to one.
+    if (this.run.lives.lives !== 1) this.pulseStart = null;
+    else this.pulseStart ??= this.ticks;
+    this.pulseDrawn = lastLifePulse(this.run.lives.lives, this.ticks - (this.pulseStart ?? 0));
     layoutLives(this.run.lives.lives).forEach((triangle, index) => {
       const [x1, y1, x2, y2, x3, y3] = index === 0 && this.pulseDrawn !== null ? pulsedPoints(triangle, this.pulseDrawn) : triangle.points;
       const { filled } = triangle;
