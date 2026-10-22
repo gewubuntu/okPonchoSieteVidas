@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.33
+Version: 0.4.34
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.34** (2026-10-22) GDD-UI-02, GDD-UI-01, GDD-CTL-01, GDD-CTL-03: the pause in a level is built: Escape or P, or a touch pause button in the top-right corner, pauses under a dimmed screen; the same key or button, or a tap anywhere, resumes; losing focus or a hidden tab pauses, and so does a phone turned upright, which first asks to be turned sideways; a press made while paused does nothing until pressed again (user decisions, 2026-10-22: resume only, button top-right, auto-pause on focus and portrait, resume with the pause key or a tap). The rest of the menus wait for a title screen.
 - **0.4.33** (2026-10-22) GDD-LIFE-04: the last-life pulse is built: with one life left its HUD triangle grows to 1.4x and back every 0.8 s; the size and timing are written out as proposals. The music shift and the double hilo score wait for music and hilos.
 - **0.4.32** (2026-10-22) GDD-LIFE-02: "any input" that skips the respawn wait now really is any input: claw, Fuego, and left and right held together count too, as jump and a direction already did (a gap the GDD-LIFE-05 review found; user, 2026-10-22: fix it).
 - **0.4.31** (2026-10-22) GDD-LIFE-05, GDD-LIFE-02, GDD-CTL-04: the *Siete vidas gastadas* screen is built: it replaces the respawn after the last life and stays until a press of any button, ignoring presses for its first 1.0 s; the world then restarts with the respawn flip at the level start (user decisions, 2026-10-22: press to continue; title and seven empty triangles; "Game over" and "Press any button to Retry" below them). Left and right are now latched like jump and claw, so a quick tap of either counts (L-006). Its look and the exact press rule are written out as proposals.
@@ -363,7 +364,7 @@ Status: Proposed
 | Fuego (fireball) | C or K |
 | Pause | Escape or P |
 
-Keys are remappable (GDD-UI-03).
+Keys are remappable (GDD-UI-03). Pause is built (GDD-UI-02).
 
 ### GDD-CTL-02 Gamepad
 
@@ -384,7 +385,8 @@ Status: Proposed. Required for the MVP (GDD-MVP-01).
 - **Slide stick (built, details Proposed):** a small switch above the left thumb zone swaps the left and right buttons for one track as wide as both, and back. The choice is remembered on the device (browser storage, where allowed). A finger anywhere in the lower left quarter of the screen steers, by how far it is left or right of the track's centre: nothing inside a dead zone of 0.2 of the half-track, then speed grows evenly to full at the track's edge and stays full beyond it (analog speed, GDD-MOV-01). Jump stays on the right and works together with the stick. The switch is as large as the other buttons (48 CSS px minimum).
 - **Claw button (built):** a button the size of the left and right buttons sits left of Jump on the same floor line, a gap of 4 px from it, drawn with three slanted claw marks; it works together with moving and jumping (GDD-CMB-02).
 - **Fuego button (built):** the same size as the claw button, directly above it with a gap of 4 px, drawn as an orange flame. It exists only while Poncho is in Fuego: it appears when he becomes Fuego and goes when he is hit or loses a life (GDD-PWR-03). A press spits a fireball, and, like jump and the claw, a tap shorter than a frame still counts (GDD-CTL-04).
-- **Still missing:** mirrored layout and opacity setting, safe-area insets (the canvas is letterboxed, which keeps the buttons clear of notches on wide phones), vibration, pause.
+- **Pause button (built):** top-right, see GDD-UI-02.
+- **Still missing:** mirrored layout and opacity setting, safe-area insets (the canvas is letterboxed, which keeps the buttons clear of notches on wide phones), vibration.
 
 ### GDD-CTL-04 Input latency budget
 
@@ -525,7 +527,7 @@ Score from hilos, enemies and time. Level medals: Bronze (clear), Silver (all hi
 Status: Proposed
 
 - Top-left: seven triangles (GDD-LIFE-01), filled = life, outline = lost. Lives fill from the left, so a lost life empties the rightmost filled triangle. Filled and outline differ by shape, not colour alone (GDD-UI-03). Next to them, a small icon of the current power-up state (GDD-PWR-01). After it, one small key per key carried (GDD-WLD-05).
-- Top-right: hilo counter.
+- Top-right: hilo counter. On touch the pause button takes the corner (GDD-UI-02), so the counter goes left of it.
 - Minimal, semi-transparent, hidden during cutscenes. On touch, controls are drawn under the safe-area insets (GDD-CTL-03).
 
 ### GDD-UI-02 Menus and flow
@@ -533,6 +535,11 @@ Status: Proposed
 Status: Proposed
 
 Boot, title, world map, level, pause, results, settings. Fully operable by touch, keyboard and gamepad. Pause happens automatically if the tab loses focus or the device rotates to portrait.
+
+- **Pause in a level (built; resume only, the button top-right, auto-pause on focus and portrait and resume with the pause key or a tap decided by the user 2026-10-22, details Proposed):** Escape or P (GDD-CTL-01), or the touch pause button, pauses. The pause button sits in the top-right corner, 6 px from both edges, 24 px, growing like the other buttons so it is never under 48 CSS px (`TOUCH.pauseSize` in `src/config/tuning.ts`); it shows only on touch devices, drawn as two upright bars. The level stands still under a dim layer with "Paused" and a prompt: "Press Escape or P to resume" on a keyboard, "Tap to resume" on touch. The HUD and the touch buttons stay on top. The pause screen offers only resuming until there is a title screen and settings.
+- **Resume:** Escape or P again, the pause button, or a tap or click anywhere. The game keys (jump, claw, Fuego, moving) do not resume; on touch any tap does, on a game button too, but that tap is no game press. A button pressed while paused (the Jump button under the tap that resumed, a key pressed while the game stood still) does nothing until it is released and pressed again, also on the *Siete vidas gastadas* screen (GDD-LIFE-05); a button held since before the pause stays held, so a run or a jump carries on.
+- **Automatic pause:** the tab or window losing focus or being hidden pauses; it never resumes by itself. A touch device whose screen is upright pauses (the screen's orientation decides, or the window's shape where the browser has none), also when the level starts that way, and the prompt reads "Turn your device sideways", larger (12 px, against 8 px), since the whole level is drawn small; no key, button or tap resumes until it is sideways again, and then it stays paused until the player resumes. A desktop window made taller than wide does not pause, nor does a touchscreen laptop's, whose screen stays landscape. `src/sim/pause.ts`.
+- **Not built yet:** boot, title, world map, results and settings screens; the gamepad start button (GDD-CTL-02).
 
 ### GDD-UI-03 Accessibility
 

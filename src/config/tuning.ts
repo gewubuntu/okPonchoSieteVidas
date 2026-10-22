@@ -78,6 +78,8 @@ export const TOUCH = {
   gap: 4,
   /** A button is never smaller than this on the player's screen, in CSS pixels (GDD-CTL-03). */
   minCssPx: 48,
+  /** GDD-UI-02: the pause button in the top-right corner (it grows like the others to 48 CSS px). */
+  pauseSize: 24,
   /** Slide stick: the share of the half-track around its centre that does nothing (same 0.2 as the gamepad, GDD-CTL-02). */
   stickDeadZone: 0.2,
 } as const;

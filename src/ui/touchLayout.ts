@@ -3,7 +3,7 @@
 import { BASE_HEIGHT, BASE_WIDTH, TOUCH } from '../config/tuning';
 import type { PlayerInput } from '../sim/movement';
 
-export type TouchButtonId = 'left' | 'right' | 'jump' | 'claw' | 'fuego' | 'stick' | 'mode';
+export type TouchButtonId = 'left' | 'right' | 'jump' | 'claw' | 'fuego' | 'stick' | 'mode' | 'pause';
 
 /** The left thumb zone is either two buttons or one slide stick (GDD-CTL-03, the player's choice). */
 export type TouchMode = 'buttons' | 'stick';
@@ -18,7 +18,7 @@ export interface TouchButton {
 }
 
 /**
- * Jump bottom-right with the claw button beside it (and the Fuego button above that, while in Fuego), and a mode switch above the left thumb zone, which holds either the left and right buttons or one
+ * Jump bottom-right with the claw button beside it (and the Fuego button above that, while in Fuego), the pause button top-right, and a mode switch above the left thumb zone, which holds either the left and right buttons or one
  * slide stick as wide as both. `cssPerVirtualPx` is how big one virtual pixel is on the player's screen: a button is
  * never smaller than TOUCH.minCssPx there, so on a small screen it grows (GDD-CTL-03).
  */
@@ -26,6 +26,7 @@ export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'b
   const min = Math.ceil(TOUCH.minCssPx / cssPerVirtualPx);
   const size = Math.max(TOUCH.size, min);
   const jump = Math.max(TOUCH.jumpSize, min);
+  const pause = Math.max(TOUCH.pauseSize, min);
   const bottom = BASE_HEIGHT - TOUCH.margin;
   const y = bottom - size;
   const left: TouchButton[] =
@@ -43,6 +44,8 @@ export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'b
     // GDD-PWR-03: the Fuego button is there only while Poncho is in the Fuego state, above the claw button.
     ...(fuego ? [{ id: 'fuego' as const, x: claw.x, y: claw.y - TOUCH.gap - size, w: size, h: size }] : []),
     { id: 'jump', x: BASE_WIDTH - TOUCH.margin - jump, y: bottom - jump, w: jump, h: jump },
+    // GDD-UI-02: the pause button, top-right, opposite the lives on the HUD.
+    { id: 'pause', x: BASE_WIDTH - TOUCH.margin - pause, y: TOUCH.margin, w: pause, h: pause },
   ];
 }
 

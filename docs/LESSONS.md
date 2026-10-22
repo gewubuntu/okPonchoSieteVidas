@@ -202,8 +202,9 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** For the respawn-skip fix I ran a mutation with `sed` straight in the shell, chained to a test run but not to a restore. The next test output came from the mutated file, and the `git diff` showed the mutation still in place. I caught it before committing and put the fix back.
 - **Root cause:** The earlier mutations ran through a script that restored each file in a `finally`. This one-off went around it, so nothing undid it.
 - **Rule:** Run every mutation through a small script that, for each mutant, replaces the exact text in the file, runs the tests, and puts the original back in a `finally` block; then check that `git diff` of the source files shows only the intended change before the gate and the commit. Do not mutate files while `npm run test:e2e` is running: the Vite dev server reloads the pages and unrelated playtests fail with `__PONCHO__` undefined.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-10-22, GDD-UI-02):** the pause mutations ran in the background through an ad hoc script. The background time limit killed it in the middle of a mutant, so its `finally` never ran, and the scene was left with one prompt line instead of two. A grep before the gate caught it.
+- **Recurrence:** 2
+- **Promoted:** scripts/check.mjs (no-mutation) and scripts/mutate.mjs: the runner mutants from a JSON list and keeps the original in `.mutating.json` while a mutant is in place; `scripts/check.mjs` (`no-mutation`) fails while that marker exists, and `node scripts/mutate.mjs --restore` puts the file back. Step 6 of the `harness-feature` skill names the runner.
 
 ## L-021 A paused playtest skipped the code that animates the HUD in real play
 
@@ -211,5 +212,23 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** The last-life pulse needs the HUD redrawn on every step, which the scene's `update()` does only under a condition. The playtest drove the game with the debug `step()` hook, which calls `drawHud()` itself, so removing that condition left every test green while in real play the triangle froze after the crack. The reviewer found it with an unpaused probe.
 - **Root cause:** The debug `step()` hook redraws everything on each call, so a paused test cannot see what `update()` draws, or fails to draw, on its own.
 - **Rule:** For anything that animates or redraws over time, add at least one playtest that runs the game unpaused through its own frames and checks the picture (or the drawn state) keeps changing.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-022 A playtest released a held key and pressed it again inside one frame
+
+- **Date:** 2026-10-22
+- **What went wrong:** The pause playtest held Space through the resume, then called `keyboard.up('Space')` and at once `keyboard.press('Space')`. Two runs in three failed: no jump. No step ran between the release and the new press, so the simulation saw jump held throughout and found no new press.
+- **Root cause:** Presses are latched (L-006), releases are not: the step reads the key as held when the release and the next press land in the same frame. That is how the game behaves for a player too, so the test, not the game, was wrong.
+- **Rule:** In a playtest, after releasing a held button and before pressing it again, wait until a step has seen the release (for jump, `state().jumpWasHeld` is false). Run a new real-time playtest with `--repeat-each=3` before trusting it.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-023 A layer's "stays on top" and a check made once at start had no test
+
+- **Date:** 2026-10-22
+- **What went wrong:** The review of GDD-UI-02 found two scene rules no playtest could fail. Raising the pause screen above the HUD and touch buttons stayed green, because the only pixel check was on a level tile. Removing the orientation check at start stayed green, because the portrait test always booted in landscape and rotated later.
+- **Root cause:** The pixel test only checked what the overlay covers, not what must show through it. And the tests only reached the state by changing into it, never by starting in it.
+- **Rule:** For an overlay, sample one pixel it must dim and one it must leave alone (HUD, buttons). For anything checked on an event and also once at start (orientation, focus, storage), add a test that starts in that state.
 - **Recurrence:** 1
 - **Promoted:** no

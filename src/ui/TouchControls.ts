@@ -121,6 +121,11 @@ export class TouchControls {
     this.relayout();
   }
 
+  /** Whether a point (in virtual px) is on the pause button (GDD-UI-02). Always false without touch. */
+  isPauseButton(x: number, y: number): boolean {
+    return pressedButtons(this.buttons.filter((b) => b.id === 'pause'), [{ x, y }]).size > 0;
+  }
+
   debug(): TouchDebug {
     return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick };
   }
@@ -155,6 +160,7 @@ export class TouchControls {
       else if (b.id === 'mode') this.drawModeIcon(b);
       else if (b.id === 'claw') this.drawClawIcon(b, down);
       else if (b.id === 'fuego') this.drawFuegoIcon(b, down);
+      else if (b.id === 'pause') this.drawPauseIcon(b, down);
       else this.gfx.fillTriangle(cx, cy - r, cx - r, cy + r, cx + r, cy + r);
     }
   }
@@ -180,6 +186,16 @@ export class TouchControls {
     const r = b.w * 0.26;
     this.gfx.fillStyle(down ? 0xfff3dc : 0xe8602d, down ? PRESSED_ALPHA : IDLE_ALPHA + 0.35);
     this.gfx.fillCircle(cx, cy + r * 0.3, r * 0.8).fillTriangle(cx - r * 0.7, cy, cx + r * 0.7, cy, cx + r * 0.1, cy - r * 1.4);
+  }
+
+  /** Placeholder: two upright bars, the usual pause sign. */
+  private drawPauseIcon(b: TouchButton, down: boolean): void {
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    const h = b.h * 0.44;
+    const w = Math.max(2, Math.round(b.w * 0.12));
+    this.gfx.fillStyle(down ? 0xe8a33d : 0xfff3dc, down ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
+    this.gfx.fillRect(cx - w * 1.5, cy - h / 2, w, h).fillRect(cx + w * 0.5, cy - h / 2, w, h);
   }
 
   /** Placeholder: three slanted claw marks, the same as the swipe. */
