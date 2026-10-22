@@ -61,3 +61,20 @@ test('GDD-LIFE-02 Poncho is hidden while waiting to respawn and blinks while inv
   await page.waitForTimeout(100);
   expect(await api(page, () => window.__PONCHO__!.bodyAlpha())).toBe(1);
 });
+
+for (const [key, name] of [['KeyX', 'claw'], ['KeyC', 'Fuego']] as const) {
+  test(`GDD-LIFE-02 holding the ${name} key skips the respawn wait after 0.3 s`, async ({ page, isMobile }) => {
+    test.skip(isMobile, 'keyboard test');
+    await boot(page);
+    await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+    await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
+    await page.waitForFunction(() => window.__PONCHO__!.phase() === 'respawning');
+    const start = await api(page, () => window.__PONCHO__!.ticks());
+    await page.keyboard.down(key);
+    await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing');
+    const waited = (await api(page, () => window.__PONCHO__!.ticks())) - start;
+    await page.keyboard.up(key);
+    expect(waited).toBeLessThan(40); // skipped at step 18 (0.3 s), well before the 48 steps (0.8 s) of a full wait
+    expect(waited).toBeGreaterThanOrEqual(17);
+  });
+}
