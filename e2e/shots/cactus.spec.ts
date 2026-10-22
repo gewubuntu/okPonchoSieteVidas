@@ -14,9 +14,9 @@ const start = async (page: Page) => {
   await page.evaluate(() => window.__PONCHO__!.pause(true));
 };
 
-test('GDD-ENM-02 cactus: standing between the spring and the pit, and a fireball used up on it', async ({ page }, info) => {
+test('GDD-ENM-02 cactus: on top of the 2-tile wall, and a fireball used up on it', async ({ page }, info) => {
   await start(page);
-  await page.evaluate(() => window.__PONCHO__!.teleport(180, 224));
+  await page.evaluate(() => window.__PONCHO__!.teleport(164, 192));
   await step(page, 2);
   await shot(page, info, 'cactus-stands');
   await page.evaluate(() => window.__PONCHO__!.setPower('fuego'));
