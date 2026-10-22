@@ -31,9 +31,9 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-CMB-01 | todo |  |
 | GDD-CMB-02 | doing | claw swing, hit box, cooldown, input and touch button in src/sim/claw.ts; it opens piñatas and breaks fragile walls; enemies, stun and sound pending |
 | GDD-CMB-03 | doing | spike hit: 2.0 s invulnerability and 80 px/s knockback in Taco; enemy hits pending |
-| GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W wired; remap and claw pending |
+| GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W, claw (X, J) and Fuego (C, K) wired; remap pending |
 | GDD-CTL-02 | todo |  |
-| GDD-CTL-03 | doing | left, right and jump buttons with multi-touch, and the slide stick with a mode switch, in src/ui/touchLayout.ts and TouchControls.ts; the claw button is built; Fuego button, mirroring, opacity, vibration pending |
+| GDD-CTL-03 | doing | left, right and jump buttons with multi-touch, and the slide stick with a mode switch, in src/ui/touchLayout.ts and TouchControls.ts; the claw and Fuego buttons are built; mirroring, opacity, vibration pending |
 | GDD-CTL-04 | todo | note: quick taps can fit inside one frame; latch presses from raw key events, see L-006 |
 | GDD-WLD-01 | todo |  |
 | GDD-WLD-02 | todo |  |
@@ -64,11 +64,11 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-TEC-06 | doing | Vitest and Playwright set up; level validation pending |
 | GDD-MVP-01 | todo |  |
 | GDD-MVP-02 | todo |  |
-| GDD-PWR-01 | doing | Base and Taco states, spike hit absorbed, respawn in Base (src/sim/run.ts, src/sim/taco.ts); Fuego pending |
+| GDD-PWR-01 | doing | Base, Taco and Fuego states, spike hit absorbed (Fuego goes back to Taco), respawn in Base (src/sim/run.ts, src/sim/taco.ts) |
 | GDD-PWR-02 | doing | static taco pickup and the walking taco from a piñata (src/sim/item.ts); the chomp and freeze-frame pending |
-| GDD-PWR-03 | todo |  |
+| GDD-PWR-03 | doing | chile from piñatas, Fuego state, fireball and Fuego touch button (src/sim/fireball.ts, src/sim/run.ts); what fireballs hit, sound and gamepad pending |
 | GDD-PWR-04 | todo |  |
-| GDD-PWR-05 | doing | head-bump piñata releasing a walking taco in Base (src/sim/pinata.ts, one in the sandbox); claw swipe, chile and multi-piñata hilos pending |
+| GDD-PWR-05 | doing | head-bump piñata releasing a walking taco in Base (src/sim/pinata.ts, two in the sandbox); multi-piñata hilos pending; a chile comes out in Taco or Fuego |
 | GDD-PWR-06 | doing | collect by touch and no spawn inside a wall (src/sim/item.ts); the reserve-slot question stays open |
 | GDD-VIS-05 | todo |  |
 | GDD-TEC-07 | todo |  |

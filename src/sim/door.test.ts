@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { KEY, RESPAWN, TILE } from '../config/tuning';
 import { touchesDoor, touchesKey, withDoors, type Door, type Key } from './door';
+import type { Item } from './item';
 import { spawn, type PlayerInput, type PlayerState } from './movement';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { parseTiles } from './tilemap';
@@ -149,7 +150,7 @@ describe('WLD-05 opening a door', () => {
 
 describe('WLD-05 a shut door is a wall for a walking taco', () => {
   it('turns it round with its box flush against the door, and walks through once the door is open', () => {
-    const walker = { x: 80, y: 64, vx: 40, vy: 0 };
+    const walker: Item = { x: 80, y: 64, vx: 40, vy: 0, kind: 'taco' };
     let r: RunState = { ...startRun(level), keysTaken: [true], player: at(24, 64), items: [walker] };
     for (let i = 0; i < 60 && r.items[0]!.vx > 0; i++) r = stepRun(r, idle, level);
     expect(r.items[0]).toMatchObject({ x: 90, vx: -40 }); // the door starts at x = 96

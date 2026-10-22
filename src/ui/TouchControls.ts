@@ -47,6 +47,9 @@ export class TouchControls {
   /** L-006: a tap on Jump or Claw that is over before the next poll still counts for one step. */
   private readonly jumpLatch = new InputLatch();
   private readonly clawLatch = new InputLatch();
+  private readonly fuegoLatch = new InputLatch();
+  /** GDD-PWR-03: whether the Fuego button is shown, which is only while Poncho is in the Fuego state. */
+  private fuego = false;
   /** Fingers that already flipped the mode, so one touch flips it once. */
   private readonly flipped = new Set<number>();
 
@@ -62,6 +65,7 @@ export class TouchControls {
       const hit = pressedButtons(this.buttons, [{ x: p.x, y: p.y }]);
       if (hit.has('jump')) this.jumpLatch.press();
       if (hit.has('claw')) this.clawLatch.press();
+      if (hit.has('fuego')) this.fuegoLatch.press();
     });
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off(Phaser.Scale.Events.RESIZE, onResize));
   }
@@ -90,6 +94,7 @@ export class TouchControls {
     const effective = new Set(pressed);
     if (effectiveHeld(false, this.jumpLatch)) effective.add('jump');
     if (effectiveHeld(false, this.clawLatch)) effective.add('claw');
+    if (effectiveHeld(false, this.fuegoLatch)) effective.add('fuego');
     return touchInput(effective, stick);
   }
 
@@ -97,6 +102,14 @@ export class TouchControls {
   consume(): void {
     this.jumpLatch.consume();
     this.clawLatch.consume();
+    this.fuegoLatch.consume();
+  }
+
+  /** Shows or hides the Fuego button (GDD-PWR-03, GDD-CTL-03). */
+  setFuego(on: boolean): void {
+    if (on === this.fuego || !this.enabled) return;
+    this.fuego = on;
+    this.relayout();
   }
 
   debug(): TouchDebug {
@@ -110,7 +123,7 @@ export class TouchControls {
   }
 
   private relayout(): void {
-    this.buttons = layoutTouchButtons(this.scene.scale.displaySize.width / BASE_WIDTH, this.mode);
+    this.buttons = layoutTouchButtons(this.scene.scale.displaySize.width / BASE_WIDTH, this.mode, this.fuego);
     this.draw();
   }
 
@@ -132,6 +145,7 @@ export class TouchControls {
       else if (b.id === 'stick') this.drawStick(b);
       else if (b.id === 'mode') this.drawModeIcon(b);
       else if (b.id === 'claw') this.drawClawIcon(b, down);
+      else if (b.id === 'fuego') this.drawFuegoIcon(b, down);
       else this.gfx.fillTriangle(cx, cy - r, cx - r, cy + r, cx + r, cy + r);
     }
   }
@@ -148,6 +162,15 @@ export class TouchControls {
     const thumbX = b.x + b.w / 2 + this.stick * travel;
     this.gfx.fillStyle(live ? 0xe8a33d : 0xfff3dc, live ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
     this.gfx.fillCircle(thumbX, cy, b.h * 0.3);
+  }
+
+  /** Placeholder: a flame, a drop with a point, in orange. */
+  private drawFuegoIcon(b: TouchButton, down: boolean): void {
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    const r = b.w * 0.26;
+    this.gfx.fillStyle(down ? 0xfff3dc : 0xe8602d, down ? PRESSED_ALPHA : IDLE_ALPHA + 0.35);
+    this.gfx.fillCircle(cx, cy + r * 0.3, r * 0.8).fillTriangle(cx - r * 0.7, cy, cx + r * 0.7, cy, cx + r * 0.1, cy - r * 1.4);
   }
 
   /** Placeholder: three slanted claw marks, the same as the swipe. */

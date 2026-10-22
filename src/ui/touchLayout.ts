@@ -3,7 +3,7 @@
 import { BASE_HEIGHT, BASE_WIDTH, TOUCH } from '../config/tuning';
 import type { PlayerInput } from '../sim/movement';
 
-export type TouchButtonId = 'left' | 'right' | 'jump' | 'claw' | 'stick' | 'mode';
+export type TouchButtonId = 'left' | 'right' | 'jump' | 'claw' | 'fuego' | 'stick' | 'mode';
 
 /** The left thumb zone is either two buttons or one slide stick (GDD-CTL-03, the player's choice). */
 export type TouchMode = 'buttons' | 'stick';
@@ -18,11 +18,11 @@ export interface TouchButton {
 }
 
 /**
- * Jump bottom-right with the claw button beside it, and a mode switch above the left thumb zone, which holds either the left and right buttons or one
+ * Jump bottom-right with the claw button beside it (and the Fuego button above that, while in Fuego), and a mode switch above the left thumb zone, which holds either the left and right buttons or one
  * slide stick as wide as both. `cssPerVirtualPx` is how big one virtual pixel is on the player's screen: a button is
  * never smaller than TOUCH.minCssPx there, so on a small screen it grows (GDD-CTL-03).
  */
-export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'buttons'): TouchButton[] {
+export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'buttons', fuego = false): TouchButton[] {
   const min = Math.ceil(TOUCH.minCssPx / cssPerVirtualPx);
   const size = Math.max(TOUCH.size, min);
   const jump = Math.max(TOUCH.jumpSize, min);
@@ -35,10 +35,13 @@ export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'b
           { id: 'left', x: TOUCH.margin, y, w: size, h: size },
           { id: 'right', x: TOUCH.margin + size + TOUCH.gap, y, w: size, h: size },
         ];
+  const claw: TouchButton = { id: 'claw', x: BASE_WIDTH - TOUCH.margin - jump - TOUCH.gap - size, y: bottom - size, w: size, h: size };
   return [
     ...left,
     { id: 'mode', x: TOUCH.margin, y: y - TOUCH.gap - size, w: size, h: size },
-    { id: 'claw', x: BASE_WIDTH - TOUCH.margin - jump - TOUCH.gap - size, y: bottom - size, w: size, h: size },
+    claw,
+    // GDD-PWR-03: the Fuego button is there only while Poncho is in the Fuego state, above the claw button.
+    ...(fuego ? [{ id: 'fuego' as const, x: claw.x, y: claw.y - TOUCH.gap - size, w: size, h: size }] : []),
     { id: 'jump', x: BASE_WIDTH - TOUCH.margin - jump, y: bottom - jump, w: jump, h: jump },
   ];
 }
@@ -55,7 +58,7 @@ export function pressedButtons(buttons: readonly TouchButton[], fingers: readonl
 /** The same input the keyboard gives: left and right together cancel out. `stick` is the slide stick's analog move. */
 export function touchInput(pressed: ReadonlySet<TouchButtonId>, stick = 0): PlayerInput {
   const move = (pressed.has('right') ? 1 : 0) - (pressed.has('left') ? 1 : 0) + stick;
-  return { move: Math.max(-1, Math.min(1, move)), jumpHeld: pressed.has('jump'), claw: pressed.has('claw') };
+  return { move: Math.max(-1, Math.min(1, move)), jumpHeld: pressed.has('jump'), claw: pressed.has('claw'), fuego: pressed.has('fuego') };
 }
 
 /**

@@ -51,10 +51,10 @@ test('GDD-WLD-05 a claw swipe breaks the fragile wall where it reaches, and Ponc
 test('GDD-PWR-05 a claw swipe from the top of the wall opens the piñata and a taco comes out', async ({ page }) => {
   await start(page, 168, 192);
   await page.evaluate(() => window.__PONCHO__!.step(1, { move: -1, jumpHeld: false })); // turn to face the piñata
-  expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([false]);
+  expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([false, false]);
   await press(page, 1);
   await idle(page, 4);
-  expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([true]);
+  expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([true, false]);
   expect((await api(page, () => window.__PONCHO__!.itemsDrawn())).length).toBe(1);
 });
 

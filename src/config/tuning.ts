@@ -115,3 +115,10 @@ export const KEY = { size: 12, doorReachPx: 1 } as const;
  * (0.25 s) after the press that started the last one.
  */
 export const CLAW = { windupSteps: 2, activeSteps: 3, cooldownSteps: Math.round(0.25 * TICK_HZ), reach: 20, height: 14 } as const;
+
+/**
+ * GDD-PWR-03: a salsa fireball. It leaves Poncho's front at `speed` px/s, falls and bounces along the ground so each bounce
+ * climbs `bounceHeight` px, and vanishes on a wall, a ceiling, below the level or after `lifeSteps` (3 s). At most
+ * `maxActive` exist at once. `size` is the width of its square box and `gravity` how fast it falls (px/s squared).
+ */
+export const FIREBALL = { speed: 180, bounceHeight: 20, gravity: 1500, lifeSteps: 3 * TICK_HZ, maxActive: 2, size: 6 } as const;

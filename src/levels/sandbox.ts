@@ -71,7 +71,12 @@ export const SANDBOX_TACOS: readonly Taco[] = [{ col: 18, row: 13 }];
  * 18 px short of it and any jump bumps it. Row 10 above it is open, so the taco it releases has room, and it is clear of
  * the platform above (columns 4 to 8) and of the touch buttons.
  */
-export const SANDBOX_PINATAS: readonly Pinata[] = [{ col: 9, row: 11 }];
+export const SANDBOX_PINATAS: readonly Pinata[] = [
+  { col: 9, row: 11 },
+  // GDD-PWR-03: the second piñata hangs at tile column 23, row 8 (underside y = 144), 32 px above the top of the 3-tile wall at
+  // columns 22 and 23 (y = 176), so Poncho standing on the wall bumps it with a jump. In Taco it releases a chile.
+  { col: 23, row: 8 },
+];
 
 /**
  * GDD-WLD-05: a door three tiles tall (rows 11 to 13, 48 px) at tile column 8, between the first ofrenda and the piñata.
