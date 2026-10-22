@@ -447,7 +447,7 @@ export class PlayScene extends Phaser.Scene {
     const flash = f.phase === 'telegraph' && Math.floor(f.age / 4) % 2 === 0;
     const up = f.phase === 'telegraph' || (f.phase !== 'dive' && Math.floor(f.age / 8) % 2 === 0);
     const wingY = up ? y - 7 : y + 4;
-    g.fillStyle(0x3a2c24, 1).fillTriangle(x - 7, y - 1, x - 1, y - 1, x - 8, wingY).fillTriangle(x + 1, y - 1, x + 7, y - 1, x + 8, wingY);
+    g.fillStyle(0x6b5340, 1).fillTriangle(x - 7, y - 1, x - 1, y - 1, x - 8, wingY).fillTriangle(x + 1, y - 1, x + 7, y - 1, x + 8, wingY);
     g.fillStyle(flash ? 0xff5030 : 0x4a3a30, 1).fillRect(x - 6, y - 2, 12, 6);
     g.fillStyle(0xd98c7a, 1).fillRect(x + d * 6 - (d < 0 ? 3 : 0), y - 3, 3, 3);
     g.fillStyle(0xe9d3a3, 1).fillRect(x + d * 8 - (d < 0 ? 2 : 0), y - 1, 2, 1);

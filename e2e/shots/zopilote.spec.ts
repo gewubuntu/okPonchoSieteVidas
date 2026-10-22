@@ -17,7 +17,7 @@ test('GDD-ENM-02 zopilote: cruising, the telegraph, and the dive', async ({ page
   await start(page);
   await shot(page, info, 'zopilote-cruise');
   await page.evaluate(() => window.__PONCHO__!.teleport(224, 128)); // on the spring ledge, in its reach
-  await step(page, 6);
+  await step(page, 3); // the body flashes red for the first 4 steps of every 8
   await shot(page, info, 'zopilote-telegraph');
   await step(page, 24 + 10);
   await shot(page, info, 'zopilote-dive');
