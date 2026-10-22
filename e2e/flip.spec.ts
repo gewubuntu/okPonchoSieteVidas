@@ -106,7 +106,7 @@ test('GDD-LIFE-02 the flip lands at the latest ofrenda, not the level start', as
   expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ x: 312, y: FLOOR, grounded: true });
 });
 
-test('GDD-LIFE-05 after the last life the flip lands at the level start, not at the ofrenda', async ({ page }) => {
+test('GDD-LIFE-05 after the last life there is no flip until the screen is done, then it lands at the level start', async ({ page }) => {
   await boot(page);
   await page.evaluate(() => {
     window.__PONCHO__!.pause(true);
@@ -118,13 +118,22 @@ test('GDD-LIFE-05 after the last life the flip lands at the level start, not at 
   await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
   for (let i = 0; i < 200 && (await page.evaluate(() => window.__PONCHO__!.phase())) !== 'respawning'; i++) await step(page, 1);
   expect(await page.evaluate(() => window.__PONCHO__!.lives())).toBe(0);
-  await step(page, 27 + 10); // in the middle of the flip
+  for (let i = 0; i < 47; i++) {
+    await step(page, 1); // through the whole wait, where a respawn would flip in
+    expect((await pose(page)).visible).toBe(false);
+  }
+  await step(page, 1);
+  expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('gameover');
+  await step(page, 60); // the screen's first second
+  await step(page, 1, { move: 0, jumpHeld: true });
+  expect(await page.evaluate(() => window.__PONCHO__!.lives())).toBe(7);
+  await step(page, 10); // in the middle of the flip
   const middle = await pose(page);
   expect(middle.visible).toBe(true);
   expect(middle.x).toBe(56); // over the level start
   await step(page, 11);
-  expect(await page.evaluate(() => window.__PONCHO__!.lives())).toBe(7);
   expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: FLOOR });
+  expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('playing');
 });
 
 test('GDD-LIFE-02 a skip in the middle of the flip puts him upright at the respawn point at once', async ({ page }) => {

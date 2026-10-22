@@ -1,7 +1,7 @@
 // GDD-LIFE-02 and GDD-LIFE-05: one play-through of a level, tying movement, lives and respawn together.
-// Pure logic, no Phaser (GDD-TEC-02). The cracking animation and the "Siete vidas gastadas" screen arrive with their
-// own GDD IDs. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
-import { FIREBALL, HIT, HITBOX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
+// Pure logic, no Phaser (GDD-TEC-02). After the last life the run shows the "Siete vidas gastadas" screen until a jump
+// press, then restarts the world. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
+import { FIREBALL, FLIP, GAME_OVER, HIT, HITBOX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
 import { withFragiles, type Fragile } from './fragile';
@@ -59,9 +59,12 @@ export interface Level {
 export interface RunState {
   readonly player: PlayerState;
   readonly lives: LivesState;
-  readonly phase: 'playing' | 'respawning';
-  /** Steps left before Poncho respawns. Only used while respawning. */
+  /** 'gameover' is the "Siete vidas gastadas" screen after the last life (GDD-LIFE-05). */
+  readonly phase: 'playing' | 'respawning' | 'gameover';
+  /** Steps left before Poncho respawns while respawning; steps the screen has been up while in 'gameover'. */
   readonly wait: number;
+  /** True during the flip that follows the screen: it cannot be skipped, since the jump that ended the screen is still held. */
+  readonly restarting: boolean;
   /** Steps of invulnerability left (GDD-LIFE-02, GDD-CMB-03). */
   readonly invulnerable: number;
   /** One state per `Level.crumbles` entry, in the same order (GDD-WLD-05). */
@@ -97,7 +100,7 @@ export interface RunState {
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies) };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, restarting: false, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies) };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -124,24 +127,34 @@ export function respawnPoint(run: RunState, level: Level): Point {
 
 /** Advances one fixed step. Returns a new state and never mutates its input. */
 export function stepRun(run: RunState, input: PlayerInput, level: Level): RunState {
+  if (run.phase === 'gameover') {
+    // GDD-LIFE-05: the screen stays up until a new jump press after its first 1.0 s. `wait` counts its steps, this one
+    // included; the player's jumpWasHeld tracks the button, so a jump held since before the screen does not count.
+    const shown = run.wait + 1;
+    const press = input.jumpHeld && !run.player.jumpWasHeld;
+    const player = { ...run.player, jumpWasHeld: input.jumpHeld };
+    if (!press || shown <= GAME_OVER.lockoutSteps) return { ...run, player, wait: shown };
+    // The world restarts with all seven lives, the ofrendas unused, from the level start, after the respawn flip.
+    return { ...run, player, lives: startWorld(), checkpoint: level.spawn, checkpointIndex: -1, phase: 'respawning', wait: FLIP.steps, restarting: true };
+  }
   if (run.phase === 'respawning') {
     // `elapsed` is the number of respawning steps taken including this one, so 0.3 s is step 18 and 0.8 s is step 48.
     const elapsed = RESPAWN.delaySteps - run.wait + 1;
-    const skip = elapsed >= RESPAWN.skipAfterSteps && (input.move !== 0 || input.jumpHeld);
+    const skip = !run.restarting && elapsed >= RESPAWN.skipAfterSteps && (input.move !== 0 || input.jumpHeld);
     const wait = skip ? 0 : run.wait - 1;
     if (wait > 0) return { ...run, wait };
-    // GDD-LIFE-05: out of lives restarts the world with all seven and from the level start (the screen in between
-    // comes later).
-    const restart = isOutOfLives(run.lives);
+    // GDD-LIFE-05: out of lives, the screen comes up instead of a respawn.
+    if (isOutOfLives(run.lives)) return { ...run, phase: 'gameover', wait: 0, player: { ...run.player, jumpWasHeld: input.jumpHeld } };
     const back = respawnPoint(run, level);
     return {
       // Marked as already holding jump, so a button held through the respawn does not make Poncho jump at once.
       player: { ...spawn(back.x, back.y), jumpWasHeld: true },
-      lives: restart ? startWorld() : run.lives,
+      lives: run.lives,
       checkpoint: back,
-      checkpointIndex: restart ? -1 : run.checkpointIndex,
+      checkpointIndex: run.checkpointIndex,
       phase: 'playing',
       wait: 0,
+      restarting: false,
       invulnerable: RESPAWN.invulnerableSteps,
       // GDD-WLD-05: the crumbled tiles come back with Poncho.
       crumbles: freshCrumbles(level.crumbles),

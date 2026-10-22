@@ -47,5 +47,14 @@ export async function pixelsAt(page: Page, points: { x: number; y: number }[]): 
   );
 }
 
+/**
+ * GDD-LIFE-05: after the last life, waits for the Siete vidas gastadas screen to take presses (its prompt shows after 1.0 s)
+ * and presses jump to restart the world.
+ */
+export async function passGameOver(page: Page): Promise<void> {
+  await page.waitForFunction(() => window.__PONCHO__!.gameOverDrawn().prompt);
+  await page.keyboard.press('Space');
+}
+
 /** How red a pixel is: the fill is 185 red against 66 blue, the background 27 against 54. */
 export const red = (c: { r: number; g: number; b: number }) => c.r - c.b;

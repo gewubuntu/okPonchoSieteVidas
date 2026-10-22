@@ -177,3 +177,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** Anything an e2e test reads by pixels must be at least 2 px in each direction, and sample it in its middle, 1 px or more from any edge. Run pixel tests on both viewports before pushing.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-018 A pixel sample on the phone landed under a touch button
+
+- **Date:** 2026-10-22
+- **What went wrong:** The game-over test checked that the level is dimmed by reading a floor tile at the bottom left. On the phone viewport that spot is under the touch Left button, which is drawn above the screen, so the test failed there. The same thing happened before: a fragile-tile pixel test is skipped on the phone because the Jump button covers its tile.
+- **Root cause:** Pixel sample points were chosen on the desktop picture. On the phone the touch buttons cover the bottom corners and sit on top of everything.
+- **Rule:** Choose pixel sample points clear of the touch buttons (their boxes come from `touch().buttons`), and run pixel tests on both viewports before pushing.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-playtest (step 6 of "Writing a scenario")
