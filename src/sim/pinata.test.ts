@@ -27,6 +27,7 @@ const level: Level = {
   doors: [],
   keys: [],
   fragiles: [],
+  enemies: [],
 };
 const at = (x: number, y: number, vy = 0): PlayerState => ({ ...spawn(x, y), vy });
 const run = (r: RunState, input: PlayerInput, steps: number, l: Level = level): RunState => {

@@ -5,6 +5,7 @@ import { FIREBALL, HIT, HITBOX, OFRENDA, RESPAWN, TACO, TILE } from '../config/t
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
 import { withFragiles, type Fragile } from './fragile';
+import { boxHitsEnemy, freshEnemies, isStomp, stepEnemy, stompBounce, touchesEnemy, type Enemy, type EnemyState } from './enemy';
 import { spawnFireball, stepFireball, type Fireball } from './fireball';
 import { squareBlocked } from './item';
 import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } from './door';
@@ -51,6 +52,8 @@ export interface Level {
   readonly keys: readonly Key[];
   /** GDD-WLD-05: fragile walls, broken by the claw. */
   readonly fragiles: readonly Fragile[];
+  /** GDD-ENM-02: where the enemies start. */
+  readonly enemies: readonly Enemy[];
 }
 
 export interface RunState {
@@ -85,6 +88,8 @@ export interface RunState {
   /** GDD-PWR-03: fireballs in flight, and whether the Fuego button was down on the last step (a fireball is spat on the press). */
   readonly fireballs: readonly Fireball[];
   readonly fuegoHeld: boolean;
+  /** One state per `Level.enemies` entry, in the same order. They are all alive and at their start again after a respawn. */
+  readonly enemies: readonly EnemyState[];
   /** Where Poncho respawns: the level start, or the latest ofrenda he has reached (GDD-LIFE-02). */
   readonly checkpoint: Point;
   /** Position in `Level.ofrendas` of the ofrenda that is the checkpoint, or -1 for the level start. Only moves forward. */
@@ -92,7 +97,7 @@ export interface RunState {
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies) };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -154,6 +159,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       // Fireballs end with the life. Poncho is back in Base, so a held Fuego button cannot spit until he is Fuego again.
       fireballs: [],
       fuegoHeld: false,
+      enemies: freshEnemies(level.enemies),
     };
   }
 
@@ -164,7 +170,14 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   const landed = landOnPlatforms(carried, stepped, level.platforms, run.platformTick);
   const platformTick = run.platformTick + 1;
   // GDD-WLD-05: a spring throws Poncho up the step he stands on it.
-  const player = bounce(landed, level.springs);
+  const sprung = bounce(landed, level.springs);
+  // GDD-ENM-02: the enemies patrol. GDD-CMB-01: landing on top of one defeats it and throws Poncho up, higher if jump is held
+  // or was pressed just before.
+  const patrolled = level.enemies.map((d, i) => stepEnemy(d, run.enemies[i]!, solid));
+  const stomped = patrolled.map((e, i) => isStomp(run.player, sprung, level.enemies[i]!, e));
+  const player = stomped.some(Boolean)
+    ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0 }
+    : sprung;
   const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
   if (isInPit(player, level.world)) {
     // Invulnerability does not protect from pits (GDD-CMB-03), so a life is lost even while it lasts.
@@ -224,16 +237,30 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     keysHeld--;
     return true;
   });
-  // GDD-WLD-05, GDD-CMB-03: touching a spike is a hit, unless Poncho is invulnerable. In Base it costs a life
-  // (GDD-LIFE-02); in Taco the taco is spent instead, and Poncho is pushed away and invulnerable for 2.0 s.
+  // GDD-CMB-02, GDD-PWR-03: the claw and a fireball defeat the enemies they overlap, besides a stomp. A fireball that hits one
+  // is used up.
+  let spent = new Set<number>();
+  const hitByFireball = (e: EnemyState, i: number): boolean =>
+    fireballs.some((f, k) => {
+      const hit = boxHitsEnemy({ x0: f.x - FIREBALL.size / 2, x1: f.x + FIREBALL.size / 2, y0: f.y - FIREBALL.size, y1: f.y }, level.enemies[i]!, e);
+      if (hit) spent = new Set(spent).add(k);
+      return hit;
+    });
+  const enemies = patrolled.map((e, i) => (e.alive && (stomped[i]! || (box !== null && boxHitsEnemy(box, level.enemies[i]!, e)) || hitByFireball(e, i)) ? { ...e, alive: false } : e));
+  const flying = fireballs.filter((_, k) => !spent.has(k));
+  // GDD-WLD-05, GDD-ENM-02, GDD-CMB-03: touching a spike or an enemy is a hit, unless Poncho is invulnerable. In Base it
+  // costs a life (GDD-LIFE-02); in Taco the taco is spent instead, in Fuego the Fuego, and Poncho is pushed away from what
+  // hit him and invulnerable for 2.0 s.
   const spike = run.invulnerable === 0 ? level.spikes.find((s) => touchesSpike(player, s)) : undefined;
-  if (spike && power === 'base') {
-    return { ...run, player, crumbles, platformTick, tacosTaken, pinatasOpen, items, fragilesBroken, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
+  const enemy = run.invulnerable === 0 && !spike ? enemies.findIndex((e, i) => touchesEnemy(player, level.enemies[i]!, e)) : -1;
+  const hitFrom = spike ? spike.col * TILE + TILE / 2 : enemy >= 0 ? enemies[enemy]!.x : undefined;
+  if (hitFrom !== undefined && power === 'base') {
+    return { ...run, player, crumbles, platformTick, tacosTaken, pinatasOpen, items, fragilesBroken, enemies, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
   }
   let hurt = player;
-  if (spike) {
+  if (hitFrom !== undefined) {
     power = power === 'fuego' ? 'taco' : 'base';
-    const away = Math.sign(player.x - (spike.col * TILE + TILE / 2)) || -player.facing;
+    const away = Math.sign(player.x - hitFrom) || -player.facing;
     hurt = { ...player, vx: away * HIT.knockback };
   }
   // GDD-LIFE-03: touching an ofrenda restores a life the first time only. It becomes the checkpoint only if it is later
@@ -248,5 +275,5 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       checkpointIndex = index;
     }
   });
-  return { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs, fuegoHeld: input.fuego ?? false, claw: spike ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: spike ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
+  return { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: flying, enemies, fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
 }

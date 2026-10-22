@@ -96,6 +96,7 @@ const level: Level = {
   doors: [],
   keys: [],
   fragiles: fragile([3]),
+  enemies: [],
 };
 const run = (r: RunState, input: PlayerInput, steps: number, l: Level = level): RunState => {
   for (let i = 0; i < steps; i++) r = stepRun(r, input, l);
@@ -240,7 +241,7 @@ describe('GDD-CMB-02 a hit interrupts the swing', () => {
 
 describe('GDD-CMB-02 holding the button through a death', () => {
   it('does not swing the moment control returns after the respawn', () => {
-    const pit: Level = { ...level, world: parseTiles(['..........', '..........', '..........', '..........', '#####.....']), fragiles: [] };
+    const pit: Level = { ...level, world: parseTiles(['..........', '..........', '..........', '..........', '#####.....']), fragiles: [], enemies: [] };
     let r: RunState = { ...startRun(pit), player: spawn(120, 200) }; // falls past the bottom: a life is lost, he respawns on the floor
     let swings = 0;
     for (let i = 0; i < 1 + RESPAWN.delaySteps + 40; i++) {

@@ -1,0 +1,115 @@
+import { expect, test, type Page } from '@playwright/test';
+import { boot, pixelsAt } from './helpers';
+
+const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
+const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
+
+// The sandbox level has an Alacrán on the platform in row 10, columns 4 to 8 (x 64 to 144, top y = 160). It starts at x = 104
+// heading right and turns at x = 137 and x = 71 (the game runs a few steps before a test pauses it). Poncho reaches the platform from the top of the 2-tile wall.
+const start = async (page: Page) => {
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  await page.evaluate(() => window.__PONCHO__!.pause(true));
+};
+const step = (page: Page, n: number, input: { move: number; jumpHeld: boolean; claw?: boolean; fuego?: boolean } = { move: 0, jumpHeld: false }) => page.evaluate(({ k, i }) => window.__PONCHO__!.step(k, i), { k: n, i: input });
+type Colour = { r: number; g: number; b: number };
+const body = (c: Colour) => c.r > 130 && c.r < 180 && c.g < 90 && c.b < 70; // the scorpion's dark red, 154 58 42
+const enemy = async (page: Page) => (await api(page, () => window.__PONCHO__!.enemies()))[0]!;
+
+test('GDD-ENM-02 the Alacrán patrols its platform, turns at both ends and is painted where it is', async ({ page }) => {
+  await start(page);
+  const x0 = (await enemy(page)).x;
+  expect(x0).toBeGreaterThanOrEqual(104);
+  expect(x0).toBeLessThan(137 - 10);
+  await step(page, 20);
+  expect((await enemy(page)).x).toBe(x0 + 10); // 0.5 px a step, heading right
+  let min = Infinity;
+  let max = -Infinity;
+  for (let i = 0; i < 40; i++) {
+    await step(page, 10);
+    const { x } = await enemy(page);
+    min = Math.min(min, x);
+    max = Math.max(max, x);
+  }
+  // Sampled every 10 steps, so the very ends (71 and 137) can fall between two samples, half a pixel short.
+  expect(min).toBeGreaterThanOrEqual(71);
+  expect(min).toBeLessThanOrEqual(71.5);
+  expect(max).toBeLessThanOrEqual(137);
+  expect(max).toBeGreaterThanOrEqual(136.5);
+  await frames(page);
+  const [painted] = await api(page, () => window.__PONCHO__!.enemiesDrawn());
+  expect(painted!.x).toBe((await enemy(page)).x);
+});
+
+test('GDD-CMB-01 landing on it defeats it and bounces Poncho, and it is gone from the picture', async ({ page }) => {
+  await start(page);
+  const { x } = await enemy(page);
+  await page.evaluate((ex) => window.__PONCHO__!.teleport(ex, 140), x); // above its top (y = 150), falling
+  await step(page, 8);
+  expect((await enemy(page)).alive).toBe(false);
+  expect((await api(page, () => window.__PONCHO__!.state())).vy).toBeLessThan(0); // thrown up
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  await frames(page);
+  expect(await api(page, () => window.__PONCHO__!.enemiesDrawn())).toEqual([]);
+});
+
+test('GDD-CMB-03 walking into it costs a life in Base, and only the taco in Taco', async ({ page }) => {
+  await start(page);
+  await page.evaluate(() => window.__PONCHO__!.teleport(80, 160));
+  await step(page, 2);
+  await page.evaluate(() => window.__PONCHO__!.setPower('taco'));
+  await step(page, 60, { move: 1, jumpHeld: false }); // the 2.0 s of invulnerability after the hit are still running
+  expect(await api(page, () => window.__PONCHO__!.power())).toBe('base');
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  expect((await enemy(page)).alive).toBe(true);
+});
+
+test('GDD-CMB-02 a claw swipe defeats it', async ({ page }) => {
+  await start(page);
+  const { x } = await enemy(page);
+  await page.evaluate((ex) => window.__PONCHO__!.teleport(ex - 20, 160), x);
+  await step(page, 2);
+  await step(page, 1, { move: 0, jumpHeld: false, claw: true });
+  await step(page, 4);
+  expect((await enemy(page)).alive).toBe(false);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+});
+
+test('GDD-PWR-03 a fireball defeats it and is used up', async ({ page }) => {
+  await start(page);
+  const { x } = await enemy(page);
+  await page.evaluate((ex) => window.__PONCHO__!.teleport(ex - 24, 160), x); // close, so the fireball is still low when it reaches it
+  await step(page, 2);
+  await page.evaluate(() => window.__PONCHO__!.setPower('fuego'));
+  await step(page, 1, { move: 0, jumpHeld: false, fuego: true });
+  await step(page, 12);
+  expect((await enemy(page)).alive).toBe(false);
+  expect(await api(page, () => window.__PONCHO__!.fireballs())).toBe(0);
+});
+
+test('GDD-LIFE-02 losing a life brings it back to life', async ({ page }) => {
+  await start(page);
+  const { x } = await enemy(page);
+  await page.evaluate((ex) => window.__PONCHO__!.teleport(ex, 140), x);
+  await step(page, 8);
+  expect((await enemy(page)).alive).toBe(false);
+  await page.evaluate(() => {
+    window.__PONCHO__!.teleport(248, 150); // into the pit
+    window.__PONCHO__!.step(140);
+  });
+  const back = await enemy(page); // it has been patrolling again since the respawn, so only its being alive is read here
+  expect(back.alive).toBe(true);
+});
+
+test('GDD-ENM-02 the scorpion is painted as a dark red body, and a defeated one leaves the picture', async ({ page }) => {
+  await start(page);
+  await frames(page);
+  const { x } = await enemy(page);
+  const around = [-1, 0, 1].flatMap((dx) => [-1, 0, 1].map((dy) => ({ x: x + dx, y: 160 - 4 + dy })));
+  expect((await pixelsAt(page, around)).some(body)).toBe(true);
+  await page.evaluate((ex) => window.__PONCHO__!.teleport(ex, 140), x);
+  await step(page, 8);
+  await page.evaluate(() => window.__PONCHO__!.teleport(300, 100)); // out of the way
+  await frames(page);
+  expect((await pixelsAt(page, around)).some(body)).toBe(false);
+});

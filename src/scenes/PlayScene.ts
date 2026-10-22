@@ -2,7 +2,7 @@
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { BASE_WIDTH, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES } from '../levels/sandbox';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES, SANDBOX_ENEMIES } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
@@ -22,7 +22,7 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS, fragiles: SANDBOX_FRAGILES };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS, fragiles: SANDBOX_FRAGILES, enemies: SANDBOX_ENEMIES };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -104,6 +104,9 @@ export interface PonchoDebug {
   spits(): number;
   fireballAt(): { x: number; y: number }[];
   fireballsDrawn(): number;
+  /** The Alacranes in the simulation, and where the scene painted the live ones (GDD-ENM-02). */
+  enemies(): { x: number; alive: boolean }[];
+  enemiesDrawn(): { x: number; y: number }[];
   /** Test hook: puts Poncho in a power-up state without playing for it. */
   setPower(power: Power): void;
 }
@@ -145,6 +148,8 @@ export class PlayScene extends Phaser.Scene {
   private heldPower: Power = 'base';
   private fireballGfx!: Phaser.GameObjects.Graphics;
   private fireballsPainted = 0;
+  private enemyGfx!: Phaser.GameObjects.Graphics;
+  private enemiesPainted: { x: number; y: number }[] = [];
   private readonly fuegoLatch = new InputLatch();
   private ofrendaGfx!: Phaser.GameObjects.Graphics;
   private ofrendasDrawn: { id: string; x: number; used: boolean }[] = [];
@@ -208,6 +213,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawTacos();
     this.heldGfx = this.add.graphics().setDepth(4);
     this.fireballGfx = this.add.graphics().setDepth(4);
+    this.enemyGfx = this.add.graphics().setDepth(3);
     this.pinataGfx = this.add.graphics().setDepth(1);
     this.drawPinatas();
     this.itemGfx = this.add.graphics().setDepth(2);
@@ -289,6 +295,8 @@ export class PlayScene extends Phaser.Scene {
         spits: () => this.spits,
         fireballAt: () => this.run.fireballs.map((f) => ({ x: f.x, y: f.y })),
         fireballsDrawn: () => this.fireballsPainted,
+        enemies: () => this.run.enemies.map((e) => ({ x: e.x, alive: e.alive })),
+        enemiesDrawn: () => this.enemiesPainted,
         setPower: (power) => {
           this.run = { ...this.run, power };
           this.drawHud();
@@ -398,6 +406,29 @@ export class PlayScene extends Phaser.Scene {
     if (power === 'base') return;
     this.paintTaco(g, cx, cy, size);
     if (power === 'fuego') this.paintChile(g, cx + size * 0.55, cy - size * 0.35, size * 0.8);
+  }
+
+  /**
+   * Placeholder Alacrán (GDD-ENM-02): a dark red scorpion 14 x 10 px with pale claws out in front, a tail arched over its back
+   * ending in a pale stinger, and four legs, facing the way it walks. A defeated one is not drawn.
+   */
+  private drawEnemies(): void {
+    this.enemyGfx.clear();
+    this.enemiesPainted = [];
+    level.enemies.forEach((def, i) => {
+      const e = this.run.enemies[i]!;
+      if (!e.alive) return;
+      this.enemiesPainted.push({ x: e.x, y: def.y });
+      const d = e.dir;
+      const g = this.enemyGfx;
+      g.fillStyle(0x9a3a2a, 1).fillRect(e.x - 5, def.y - 6, 10, 5);
+      g.lineStyle(1, 0x4a1a12, 1).strokeRect(e.x - 4.5, def.y - 5.5, 9, 4);
+      g.fillStyle(0xe9d3a3, 1).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), def.y - 7, 3, 3).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), def.y - 3, 3, 2);
+      g.lineStyle(1, 0x9a3a2a, 1).beginPath().moveTo(e.x - d * 5, def.y - 5).lineTo(e.x - d * 7, def.y - 8).lineTo(e.x - d * 4, def.y - 10).lineTo(e.x - d * 1, def.y - 8).strokePath();
+      g.fillStyle(0xe9d3a3, 1).fillRect(e.x - d * 1 - 1, def.y - 9, 2, 2);
+      g.lineStyle(1, 0x4a1a12, 1);
+      for (const lx of [-3, -1, 1, 3]) g.lineBetween(e.x + lx, def.y - 1, e.x + lx, def.y);
+    });
   }
 
   /** Fireballs in flight (GDD-PWR-03): an orange ball with a pale yellow core. */
@@ -722,6 +753,7 @@ export class PlayScene extends Phaser.Scene {
     if (this.run.fragilesBroken.join() !== this.fragilesKey) this.drawFragiles();
     this.drawItems();
     this.drawFireballs();
+    this.drawEnemies();
     if (this.run.crumbles.map((c) => `${c.phase}${c.steps}`).join() !== this.crumblesKey) this.drawCrumbles();
     const key = this.usedKey();
     if (key !== this.ofrendasKey) {
