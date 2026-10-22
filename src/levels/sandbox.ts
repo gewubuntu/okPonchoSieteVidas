@@ -8,6 +8,7 @@ import type { Crumble } from '../sim/crumble';
 import type { MovingPlatform } from '../sim/platform';
 import type { Spring } from '../sim/spring';
 import type { Spike } from '../sim/hazards';
+import type { Enemy } from '../sim/enemy';
 import type { Fragile } from '../sim/fragile';
 import type { Door, Key } from '../sim/door';
 import type { Pinata } from '../sim/pinata';
@@ -92,3 +93,10 @@ export const SANDBOX_KEYS: readonly Key[] = [{ col: 5, row: 13 }];
  * the third ofrenda. A full jump reaches 56 px, so it cannot be jumped over: only a claw swipe gets through.
  */
 export const SANDBOX_FRAGILES: readonly Fragile[] = [10, 11, 12, 13].map((row) => ({ col: 27, row }));
+
+/**
+ * GDD-ENM-02: an Alacrán on the platform at row 10, columns 4 to 8 (top y = 160, x 64 to 144), starting in the middle and
+ * heading right. It patrols that platform and turns at both ends. Poncho gets up there from the top of the 2-tile wall at
+ * columns 10 and 11 (32 px below it), clear of the first ofrenda's respawn (the platform is 64 px above it).
+ */
+export const SANDBOX_ENEMIES: readonly Enemy[] = [{ x: 104, y: 160 }];

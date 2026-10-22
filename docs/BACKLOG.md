@@ -16,7 +16,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-LOOP-02 | todo |  |
 | GDD-LOOP-03 | todo |  |
 | GDD-LIFE-01 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
-| GDD-LIFE-02 | doing | pit loss, 0.8 s wait with skip, hidden while waiting, invulnerability timer and blink, respawn at the latest ofrenda in src/sim/run.ts, HUD crack animation (src/ui/lifeCrack.ts), respawn flip (src/sim/respawnFlip.ts); enemy or hazard losses pending |
+| GDD-LIFE-02 | doing | pit loss, 0.8 s wait with skip, hidden while waiting, invulnerability timer and blink, respawn at the latest ofrenda in src/sim/run.ts, HUD crack animation (src/ui/lifeCrack.ts), respawn flip (src/sim/respawnFlip.ts); the Alacrán hit is built, other enemies pending |
 | GDD-LIFE-03 | doing | rules as pure logic in src/sim/lives.ts; touching an ofrenda restores a life and, if it is later in the level, sets the checkpoint (only forward) in src/sim/run.ts; ofrendas drawn as placeholders and placed in the sandbox level; the marimba sound plays on first use (GDD-AUD-02) |
 | GDD-LIFE-04 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
 | GDD-LIFE-05 | doing | restart with 7 lives at zero is built; the Siete vidas gastadas screen and per-world scope pending |
@@ -28,9 +28,9 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-MOV-06 | doing | body box collides with tiles (floors, walls, ceilings, 1-tile gap) in src/sim; hurtbox and final sprite size pending |
 | GDD-MOV-07 | todo |  |
 | GDD-MOV-08 | todo |  |
-| GDD-CMB-01 | todo |  |
+| GDD-CMB-01 | doing | stomp with 260 and 410 px/s bounces in src/sim/enemy.ts and run.ts; the not-stompable marking pending |
 | GDD-CMB-02 | doing | claw swing, hit box, cooldown, input and touch button in src/sim/claw.ts; it opens piñatas and breaks fragile walls; enemies, stun and sound pending |
-| GDD-CMB-03 | doing | spike hit: 2.0 s invulnerability and 80 px/s knockback in Taco; enemy hits pending |
+| GDD-CMB-03 | doing | spike and enemy hits: 2.0 s invulnerability and 80 px/s knockback in Taco and Fuego; crushing pending |
 | GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W, claw (X, J) and Fuego (C, K) wired; remap pending |
 | GDD-CTL-02 | todo |  |
 | GDD-CTL-03 | doing | left, right and jump buttons with multi-touch, and the slide stick with a mode switch, in src/ui/touchLayout.ts and TouchControls.ts; the claw and Fuego buttons are built; mirroring, opacity, vibration pending |
@@ -40,8 +40,8 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-WLD-03 | todo |  |
 | GDD-WLD-04 | todo |  |
 | GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls in src/sim/fragile.ts (one in the sandbox) |
-| GDD-ENM-01 | todo |  |
-| GDD-ENM-02 | todo |  |
+| GDD-ENM-01 | doing | enemy contact is one hit, never more than a life; the 3-tile spawn rule is for the level validator |
+| GDD-ENM-02 | doing | the Alacrán in src/sim/enemy.ts (one in the sandbox); Zopilote, cactus buddy and Tlacuache pending |
 | GDD-BOS-01 | todo |  |
 | GDD-BOS-02 | todo |  |
 | GDD-PRG-01 | todo |  |
@@ -66,7 +66,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-MVP-02 | todo |  |
 | GDD-PWR-01 | doing | Base, Taco and Fuego states, spike hit absorbed (Fuego goes back to Taco), respawn in Base (src/sim/run.ts, src/sim/taco.ts) |
 | GDD-PWR-02 | doing | static taco pickup and the walking taco from a piñata (src/sim/item.ts); the chomp and freeze-frame pending |
-| GDD-PWR-03 | doing | chile from piñatas, Fuego state, fireball and Fuego touch button (src/sim/fireball.ts, src/sim/run.ts); what fireballs hit, sound and gamepad pending |
+| GDD-PWR-03 | doing | chile from piñatas, Fuego state, fireball and Fuego touch button (src/sim/fireball.ts, src/sim/run.ts); fireballs defeat the Alacrán; ice, candles, bosses, sound and gamepad pending |
 | GDD-PWR-04 | todo |  |
 | GDD-PWR-05 | doing | head-bump piñata releasing a walking taco in Base (src/sim/pinata.ts, two in the sandbox); multi-piñata hilos pending; a chile comes out in Taco or Fuego |
 | GDD-PWR-06 | doing | collect by touch and no spawn inside a wall (src/sim/item.ts); the reserve-slot question stays open |

@@ -122,3 +122,15 @@ export const CLAW = { windupSteps: 2, activeSteps: 3, cooldownSteps: Math.round(
  * `maxActive` exist at once. `size` is the width of its square box and `gravity` how fast it falls (px/s squared).
  */
 export const FIREBALL = { speed: 180, bounceHeight: 20, gravity: 1500, lifeSteps: 3 * TICK_HZ, maxActive: 2, size: 6 } as const;
+
+/**
+ * GDD-ENM-02: the Alacrán (scorpion) is `width` x `height` px, standing on the ground, and patrols at `speed` px/s.
+ */
+export const ENEMY = { width: 14, height: 10, speed: 30 } as const;
+
+/**
+ * GDD-CMB-01: landing on top of a stompable enemy bounces Poncho up at `bounce` px/s, or at `boostBounce` (the jump
+ * velocity) if jump is held or was pressed in the buffer window. A stomp counts if his feet were no more than `tolerance`
+ * px below the enemy's top on the step before.
+ */
+export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;

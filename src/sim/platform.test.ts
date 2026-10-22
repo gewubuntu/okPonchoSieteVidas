@@ -21,7 +21,7 @@ const levelOf = (...platforms: MovingPlatform[]): Level => ({
   crumbles: [],
   springs: [],
   platforms,
-  tacos: [], pinatas: [], doors: [], keys: [], fragiles: [],
+  tacos: [], pinatas: [], doors: [], keys: [], fragiles: [], enemies: [],
 });
 
 /** A 20-wide world with a floor at row 12, and `solid(row)` giving every other row. */
