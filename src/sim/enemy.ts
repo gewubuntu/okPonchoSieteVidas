@@ -180,7 +180,7 @@ export const playDead = (state: EnemyState): EnemyState => ({ ...state, gait: { 
 /** Does a stomp only make it play dead, rather than defeat it? True for a Tlacuache that has not played dead yet. */
 export const stompPlaysDead = (def: Enemy, state: EnemyState): boolean => kindOf(def) === 'tlacuache' && !state.gait!.playedDead;
 
-/** Is it in play? A defeated enemy is not, nor a Tlacuache playing dead: nothing touches it, and it touches nothing. */
+/** Is it in play? A defeated enemy is not, nor a Tlacuache playing dead: only the claw reaches it, and it touches nothing. */
 const inPlay = (state: EnemyState): boolean => state.alive && state.gait?.phase !== 'dead';
 
 /** The enemy's box: an Alacrán's is ENEMY.width x ENEMY.height standing on y (likewise a cactus buddy's and a Tlacuache's), a Zopilote's ZOPILOTE.width x ZOPILOTE.height centred on its flight y. */
@@ -206,8 +206,11 @@ export function harmlessFromBelow(before: PlayerState, after: PlayerState, def: 
 
 const overlaps = (a: Box, b: Box): boolean => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
 
-/** Does a box (the claw, a fireball) overlap a live enemy in play? Boxes that only share an edge do not touch. */
+/** Does a box (a fireball, Poncho's hurtbox) overlap a live enemy in play? Boxes that only share an edge do not touch. */
 export const boxHitsEnemy = (box: Box, def: Enemy, state: EnemyState): boolean => inPlay(state) && overlaps(box, enemyBox(def, state));
+
+/** Does a claw swipe's box overlap a live enemy? Unlike other boxes it reaches a Tlacuache playing dead too (user decision, 2026-10-22). */
+export const clawHitsEnemy = (box: Box, def: Enemy, state: EnemyState): boolean => state.alive && overlaps(box, enemyBox(def, state));
 
 /** Does Poncho's hurtbox (GDD-MOV-06) overlap a live enemy in play? */
 export function touchesEnemy(player: PlayerState, def: Enemy, state: EnemyState): boolean {

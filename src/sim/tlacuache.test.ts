@@ -177,10 +177,11 @@ describe('GDD-ENM-02 playing dead it is out of play', () => {
     expect(r.enemies[0]!.gait!.phase).toBe('dead');
   });
 
-  it('the claw passes through it', () => {
+  it('but the claw reaches it: a swing defeats it while it plays dead', () => {
     const swing = { phase: 'swing', steps: 1, cooldown: 10, dir: 1, held: true } as const;
     const r = run(withPlayer({ ...standing(84), facing: 1 }, { enemies: [dead()], claw: swing }), 1);
-    expect(r.enemies[0]).toMatchObject({ alive: true, gait: { phase: 'dead' } });
+    expect(r.enemies[0]!.alive).toBe(false);
+    expect(r.lives.lives).toBe(LIVES_MAX);
   });
 
   it('a fireball passes over it and is not used up', () => {
