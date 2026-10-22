@@ -78,3 +78,23 @@ for (const [key, name] of [['KeyX', 'claw'], ['KeyC', 'Fuego']] as const) {
     expect(waited).toBeGreaterThanOrEqual(17);
   });
 }
+
+test('GDD-LIFE-02 holding the touch Claw button skips the respawn wait after 0.3 s', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'claw')!;
+  const box = (await page.locator('canvas').boundingBox())!;
+  const k = box.width / 480;
+  const at = { x: box.x + (b.x + b.w / 2) * k, y: box.y + (b.y + b.h / 2) * k, id: 1 };
+  const cdp = await page.context().newCDPSession(page);
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'respawning');
+  const start = await api(page, () => window.__PONCHO__!.ticks());
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [at] });
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing');
+  const waited = (await api(page, () => window.__PONCHO__!.ticks())) - start;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  expect(waited).toBeLessThan(40);
+  expect(waited).toBeGreaterThanOrEqual(17);
+});
