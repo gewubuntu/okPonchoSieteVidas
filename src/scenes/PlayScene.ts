@@ -18,7 +18,7 @@ import { parseTiles } from '../sim/tilemap';
 import type { Power } from '../sim/taco';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
-import { lastLifePulse, pulsedPoints } from '../ui/lastLife';
+import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
 import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
@@ -761,8 +761,7 @@ export class PlayScene extends Phaser.Scene {
     this.hudKeyCount = this.run.keysHeld;
     for (let i = 0; i < this.run.keysHeld; i++) this.paintKey(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 34 + i * 9, LIVES_HUD.top + 5, 12);
     // GDD-LIFE-04: with one life left, its triangle pulses, counted from the step the lives dropped to one.
-    if (this.run.lives.lives !== 1) this.pulseStart = null;
-    else this.pulseStart ??= this.ticks;
+    this.pulseStart = updatePulseStart(this.pulseStart, this.run.lives.lives, this.ticks);
     this.pulseDrawn = lastLifePulse(this.run.lives.lives, this.ticks - (this.pulseStart ?? 0));
     layoutLives(this.run.lives.lives).forEach((triangle, index) => {
       const [x1, y1, x2, y2, x3, y3] = index === 0 && this.pulseDrawn !== null ? pulsedPoints(triangle, this.pulseDrawn) : triangle.points;

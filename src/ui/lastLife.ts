@@ -20,3 +20,12 @@ export function pulsedPoints(triangle: LifeTriangle, scale: number): number[] {
   const cy = (p[1] + p[3] + p[5]) / 3;
   return p.map((v, i) => (i % 2 === 0 ? cx + (v - cx) * scale : cy + (v - cy) * scale));
 }
+
+/**
+ * The step the current pulse started on: kept while one life is left, set to `now` on the step the lives drop to one, and
+ * cleared at any other count, so every drop to one (also a second one, after a life came back) starts a fresh pulse.
+ */
+export function updatePulseStart(start: number | null, lives: number, now: number): number | null {
+  if (lives !== 1) return null;
+  return start ?? now;
+}

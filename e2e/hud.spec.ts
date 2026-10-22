@@ -161,3 +161,19 @@ test('GDD-LIFE-04 in real play the pulse keeps moving after the crack is over, a
   }
   expect(seen.size).toBeGreaterThan(8);
 });
+
+test('GDD-LIFE-04 a second drop to one life, after a life came back, starts the pulse at the normal size again', async ({ page }) => {
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.pause(true));
+  for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
+  await page.evaluate(() => window.__PONCHO__!.step(20)); // well into the first pulse
+  await page.evaluate(() => window.__PONCHO__!.activateOfrenda('a')); // back to two
+  await page.evaluate(() => window.__PONCHO__!.step(1));
+  expect(await page.evaluate(() => window.__PONCHO__!.hudPulse())).toBeNull();
+  const again = await page.evaluate(() => {
+    window.__PONCHO__!.loseLife(); // down to one again
+    return window.__PONCHO__!.hudPulse();
+  });
+  expect(again).toBe(1);
+});
