@@ -112,8 +112,8 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** The held-jump test for the respawn rule (PR #7) passed with the rule removed, because the input it fed never exercised the rule. The skip window was also one step late. The `pr-reviewer` agent found both by mutating the code; my own run did not. It happened again in PR #9 (the rule "touching a used ofrenda again moves the checkpoint" had no test that could fail, because my own mutations covered other rules) and in PR #11 (the pitch test read its notes from the code under test), and in PR #24 (the item wall-turn snap and the item's solid-world argument had no test that could fail).
 - **Root cause:** I wrote the test, saw it green and stopped. A green test only proves the code and the test agree, not that the test can detect the rule being broken.
 - **Rule:** After writing a test for a rule, break the code (remove the rule, move a threshold by one) and confirm the test fails, then restore. Do it for every new rule or bullet in the GDD diff, not a sample, and write the expected values from the GDD into the test instead of reading them from the code under test. The `feature` skill has this step and the `pr-reviewer` agent does it on every PR.
-- **Recurrence:** 4
-- **Promoted:** .claude/skills/feature (mutation step, now one mutation per new GDD rule), pr-reviewer subagent
+- **Recurrence:** 5
+- **Promoted:** .claude/skills/feature (mutation step, now one mutation per new GDD rule), pr-reviewer subagent. (Fifth time, the Tlacuache: two play-dead tests read the 2.0 s from `TLACUACHE.playDeadSteps`, so moving it did not fail them; the mutation step caught it before the commit, and the tests now say 119 and 120 steps.)
 
 ## L-011 Generated audio was never listened to or measured
 
@@ -150,3 +150,21 @@ Prefer an automated check over a prose rule.
 - **Rule:** When the GDD or a comment says where something can or cannot happen in the sandbox level (reach, spotting, clearance from a respawn), put a test over the real level data (`src/levels/sandbox.test.ts`) that runs the sim and states it, and mutate the level numbers to see it fail.
 - **Recurrence:** 1
 - **Promoted:** src/levels/sandbox.test.ts (the Zopilote's reach)
+
+## L-015 An e2e test picked an enemy out by where it is, and a new enemy matched
+
+- **Date:** 2026-10-22
+- **What went wrong:** The Zopilote playtest found its painted enemy with `e.y < 120`. Adding the Tlacuache on a ledge at y = 96 made that filter match it too, so "the defeated Zopilote is gone from the picture" failed on both viewports.
+- **Root cause:** The debug hook's `enemiesDrawn()` gives only positions, so each enemy test identifies its enemy by a place in the sandbox, which holds only until something new is put there.
+- **Rule:** When adding anything to the sandbox level, run the whole e2e suite, not only the new spec. Identify an enemy in a test by its index or kind, not by a region of the screen; if the hook cannot say which is which, extend the hook.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-016 A screenshot scenario took the wrong picture and still passed
+
+- **Date:** 2026-10-22
+- **What went wrong:** The Tlacuache's "playing dead" shot showed it walking: the scenario stomped too early (while it charged away) and then moved Poncho away before he landed. The "telegraph" shot put Poncho 0.4 px into the level's right wall, which pushed him out of the picture. Both were caught only by looking at the images.
+- **Root cause:** Shot scenarios had no assertions, so a scenario that misses the state it is named for runs green.
+- **Rule:** In every `e2e/shots/` scenario, assert the state the shot is named for (phase, position in view) right before taking it.
+- **Recurrence:** 1
+- **Promoted:** no

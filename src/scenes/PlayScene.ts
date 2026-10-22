@@ -10,7 +10,7 @@ import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import { activateOfrenda, collectVeladora, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { clawBox } from '../sim/claw';
-import { FIREBALL } from '../config/tuning';
+import { FIREBALL, TLACUACHE } from '../config/tuning';
 import { flipPose } from '../sim/respawnFlip';
 import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
@@ -105,7 +105,7 @@ export interface PonchoDebug {
   spits(): number;
   fireballAt(): { x: number; y: number }[];
   fireballsDrawn(): number;
-  /** The Alacranes in the simulation, and where the scene painted the live ones (GDD-ENM-02). */
+  /** The enemies in the simulation, and where the scene painted the live ones (GDD-ENM-02). */
   enemies(): { x: number; y: number; alive: boolean; dir: number; phase: string }[];
   enemiesDrawn(): { x: number; y: number }[];
   /** Test hook: puts Poncho in a power-up state without playing for it. */
@@ -296,7 +296,7 @@ export class PlayScene extends Phaser.Scene {
         spits: () => this.spits,
         fireballAt: () => this.run.fireballs.map((f) => ({ x: f.x, y: f.y })),
         fireballsDrawn: () => this.fireballsPainted,
-        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? level.enemies[i]!.y, alive: e.alive, dir: e.dir, phase: e.flight?.phase ?? 'walk' })),
+        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? level.enemies[i]!.y, alive: e.alive, dir: e.dir, phase: e.flight?.phase ?? e.gait?.phase ?? 'walk' })),
         enemiesDrawn: () => this.enemiesPainted,
         setPower: (power) => {
           this.run = { ...this.run, power };
@@ -422,6 +422,7 @@ export class PlayScene extends Phaser.Scene {
       const g = this.enemyGfx;
       if (kindOf(def) === 'zopilote') return this.drawZopilote(e);
       if (kindOf(def) === 'cactus') return this.drawCactus(e, def.y);
+      if (kindOf(def) === 'tlacuache') return this.drawTlacuache(e, def.y);
       this.enemiesPainted.push({ x: e.x, y: def.y });
       const d = e.dir;
       g.fillStyle(0x9a3a2a, 1).fillRect(e.x - 5, def.y - 6, 10, 5);
@@ -446,6 +447,36 @@ export class PlayScene extends Phaser.Scene {
     g.lineStyle(1, 0x2f5f2c, 1).lineBetween(x, y - 15, x, y);
     g.fillStyle(0xf2efe6, 1);
     for (const tx of [-3, -1, 1]) g.fillTriangle(x + tx, y - 16, x + tx + 2, y - 16, x + tx + 1, y - 19);
+  }
+
+  /**
+   * Placeholder Tlacuache (GDD-ENM-02): a grey opossum 16 x 10 px with a pale face, a pink nose and ears facing the way it walks,
+   * and a long bare pink tail behind. Its body flashes red for its telegraph (GDD-ENM-01). Playing dead it lies on its back,
+   * feet up, with a crossed-out eye and its tongue out, and its feet twitch in the last 0.5 s before it wakes.
+   */
+  private drawTlacuache(e: EnemyState, y: number): void {
+    const g = this.enemyGfx;
+    const { x, dir: d } = e;
+    const gait = e.gait!;
+    this.enemiesPainted.push({ x, y });
+    g.lineStyle(1, 0xd98c9a, 1).beginPath().moveTo(x - d * 6, y - 3).lineTo(x - d * 9, y - 2).lineTo(x - d * 8, y - 5).strokePath();
+    if (gait.phase === 'dead') {
+      const twitch = gait.age >= TLACUACHE.playDeadSteps - TLACUACHE.twitchSteps && Math.floor(gait.age / 4) % 2 === 0 ? 1 : 0;
+      g.fillStyle(0x8c8a94, 1).fillRect(x - 6, y - 5, 12, 5);
+      g.fillStyle(0xf2efe6, 1).fillRect(x + d * 5 - (d < 0 ? 3 : 0), y - 5, 3, 4);
+      g.lineStyle(1, 0x4a4850, 1);
+      for (const lx of [-4, -2, 1, 3]) g.lineBetween(x + lx, y - 5, x + lx + twitch, y - 8);
+      g.lineBetween(x + d * 6 - 1, y - 4, x + d * 6 + 1, y - 2).lineBetween(x + d * 6 - 1, y - 2, x + d * 6 + 1, y - 4);
+      g.fillStyle(0xe89aa8, 1).fillRect(x + d * 8 - (d < 0 ? 1 : 0), y - 2, 1, 2);
+      return;
+    }
+    const flash = gait.phase === 'telegraph' && Math.floor(gait.age / 4) % 2 === 0;
+    g.fillStyle(flash ? 0xff5030 : 0x8c8a94, 1).fillRect(x - 6, y - 8, 12, 6);
+    g.fillStyle(0xf2efe6, 1).fillRect(x + d * 5 - (d < 0 ? 4 : 0), y - 8, 4, 4);
+    g.fillStyle(0xe89aa8, 1).fillRect(x + d * 8 - (d < 0 ? 1 : 0), y - 6, 1, 1).fillRect(x + d * 4 - (d < 0 ? 2 : 0), y - 10, 2, 2);
+    g.fillStyle(0x1a1a1e, 1).fillRect(x + d * 6 - (d < 0 ? 1 : 0), y - 7, 1, 1);
+    g.lineStyle(1, 0x4a4850, 1);
+    for (const lx of [-4, -2, 2, 4]) g.lineBetween(x + lx, y - 2, x + lx, y);
   }
 
   /**
