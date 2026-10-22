@@ -58,7 +58,7 @@ export function pressedButtons(buttons: readonly TouchButton[], fingers: readonl
 /** The same input the keyboard gives: left and right together cancel out. `stick` is the slide stick's analog move. */
 export function touchInput(pressed: ReadonlySet<TouchButtonId>, stick = 0): PlayerInput {
   const move = (pressed.has('right') ? 1 : 0) - (pressed.has('left') ? 1 : 0) + stick;
-  return { move: Math.max(-1, Math.min(1, move)), jumpHeld: pressed.has('jump'), claw: pressed.has('claw'), fuego: pressed.has('fuego') };
+  return { move: Math.max(-1, Math.min(1, move)), jumpHeld: pressed.has('jump'), claw: pressed.has('claw'), fuego: pressed.has('fuego'), left: pressed.has('left'), right: pressed.has('right') };
 }
 
 /**

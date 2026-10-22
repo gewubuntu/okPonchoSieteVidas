@@ -131,7 +131,7 @@ describe('GDD-LIFE-05 out of lives', () => {
     const fallen = fallIn(r);
     expect(fallen.lives.lives).toBe(0);
     const screen = run(fallen, idle, RESPAWN.delaySteps);
-    expect(screen.phase).toBe('gameover'); // the Siete vidas gastadas screen, until a jump press after 1.0 s
+    expect(screen.phase).toBe('gameover'); // the Siete vidas gastadas screen, until a press of any button after 1.0 s
     const back = run(stepRun(run(screen, idle, 60), { move: 0, jumpHeld: true }, level), idle, 21);
     expect(back.lives.lives).toBe(LIVES_MAX);
     expect(back.phase).toBe('playing');

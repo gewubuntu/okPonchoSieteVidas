@@ -72,6 +72,18 @@ describe('GDD-LIFE-05 the Siete vidas gastadas screen', () => {
     }
   });
 
+  it('holding right and pressing left counts as a press, though the two cancel out in move; releasing left again does not', () => {
+    const both: PlayerInput = { move: 0, jumpHeld: false, left: true, right: true };
+    const rightOnly: PlayerInput = { move: 1, jumpHeld: false, left: false, right: true };
+    let r = run(lastLifeLost(), rightOnly, 47 + 70); // held into the pit, through the wait and past the lockout
+    expect(r.phase).toBe('gameover');
+    expect(stepRun(r, both, level).phase).toBe('respawning');
+    // A player who pressed and held left during the first second, then let go of it after: the release is no press.
+    r = run(run(lastLifeLost(), rightOnly, 47), both, 70);
+    expect(r.phase).toBe('gameover');
+    expect(stepRun(r, rightOnly, level).phase).toBe('gameover');
+  });
+
   it('holding one button and pressing another counts as a press', () => {
     let r = run(lastLifeLost(), idle, 47);
     r = run(r, right, 300);

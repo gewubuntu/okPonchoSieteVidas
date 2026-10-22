@@ -1,6 +1,6 @@
 // GDD-LIFE-02 and GDD-LIFE-05: one play-through of a level, tying movement, lives and respawn together.
-// Pure logic, no Phaser (GDD-TEC-02). After the last life the run shows the "Siete vidas gastadas" screen until a jump
-// press, then restarts the world. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
+// Pure logic, no Phaser (GDD-TEC-02). After the last life the run shows the "Siete vidas gastadas" screen until a press
+// of any button, then restarts the world. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
 import { FIREBALL, FLIP, GAME_OVER, HIT, HITBOX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
@@ -129,7 +129,7 @@ export function respawnPoint(run: RunState, level: Level): Point {
 
 /** GDD-LIFE-05: which buttons are down, one bit each for jump, left, right, claw and Fuego. */
 export const buttonsDown = (input: PlayerInput): number =>
-  (input.jumpHeld ? 1 : 0) | (input.move < 0 ? 2 : 0) | (input.move > 0 ? 4 : 0) | (input.claw ? 8 : 0) | (input.fuego ? 16 : 0);
+  (input.jumpHeld ? 1 : 0) | ((input.left ?? input.move < 0) ? 2 : 0) | ((input.right ?? input.move > 0) ? 4 : 0) | (input.claw ? 8 : 0) | (input.fuego ? 16 : 0);
 
 /** Advances one fixed step. Returns a new state and never mutates its input. */
 export function stepRun(run: RunState, input: PlayerInput, level: Level): RunState {

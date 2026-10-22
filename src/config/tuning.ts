@@ -83,7 +83,7 @@ export const TOUCH = {
 } as const;
 
 /**
- * GDD-LIFE-05: the "Siete vidas gastadas" screen after the last life waits for a jump press, but ignores presses for its
+ * GDD-LIFE-05: the "Siete vidas gastadas" screen after the last life waits for a press of any button, but ignores presses for its
  * first `lockoutSteps` (1.0 s).
  */
 export const GAME_OVER = { lockoutSteps: Math.round(1.0 * TICK_HZ) } as const;

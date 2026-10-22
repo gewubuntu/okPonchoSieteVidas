@@ -186,3 +186,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** Choose pixel sample points clear of the touch buttons (their boxes come from `touch().buttons`), and run pixel tests on both viewports before pushing.
 - **Recurrence:** 2
 - **Promoted:** .claude/skills/harness-playtest (step 6 of "Writing a scenario")
+
+## L-019 A press was read from a value that had already combined two buttons
+
+- **Date:** 2026-10-22
+- **What went wrong:** The Siete vidas gastadas screen counts a new press of any button. Left and right reached the simulation only as `move`, their sum, so with right held a press of left made `move` 0: the press was lost, and its release then looked like a new press of right. The reviewer found it with a probe. My test held right and pressed jump, never the opposite direction.
+- **Root cause:** I tested the rule with buttons that are independent in the input and missed the two that are not. The input had already merged them before the new rule needed them apart.
+- **Rule:** When a rule counts presses or releases of single buttons, read each button raw, never a value that combines several (`move`), and test the pairs that combine: both directions at once.
+- **Recurrence:** 1
+- **Promoted:** no

@@ -52,7 +52,7 @@ test('GDD-LIFE-05 it shows seven empty triangles', async ({ page }) => {
   expect(insides.filter(pale).length).toBe(0); // outlines, not filled
 });
 
-test('GDD-LIFE-05 it waits for a jump press; the prompt and the press both start after 1.0 s', async ({ page }) => {
+test('GDD-LIFE-05 it waits for a press; the prompt and the press both start after 1.0 s', async ({ page }) => {
   await lastLife(page);
   await step(page, 48);
   await step(page, 59);
@@ -95,4 +95,21 @@ test('GDD-LIFE-05 a tap on the touch Jump button ends the screen', async ({ page
   const k = box.width / 480;
   await page.touchscreen.tap(box.x + (b.x + b.w / 2) * k, box.y + (b.y + b.h / 2) * k);
   await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.lives() === 7);
+});
+
+test('GDD-LIFE-05 with right held down, a press of left ends the screen', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
+  await page.keyboard.down('ArrowRight');
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
+  await page.waitForFunction(() => window.__PONCHO__!.gameOverDrawn().prompt);
+  await page.waitForTimeout(200);
+  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('gameover'); // right, held throughout, is no press
+  await page.keyboard.down('ArrowLeft');
+  // It ends while left is still down: the press counts, not its release (left and right reach the sim before they cancel out).
+  await page.waitForFunction(() => window.__PONCHO__!.phase() !== 'gameover', undefined, { timeout: 1000 });
+  await page.keyboard.up('ArrowLeft');
+  await page.keyboard.up('ArrowRight');
 });

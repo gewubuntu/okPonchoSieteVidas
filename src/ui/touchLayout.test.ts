@@ -65,24 +65,25 @@ describe('GDD-CTL-03 touch input', () => {
   });
 
   it('moving and jumping at the same time works with two fingers', () => {
-    expect(touchInput(press('right', 'jump'))).toEqual({ move: 1, jumpHeld: true, claw: false, fuego: false });
-    expect(touchInput(press('left', 'jump'))).toEqual({ move: -1, jumpHeld: true, claw: false, fuego: false });
+    expect(touchInput(press('right', 'jump'))).toEqual({ move: 1, jumpHeld: true, claw: false, fuego: false, left: false, right: true });
+    expect(touchInput(press('left', 'jump'))).toEqual({ move: -1, jumpHeld: true, claw: false, fuego: false, left: true, right: false });
   });
 
   it('one button each, and nothing pressed means no input', () => {
-    expect(touchInput(press('left'))).toEqual({ move: -1, jumpHeld: false, claw: false, fuego: false });
-    expect(touchInput(press('right'))).toEqual({ move: 1, jumpHeld: false, claw: false, fuego: false });
-    expect(touchInput(press('jump'))).toEqual({ move: 0, jumpHeld: true, claw: false, fuego: false });
-    expect(touchInput(press())).toEqual({ move: 0, jumpHeld: false, claw: false, fuego: false });
+    expect(touchInput(press('left'))).toEqual({ move: -1, jumpHeld: false, claw: false, fuego: false, left: true, right: false });
+    expect(touchInput(press('right'))).toEqual({ move: 1, jumpHeld: false, claw: false, fuego: false, left: false, right: true });
+    expect(touchInput(press('jump'))).toEqual({ move: 0, jumpHeld: true, claw: false, fuego: false, left: false, right: false });
+    expect(touchInput(press())).toEqual({ move: 0, jumpHeld: false, claw: false, fuego: false, left: false, right: false });
   });
 
   it('left and right together cancel out, as on the keyboard', () => {
     expect(touchInput(press('left', 'right')).move).toBe(0);
+    expect(touchInput(press('left', 'right'))).toMatchObject({ left: true, right: true }); // both still reported, for GDD-LIFE-05
   });
 
   it('two fingers on the same button still count as one press', () => {
     const c = centre(find(buttons, 'jump'));
-    expect(touchInput(pressedButtons(buttons, [c, c]))).toEqual({ move: 0, jumpHeld: true, claw: false, fuego: false });
+    expect(touchInput(pressedButtons(buttons, [c, c]))).toEqual({ move: 0, jumpHeld: true, claw: false, fuego: false, left: false, right: false });
   });
 });
 
@@ -96,9 +97,9 @@ describe('GDD-CMB-02 the claw button', () => {
     expect(claw.y + claw.h).toBe(jump.y + jump.h);
   });
   it('a finger on it presses the claw, and jump and claw work together', () => {
-    expect(touchInput(press('claw'))).toEqual({ move: 0, jumpHeld: false, claw: true, fuego: false });
-    expect(touchInput(press('claw', 'jump'))).toEqual({ move: 0, jumpHeld: true, claw: true, fuego: false });
-    expect(touchInput(press('right', 'claw'))).toEqual({ move: 1, jumpHeld: false, claw: true, fuego: false });
+    expect(touchInput(press('claw'))).toEqual({ move: 0, jumpHeld: false, claw: true, fuego: false, left: false, right: false });
+    expect(touchInput(press('claw', 'jump'))).toEqual({ move: 0, jumpHeld: true, claw: true, fuego: false, left: false, right: false });
+    expect(touchInput(press('right', 'claw'))).toEqual({ move: 1, jumpHeld: false, claw: true, fuego: false, left: false, right: true });
   });
   it('is at least 48 CSS px on a small screen, like every button', () => {
     const small = layoutTouchButtons(0.5);
@@ -131,8 +132,8 @@ describe('GDD-PWR-03 the Fuego button', () => {
   });
   it('a finger on it presses Fuego, together with the others', () => {
     const buttons = layoutTouchButtons(PHONE, 'buttons', true);
-    expect(touchInput(pressIn(buttons, 'fuego'))).toEqual({ move: 0, jumpHeld: false, claw: false, fuego: true });
-    expect(touchInput(pressIn(buttons, 'fuego', 'jump', 'right'))).toEqual({ move: 1, jumpHeld: true, claw: false, fuego: true });
+    expect(touchInput(pressIn(buttons, 'fuego'))).toEqual({ move: 0, jumpHeld: false, claw: false, fuego: true, left: false, right: false });
+    expect(touchInput(pressIn(buttons, 'fuego', 'jump', 'right'))).toEqual({ move: 1, jumpHeld: true, claw: false, fuego: true, left: false, right: true });
   });
   it('is at least 48 CSS px on a small screen and overlaps no other button', () => {
     const buttons = layoutTouchButtons(0.5, 'buttons', true);
@@ -204,8 +205,8 @@ describe('GDD-CTL-03 slide stick', () => {
   });
 
   it('feeds the move input and adds up with the buttons without leaving -1 to 1', () => {
-    expect(touchInput(new Set(), 0.5)).toEqual({ move: 0.5, jumpHeld: false, claw: false, fuego: false });
-    expect(touchInput(new Set(['jump']), -0.5)).toEqual({ move: -0.5, jumpHeld: true, claw: false, fuego: false });
+    expect(touchInput(new Set(), 0.5)).toEqual({ move: 0.5, jumpHeld: false, claw: false, fuego: false, left: false, right: false });
+    expect(touchInput(new Set(['jump']), -0.5)).toEqual({ move: -0.5, jumpHeld: true, claw: false, fuego: false, left: false, right: false });
     expect(touchInput(new Set(['right']), 0.5).move).toBe(1);
     expect(pressedButtons(stick, [centre(track)]).size).toBe(0); // the stick is read by stickMove, not as a press
     expect([...pressedButtons(stick, [centre(mode)])]).toEqual(['mode']);

@@ -838,7 +838,12 @@ export class PlayScene extends Phaser.Scene {
     // Keyboard and touch work together: either can move or jump (GDD-CTL-01, GDD-CTL-03).
     this.touch.setFuego(this.run.power === 'fuego'); // the Fuego button is there only in the Fuego state (GDD-CTL-03)
     const touch = this.touch.read();
+    // Left and right also go in raw, before they cancel out in `move`: the Siete vidas gastadas screen counts a press of either (GDD-LIFE-05).
+    const left = effectiveHeld(down(this.keys.left), this.leftLatch) || touch.left === true;
+    const right = effectiveHeld(down(this.keys.right), this.rightLatch) || touch.right === true;
     const input: PlayerInput = {
+      left,
+      right,
       move: Math.max(-1, Math.min(1, (effectiveHeld(down(this.keys.right), this.rightLatch) ? 1 : 0) - (effectiveHeld(down(this.keys.left), this.leftLatch) ? 1 : 0) + touch.move)),
       jumpHeld: effectiveHeld(down(this.keys.jump), this.jumpLatch) || touch.jumpHeld,
       claw: effectiveHeld(down(this.keys.claw), this.clawLatch) || touch.claw === true,
