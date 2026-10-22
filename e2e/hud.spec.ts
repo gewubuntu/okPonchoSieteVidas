@@ -111,3 +111,69 @@ test('GDD-LIFE-02 the HUD really draws the fade and the crack: red fill, then a 
   expect(red(done!)).toBeLessThan(20); // step 24: the fill is gone, only the outline of a lost life is left
   expect(doneCrack!.g).toBeLessThan(120); // and the crack line is gone too
 });
+
+test('GDD-LIFE-04 with one life left the last triangle pulses, drawn larger at the peak; not with two', async ({ page }) => {
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.pause(true));
+  for (let i = 0; i < 5; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
+  await page.evaluate(() => window.__PONCHO__!.step(1));
+  expect(await page.evaluate(() => window.__PONCHO__!.hudPulse())).toBeNull(); // two lives
+  await page.evaluate(() => window.__PONCHO__!.loseLife());
+  // The first triangle spans x 8 to 18, y 8 to 17; at 1.4x it reaches x 6 to 20, y 5.6 to 18.2. Count the pixels that are
+  // not background in a box around it, at the smallest and the largest point of a pulse.
+  const box = Array.from({ length: 16 * 18 }, (_, i) => ({ x: 4 + (i % 16), y: 4 + Math.floor(i / 16) }));
+  const lit = async () => {
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
+    return (await pixelsAt(page, box)).filter((c) => c.r > 70).length;
+  };
+  const scaleNow = () => page.evaluate(() => window.__PONCHO__!.hudPulse());
+  let small = -1;
+  let large = -1;
+  for (let i = 0; i < 48 && (small < 0 || large < 0); i++) {
+    await page.evaluate(() => window.__PONCHO__!.step(1));
+    const s = await scaleNow();
+    expect(s).not.toBeNull();
+    if (small < 0 && s! < 1.01) small = await lit();
+    if (large < 0 && s! > 1.39) large = await lit();
+  }
+  expect(small).toBeGreaterThan(0);
+  expect(large).toBeGreaterThan(small * 1.5); // the area nearly doubles at 1.4x
+});
+
+test('GDD-LIFE-04 in real play the pulse keeps moving after the crack is over, and starts at the normal size', async ({ page }) => {
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  for (let i = 0; i < 5; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
+  // Down to one: the pulse starts here, at 1.0x. Read in the same call, before the running game takes another step.
+  const first = await page.evaluate(() => {
+    window.__PONCHO__!.loseLife();
+    return window.__PONCHO__!.hudPulse();
+  });
+  expect(first).toBe(1);
+  // Not paused: frames run through the scene's own update, as in play. Wait past the 24-step crack, then sample.
+  const start = await page.evaluate(() => window.__PONCHO__!.ticks());
+  await page.waitForFunction((s) => window.__PONCHO__!.ticks() >= s + 30, start);
+  const seen = new Set<number>();
+  for (let i = 0; i < 20; i++) {
+    seen.add(Math.round((await page.evaluate(() => window.__PONCHO__!.hudPulse()))! * 1000));
+    await page.waitForTimeout(50);
+  }
+  expect(seen.size).toBeGreaterThan(8);
+});
+
+test('GDD-LIFE-04 a second drop to one life, after a life came back, starts the pulse at the normal size again', async ({ page }) => {
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.pause(true));
+  for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
+  await page.evaluate(() => window.__PONCHO__!.step(20)); // well into the first pulse
+  await page.evaluate(() => window.__PONCHO__!.activateOfrenda('a')); // back to two
+  await page.evaluate(() => window.__PONCHO__!.step(1));
+  expect(await page.evaluate(() => window.__PONCHO__!.hudPulse())).toBeNull();
+  const again = await page.evaluate(() => {
+    window.__PONCHO__!.loseLife(); // down to one again
+    return window.__PONCHO__!.hudPulse();
+  });
+  expect(again).toBe(1);
+});

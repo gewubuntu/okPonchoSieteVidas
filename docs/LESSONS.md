@@ -112,8 +112,8 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** The held-jump test for the respawn rule (PR #7) passed with the rule removed, because the input it fed never exercised the rule. The skip window was also one step late. The `pr-reviewer` agent found both by mutating the code; my own run did not. It happened again in PR #9 (the rule "touching a used ofrenda again moves the checkpoint" had no test that could fail, because my own mutations covered other rules) and in PR #11 (the pitch test read its notes from the code under test), and in PR #24 (the item wall-turn snap and the item's solid-world argument had no test that could fail).
 - **Root cause:** I wrote the test, saw it green and stopped. A green test only proves the code and the test agree, not that the test can detect the rule being broken.
 - **Rule:** After writing a test for a rule, break the code (remove the rule, move a threshold by one) and confirm the test fails, then restore. Do it for every new rule or bullet in the GDD diff, not a sample, and write the expected values from the GDD into the test instead of reading them from the code under test. The `feature` skill has this step and the `pr-reviewer` agent does it on every PR.
-- **Recurrence:** 6
-- **Promoted:** .claude/skills/feature (mutation step, now one mutation per new GDD rule), pr-reviewer subagent. (Fifth time, the Tlacuache: two play-dead tests read the 2.0 s from `TLACUACHE.playDeadSteps`, so moving it did not fail them; the mutation step caught it before the commit, and the tests now say 119 and 120 steps.) (Sixth time, the same PR: the reviewer found two Tlacuache rules with no test that could fail, the claw half of "the claw or a fireball wins over a first stomp" and the wake-up twitch. My mutations went bullet by bullet and missed clauses; the feature skill now asks for one mutation per clause.)
+- **Recurrence:** 7
+- **Promoted:** .claude/skills/feature (mutation step, now one mutation per new GDD rule), pr-reviewer subagent. (Fifth time, the Tlacuache: two play-dead tests read the 2.0 s from `TLACUACHE.playDeadSteps`, so moving it did not fail them; the mutation step caught it before the commit, and the tests now say 119 and 120 steps.) (Sixth time, the same PR: the reviewer found two Tlacuache rules with no test that could fail, the claw half of "the claw or a fireball wins over a first stomp" and the wake-up twitch. My mutations went bullet by bullet and missed clauses; the feature skill now asks for one mutation per clause.) (Seventh time, PR #35: the clause "so it always starts at its normal size" was tested only for the first drop to one; resetting the start when the lives leave one had no test. The start tracking moved into a pure helper with unit tests for each path.)
 
 ## L-011 Generated audio was never listened to or measured
 
@@ -202,5 +202,14 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** For the respawn-skip fix I ran a mutation with `sed` straight in the shell, chained to a test run but not to a restore. The next test output came from the mutated file, and the `git diff` showed the mutation still in place. I caught it before committing and put the fix back.
 - **Root cause:** The earlier mutations ran through a script that restored each file in a `finally`. This one-off went around it, so nothing undid it.
 - **Rule:** Run every mutation through a small script that, for each mutant, replaces the exact text in the file, runs the tests, and puts the original back in a `finally` block; then check that `git diff` of the source files shows only the intended change before the gate and the commit. Do not mutate files while `npm run test:e2e` is running: the Vite dev server reloads the pages and unrelated playtests fail with `__PONCHO__` undefined.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-021 A paused playtest skipped the code that animates the HUD in real play
+
+- **Date:** 2026-10-22
+- **What went wrong:** The last-life pulse needs the HUD redrawn on every step, which the scene's `update()` does only under a condition. The playtest drove the game with the debug `step()` hook, which calls `drawHud()` itself, so removing that condition left every test green while in real play the triangle froze after the crack. The reviewer found it with an unpaused probe.
+- **Root cause:** The debug `step()` hook redraws everything on each call, so a paused test cannot see what `update()` draws, or fails to draw, on its own.
+- **Rule:** For anything that animates or redraws over time, add at least one playtest that runs the game unpaused through its own frames and checks the picture (or the drawn state) keeps changing.
 - **Recurrence:** 1
 - **Promoted:** no

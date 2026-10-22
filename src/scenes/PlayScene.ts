@@ -18,6 +18,7 @@ import { parseTiles } from '../sim/tilemap';
 import type { Power } from '../sim/taco';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
+import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
 import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
@@ -67,6 +68,8 @@ export interface PonchoDebug {
   sfxLoaded(): boolean;
   /** Triangles the HUD was asked to draw as cracking (GDD-LIFE-02): the place in the row and the fill and crack alpha. The pixels themselves are checked by reading the screenshot. */
   hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
+  /** The scale the last triangle was drawn at while one life is left, or null when it does not pulse (GDD-LIFE-04). */
+  hudPulse(): number | null;
   /** Freezes the simulation and the animations on the current frame, for screenshots and pixel tests. */
   pause(on: boolean): void;
   /** While paused, runs exactly `n` simulation steps, with no input unless given, so a frame can be reached without timing luck. */
@@ -129,6 +132,9 @@ export class PlayScene extends Phaser.Scene {
   private lastPeak = 0;
   private hud!: Phaser.GameObjects.Graphics;
   private hudFilled = 0;
+  /** GDD-LIFE-04: the scale the last triangle was drawn at, or null, and the step its pulse started on. */
+  private pulseDrawn: number | null = null;
+  private pulseStart: number | null = null;
   private platformGfx!: Phaser.GameObjects.Graphics;
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
@@ -298,6 +304,7 @@ export class PlayScene extends Phaser.Scene {
         bodyPose: () => ({ x: this.body.x, y: this.body.y + HITBOX.height / 2, rotation: this.body.rotation }),
         hudFilled: () => this.hudFilled,
         hudCracking: () => this.cracksDrawn,
+        hudPulse: () => this.pulseDrawn,
         pause: (on) => {
           this.paused = on;
         },
@@ -753,8 +760,12 @@ export class PlayScene extends Phaser.Scene {
     // GDD-WLD-05: one small key per key Poncho carries, after the power-up icon.
     this.hudKeyCount = this.run.keysHeld;
     for (let i = 0; i < this.run.keysHeld; i++) this.paintKey(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 34 + i * 9, LIVES_HUD.top + 5, 12);
+    // GDD-LIFE-04: with one life left, its triangle pulses, counted from the step the lives dropped to one.
+    this.pulseStart = updatePulseStart(this.pulseStart, this.run.lives.lives, this.ticks);
+    this.pulseDrawn = lastLifePulse(this.run.lives.lives, this.ticks - (this.pulseStart ?? 0));
     layoutLives(this.run.lives.lives).forEach((triangle, index) => {
-      const { points: [x1, y1, x2, y2, x3, y3], filled } = triangle;
+      const [x1, y1, x2, y2, x3, y3] = index === 0 && this.pulseDrawn !== null ? pulsedPoints(triangle, this.pulseDrawn) : triangle.points;
+      const { filled } = triangle;
       if (filled) {
         this.hudFilled++;
         this.hud.fillStyle(0xb94842, 1).fillTriangle(x1, y1, x2, y2, x3, y3);
@@ -867,7 +878,7 @@ export class PlayScene extends Phaser.Scene {
       this.touch.consume();
     }
     // Redraw when the lives change, and on every step while a triangle is cracking.
-    if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
+    if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.pulseDrawn !== null || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
     if (`${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}` !== this.doorsKey) this.drawDoorsAndKeys();
     if (this.run.tacosTaken.join() !== this.tacosKey) this.drawTacos();
     if (this.run.pinatasOpen.join() !== this.pinatasKey) this.drawPinatas();
