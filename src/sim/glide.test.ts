@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GLIDE, GRAVITY, RUN } from '../config/tuning';
 import { flatWorld, spawn, step, type Abilities, type PlayerInput, type PlayerState } from './movement';
+import { resumeHeld } from './pause';
 import { startRun, stepRun, type Level } from './run';
 import { parseTiles } from './tilemap';
 
@@ -198,4 +199,38 @@ describe('GDD-MOV-07 glide in a run', () => {
     expect(SANDBOX_ABILITIES).toEqual({ glide: true });
   });
 
+});
+
+describe('GDD-MOV-07 with GDD-UI-02: a jump pressed while paused does not glide on resume', () => {
+  const level: Level = { ...base, abilities: { glide: true } };
+  const fallingRun = () => {
+    const r = startRun(level);
+    return { ...r, player: { ...r.player, y: -400, grounded: false, vy: 200 } }; // high above the floor, so he is still falling throughout
+  };
+
+  it('pressed while paused and held through the resume: no glide until released and pressed again', () => {
+    let r = resumeHeld(fallingRun(), hold);
+    for (let i = 0; i < 20; i++) {
+      r = stepRun(r, hold, level);
+      expect(r.player.gliding, `step ${i + 1}`).toBe(false);
+    }
+    r = stepRun(r, idle, level);
+    for (let i = 0; i <= GLIDE.holdSteps; i++) r = stepRun(r, hold, level);
+    expect(r.player.gliding).toBe(true);
+  });
+
+  it('a glide held since before the pause carries on after it', () => {
+    let r = fallingRun();
+    for (let i = 0; i <= GLIDE.holdSteps; i++) r = stepRun(r, hold, level);
+    expect(r.player.gliding).toBe(true);
+    r = stepRun(resumeHeld(r, hold), hold, level);
+    expect(r.player.gliding).toBe(true);
+  });
+
+  it('a jump still held after a respawn does not glide until pressed again', () => {
+    const r = startRun(level);
+    let p: PlayerState = { ...r.player, y: -400, grounded: false, vy: 200, jumpWasHeld: true };
+    p = run(p, hold, 20);
+    expect(p.gliding).toBe(false);
+  });
 });

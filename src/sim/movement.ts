@@ -144,7 +144,10 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
   // GDD-MOV-07: holding jump while falling glides: the fall is capped, sideways movement is as in any fall. It cannot start
   // until jump has been held longer than the jump buffer, nor until the lock after a stomp bounce has run out.
   s.glideLock = Math.max(0, (prev.glideLock ?? 0) - 1);
-  s.jumpHeldSteps = input.jumpHeld ? (prev.jumpHeldSteps ?? 0) + 1 : 0;
+  // Counted only from a press this simulation saw: a button marked as already held (after a respawn, or pressed while paused,
+  // GDD-UI-02) does not glide until it is pressed again.
+  const heldFor = prev.jumpHeldSteps ?? 0;
+  s.jumpHeldSteps = input.jumpHeld && (pressed || heldFor > 0) ? heldFor + 1 : 0;
   s.gliding = abilities.glide === true && s.jumpHeldSteps > GLIDE.holdSteps && s.vy > 0 && s.glideLock === 0;
   if (s.gliding) s.vy = Math.min(s.vy, GLIDE.fallSpeed);
 

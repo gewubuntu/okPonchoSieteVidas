@@ -57,6 +57,22 @@ test('GDD-MOV-07 a real held jump key (Space, Z, W or Up) glides a fall to the f
   }
 });
 
+test('GDD-MOV-07 gliding into the pit loses the life, and the respawn flip shows no spread poncho', async ({ page }) => {
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.pause(true));
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150)); // over the pit
+  for (let i = 0; i < 600 && (await api(page, () => window.__PONCHO__!.phase())) === 'playing'; i++) await step(page, 1, hold);
+  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('respawning');
+  expect(await api(page, () => window.__PONCHO__!.state().gliding)).toBe(true); // he was gliding when the life was lost
+  // Nothing held, so the wait is not skipped (GDD-LIFE-02) and the flip plays: hidden at first, then shown dropping in.
+  for (let i = 0; i < 60 && !(await api(page, () => window.__PONCHO__!.bodyVisible())); i++) await step(page, 1, idle);
+  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('respawning');
+  await frames(page);
+  expect(await api(page, () => window.__PONCHO__!.bodyVisible())).toBe(true); // in the flip
+  expect(await api(page, () => window.__PONCHO__!.glideDrawn())).toBe(false);
+});
+
 /** Real touch events through the browser, so the jump button can be held. */
 const fingers = async (cdp: CDPSession, type: 'touchStart' | 'touchEnd', points: { x: number; y: number; id: number }[]) =>
   cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchStart' ? points : [] });

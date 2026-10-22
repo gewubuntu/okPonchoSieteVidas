@@ -314,8 +314,13 @@ export class PlayScene extends Phaser.Scene {
     this.pauseTitle = this.add.text(BASE_WIDTH / 2, 120, 'Paused', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
     this.pausePrompt = this.add.text(BASE_WIDTH / 2, 146, '', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
     this.pauseScreen = this.add.container(0, 0, [dim, this.pauseTitle, this.pausePrompt]).setScrollFactor(0).setDepth(9.5).setVisible(false);
-    // Escape or P pauses and resumes; a tap or click anywhere resumes; the touch pause button does both.
-    for (const k of [kb.addKey(K.ESC), kb.addKey(K.P)]) k.on('down', () => this.pauseEvents.push('key'));
+    // Escape or P pauses and resumes; a tap or click anywhere resumes; the touch pause button does both. The keys are read
+    // from raw browser events, one per press with auto-repeat ignored: Phaser's Key 'down' event can fire again on the
+    // release when a press and release land in one frame (L-006), and here every extra event would toggle the pause back.
+    const onPauseKey = (e: KeyboardEvent) => {
+      if (!e.repeat && (e.code === 'Escape' || e.code === 'KeyP')) this.pauseEvents.push('key');
+    };
+    window.addEventListener('keydown', onPauseKey);
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.pauseEvents.push(this.touch.isPauseButton(p.x, p.y) ? 'button' : 'tap'));
     // It pauses by itself when the tab or window loses focus, or a phone is turned upright, and never resumes by itself.
     const onBlur = () => this.pauseEvents.push('blur');
@@ -334,6 +339,7 @@ export class PlayScene extends Phaser.Scene {
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('resize', onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener('keydown', onPauseKey);
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('resize', onResize);
