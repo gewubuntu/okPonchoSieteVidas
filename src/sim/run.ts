@@ -146,7 +146,8 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   if (run.phase === 'respawning') {
     // `elapsed` is the number of respawning steps taken including this one, so 0.3 s is step 18 and 0.8 s is step 48.
     const elapsed = RESPAWN.delaySteps - run.wait + 1;
-    const skip = !run.restarting && elapsed >= RESPAWN.skipAfterSteps && (input.move !== 0 || input.jumpHeld);
+    // GDD-LIFE-02: any input is any button held, a slide stick push included (it sets left or right).
+    const skip = !run.restarting && elapsed >= RESPAWN.skipAfterSteps && buttonsDown(input) !== 0;
     const wait = skip ? 0 : run.wait - 1;
     if (wait > 0) return { ...run, wait };
     // GDD-LIFE-05: out of lives, the screen comes up instead of a respawn.

@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.31
+Version: 0.4.32
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.32** (2026-10-22) GDD-LIFE-02: "any input" that skips the respawn wait now really is any input: claw, Fuego, and left and right held together count too, as jump and a direction already did (a gap the GDD-LIFE-05 review found; user, 2026-10-22: fix it).
 - **0.4.31** (2026-10-22) GDD-LIFE-05, GDD-LIFE-02, GDD-CTL-04: the *Siete vidas gastadas* screen is built: it replaces the respawn after the last life and stays until a press of any button, ignoring presses for its first 1.0 s; the world then restarts with the respawn flip at the level start (user decisions, 2026-10-22: press to continue; title and seven empty triangles; "Game over" and "Press any button to Retry" below them). Left and right are now latched like jump and claw, so a quick tap of either counts (L-006). Its look and the exact press rule are written out as proposals.
 - **0.4.30** (2026-10-22) GDD-ENM-02, GDD-ENM-01, GDD-CMB-01, GDD-CMB-02, GDD-CMB-03, GDD-PWR-03, GDD-WLD-05: the Tlacuache is built: it walks, spots Poncho in front of it, telegraphs for 0.5 s and charges; its first stomp makes it play dead for 2.0 s, out of play, and a stomp after it wakes defeats it, as does the claw or a fireball while it is awake (user decisions, 2026-10-22: stomp twice, sight then dash); the claw defeats it even while it plays dead (user decision, 2026-10-22); its size, speeds, sight and timings are written out as proposals. The sandbox gets a ledge in the top right corner for it, reached from the moving platform.
 - **0.4.29** (2026-10-22) GDD-ENM-02, GDD-ENM-01, GDD-CMB-01, GDD-CMB-02, GDD-CMB-03, GDD-PWR-03: the cactus buddy is built: static, cannot be stomped, harmless only when Poncho rises into it from beneath, and nothing defeats it (user decisions, 2026-10-22: rising into it is the harmless case; the claw passes through it and a fireball is used up by it); its size and the exact from-below rule are written out as proposals.
@@ -139,7 +140,7 @@ Status: Proposed
 - A life is lost on: being hit while in the Base power-up state (GDD-PWR-01), touching an enemy or hazard without invulnerability, falling into a pit, or being crushed.
 - On loss: the lost triangle on the HUD cracks and fades to an outline (0.4 s), Poncho flips and lands feet-first at the last checkpoint after 0.8 s (GDD-MOV-05), then has 2.0 s of invulnerability (blinking).
 - Enemies and moving hazards reset to their initial state, collected *hilos* since the checkpoint are kept (no loss of progress that is not a life).
-- Respawn is instant to restart: any input skips the 0.8 s delay after 0.3 s.
+- Respawn is instant to restart: any input skips the 0.8 s delay after 0.3 s. Any input is any button held, jump, claw, Fuego, left or right (both directions at once too), or a push of the slide stick past its dead zone (GDD-CTL-03).
 - A fall into a pit counts once the whole body is below the bottom row of the level (GDD-MOV-06). It costs one life even while invulnerable (GDD-CMB-03). For the first 0.45 s of the wait Poncho is hidden. A button held through the respawn does not make him jump. Because "any input" includes a held direction, a player who keeps running into a pit respawns after 0.3 s instead of 0.8 s.
 - Respawn point: the latest ofrenda Poncho has reached (GDD-LIFE-03), or the level start if he touched none.
 - **Respawn flip, built (placeholder body):** in the last 0.35 s of the wait (21 steps) Poncho appears 48 px above the respawn point, drops with gravity-like acceleration while turning once, and is on the ground, upright and feet down, on the last step, so control returns without a jump in position (`FLIP` in `src/config/tuning.ts`). He lands at the respawn point, the latest ofrenda reached. After the last life there is no flip during the wait; the *Siete vidas gastadas* screen comes up instead, and the flip plays after it, at the level start (GDD-LIFE-05). A skip (any input after 0.3 s) before the flip starts shows no flip, and a skip during it makes him appear at the respawn point at once. The placeholder body has a pale strip along the feet so the turn can be seen.

@@ -86,6 +86,19 @@ describe('GDD-LIFE-02 respawning', () => {
     expect(withInput(RESPAWN.skipAfterSteps - 1, idle)).toBe('respawning'); // no input, no skip
   });
 
+  it('any input means any button: claw, Fuego, left and right held together, or a slide stick push skip it too', () => {
+    const fallen = fallIn();
+    const at18 = (input: PlayerInput) => stepRun(run(fallen, idle, RESPAWN.skipAfterSteps - 1), input, level).phase;
+    expect(at18({ move: 0, jumpHeld: false, claw: true })).toBe('playing');
+    expect(at18({ move: 0, jumpHeld: false, fuego: true })).toBe('playing');
+    expect(at18({ move: 0, jumpHeld: false, left: true, right: true })).toBe('playing'); // they cancel out in move
+    expect(at18({ move: -0.4, jumpHeld: false, left: true, right: false })).toBe('playing'); // the stick, part way (touchInput sets left)
+    expect(at18({ move: 0.4, jumpHeld: false })).toBe('playing'); // an input with only a move, as from a gamepad later
+    expect(at18({ move: 0, jumpHeld: false, claw: false, fuego: false, left: false, right: false })).toBe('respawning');
+    // and still not before 0.3 s
+    expect(stepRun(run(fallen, idle, RESPAWN.skipAfterSteps - 2), { move: 0, jumpHeld: false, claw: true }, level).phase).toBe('respawning');
+  });
+
   it('without input the wait ends on step 48 (0.8 s), not before', () => {
     const fallen = fallIn();
     expect(run(fallen, idle, RESPAWN.delaySteps - 1).phase).toBe('respawning');

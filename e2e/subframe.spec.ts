@@ -160,3 +160,21 @@ for (const id of ['left', 'right', 'claw'] as const) {
     expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   });
 }
+
+test('GDD-LIFE-02 a claw tap inside one frame skips the respawn wait, and does not swing', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'respawning');
+  const start = await api(page, () => window.__PONCHO__!.ticks());
+  await page.waitForFunction((s) => window.__PONCHO__!.ticks() >= s + 25, start); // past 0.3 s, well before 0.8 s
+  await page.evaluate(() => {
+    // down and up in one task, so no frame runs between them (tapKey would add a 400 ms pause after)
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', keyCode: 88, bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', keyCode: 88, bubbles: true }));
+  });
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing');
+  expect((await api(page, () => window.__PONCHO__!.ticks())) - start).toBeLessThan(40);
+  expect(await api(page, () => window.__PONCHO__!.swings())).toBe(0);
+});
