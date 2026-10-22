@@ -193,5 +193,5 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** The Siete vidas gastadas screen counts a new press of any button. Left and right reached the simulation only as `move`, their sum, so with right held a press of left made `move` 0: the press was lost, and its release then looked like a new press of right. The reviewer found it with a probe. My test held right and pressed jump, never the opposite direction.
 - **Root cause:** I tested the rule with buttons that are independent in the input and missed the two that are not. The input had already merged them before the new rule needed them apart.
 - **Rule:** When a rule counts presses or releases of single buttons, read each button raw, never a value that combines several (`move`), and test the pairs that combine: both directions at once.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-feature (step 5: list every input source that produces each button the rule reads, and test each). (Second time, the same PR: the fix passed raw left/right from the keys and touch buttons, but set them to false in slide-stick mode, so a stick push stopped counting. The reviewer found it.)
