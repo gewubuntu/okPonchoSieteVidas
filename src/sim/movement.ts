@@ -1,6 +1,6 @@
 // GDD-MOV-01 to GDD-MOV-04 and GDD-MOV-06: Poncho's movement and tile collision. Pure logic, no Phaser (GDD-TEC-02).
-// The stomp bounce (GDD-MOV-03) arrives with combat.
-import { FORGIVENESS, GRAVITY, HITBOX, JUMP, RUN, STEP, TILE } from '../config/tuning';
+// The stomp bounce (GDD-MOV-03) arrives with combat. GDD-MOV-07: the glide, where the level allows it.
+import { FORGIVENESS, GLIDE, GRAVITY, HITBOX, JUMP, RUN, STEP, TILE } from '../config/tuning';
 
 export interface PlayerState {
   x: number;
@@ -16,6 +16,17 @@ export interface PlayerState {
   jumpWasHeld: boolean;
   /** Launched by a spring and still rising: releasing jump does not cut it short (GDD-WLD-05). */
   bounced: boolean;
+  /** GDD-MOV-07: gliding on the spread poncho this step. Left out means no. */
+  gliding?: boolean;
+  /** GDD-MOV-07: steps left in which a glide cannot start, after a stomp bounce. Left out means none. */
+  glideLock?: number;
+  /** GDD-MOV-07: how many steps in a row jump has been held, this one included. Left out means none. */
+  jumpHeldSteps?: number;
+}
+
+/** Abilities unlocked by progression (GDD-PRG-01). Left out means none. */
+export interface Abilities {
+  readonly glide?: boolean;
 }
 
 export interface PlayerInput {
@@ -91,7 +102,7 @@ function approach(value: number, target: number, delta: number): number {
 }
 
 /** Advances one fixed step. Returns a new state and never mutates its input. */
-export function step(prev: PlayerState, input: PlayerInput, world: World): PlayerState {
+export function step(prev: PlayerState, input: PlayerInput, world: World, abilities: Abilities = {}): PlayerState {
   const s: PlayerState = { ...prev };
   const vx0 = prev.vx;
   const move = Math.max(-1, Math.min(1, input.move));
@@ -130,6 +141,13 @@ export function step(prev: PlayerState, input: PlayerInput, world: World): Playe
   s.vy = Math.min(vy0 + g * STEP, GRAVITY.terminalVelocity);
   if (s.vy >= 0) s.bounced = false;
 
+  // GDD-MOV-07: holding jump while falling glides: the fall is capped, sideways movement is as in any fall. It cannot start
+  // until jump has been held longer than the jump buffer, nor until the lock after a stomp bounce has run out.
+  s.glideLock = Math.max(0, (prev.glideLock ?? 0) - 1);
+  s.jumpHeldSteps = input.jumpHeld ? (prev.jumpHeldSteps ?? 0) + 1 : 0;
+  s.gliding = abilities.glide === true && s.jumpHeldSteps > GLIDE.holdSteps && s.vy > 0 && s.glideLock === 0;
+  if (s.gliding) s.vy = Math.min(s.vy, GLIDE.fallSpeed);
+
   // GDD-MOV-06: move one axis at a time and snap to the tile edge that was hit. The fastest speed is the 410 px/s jump
   // takeoff, about 6.8 px per step and far less than a 16 px tile, so the box can never jump over a tile (a test
   // guards this against the tuning values).
@@ -162,6 +180,7 @@ export function step(prev: PlayerState, input: PlayerInput, world: World): Playe
   }
 
   s.grounded = landed;
+  if (landed) s.gliding = false; // GDD-MOV-07: standing (or landing) ends a glide
   if (!landed) s.coyote = Math.max(0, s.coyote - 1);
 
   s.jumpWasHeld = input.jumpHeld;

@@ -232,3 +232,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** For an overlay, sample one pixel it must dim and one it must leave alone (HUD, buttons). For anything checked on an event and also once at start (orientation, focus, storage), add a test that starts in that state.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-024 A new rule on a held button took a short press away from an older rule
+
+- **Date:** 2026-10-22
+- **What went wrong:** The glide read "jump held while falling". A one-step jump press just before landing, which the jump buffer (GDD-MOV-03) turns into a jump on landing, now also glided for that step, slowed the fall, and landed after the buffer had run out: no jump. The new unit tests were green; the old spring playtest that times a buffered press caught it.
+- **Root cause:** The new rule and the jump buffer both read the jump button while falling, and nothing checked them together.
+- **Rule:** When a new rule reads a button that an existing rule already reads (jump buffer, coyote time, variable jump, stomp boost), list those rules, write a unit test that plays each one with the new rule switched on, and run the whole playtest suite before showing screenshots.
+- **Recurrence:** 1
+- **Promoted:** no

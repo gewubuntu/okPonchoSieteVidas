@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.34
+Version: 0.4.35
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.35** (2026-10-22) GDD-MOV-07, GDD-PRG-01, GDD-MVP-02: the glide is built ahead of the MVP, behind an ability flag a level turns on (the sandbox does, until World 2 can unlock it): holding jump while falling caps the fall at 70 px/s, sideways movement unchanged, as long as jump is held; not within 150 ms of a stomp bounce; a placeholder spread poncho is drawn (user decisions, 2026-10-22: unlock flag on in the sandbox, jump held as he falls, a wide poncho bar). New proposal: a glide starts only once jump has been held longer than the 0.1 s jump buffer (GDD-MOV-03), so a press just before landing stays a buffered jump.
 - **0.4.34** (2026-10-22) GDD-UI-02, GDD-UI-01, GDD-CTL-01, GDD-CTL-03: the pause in a level is built: Escape or P, or a touch pause button in the top-right corner, pauses under a dimmed screen; the same key or button, or a tap anywhere, resumes; losing focus or a hidden tab pauses, and so does a phone turned upright, which first asks to be turned sideways; a press made while paused does nothing until pressed again (user decisions, 2026-10-22: resume only, button top-right, auto-pause on focus and portrait, resume with the pause key or a tap). The rest of the menus wait for a title screen.
 - **0.4.33** (2026-10-22) GDD-LIFE-04: the last-life pulse is built: with one life left its HUD triangle grows to 1.4x and back every 0.8 s; the size and timing are written out as proposals. The music shift and the double hilo score wait for music and hilos.
 - **0.4.32** (2026-10-22) GDD-LIFE-02: "any input" that skips the respawn wait now really is any input: claw, Fuego, and left and right held together count too, as jump and a direction already did (a gap the GDD-LIFE-05 review found; user, 2026-10-22: fix it).
@@ -240,6 +241,11 @@ Status: Proposed. Based on the reference image (GDD-ART-02); validate against th
 Status: Proposed. Post-MVP (GDD-MVP-02), unlocked by GDD-PRG-01.
 
 Hold jump while falling: the poncho spreads like a parachute. Fall speed capped at 70 px/s, horizontal speed unchanged. Lasts as long as the button is held. Cannot be started within 150 ms of a stomp bounce.
+
+- **Built (unlock flag, start and look decided by the user 2026-10-22, details Proposed):** an ability flag on the level turns the glide on (`abilities` in `src/sim/run.ts`); the sandbox level has it on so it can be played until clearing World 2 unlocks it (GDD-PRG-01). Holding jump (any jump key or the touch Jump button) while falling glides: a jump held from takeoff glides as soon as he starts to fall, and a press while already falling (off a ledge, or after letting go) glides too. While gliding the fall speed is capped at 70 px/s (a slower fall speeds up to it as usual), and running and steering in the air are as in any fall. Letting go ends it and he falls as usual; pressing again glides again. Landing, on tiles or a moving platform, ends it.
+- **Start after the jump buffer (Proposed):** a glide starts only once jump has been held for more than 0.1 s (6 steps, the jump buffer of GDD-MOV-03), so a press just before landing is still a buffered jump and does not glide him past the window. A jump held from takeoff is long past that at the top.
+- **Stomp lock:** a stomp bounce (GDD-CMB-01) starts a 150 ms lock (9 steps) in which a glide cannot start; a spring launch has none (it rises far longer than that). `GLIDE` in `src/config/tuning.ts`, `src/sim/movement.ts`.
+- **Look (placeholder):** a bar 28 x 4 px in red and cream serape stripes 4 px wide, just above the body, drawn while gliding. Not built yet: the glide sprite and sound.
 
 ### GDD-MOV-08 Wall cling and kick
 
@@ -501,7 +507,7 @@ A giant vulture, Don Zopilote, circles the arena and drops cactus fruit. Phase 1
 
 Status: Proposed
 
-- Clearing worlds unlocks permanent **abilities** in order (these are not the temporary power-ups of section 6): Glide (GDD-MOV-07, after World 2), Wall cling (GDD-MOV-08, after World 3). Further powers are open (GDD-MVP-02).
+- Clearing worlds unlocks permanent **abilities** in order (these are not the temporary power-ups of section 6): Glide (GDD-MOV-07, after World 2), Wall cling (GDD-MOV-08, after World 3). Further powers are open (GDD-MVP-02). Until there are worlds, a level turns an ability on itself: the sandbox has the glide on.
 - Hilos buy cosmetics for the poncho (patterns and colours). Cosmetics never change gameplay.
 
 ### GDD-PRG-02 Save system
@@ -703,6 +709,8 @@ Done means: the `harness-playtest` skill passes on desktop and a phone viewport,
 Status: Proposed
 
 Worlds 2 to 7, Chile Fantasma (GDD-PWR-04), glide, wall cling, further powers, medals and score, cosmetics shop, full soundtrack, localisation beyond English and Spanish, native packaging (new ADR).
+
+The glide is built early but stays off in real levels; only the sandbox turns it on (GDD-MOV-07).
 
 ---
 
