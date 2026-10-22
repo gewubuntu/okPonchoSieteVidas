@@ -41,7 +41,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-WLD-04 | todo |  |
 | GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls in src/sim/fragile.ts (one in the sandbox) |
 | GDD-ENM-01 | doing | enemy contact is one hit, never more than a life; the 3-tile spawn rule is for the level validator |
-| GDD-ENM-02 | doing | the Alacrán, the Zopilote and the cactus buddy in src/sim/enemy.ts (one of each in the sandbox); Tlacuache pending |
+| GDD-ENM-02 | doing | the Alacrán, the Zopilote and the cactus buddy in src/sim/enemy.ts (one of each in the sandbox); Tlacuache pending; the cactus buddy's harmless-from-below rule has no level that exercises it (it needs a cactus with nothing beneath it), unit tests only |
 | GDD-BOS-01 | todo |  |
 | GDD-BOS-02 | todo |  |
 | GDD-PRG-01 | todo |  |
