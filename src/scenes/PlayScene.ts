@@ -298,7 +298,8 @@ export class PlayScene extends Phaser.Scene {
       claw: [kb.addKey(K.X), kb.addKey(K.J)],
       fuego: [kb.addKey(K.C), kb.addKey(K.K)],
     };
-    // The Key 'down' event fires once per press, even when the press ends before the next frame. Repeats only set the latch again.
+    // The Key 'down' event fires for a press even when it ends before the next frame. It can fire twice for one press, and
+    // repeats fire it too (L-006), but pressing a latch again changes nothing, so only latch presses may hang on it.
     for (const k of this.keys.jump) k.on('down', () => this.jumpLatch.press());
     for (const k of this.keys.claw) k.on('down', () => this.clawLatch.press());
     for (const k of this.keys.fuego) k.on('down', () => this.fuegoLatch.press());
