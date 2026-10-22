@@ -173,7 +173,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   const sprung = bounce(landed, level.springs);
   // GDD-ENM-02: the enemies patrol. GDD-CMB-01: landing on top of one defeats it and throws Poncho up, higher if jump is held
   // or was pressed just before.
-  const patrolled = level.enemies.map((d, i) => stepEnemy(d, run.enemies[i]!, solid));
+  const patrolled = level.enemies.map((d, i) => stepEnemy(d, run.enemies[i]!, solid, run.player));
   const stomped = patrolled.map((e, i) => isStomp(run.player, sprung, level.enemies[i]!, e));
   const player = stomped.some(Boolean)
     ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0 }
