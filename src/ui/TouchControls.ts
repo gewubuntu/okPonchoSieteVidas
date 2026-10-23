@@ -121,6 +121,11 @@ export class TouchControls {
     this.relayout();
   }
 
+  /** Hides the buttons on the title screen (GDD-UI-02). */
+  setHidden(hidden: boolean): void {
+    this.gfx.setVisible(this.enabled && !hidden);
+  }
+
   /** Whether a point (in virtual px) is on the pause button (GDD-UI-02). Always false without touch. */
   isPauseButton(x: number, y: number): boolean {
     return pressedButtons(this.buttons.filter((b) => b.id === 'pause'), [{ x, y }]).size > 0;

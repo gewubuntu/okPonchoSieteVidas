@@ -28,8 +28,9 @@ import { FIREBALL, TLACUACHE } from '../config/tuning';
 import { flipPose } from '../sim/respawnFlip';
 import { blockAt } from '../sim/block';
 import { platformAt } from '../sim/platform';
-import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
+import { buttonsDown, respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { isPortrait, pauseEvent, PLAYING, resumeHeld, type PauseEvent, type PauseState } from '../sim/pause';
+import { TITLE, titleFrame, titlePrompt, type TitleEvent, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
@@ -98,6 +99,8 @@ export interface PonchoDebug {
   playerPause(): PauseState;
   /** The pause screen as drawn: whether it is shown, its title and its prompt line. */
   pauseDrawn(): { shown: boolean; title: string; prompt: string; promptSize: number };
+  /** The title screen as drawn (GDD-UI-02): whether it is shown, its two title lines, its prompt and size, and whether the placeholder Poncho is drawn on it. */
+  titleDrawn(): { shown: boolean; title: string; subtitle: string; prompt: string; promptSize: number; ponchoShown: boolean };
   /** While paused, runs exactly `n` simulation steps, with no input unless given, so a frame can be reached without timing luck. */
   step(n: number, input?: PlayerInput): void;
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed (GDD-CTL-03). */
@@ -217,6 +220,14 @@ export class PlayScene extends Phaser.Scene {
   private pauseScreen!: Phaser.GameObjects.Container;
   private pauseTitle!: Phaser.GameObjects.Text;
   private pausePrompt!: Phaser.GameObjects.Text;
+  /** GDD-UI-02: the title screen, and Enter presses since the last frame. */
+  private title: TitleState = TITLE;
+  private titleEvents: TitleEvent[] = [];
+  private titleScreen!: Phaser.GameObjects.Container;
+  private titleText!: Phaser.GameObjects.Text;
+  private titleSubtitle!: Phaser.GameObjects.Text;
+  private titlePromptText!: Phaser.GameObjects.Text;
+  private titlePoncho!: Phaser.GameObjects.Container;
   /** The last render interpolation factor, so a paused frame keeps the picture it had. */
   private alpha = 0;
   /** Which ofrendas the drawing shows as used, as a key, so a change of the set itself (not only its size) redraws. */
@@ -378,9 +389,11 @@ export class PlayScene extends Phaser.Scene {
     // Escape or P pauses and resumes; a tap or click anywhere resumes; the touch pause button does both. The keys are read
     // from raw browser events, one per press with auto-repeat ignored: Phaser's Key 'down' event can fire again on the
     // release when a press and release land in one frame (L-006), and here every extra event would toggle the pause back.
+    // Enter, which starts the level from the title screen (GDD-UI-02), is read the same way.
     const onPauseKey = (e: KeyboardEvent) => {
       // By keyCode, the key's label, as Phaser matches the other keys: on Dvorak or Colemak the P key still pauses.
       if (!e.repeat && (e.keyCode === K.ESC || e.keyCode === K.P)) this.pauseEvents.push('key');
+      if (!e.repeat && e.keyCode === K.ENTER) this.titleEvents.push('confirm');
     };
     window.addEventListener('keydown', onPauseKey);
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.pauseEvents.push(this.touch.isPauseButton(p.x, p.y) ? 'button' : 'tap'));
@@ -407,6 +420,20 @@ export class PlayScene extends Phaser.Scene {
       window.removeEventListener('resize', onResize);
     });
 
+    // GDD-UI-02: the title screen, over everything: the level standing still under a veil like the game-over screen's, the
+    // HUD included. The touch buttons are hidden while it is up.
+    const veil = this.add.rectangle(0, 0, BASE_WIDTH, BASE_HEIGHT, 0x0d1020, 0.82).setOrigin(0);
+    this.titleText = this.add.text(BASE_WIDTH / 2, 84, 'PONCHO', { fontFamily: 'monospace', fontSize: '32px', color: '#fff3dc' }).setOrigin(0.5);
+    this.titleSubtitle = this.add.text(BASE_WIDTH / 2, 112, 'Siete Vidas', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
+    // The placeholder body at twice his size, the feet strip along the bottom (the colours of `this.body`).
+    this.titlePoncho = this.add.container(BASE_WIDTH / 2, 150, [
+      this.add.rectangle(0, 0, HITBOX.width * 2, HITBOX.height * 2, 0xb94842),
+      this.add.rectangle(0, HITBOX.height - FEET_HEIGHT, HITBOX.width * 2, FEET_HEIGHT * 2, 0xfff3dc),
+    ]);
+    this.titlePromptText = this.add.text(BASE_WIDTH / 2, 190, '', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
+    this.titleScreen = this.add.container(0, 0, [veil, this.titleText, this.titleSubtitle, this.titlePoncho, this.titlePromptText]).setScrollFactor(0).setDepth(11);
+    this.drawTitle();
+
     if (import.meta.env.DEV) {
       window.__PONCHO__ = {
         state: () => this.run.player,
@@ -427,6 +454,14 @@ export class PlayScene extends Phaser.Scene {
         },
         playerPause: () => this.pauseState,
         pauseDrawn: () => ({ shown: this.pauseScreen.visible, title: this.pauseTitle.text, prompt: this.pausePrompt.text, promptSize: Number.parseInt(String(this.pausePrompt.style.fontSize), 10) }),
+        titleDrawn: () => ({
+          shown: this.titleScreen.visible,
+          title: this.titleText.text,
+          subtitle: this.titleSubtitle.text,
+          prompt: this.titlePromptText.text,
+          promptSize: Number.parseInt(String(this.titlePromptText.style.fontSize), 10),
+          ponchoShown: this.titleScreen.visible && this.titlePoncho.visible,
+        }),
         step: (n, input = { move: 0, jumpHeld: false }) => {
           if (!this.paused) throw new Error('step() needs the game paused');
           for (let i = 0; i < n; i++) this.simStep(input);
@@ -1061,6 +1096,7 @@ export class PlayScene extends Phaser.Scene {
     }
 
     // Keyboard and touch work together: either can move or jump (GDD-CTL-01, GDD-CTL-03).
+    this.touch.setHidden(this.title.shown);
     this.touch.setFuego(this.run.power === 'fuego'); // the Fuego button is there only in the Fuego state (GDD-CTL-03)
     const touch = this.touch.read();
     // Left and right also go in raw, before they cancel out in `move`: the Siete vidas gastadas screen counts a press of either (GDD-LIFE-05).
@@ -1075,6 +1111,15 @@ export class PlayScene extends Phaser.Scene {
       fuego: effectiveHeld(down(this.keys.fuego), this.fuegoLatch) || touch.fuego === true,
     };
 
+    // GDD-UI-02: the title screen. While it is up no step runs, and the pause events go to it: a tap starts the level, Escape,
+    // P and losing focus do nothing. The button that started the level counts as already held, as after a resume.
+    if (this.title.shown) {
+      this.title = titleFrame(this.title, [...this.pauseEvents, ...this.titleEvents], buttonsDown(input));
+      this.pauseEvents = [];
+      if (!this.title.shown) this.run = resumeHeld(this.run, input);
+    }
+    this.titleEvents = [];
+
     // GDD-UI-02: apply the pause events since the last frame. While paused no step runs; on resume
     // every button down counts as already held, so a press made while paused does nothing until pressed again.
     const wasPaused = this.pauseState.paused;
@@ -1083,7 +1128,7 @@ export class PlayScene extends Phaser.Scene {
     if (wasPaused && !this.pauseState.paused) this.run = resumeHeld(this.run, input);
 
     let stepped = false;
-    if (!this.paused && !this.pauseState.paused) {
+    if (!this.paused && !this.pauseState.paused && !this.title.shown) {
       this.alpha = this.stepper.advance(deltaMs / 1000, () => {
         stepped = true;
         this.simStep(input);
@@ -1127,6 +1172,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawClaw();
     this.drawGameOver();
     this.drawPause();
+    this.drawTitle();
   }
 
   /** GDD-UI-02: the pause screen and its prompt, which tells an upright phone to turn sideways first. */
@@ -1135,5 +1181,12 @@ export class PlayScene extends Phaser.Scene {
     const prompt = this.pauseState.portrait ? 'Turn your device sideways' : this.sys.game.device.input.touch ? 'Tap to resume' : 'Press Escape or P to resume';
     // Upright, the whole level is drawn small, so the prompt is set larger.
     if (this.pausePrompt.text !== prompt) this.pausePrompt.setText(prompt).setFontSize(this.pauseState.portrait ? 12 : 8);
+  }
+
+  /** GDD-UI-02: the title screen and its prompt line, which tells an upright phone to turn sideways first. */
+  private drawTitle(): void {
+    this.titleScreen.setVisible(this.title.shown);
+    const prompt = titlePrompt(this.title.portrait, this.sys.game.device.input.touch);
+    if (this.titlePromptText.text !== prompt.text) this.titlePromptText.setText(prompt.text).setFontSize(prompt.size);
   }
 }

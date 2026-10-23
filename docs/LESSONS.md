@@ -290,3 +290,21 @@ Prefer an automated check over a prose rule.
 - **Rule:** Every planned mutant names a test that is in the same plan. When a mutant has none, add the test to the plan (setup and expected value) before launching the implementer. Keep test names free of regex characters such as parentheses, or filter on a plain prefix.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-030 The session started on a branch left behind by an earlier merged PR
+
+- **Date:** 2026-10-23
+- **What went wrong:** The designated branch still held the commits of an old, already merged PR and was 57 commits behind `main`. The first backlog read came from that stale copy and showed rows as `todo` that `main` had already built, so the next-feature choice offered to the user was nearly built on old state. A fetch caught it before any code was written.
+- **Root cause:** The work loop says to restart the branch from `main` after a merge, but nothing says to check that at the start of a session, when the merge happened in another session.
+- **Rule:** At the start of every task, `git fetch origin main` and compare; if the branch carries only merged history, restart it from `origin/main` before reading the backlog or the GDD.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-031 The PR overview sheet has no tool, so each session builds one by hand
+
+- **Date:** 2026-10-23
+- **What went wrong:** `CLAUDE.md` asks for an `overview.png` sheet of the approved screenshots in every visible PR, but the repository has no script for it. This session wrote a throwaway Playwright page in the scratchpad to compose the sheet, as earlier sessions must have done, each with its own layout.
+- **Root cause:** A required step of the PR rule was written as prose with no tool behind it.
+- **Rule:** Until there is a script, compose the sheet from the committed screenshots only (never from `shots/`), with each file name under its image, and look at it before committing.
+- **Recurrence:** 1
+- **Promoted:** no

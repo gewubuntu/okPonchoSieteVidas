@@ -7,8 +7,8 @@ declare global {
   }
 }
 
-/** Opens the game, waits for the dev debug hook and returns the list of console and page errors seen so far. */
-export async function boot(page: Page): Promise<string[]> {
+/** Opens the game on the title screen (GDD-UI-02), waits for the dev debug hook and returns the errors seen so far. */
+export async function openGame(page: Page): Promise<string[]> {
   const errors: string[] = [];
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(m.text());
@@ -16,6 +16,14 @@ export async function boot(page: Page): Promise<string[]> {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
   await page.waitForFunction(() => window.__PONCHO__ !== undefined);
+  return errors;
+}
+
+/** Opens the game and starts the level from the title screen with Enter, which is no game button, so nothing counts as held. */
+export async function boot(page: Page): Promise<string[]> {
+  const errors = await openGame(page);
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
   return errors;
 }
 
