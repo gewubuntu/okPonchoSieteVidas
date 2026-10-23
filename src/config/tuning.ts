@@ -206,3 +206,16 @@ export const ZOPILOTE = {
  * px below the enemy's top on the step before.
  */
 export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;
+
+/**
+ * GDD-TEC-04: what the level validator checks. GDD-WLD-03: a level is 3 to 6 screens of BASE_WIDTH wide, has 3 ofrendas,
+ * and its gaps never exceed `maxGapTiles` for its world (only World 1 has a limit so far). GDD-ENM-01: no enemy starts
+ * closer than 3 tiles to a respawn.
+ */
+export const LEVEL_RULES = {
+  minScreens: 3,
+  maxScreens: 6,
+  ofrendas: 3,
+  maxGapTiles: { 1: 3 } as Readonly<Record<number, number>>,
+  enemyClearance: 3 * TILE,
+} as const;

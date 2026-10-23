@@ -55,16 +55,6 @@ describe('GDD-ENM-02 the sandbox Zopilote', () => {
   });
 });
 
-describe('GDD-ENM-01 no enemy starts within 3 tiles of a respawn', () => {
-  it('holds for every enemy in the sandbox against Poncho\'s spawn and every ofrenda', () => {
-    const respawns = [SANDBOX_SPAWN, ...SANDBOX_OFRENDAS];
-    for (const e of SANDBOX_ENEMIES) {
-      const kind = e.kind ?? 'alacran';
-      for (const r of respawns) expect(Math.hypot(e.x - r.x, e.y - r.y), `${kind} at ${e.x},${e.y} against ${r.x},${r.y}`).toBeGreaterThanOrEqual(3 * TILE);
-    }
-  });
-});
-
 describe('GDD-ENM-02 the sandbox cactus buddy', () => {
   const cactus = SANDBOX_ENEMIES.find((e) => e.kind === 'cactus')!;
   const state = freshEnemies([cactus])[0]!;

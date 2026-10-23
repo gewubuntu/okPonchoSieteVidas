@@ -40,7 +40,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-WLD-03 | todo |  |
 | GDD-WLD-04 | doing | hilo pickups (src/sim/hilo.ts, 20 in the sandbox in serape colours) and the HUD counter (src/ui/hiloCounter.ts); kept through lost lives and the restart; items giving hilos instead, the multi-piñata, sound, score and saving pending |
 | GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox, which also reaches the Tlacuache's ledge); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls in src/sim/fragile.ts (one in the sandbox); moving blocks, solid and crushing, in src/sim/block.ts (one in the sandbox pocket past the fragile wall) |
-| GDD-ENM-01 | doing | enemy contact is one hit, never more than a life; the 3-tile spawn rule is for the level validator |
+| GDD-ENM-01 | doing | enemy contact is one hit, never more than a life; the 3-tile spawn rule is checked for every level by the level validator (GDD-TEC-04) |
 | GDD-ENM-02 | doing | the Alacrán, the Zopilote, the cactus buddy and the Tlacuache in src/sim/enemy.ts (one of each in the sandbox; the Tlacuache on a ledge in the top right corner); sounds and defeat animations pending; the cactus buddy's harmless-from-below rule has no level that exercises it (it needs a cactus with nothing beneath it), unit tests only |
 | GDD-BOS-01 | todo |  |
 | GDD-BOS-02 | todo |  |
@@ -59,9 +59,9 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-TEC-01 | done | scaffold on latest stable: Phaser 4, TS 7, Vite 8, Vitest 5, Playwright, Oxlint |
 | GDD-TEC-02 | done | src/sim/fixedStep.ts, sim has no Phaser imports |
 | GDD-TEC-03 | doing | fit-to-screen test only; fps and size budgets pending |
-| GDD-TEC-04 | todo | stand-in: ASCII tile level in src/levels/sandbox.ts; Tiled JSON and the level validator pending |
+| GDD-TEC-04 | doing | level validator built (src/levels/validate.ts) and run over every level in src/levels/index.ts; the sandbox is a test level (no exit or length check); the Tiled JSON loader and gap limits after World 1 pending |
 | GDD-TEC-05 | done | src/config/tuning.ts, derived-number tests |
-| GDD-TEC-06 | doing | Vitest and Playwright set up; level validation pending |
+| GDD-TEC-06 | doing | Vitest and Playwright set up; level validation runs over every level (src/levels/levels.test.ts); fps and size checks pending with GDD-TEC-03 |
 | GDD-MVP-01 | todo |  |
 | GDD-MVP-02 | todo |  |
 | GDD-PWR-01 | doing | Base, Taco and Fuego states, spike hit absorbed (Fuego goes back to Taco), respawn in Base (src/sim/run.ts, src/sim/taco.ts) |

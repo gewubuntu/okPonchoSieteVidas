@@ -15,7 +15,8 @@ import type { Door, Key } from '../sim/door';
 import type { Pinata } from '../sim/pinata';
 import type { Hilo } from '../sim/hilo';
 import type { Taco } from '../sim/taco';
-import type { Ofrenda } from '../sim/run';
+import type { Level, Ofrenda } from '../sim/run';
+import { parseTiles } from '../sim/tilemap';
 
 export const SANDBOX_ROWS: readonly string[] = [
   '..............................',
@@ -150,3 +151,6 @@ export const SANDBOX_HILOS: readonly Hilo[] = [
   [24, 9], [26, 9],
   [26, 5], [28, 5],
 ].map(([col, row]) => ({ col: col!, row: row! }));
+
+/** The sandbox as a level: the same data the scene plays and the validator checks (GDD-TEC-04). It has no exit. */
+export const SANDBOX_LEVEL: Level = { world: parseTiles(SANDBOX_ROWS), spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, blocks: SANDBOX_BLOCKS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS, fragiles: SANDBOX_FRAGILES, enemies: SANDBOX_ENEMIES, hilos: SANDBOX_HILOS, abilities: SANDBOX_ABILITIES };
