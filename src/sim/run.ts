@@ -15,6 +15,7 @@ import { collideBlocks, moveBlocks, type MovingBlock } from './block';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
 import { bounce, withSprings, type Spring } from './spring';
 import { touchesSpike, type Spike } from './hazards';
+import { collectHilos, freshHilos, type Hilo } from './hilo';
 import { eat, freshTacos, touchesTaco, type Power, type Taco } from './taco';
 import { activateOfrenda, isOutOfLives, loseLife, startWorld, type LivesState } from './lives';
 import { spawn, step, type Abilities, type PlayerInput, type PlayerState } from './movement';
@@ -46,6 +47,8 @@ export interface Level {
   readonly platforms: readonly MovingPlatform[];
   /** GDD-WLD-05: moving blocks, solid on every side, which crush. Left out means none. */
   readonly blocks?: readonly MovingBlock[];
+  /** GDD-WLD-04: hilo pickups. Left out means none. */
+  readonly hilos?: readonly Hilo[];
   /** GDD-PWR-02: taco pickups. */
   readonly tacos: readonly Taco[];
   /** GDD-PWR-05: piñata blocks. */
@@ -80,6 +83,8 @@ export interface RunState {
   readonly platformTick: number;
   /** GDD-PWR-01: the power-up state. A life lost always brings Poncho back in Base. */
   readonly power: Power;
+  /** One flag per `Level.hilos` entry: collected? Never reset: not by a lost life, nor by the restart after the last life (GDD-WLD-04, GDD-LIFE-02, GDD-LIFE-05). */
+  readonly hilosTaken: readonly boolean[];
   /** One flag per `Level.tacos` entry, in the same order: has it been picked up? They all come back on respawn. */
   readonly tacosTaken: readonly boolean[];
   /** One flag per `Level.pinatas` entry, in the same order: has it been opened? They all close again on respawn. */
@@ -107,7 +112,7 @@ export interface RunState {
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies) };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: freshHilos(level.hilos ?? []), tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies) };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -173,6 +178,8 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       crumbles: freshCrumbles(level.crumbles),
       platformTick: 0,
       power: 'base',
+      // GDD-WLD-04, GDD-LIFE-02: collected hilos stay collected.
+      hilosTaken: run.hilosTaken,
       tacosTaken: freshTacos(level.tacos),
       pinatasOpen: freshPinatas(level.pinatas),
       items: [],
@@ -207,9 +214,11 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0, gliding: false, clinging: false, glideLock: GLIDE.stompLockSteps }
     : sprung;
   const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
+  // GDD-WLD-04: hilos are collected by touch on any step Poncho is in play, the step he is hit or crushed included.
+  const hilosTaken = collectHilos(level.hilos ?? [], run.hilosTaken, player);
   if (pushed.crushed || isInPit(player, level.world)) {
     // GDD-LIFE-02, GDD-CMB-03: a crush costs a life like a pit, in any power-up state and even while invulnerable.
-    return { ...run, player, crumbles, platformTick, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
+    return { ...run, player, crumbles, platformTick, hilosTaken, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
   }
   // GDD-PWR-02: touching a taco in Base picks it up. In Taco it stays where it is. Picked up before a hit is resolved,
   // so a taco grabbed in the same step as a spike hit is spent on it.
@@ -286,7 +295,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   const enemy = run.invulnerable === 0 ? enemies.findIndex((e, i) => touchesEnemy(player, level.enemies[i]!, e) && !harmlessFromBelow(run.player, player, level.enemies[i]!, e)) : -1;
   const hitFrom = spike ? spike.col * TILE + TILE / 2 : enemy >= 0 ? enemies[enemy]!.x : undefined;
   if (hitFrom !== undefined && power === 'base') {
-    return { ...run, player, crumbles, platformTick, tacosTaken, pinatasOpen, items, fragilesBroken, enemies, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
+    return { ...run, player, crumbles, platformTick, hilosTaken, tacosTaken, pinatasOpen, items, fragilesBroken, enemies, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
   }
   let hurt = player;
   if (hitFrom !== undefined) {
@@ -306,5 +315,5 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       checkpointIndex = index;
     }
   });
-  return { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: flying, enemies, fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
+  return { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: flying, enemies, fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
 }

@@ -3,9 +3,27 @@ import { TILE } from '../config/tuning';
 import { blockAt } from '../sim/block';
 import { freshEnemies, stepEnemy, touchesEnemy } from '../sim/enemy';
 import { spawn, type PlayerState } from '../sim/movement';
+import { touchesHilo } from '../sim/hilo';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
-import { SANDBOX_BLOCKS, SANDBOX_ENEMIES, SANDBOX_OFRENDAS, SANDBOX_PINATAS, SANDBOX_PLATFORMS, SANDBOX_ROWS, SANDBOX_SPAWN } from './sandbox';
+import {
+  SANDBOX_ABILITIES,
+  SANDBOX_BLOCKS,
+  SANDBOX_CRUMBLES,
+  SANDBOX_DOORS,
+  SANDBOX_ENEMIES,
+  SANDBOX_FRAGILES,
+  SANDBOX_HILOS,
+  SANDBOX_KEYS,
+  SANDBOX_OFRENDAS,
+  SANDBOX_PINATAS,
+  SANDBOX_PLATFORMS,
+  SANDBOX_ROWS,
+  SANDBOX_SPAWN,
+  SANDBOX_SPIKES,
+  SANDBOX_SPRINGS,
+  SANDBOX_TACOS,
+} from './sandbox';
 
 const world = parseTiles(SANDBOX_ROWS);
 const def = SANDBOX_ENEMIES.find((e) => e.kind === 'zopilote')!;
@@ -130,5 +148,77 @@ describe('GDD-WLD-05 the sandbox moving block', () => {
     expect(crushed).toBeGreaterThan(0);
     expect(states[crushed]!.lives.lives).toBe(6);
     expect(states[crushed - 1]!.player.grounded).toBe(true);
+  });
+});
+
+const tiles = (list: readonly { col: number; row: number }[]) => list.map((t) => `${t.col},${t.row}`);
+
+describe('GDD-WLD-04 the sandbox hilos', () => {
+  it('has 20', () => {
+    expect(SANDBOX_HILOS.length).toBe(20);
+  });
+
+  it('each sits in an empty tile', () => {
+    const doorTiles = SANDBOX_DOORS.flatMap((d) => Array.from({ length: d.height }, (_, i) => ({ col: d.col, row: d.row + i })));
+    const taken = new Set([
+      ...tiles(SANDBOX_SPRINGS),
+      ...tiles(doorTiles),
+      ...tiles(SANDBOX_FRAGILES),
+      ...tiles(SANDBOX_PINATAS),
+      ...tiles(SANDBOX_CRUMBLES),
+      ...tiles(SANDBOX_SPIKES),
+      ...tiles(SANDBOX_KEYS),
+      ...tiles(SANDBOX_TACOS),
+    ]);
+    for (const h of SANDBOX_HILOS) {
+      const at = `${h.col},${h.row}`;
+      expect(world.solidTile(h.col, h.row), `solid at ${at}`).toBe(false);
+      expect(taken.has(at), `shared with another object at ${at}`).toBe(false);
+      for (const o of SANDBOX_OFRENDAS) {
+        // An ofrenda stands on the floor, one tile wide and two tall.
+        const inOfrenda = h.col === Math.floor(o.x / TILE) && h.row >= o.y / TILE - 2 && h.row < o.y / TILE;
+        expect(inOfrenda, `inside an ofrenda at ${at}`).toBe(false);
+      }
+    }
+  });
+
+  it('none is touched by Poncho standing at the spawn or at any ofrenda, so a respawn never lands on one', () => {
+    for (const p of [SANDBOX_SPAWN, ...SANDBOX_OFRENDAS]) for (const h of SANDBOX_HILOS) expect(touchesHilo(standing(p.x, p.y), h), `hilo ${h.col},${h.row} at ${p.x}`).toBe(false);
+  });
+
+  it('the pit hilo is collected by a jump over the cactus buddy that comes down on the spring', () => {
+    const sandbox: Level = {
+      world,
+      spawn: SANDBOX_SPAWN,
+      ofrendas: SANDBOX_OFRENDAS,
+      spikes: SANDBOX_SPIKES,
+      crumbles: SANDBOX_CRUMBLES,
+      springs: SANDBOX_SPRINGS,
+      platforms: SANDBOX_PLATFORMS,
+      blocks: SANDBOX_BLOCKS,
+      tacos: SANDBOX_TACOS,
+      pinatas: SANDBOX_PINATAS,
+      doors: SANDBOX_DOORS,
+      keys: SANDBOX_KEYS,
+      fragiles: SANDBOX_FRAGILES,
+      enemies: SANDBOX_ENEMIES,
+      hilos: SANDBOX_HILOS,
+      abilities: SANDBOX_ABILITIES,
+    };
+    const pit = SANDBOX_HILOS.findIndex((h) => h.col === 15);
+    expect(pit).toBeGreaterThanOrEqual(0);
+    // From the top of the 2-tile wall (columns 10 and 11, top y = 192), holding right with jump held for 12 steps.
+    let r: RunState = { ...startRun(sandbox), player: standing(166, 12 * TILE) };
+    expect(r.hilosTaken[pit]).toBe(false);
+    // Stop at the first landing past the pit (it ends at x = 272), asserting every step on the way.
+    let landed = false;
+    for (let i = 0; i < 200 && !landed; i++) {
+      r = stepRun(r, { move: 1, jumpHeld: i < 12 }, sandbox);
+      expect(r.phase, `step ${i}`).toBe('playing');
+      expect(r.lives.lives, `step ${i}`).toBe(7);
+      landed = r.player.grounded && r.player.x > 272;
+    }
+    expect(landed).toBe(true);
+    expect(r.hilosTaken[pit]).toBe(true);
   });
 });

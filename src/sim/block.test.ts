@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BLOCK, HITBOX, RESPAWN, TILE } from '../config/tuning';
 import { blockAt, moveBlocks, type MovingBlock } from './block';
+import { touchesHilo } from './hilo';
 import { spawn, type Abilities, type PlayerInput, type PlayerState } from './movement';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import type { Door } from './door';
@@ -256,6 +257,21 @@ describe('GDD-LIFE-02 crushing', () => {
     const i = crushedAt(states);
     expect(i).toBeGreaterThan(0);
     expect(states[i]!.lives.lives).toBe(6);
+  });
+
+  it('GDD-LIFE-02 a hilo touched on the step Poncho is crushed is collected', () => {
+    // From tick 93 the block is already beside his head, so the first step both crushes him and pushes his body from x = 108 to
+    // x = 122 (x 116 to 128). The hilo in tile (7, 11) (box x 116 to 124, y 180 to 188) is clear of him before and overlaps him
+    // after: the crush step is the step he touches it.
+    const hilo = { col: 7, row: 11 };
+    const level = levelOf([dropper], open, { hilos: [hilo] });
+    const start = floor(level, { platformTick: 93 });
+    expect(touchesHilo(start.player, hilo)).toBe(false);
+    const [first] = play(level, start, 1);
+    expect(touchesHilo(first!.player, hilo)).toBe(true);
+    expect(first!.phase).toBe('respawning');
+    expect(first!.lives.lives).toBe(6);
+    expect(first!.hilosTaken).toEqual([true]);
   });
 
   it('costs one life and brings him back in Base, from Taco and from Fuego alike', () => {

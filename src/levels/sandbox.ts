@@ -13,6 +13,7 @@ import type { Enemy } from '../sim/enemy';
 import type { Fragile } from '../sim/fragile';
 import type { Door, Key } from '../sim/door';
 import type { Pinata } from '../sim/pinata';
+import type { Hilo } from '../sim/hilo';
 import type { Taco } from '../sim/taco';
 import type { Ofrenda } from '../sim/run';
 
@@ -127,3 +128,25 @@ export const SANDBOX_ENEMIES: readonly Enemy[] = [
  * and 3 unlocks them (GDD-PRG-01). The level's left and right edges are full-height walls to cling to.
  */
 export const SANDBOX_ABILITIES = { glide: true, wallCling: true } as const;
+
+/**
+ * GDD-WLD-04: 20 hilos in short trails along the path, as (column, row) tiles, in the order the serape colours cycle through them:
+ * the floor before the door, either side of the key (4,13) (6,13); over the Alacrán's platform (row 10, top y = 160) (5,9) (7,9);
+ * on the 2-tile wall, left of the cactus buddy (10,11); above the spring, which a plain launch passes through (12,10) (12,8);
+ * on the spring ledge (row 8) (13,7) (14,7); over the middle of the pit (15,10); along the moving platform's route (top y = 128)
+ * (17,7) (19,7) (21,7); over the two spikes (20,11) (21,11); on the 3-tile wall (22,10); over the crumbling tiles (row 10)
+ * (24,9) (26,9); and on the Tlacuache's ledge (row 6) (26,5) (28,5).
+ */
+export const SANDBOX_HILOS: readonly Hilo[] = [
+  [4, 13], [6, 13],
+  [5, 9], [7, 9],
+  [10, 11],
+  [12, 10], [12, 8],
+  [13, 7], [14, 7],
+  [15, 10],
+  [17, 7], [19, 7], [21, 7],
+  [20, 11], [21, 11],
+  [22, 10],
+  [24, 9], [26, 9],
+  [26, 5], [28, 5],
+].map(([col, row]) => ({ col: col!, row: row! }));
