@@ -79,6 +79,14 @@ describe('GDD-TEC-04 level validator', () => {
   it('lets a test level go without an exit', () => {
     expect(validateLevel(entry({ exit: null, test: true }))).toEqual([]);
   });
+
+  it('still checks the ofrendas, gaps and enemies of a test level', () => {
+    expect(validateLevel(entry({ test: true, exit: null, ofrendas: [30], pits: cols(10, 13), enemies: [{ x: spawnAt.x + 20, y: spawnAt.y }] }))).toEqual([
+      '1 ofrendas, expected 3',
+      'gap of 4 tiles at columns 10 to 13, World 1 allows 3',
+      'alacran at 76,224 is 20 px from the respawn at 56,224, under 48',
+    ]);
+  });
 });
 
 describe('GDD-TEC-04 and GDD-WLD-03 level length', () => {
@@ -103,6 +111,15 @@ describe('GDD-TEC-04 and GDD-WLD-03 gaps', () => {
       { col: 10, width: 3 },
       { col: 40, width: 1 },
     ]);
+  });
+
+  it('reads only the bottom row: a hole there counts, a hole above solid bottom does not', () => {
+    const rows = Array.from({ length: HEIGHT }, (_, r) => {
+      if (r === HEIGHT - 1) return '#'.repeat(10) + '.' + '#'.repeat(19); // column 10: only the bottom row is empty
+      if (r >= HEIGHT - FLOOR_ROWS) return '#'.repeat(20) + '.' + '#'.repeat(9); // column 20: empty above a solid bottom row
+      return '.'.repeat(30);
+    });
+    expect(gaps(parseTiles(rows))).toEqual([{ col: 10, width: 1 }]);
   });
 
   it('a floating tile over a pit does not fill it', () => {
@@ -134,6 +151,16 @@ describe('GDD-TEC-04 and GDD-ENM-01 enemies start 3 tiles from a respawn', () =>
   it('an enemy 47 px from the spawn fails', () => {
     expect(validateLevel(entry({ enemies: [{ x: spawnAt.x + 47, y: spawnAt.y }] }))).toEqual([
       'alacran at 103,224 is 47 px from the respawn at 56,224, under 48',
+    ]);
+  });
+
+  it('measures the straight-line distance: 30 across and 40 up is 50 px and passes', () => {
+    expect(validateLevel(entry({ enemies: [{ x: spawnAt.x + 30, y: spawnAt.y - 40 }] }))).toEqual([]);
+  });
+
+  it('never reports an enemy under 48 px as 48: 36 across and 31 up is 47.5 px', () => {
+    expect(validateLevel(entry({ enemies: [{ x: spawnAt.x + 36, y: spawnAt.y - 31 }] }))).toEqual([
+      'alacran at 92,193 is 47 px from the respawn at 56,224, under 48',
     ]);
   });
 

@@ -58,7 +58,7 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
   for (const e of level.enemies) {
     for (const r of respawns) {
       const d = Math.hypot(e.x - r.x, e.y - r.y);
-      if (d < LEVEL_RULES.enemyClearance) problems.push(`${kindOf(e)} at ${e.x},${e.y} is ${Math.round(d)} px from the respawn at ${r.x},${r.y}, under ${LEVEL_RULES.enemyClearance}`);
+      if (d < LEVEL_RULES.enemyClearance) problems.push(`${kindOf(e)} at ${e.x},${e.y} is ${Math.floor(d)} px from the respawn at ${r.x},${r.y}, under ${LEVEL_RULES.enemyClearance}`);
     }
   }
   return problems;

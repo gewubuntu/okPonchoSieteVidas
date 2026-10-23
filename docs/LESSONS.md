@@ -137,11 +137,11 @@ Prefer an automated check over a prose rule.
 ## L-013 Sentences the new feature made false were left in the GDD
 
 - **Date:** 2026-10-22
-- **What went wrong:** In PR #29 (the Alacrán) the GDD still said "nothing is hurt by a fireball yet" and "not built yet: enemies" after the feature made both false, and the reviewer called it blocking. In PR #30 (the Zopilote) GDD-CMB-03 still said the knockback was built "for spike hits and the Alacrán". The changelog named those sections as touched, but I had edited only the section I was working in.
+- **What went wrong:** In PR #29 (the Alacrán) the GDD still said "nothing is hurt by a fireball yet" and "not built yet: enemies" after the feature made both false, and the reviewer called it blocking. In PR #30 (the Zopilote) GDD-CMB-03 still said the knockback was built "for spike hits and the Alacrán". The changelog named those sections as touched, but I had edited only the section I was working in. Again in PR #43, GDD-TEC-04: the PR deleted the sandbox's GDD-ENM-01 test, and GDD-ENM-02 still said "checked by `src/levels/sandbox.test.ts`" for the cactus buddy and the Tlacuache. The hunt searched for the rule's words, not for the path of the test it removed.
 - **Root cause:** I wrote the new text and never searched for the old text it contradicts. Phrases like "not built yet", "so far", "only", "yet" and the names of the neighbouring features sit in other sections and go stale silently.
 - **Rule:** After editing the GDD for a feature, search `docs/GDD.md` for the feature's neighbours (the IDs and names it touches) and for "yet", "so far", "only", "not built" and "built for", and fix every sentence the feature falsifies. Every section named in the changelog line must actually be in the diff.
-- **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-feature (Update docs step)
+- **Recurrence:** 3
+- **Promoted:** .claude/skills/harness-feature (Update docs step, which now also searches for the path of every test file or block the feature deletes or moves)
 
 ## L-014 A claim about where things are in the sandbox level had no test
 
@@ -270,5 +270,14 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** The hilo counter (GDD-UI-01) took the top-right corner, where the dev-only key hint was. The implementer moved the hint down to y = 20, straight over the centred game title. No test reads either text, so the gate and the playtests were green; it showed only in the screenshots.
 - **Root cause:** The plan named the counter's place but not what else already draws near it, so the clash was solved by moving the old text without checking where it landed. Text overlap has no automated check.
 - **Rule:** When a plan puts something on the HUD or moves on-screen text, list every text and graphic already drawn in that area (title, controls line, dev hint, pause button, keys and icons) and say where each one goes, then look at both viewports' screenshots for overlap before showing them.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-028 An exemption flag was tested only for what it skips, not for what it keeps
+
+- **Date:** 2026-10-23
+- **What went wrong:** In PR #43 (GDD-TEC-04) the sandbox is a test level that skips the exit and length checks. The tests proved those two are skipped, but nothing proved the ofrenda, gap and enemy checks still run for a test level, so `if (entry.test) return [];` passed every test while the PR deleted the sandbox's own enemy-distance test. The reviewer also found the "bottom row" gap rule and the straight-line distance unpinned: every fixture cleared all floor rows and put enemies level with the respawn.
+- **Root cause:** The plan's mutants came from the rules as written ("skips X"), not from the rule's other half ("and keeps Y"), and the fixtures were built so that neighbouring definitions (bottom row against all floor rows, straight-line against axis distance) gave the same answer.
+- **Rule:** For a flag that exempts something from some rules, plan a test with the flag on that breaks every rule it does not exempt, and a mutant that makes the flag exempt everything. For each definition, pick a fixture where the likely wrong definition gives a different answer.
 - **Recurrence:** 1
 - **Promoted:** no
