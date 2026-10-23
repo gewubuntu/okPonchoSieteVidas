@@ -114,7 +114,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** I wrote the test, saw it green and stopped. A green test only proves the code and the test agree, not that the test can detect the rule being broken.
 - **Rule:** After writing a test for a rule, break the code (remove the rule, move a threshold by one) and confirm the test fails, then restore. Do it for every new rule or bullet in the GDD diff, not a sample, and write the expected values from the GDD into the test instead of reading them from the code under test. The `feature` skill has this step and the `pr-reviewer` agent does it on every PR.
 - **Recurrence:** 7
-- **Promoted:** .claude/skills/feature (mutation step, now one mutation per new GDD rule), pr-reviewer subagent. (Fifth time, the Tlacuache: two play-dead tests read the 2.0 s from `TLACUACHE.playDeadSteps`, so moving it did not fail them; the mutation step caught it before the commit, and the tests now say 119 and 120 steps.) (Sixth time, the same PR: the reviewer found two Tlacuache rules with no test that could fail, the claw half of "the claw or a fireball wins over a first stomp" and the wake-up twitch. My mutations went bullet by bullet and missed clauses; the feature skill now asks for one mutation per clause.) (Seventh time, PR #35: the clause "so it always starts at its normal size" was tested only for the first drop to one; resetting the start when the lives leave one had no test. The start tracking moved into a pure helper with unit tests for each path.)
+- **Promoted:** .claude/skills/harness-feature (mutation step, now one mutation per new GDD rule), pr-reviewer subagent. (Fifth time, the Tlacuache: two play-dead tests read the 2.0 s from `TLACUACHE.playDeadSteps`, so moving it did not fail them; the mutation step caught it before the commit, and the tests now say 119 and 120 steps.) (Sixth time, the same PR: the reviewer found two Tlacuache rules with no test that could fail, the claw half of "the claw or a fireball wins over a first stomp" and the wake-up twitch. My mutations went bullet by bullet and missed clauses; the feature skill now asks for one mutation per clause.) (Seventh time, PR #35: the clause "so it always starts at its normal size" was tested only for the first drop to one; resetting the start when the lives leave one had no test. The start tracking moved into a pure helper with unit tests for each path.)
 
 ## L-011 Generated audio was never listened to or measured
 
@@ -132,7 +132,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** I chained the commit after a pipeline that hides the gate's exit code, and read the result only after the commit had happened.
 - **Rule:** Run the gate on its own and check its exit code, then commit: `node scripts/check.mjs && git commit ...` with no pipe to `tail` (or `set -o pipefail`). If the output is needed, read it from a separate run.
 - **Recurrence:** 1
-- **Promoted:** .claude/skills/feature (Gate step)
+- **Promoted:** .claude/skills/harness-feature (Gate step)
 
 ## L-013 Sentences the new feature made false were left in the GDD
 
@@ -205,7 +205,7 @@ Prefer an automated check over a prose rule.
 - **Rule:** Run every mutation through a small script that, for each mutant, replaces the exact text in the file, runs the tests, and puts the original back in a `finally` block; then check that `git diff` of the source files shows only the intended change before the gate and the commit. Do not mutate files while `npm run test:e2e` is running: the Vite dev server reloads the pages and unrelated playtests fail with `__PONCHO__` undefined.
 - **Recurrence 2 (2026-10-22, GDD-UI-02):** the pause mutations ran in the background through an ad hoc script. The background time limit killed it in the middle of a mutant, so its `finally` never ran, and the scene was left with one prompt line instead of two. A grep before the gate caught it.
 - **Recurrence:** 2
-- **Promoted:** scripts/check.mjs (no-mutation) and scripts/mutate.mjs: the runner mutants from a JSON list and keeps the original in `.mutating.json` while a mutant is in place; `scripts/check.mjs` (`no-mutation`) fails while that marker exists, and `node scripts/mutate.mjs --restore` puts the file back. Step 6 of the `harness-feature` skill names the runner.
+- **Promoted:** scripts/check.mjs (no-mutation) and scripts/mutate.mjs: the runner mutants from a JSON list and keeps the original in `.mutating.json` while a mutant is in place; `scripts/check.mjs` (`no-mutation`) fails while that marker exists, and `node scripts/mutate.mjs --restore` puts the file back. Step 7 of the `harness-feature` skill and step 4 of `.claude/agents/implementer.md` name the runner.
 
 ## L-021 A paused playtest skipped the code that animates the HUD in real play
 

@@ -27,7 +27,7 @@ You set no model of your own: you run on the session's default subagent model (`
 
 1. **Tests first.** Write every test the plan lists, with the expected values the plan gives (they come from the GDD; never read them back from the code under test). Test names carry the GDD ID. Run them and see them fail for the right reason.
 2. **Implement** the smallest change that makes them pass.
-3. **Gate.** Run `node scripts/check.mjs` until it passes. If the plan lists playtests, run `npm run test:e2e` (or the named specs) too. Never start a dev server while another agent might be using port 4173.
+3. **Gate.** Run `node scripts/check.mjs` until it passes. If the plan lists playtests, run `npm run test:e2e` (or the named specs) too. The playtests start their own server on port 4173; if it is taken, wait and retry rather than killing the process that holds it.
 4. **Mutants.** Write the plan's mutant list to a JSON file in the scratchpad or `/tmp` and run `node scripts/mutate.mjs <file>` in the foreground, splitting long lists. Every mutant must fail its named test, run alone with `-t` (L-026). For a mutant that survives: if it removes a guard that another rule already covers, delete the guard and name the covering rule in a comment (L-025); otherwise add the missing test. Re-run the gate afterwards. If a run is interrupted, run `node scripts/mutate.mjs --restore`.
 5. **Screenshots.** If the plan says the change is visible, run `npm run shots`. Do not judge the images; the main session shows them to the user.
 
