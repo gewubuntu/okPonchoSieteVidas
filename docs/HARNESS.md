@@ -13,6 +13,7 @@ project get better at itself over time.
 | `docs/decisions/` | Architecture decision records (ADRs). |
 | `.claude/skills/*` | Repeatable procedures: `harness-feature`, `harness-gdd-update`, `harness-playtest`, `harness-retro` (all start with `harness-`, so typing `/harness` lists them). |
 | `.claude/agents/pr-reviewer.md` | The subagent that reviews every pull request in depth. |
+| `.claude/agents/implementer.md` | The subagent that builds a feature from the main session's plan. |
 | `.claude/settings.json` | Project hooks. After a PR is created, a hook tells Claude to run the reviewer. |
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
 | `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a visible change has no screenshots. |
@@ -52,6 +53,16 @@ When a lesson is promoted, set its `Promoted:` field to where the rule now lives
 Add a function to `scripts/check.mjs` that returns a list of error strings, register it in
 the `checks` array, and make sure it fails on a bad input. The harness-retro skill should name the
 lesson that motivated the check in a comment.
+
+## Planning and building on different models
+
+Planning a feature takes judgement (the user's decisions, conflicts across the GDD, which older rules share a button); building it from a good plan mostly does not. So `harness-feature` splits the work:
+
+1. The main session reads the GDD, asks the user's design questions and writes a self-contained plan in `.plans/<GDD-ID>.md` (gitignored): files, tuning numbers, every test with expected values from the GDD, and the mutant list.
+2. The `implementer` subagent writes the tests and the code from the plan, runs the gate and the mutants, and reports. It never commits, edits the GDD or decides design; it stops and asks instead.
+3. The main session reads the diff, re-runs the gate and any unaccounted mutant, then does screenshots, docs, the retro and the commit as before. The `pr-reviewer` still reviews the PR.
+
+Repository files do not name models (gate check 7), so the agent file sets no model. Which model it runs on is set outside the repository with the `CLAUDE_CODE_SUBAGENT_MODEL` environment variable, the default model of every subagent that does not set its own: in a cloud session, add it in the environment's settings (the cloud environment menu in the session's title bar, then Edit, then Environment variables); locally, in your shell or your user-level `~/.claude/settings.json` under `env`. A new session picks it up. Without it the implementer runs on the main session's model and the split saves nothing. The `pr-reviewer` sets `model: inherit`, so it always runs on the main session's model. Do not set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, which would override the reviewer too.
 
 ## Pull request review
 

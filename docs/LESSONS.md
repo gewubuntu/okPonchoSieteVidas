@@ -252,7 +252,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** Each guard was written for a case another rule already handles, so it had no behaviour of its own for a test to pin down.
 - **Rule:** When a mutant of a guard survives, first ask whether another rule already covers that case. If it does, delete the guard and say in a comment which rule covers it, instead of adding a test that cannot fail for the guard alone.
 - **Recurrence:** 2
-- **Promoted:** step 6 of the `harness-feature` skill.
+- **Promoted:** step 7 of the `harness-feature` skill (step 4 of `.claude/agents/implementer.md` too).
 
 ## L-026 A test measured over a window wide enough to include a second, unrelated event
 
