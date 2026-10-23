@@ -51,7 +51,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-UI-02 | doing | the pause in a level (keys, touch button, tap to resume, focus and portrait auto-pause) in src/sim/pause.ts and PlayScene; boot, title, world map, results and settings pending |
 | GDD-UI-03 | todo |  |
 | GDD-AUD-01 | todo | audio unlock on first gesture is handled by the engine; music and volume settings pending |
-| GDD-AUD-02 | doing | ofrenda sound only (generated marimba placeholder); jump, land, claw, stomp, hilo, life lost, meow pending |
+| GDD-AUD-02 | doing | ofrenda marimba built; jump, land, claw, stomp, hilo combo, life lost and meow in progress |
 | GDD-ART-01 | doing | 480x270 canvas scaled to fit; art not started |
 | GDD-ART-02 | todo |  |
 | GDD-ART-03 | todo |  |
