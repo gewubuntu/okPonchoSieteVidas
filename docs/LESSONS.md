@@ -241,7 +241,8 @@ Prefer an automated check over a prose rule.
 - **Root cause:** The new rule and the jump buffer both read the jump button while falling, and nothing checked them together.
 - **Rule:** When a new rule reads a button that an existing rule already reads (jump buffer, coyote time, variable jump, stomp boost), list those rules, write a unit test that plays each one with the new rule switched on, and run the whole playtest suite before showing screenshots.
 - **Recurrence 2 (2026-10-22, same PR, found by the review):** the list missed GDD-UI-02. A jump pressed while paused and held through the resume (marked as held by `resumeHeld`) still glided, because the glide counted any held input instead of a press the simulation saw.
-- **Recurrence:** 2
+- **Recurrence 3 (2026-10-23, GDD-MOV-08, found by the review):** the wall kick reads a jump press in the air, and the list did not have the spring launch, which GDD-WLD-05 says no jump press replaces. At the sandbox spring, against a wall, a late press kicked and cut the launch from 77 to 56 px. The skill's list now names the spring launch and stomp bounce, and says to look for the button in every GDD section, not only in movement.
+- **Recurrence:** 3
 - **Promoted:** step 5 of the `harness-feature` skill (input rules): list every rule that already reads the button, including the "already held" marks of the respawn and of the pause resume, and test each with the new rule on.
 
 ## L-025 A guard that another rule already covers survived its mutant

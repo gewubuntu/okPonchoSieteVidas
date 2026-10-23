@@ -151,9 +151,10 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
     s.jumpBuffer = 0;
     s.coyote = 0;
     s.grounded = false;
-  } else if (pressed && abilities.wallCling === true && (s.wallGrace ?? 0) > 0 && s.wallSide !== undefined) {
+  } else if (pressed && abilities.wallCling === true && !s.bounced && (s.wallGrace ?? 0) > 0 && s.wallSide !== undefined) {
     // GDD-MOV-08: a jump press in the air beside a wall, or just after leaving it, kicks away from it (on the ground the
-    // press is a normal jump, above). Only a press the
+    // press is a normal jump, above). Not while rising from a spring: that launch is fixed once it starts (GDD-WLD-05; user,
+    // 2026-10-23). Only a press the
     // simulation saw counts, so a jump held through a respawn or a pause (GDD-UI-02) does not kick.
     const away = s.wallSide === -1 ? 1 : -1;
     s.vx = away * WALL.kickX;

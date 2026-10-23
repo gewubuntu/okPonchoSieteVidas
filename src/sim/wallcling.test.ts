@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { FORGIVENESS, GLIDE, GRAVITY, HITBOX, JUMP, RUN, WALL } from '../config/tuning';
+import { FORGIVENESS, GLIDE, GRAVITY, HITBOX, JUMP, RUN, SPRING, TILE, WALL } from '../config/tuning';
 import { spawn, step, type Abilities, type PlayerInput, type PlayerState, type World } from './movement';
 import { resumeHeld } from './pause';
 import { startRun, stepRun, type Level } from './run';
 import { parseTiles } from './tilemap';
+import { SANDBOX_ROWS, SANDBOX_SPRINGS } from '../levels/sandbox';
 
 // A wall along x = 0 (everything left of it is solid) and a floor at y = 0.
 const walled: World = { solidTile: (tx, ty) => tx < 0 || ty >= 0 };
@@ -169,6 +170,25 @@ describe('GDD-MOV-08 wall kick', () => {
     expect(s.vx).toBe(130);
   });
 
+  it('releasing jump while rising cuts the kick like a jump (GDD-MOV-02)', () => {
+    expect(JUMP.cutMultiplier).toBe(0.4);
+    const kicked = step(atWall(60), jump(-1), walled, CLING);
+    expect(kicked.vy).toBe(-380 + 1500 / 60);
+    const released = step(kicked, idle, walled, CLING);
+    expect(released.vy).toBeCloseTo((-380 + 1500 / 60) * 0.4 + 1500 / 60, 9); // cut to 0.4, then a step of rising gravity
+    const held = step(kicked, jump(0), walled, CLING);
+    expect(held.vy).toBeCloseTo(-380 + 2 * (1500 / 60), 9); // held on: not cut
+  });
+
+  it('not while rising from a spring: that launch is fixed (GDD-WLD-05); falling again, it kicks', () => {
+    const launched: PlayerState = { ...atWall(-SPRING.velocity), bounced: true };
+    const pressed = step(launched, jump(-1), walled, CLING);
+    expect(pressed.vy).toBe(-SPRING.velocity + 1500 / 60); // only gravity: no kick
+    expect(pressed.vx).toBeLessThanOrEqual(0);
+    const falling: PlayerState = { ...atWall(60), bounced: false };
+    expect(step(falling, jump(-1), walled, CLING).vx).toBe(130);
+  });
+
   it('only with the ability: without it a jump in the air beside a wall does nothing', () => {
     const s = step(atWall(60), jump(-1), walled);
     expect(s.vy).toBeGreaterThan(0);
@@ -226,6 +246,25 @@ describe('GDD-MOV-08 in a run', () => {
       if (!r.player.grounded) expect(r.player.clinging).toBe(true);
     }
     expect(r.player).toMatchObject({ grounded: true, clinging: false, y: 60 });
+  });
+
+  it('on the sandbox spring against the 2-tile wall, a jump pressed during the launch does not cut it short', () => {
+    // The spring is at column 12 (x 192 to 208, top y = 224); the wall to its left fills columns 10 and 11 up to y = 192.
+    expect(SANDBOX_SPRINGS).toEqual([{ col: 12, row: 14 }]);
+    const level: Level = { ...base, world: parseTiles(SANDBOX_ROWS), springs: SANDBOX_SPRINGS, abilities: { wallCling: true } };
+    const rise = (pressAt: number | null) => {
+      let r = startRun(level);
+      r = { ...r, player: { ...r.player, x: 12 * TILE + FLUSH, y: 14 * TILE, grounded: true, vy: 0 } };
+      let top = r.player.y;
+      for (let i = 0; i < 60; i++) {
+        r = stepRun(r, { move: -1, jumpHeld: pressAt !== null && i >= pressAt }, level);
+        top = Math.min(top, r.player.y);
+      }
+      return 14 * TILE - top;
+    };
+    const plain = rise(null);
+    expect(plain).toBeGreaterThan(70); // the plain launch, about 77 px (GDD-WLD-05)
+    for (const pressAt of [2, 5]) expect(rise(pressAt), `press at step ${pressAt}`).toBeCloseTo(plain, 6);
   });
 
   it('the sandbox has it on', async () => {
