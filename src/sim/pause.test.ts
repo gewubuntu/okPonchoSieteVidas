@@ -2,13 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { GAME_OVER, LIVES_MAX, TILE } from '../config/tuning';
 import { loseLife } from './lives';
 import type { PlayerInput } from './movement';
-import { isPortrait, pauseEvent, PLAYING, resumeHeld, type PauseEvent, type PauseState } from './pause';
+import { isPortrait, pauseEvent, pauseFrame, PLAYING, resumeHeld, type PauseEvent, type PauseState } from './pause';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { parseTiles } from './tilemap';
 
-const PAUSED: PauseState = { paused: true, portrait: false };
-const UPRIGHT: PauseState = { paused: true, portrait: true };
-const after = (s: PauseState, ...events: PauseEvent[]) => events.reduce(pauseEvent, s);
+const PAUSED: PauseState = { paused: true, portrait: false, choice: 'resume' };
+const PAUSED_QUIT: PauseState = { paused: true, portrait: false, choice: 'quit' };
+const UPRIGHT: PauseState = { paused: true, portrait: true, choice: 'resume' };
+/** The state after the events, none of which quits. */
+const after = (s: PauseState, ...events: PauseEvent[]) => {
+  const frame = pauseFrame(s, events);
+  if (frame.quit) throw new Error(`${events.join()} quit`);
+  return frame.state;
+};
 
 describe('GDD-UI-02 pausing and resuming', () => {
   it('Escape or P, or the touch pause button, pauses the level', () => {
@@ -60,6 +66,82 @@ describe('GDD-UI-02 pausing and resuming', () => {
     expect(isPortrait(undefined, 844, 390, true)).toBe(false);
     expect(isPortrait(undefined, 500, 500, true)).toBe(false);
     expect(isPortrait(undefined, 390, 844, false)).toBe(false);
+  });
+});
+
+describe('GDD-UI-02 pause menu', () => {
+  it('the menu opens with Resume chosen', () => {
+    expect(pauseEvent(PLAYING, 'key')).toMatchObject({ paused: true, choice: 'resume' });
+    for (const e of ['key', 'blur', 'button', 'portrait'] as const) expect(pauseEvent(PLAYING, e), e).toMatchObject({ paused: true, choice: 'resume' });
+  });
+
+  it('Down chooses Quit to title and Up chooses Resume, with no wrap-around', () => {
+    expect(pauseEvent(PAUSED, 'menuDown')).toEqual(PAUSED_QUIT);
+    expect(after(PAUSED, 'menuDown', 'menuDown')).toEqual(PAUSED_QUIT);
+    expect(after(PAUSED, 'menuDown', 'menuUp')).toEqual(PAUSED);
+    expect(after(PAUSED, 'menuDown', 'menuUp', 'menuUp')).toEqual(PAUSED);
+  });
+
+  it('pick on Resume resumes', () => {
+    expect(pauseEvent(PAUSED, 'pick')).toEqual(PLAYING);
+  });
+
+  it('pick on Quit to title quits', () => {
+    expect(pauseEvent(PAUSED_QUIT, 'pick')).toBe('quit');
+    expect(pauseFrame(PAUSED, ['menuDown', 'pick']).quit).toBe(true);
+  });
+
+  it('a tap on the Quit row quits whichever item is chosen', () => {
+    expect(pauseEvent(PAUSED, 'tapQuit')).toBe('quit');
+    expect(pauseEvent(PAUSED_QUIT, 'tapQuit')).toBe('quit');
+  });
+
+  it('a tap off the Quit row, the Resume row too, resumes whichever item is chosen', () => {
+    expect(pauseEvent(PAUSED, 'tap')).toEqual(PLAYING);
+    expect(pauseEvent(PAUSED_QUIT, 'tap')).toEqual(PLAYING);
+  });
+
+  it('a tap off the rows still resumes, and Escape, P and the pause button resume with Quit chosen', () => {
+    expect(after(PAUSED, 'menuDown', 'tap')).toEqual(PLAYING);
+    expect(after(PAUSED, 'menuDown', 'key')).toEqual(PLAYING);
+    expect(after(PAUSED, 'menuDown', 'button')).toEqual(PLAYING);
+  });
+
+  it('resuming resets the choice, so the next pause opens on Resume', () => {
+    expect(after(PAUSED, 'menuDown', 'key')).toEqual(PLAYING);
+    expect(after(PAUSED, 'menuDown', 'key', 'key')).toEqual(PAUSED);
+    expect(after(PAUSED, 'menuDown', 'tap', 'blur')).toEqual(PAUSED);
+  });
+
+  it('while playing, up, down, pick and taps on the rows do nothing', () => {
+    for (const e of ['menuUp', 'menuDown', 'pick', 'tapQuit'] as const) expect(pauseEvent(PLAYING, e), e).toEqual(PLAYING);
+  });
+
+  it('upright, nothing on the menu can be chosen or picked', () => {
+    for (const e of ['menuDown', 'menuUp', 'pick', 'tapQuit'] as const) expect(pauseEvent(UPRIGHT, e), e).toEqual(UPRIGHT);
+    const uprightQuit = after(PAUSED_QUIT, 'portrait');
+    expect(uprightQuit).toEqual({ paused: true, portrait: true, choice: 'quit' }); // the choice is kept across the turn
+    for (const e of ['menuUp', 'pick', 'tapQuit'] as const) expect(pauseEvent(uprightQuit, e), e).toEqual(uprightQuit);
+    expect(pauseEvent(after(uprightQuit, 'landscape'), 'pick')).toBe('quit');
+  });
+
+  it('the presses of one frame count in order', () => {
+    expect(pauseFrame(PAUSED, ['menuDown', 'pick']).quit).toBe(true);
+    expect(pauseFrame(PAUSED, ['pick', 'menuDown'])).toMatchObject({ quit: false, state: PLAYING });
+    expect(pauseFrame(PLAYING, ['key', 'menuDown', 'pick']).quit).toBe(true);
+    expect(pauseFrame(PAUSED, ['key', 'menuDown', 'pick'])).toMatchObject({ quit: false, state: PLAYING }); // Escape resumed first
+  });
+
+  it('after a quit the rest of the frame only tracks the orientation', () => {
+    expect(pauseFrame(PAUSED, ['tapQuit', 'portrait'])).toEqual({ state: PLAYING, quit: true, portrait: true });
+    expect(pauseFrame(PAUSED, ['tapQuit', 'key', 'tap'])).toEqual({ state: PLAYING, quit: true, portrait: false });
+    expect(pauseFrame(PAUSED, ['tapQuit', 'portrait', 'landscape'])).toEqual({ state: PLAYING, quit: true, portrait: false });
+  });
+
+  it('a pick and a turn upright in the same frame: the order decides', () => {
+    const chosen = after(PAUSED, 'menuDown');
+    expect(pauseFrame(chosen, ['portrait', 'pick'])).toMatchObject({ quit: false, state: { paused: true, portrait: true } });
+    expect(pauseFrame(chosen, ['pick', 'portrait']).quit).toBe(true);
   });
 });
 

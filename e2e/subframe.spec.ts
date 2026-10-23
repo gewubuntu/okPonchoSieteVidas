@@ -207,3 +207,37 @@ test('GDD-MOV-08 a Space tap shorter than one frame, against the wall, still kic
   await page.waitForFunction(() => window.__PONCHO__!.state().vx > 0 && window.__PONCHO__!.state().vy < 0);
   await page.keyboard.up('ArrowLeft');
 });
+
+test('GDD-UI-02 a Space tapped inside one task picks Quit to title and does not block the next Space on the title', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.chosen === 'quit');
+  await tapKey(page, 'Space', 32, 1);
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
+  await page.waitForTimeout(250);
+  expect(await api(page, () => window.__PONCHO__!.titleDrawn().shown)).toBe(true); // the tap that picked did not start the level
+  // The latch the tap left is spent: a second tap is a new press and starts the level.
+  await tapKey(page, 'Space', 32, 1);
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
+});
+
+test('GDD-UI-02 Down then Enter, each tapped inside one task, quit to the title screen', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
+  await page.evaluate(() => {
+    for (const [code, keyCode] of [['ArrowDown', 40], ['Enter', 13]] as const) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code, keyCode, bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { code, keyCode, bubbles: true }));
+    }
+  });
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
+  await page.waitForTimeout(250);
+  expect(await api(page, () => window.__PONCHO__!.titleDrawn().shown)).toBe(true);
+});
