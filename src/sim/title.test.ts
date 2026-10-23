@@ -59,6 +59,11 @@ describe('GDD-UI-02 title screen', () => {
     expect(titleFrame(UPRIGHT, ['landscape', 'tap'], 0).shown).toBe(false);
   });
 
+  it('a tap and a turn upright in the same frame do not start', () => {
+    expect(titleFrame(TITLE, ['tap', 'portrait'], 0)).toMatchObject({ shown: true, portrait: true });
+    expect(titleFrame(TITLE, ['confirm', 'portrait'], 1)).toMatchObject({ shown: true, portrait: true });
+  });
+
   it('a button pressed while upright and still held when turned sideways does not start', () => {
     const held = titleFrame(UPRIGHT, [], 1);
     expect(held.shown).toBe(true);

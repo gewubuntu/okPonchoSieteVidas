@@ -17,18 +17,19 @@ export const TITLE: TitleState = { shown: true, portrait: false, buttonsHeld: 0 
 
 /**
  * One frame of the title screen. Enter, a tap or click anywhere (the pause button too) or a new press of any game button
- * starts the level, unless the phone is upright. Escape, P and losing focus do nothing.
+ * starts the level, unless the phone is upright at the end of the frame. Escape, P and losing focus do nothing.
  */
 export function titleFrame(state: TitleState, events: readonly TitleEvent[], down: number): TitleState {
   if (!state.shown) return state;
   let { portrait } = state;
-  let start = false;
+  let pressed = false;
   for (const e of events) {
     if (e === 'portrait') portrait = true;
     else if (e === 'landscape') portrait = false;
-    else if (e === 'confirm' || e === 'tap' || e === 'button') start ||= !portrait;
+    else if (e === 'confirm' || e === 'tap' || e === 'button') pressed = true;
   }
-  if ((down & ~state.buttonsHeld) !== 0 && !portrait) start = true;
+  // A press counts only in a frame that ends sideways, so a tap and a turn upright in one frame do not start the level.
+  const start = !portrait && (pressed || (down & ~state.buttonsHeld) !== 0);
   return { shown: !start, portrait, buttonsHeld: down };
 }
 

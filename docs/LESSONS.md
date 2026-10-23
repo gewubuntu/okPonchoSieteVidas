@@ -308,3 +308,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** Until there is a script, compose the sheet from the committed screenshots only (never from `shots/`), with each file name under its image, and look at it before committing.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-032 Hiding the touch buttons hid only their drawing
+
+- **Date:** 2026-10-23
+- **What went wrong:** On the title screen (GDD-UI-02) the touch buttons were hidden with `setVisible(false)`, but `read()` still acted on them: a finger held on the invisible mode switch flipped the slide stick and saved the choice. A tap and a turn upright in the same frame also started the level upright. The review found both with probes; the playtests used `page.touchscreen.tap`, which is shorter than a frame, and never put two events in one frame.
+- **Root cause:** The plan treated "hidden" as a drawing change and listed every input source for starting the level, but not the side effects those sources have on their own (the mode switch). Events were applied in order, but the rule was really about the state at the end of the frame.
+- **Rule:** When a screen hides controls, list what each hidden control does besides the press the screen reads, and test a held touch (CDP, several frames), not only a tap. When a rule reads several events from one frame, decide on the state at the end of the frame and test a pair of conflicting events in one frame.
+- **Recurrence:** 1
+- **Promoted:** no

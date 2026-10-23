@@ -154,3 +154,21 @@ test('GDD-UI-02 a phone turned upright on the title screen asks to turn sideways
   await titleHidden(page);
   expect((await api(page, () => window.__PONCHO__!.playerPause())).paused).toBe(false);
 });
+
+test('GDD-UI-02 a held touch on the hidden mode switch starts the level and leaves the touch mode alone', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await openGame(page);
+  const before = await api(page, () => window.__PONCHO__!.touch());
+  const sw = before.buttons.find((b) => b.id === 'mode')!;
+  const box = (await page.locator('canvas').boundingBox())!;
+  const k = box.width / 480;
+  const at = { x: box.x + (sw.x + sw.w / 2) * k, y: box.y + (sw.y + sw.h / 2) * k, id: 1 };
+  // A real finger held for several frames (a Playwright tap is shorter than a frame), lifted after the title has gone.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [at] });
+  await titleHidden(page);
+  await page.waitForTimeout(150);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(150);
+  expect((await api(page, () => window.__PONCHO__!.touch())).mode).toBe(before.mode);
+});
