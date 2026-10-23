@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { TILE } from '../config/tuning';
+import { blockAt } from '../sim/block';
 import { freshEnemies, stepEnemy, touchesEnemy } from '../sim/enemy';
 import { spawn, type PlayerState } from '../sim/movement';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
-import { SANDBOX_ENEMIES, SANDBOX_OFRENDAS, SANDBOX_PINATAS, SANDBOX_PLATFORMS, SANDBOX_ROWS, SANDBOX_SPAWN } from './sandbox';
+import { SANDBOX_BLOCKS, SANDBOX_ENEMIES, SANDBOX_OFRENDAS, SANDBOX_PINATAS, SANDBOX_PLATFORMS, SANDBOX_ROWS, SANDBOX_SPAWN } from './sandbox';
 
 const world = parseTiles(SANDBOX_ROWS);
 const def = SANDBOX_ENEMIES.find((e) => e.kind === 'zopilote')!;
@@ -89,5 +90,45 @@ describe('GDD-ENM-02 the sandbox Tlacuache and its ledge (row 6, columns 25 to 2
 
   it('is out of the Zopilote\'s reach: it never spots Poncho anywhere on the ledge', () => {
     for (let x = 406; x <= 474; x += 4) expect(spotted(standing(x, 6 * TILE)), `x = ${x}`).toBe(false);
+  });
+});
+
+describe('GDD-WLD-05 the sandbox moving block', () => {
+  const block = SANDBOX_BLOCKS[0]!;
+  const sandbox: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: [], spikes: [], crumbles: [], springs: [], platforms: [], tacos: [], pinatas: [], doors: [], keys: [], fragiles: [], enemies: [], blocks: SANDBOX_BLOCKS };
+  const idle = { move: 0, jumpHeld: false };
+  const play = (r: RunState, steps: number): RunState[] => {
+    const states: RunState[] = [];
+    for (let i = 0; i < steps; i++) states.push((r = stepRun(r, idle, sandbox)));
+    return states;
+  };
+
+  it('is one tile square in column 28, from flush under the Tlacuache\'s ledge down to the floor', () => {
+    expect(SANDBOX_BLOCKS).toHaveLength(1);
+    expect(blockAt(block, 0)).toEqual({ x: 448, y: 112, w: 16, h: 16 });
+    expect(world.solidTile(28, 6)).toBe(true); // the ledge, whose underside is y = 112
+    expect(world.solidTile(28, 7)).toBe(false);
+    const end = blockAt(block, 144);
+    expect(end.y + end.h).toBe(224); // resting on the floor
+    expect(world.solidTile(28, 14)).toBe(true);
+  });
+
+  it('crushes Poncho standing on the floor under it, before it reaches the floor', () => {
+    const states = play({ ...startRun(sandbox), player: standing(456, 224) }, 144);
+    expect(states[143]!.lives.lives).toBe(6);
+    expect(states.findIndex((s) => s.phase === 'respawning')).toBeGreaterThan(0);
+  });
+
+  it('never crushes Poncho standing in column 29 beside it, over two round trips', () => {
+    const states = play({ ...startRun(sandbox), player: standing(472, 224) }, 576);
+    expect(states.every((s) => s.lives.lives === 7 && s.phase === 'playing')).toBe(true);
+  });
+
+  it('crushes Poncho riding it up into the ledge, before it reaches its top end', () => {
+    const states = play({ ...startRun(sandbox), player: standing(456, 208), platformTick: 144 }, 144);
+    const crushed = states.findIndex((s) => s.phase === 'respawning');
+    expect(crushed).toBeGreaterThan(0);
+    expect(states[crushed]!.lives.lives).toBe(6);
+    expect(states[crushed - 1]!.player.grounded).toBe(true);
   });
 });

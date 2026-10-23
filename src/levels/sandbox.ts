@@ -5,6 +5,7 @@
 // 85% of its width (GDD-WLD-03 asks for 25%, 55% and 85%; 55% falls in the pit, so the second one stands just past it).
 import { TILE } from '../config/tuning';
 import type { Crumble } from '../sim/crumble';
+import type { MovingBlock } from '../sim/block';
 import type { MovingPlatform } from '../sim/platform';
 import type { Spring } from '../sim/spring';
 import type { Spike } from '../sim/hazards';
@@ -63,6 +64,13 @@ export const SANDBOX_SPRINGS: readonly Spring[] = [{ col: 12, row: 14 }];
  * tiles at x = 384, whose top is 32 px lower.
  */
 export const SANDBOX_PLATFORMS: readonly MovingPlatform[] = [{ x0: 240, y0: 128, x1: 336, y1: 128, w: 48 }];
+
+/**
+ * GDD-WLD-05, GDD-LIFE-02: a moving block one tile square in tile column 28 (x 448 to 464), in the pocket past the fragile wall.
+ * It starts just under the Tlacuache's ledge (row 6, underside y = 112) and travels 96 px down to rest on the floor (top y = 224)
+ * and back, so Poncho is crushed if he is under it when it lands or rides it up into the ledge. Column 29 beside it is safe.
+ */
+export const SANDBOX_BLOCKS: readonly MovingBlock[] = [{ x0: 448, y0: 112, x1: 448, y1: 208, w: 16, h: 16 }];
 
 /** GDD-PWR-02: a taco on the floor at tile column 18, just past the pit and one tile before the second ofrenda, so Poncho can pick it up and then meet the spikes. */
 export const SANDBOX_TACOS: readonly Taco[] = [{ col: 18, row: 13 }];

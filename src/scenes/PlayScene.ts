@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES, SANDBOX_ENEMIES, SANDBOX_ABILITIES } from '../levels/sandbox';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_BLOCKS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES, SANDBOX_ENEMIES, SANDBOX_ABILITIES } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
@@ -12,6 +12,7 @@ import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { clawBox } from '../sim/claw';
 import { FIREBALL, TLACUACHE } from '../config/tuning';
 import { flipPose } from '../sim/respawnFlip';
+import { blockAt } from '../sim/block';
 import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { isPortrait, pauseEvent, PLAYING, resumeHeld, type PauseEvent, type PauseState } from '../sim/pause';
@@ -25,7 +26,7 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS, fragiles: SANDBOX_FRAGILES, enemies: SANDBOX_ENEMIES, abilities: SANDBOX_ABILITIES };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, blocks: SANDBOX_BLOCKS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS, fragiles: SANDBOX_FRAGILES, enemies: SANDBOX_ENEMIES, abilities: SANDBOX_ABILITIES };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -83,6 +84,8 @@ export interface PonchoDebug {
   touch(): TouchDebug;
   /** Where each moving platform is: the left end of its top surface and its width (GDD-WLD-05). */
   platforms(): { x: number; y: number; w: number }[];
+  /** Where each moving block is: its top left corner and size (GDD-WLD-05). */
+  blocks(): { x: number; y: number; w: number; h: number }[];
   /** The crumbling tiles and their state, read from the run (GDD-WLD-05). */
   crumbles(): { col: number; row: number; phase: string; steps: number }[];
   /** Where Poncho would respawn now (GDD-LIFE-02). */
@@ -145,6 +148,7 @@ export class PlayScene extends Phaser.Scene {
   private pulseDrawn: number | null = null;
   private pulseStart: number | null = null;
   private platformGfx!: Phaser.GameObjects.Graphics;
+  private blockGfx!: Phaser.GameObjects.Graphics;
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
   private tacoGfx!: Phaser.GameObjects.Graphics;
@@ -263,6 +267,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawFragiles();
     this.clawGfx = this.add.graphics().setDepth(5);
     this.platformGfx = this.add.graphics().setDepth(1);
+    this.blockGfx = this.add.graphics().setDepth(1);
     this.crumbleGfx = this.add.graphics().setDepth(1);
     this.drawCrumbles();
 
@@ -383,11 +388,13 @@ export class PlayScene extends Phaser.Scene {
           this.drawItems();
           this.drawDoorsAndKeys();
           this.renderPlatforms(1);
+          this.renderBlocks(1);
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
           this.drawGameOver();
         },
         ofrendas: () => this.ofrendasDrawn,
         platforms: () => level.platforms.map((p) => platformAt(p, this.run.platformTick)),
+        blocks: () => (level.blocks ?? []).map((b) => blockAt(b, this.run.platformTick)),
         crumbles: () => level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
         checkpoint: () => this.run.checkpoint,
         power: () => this.run.power,
@@ -507,6 +514,22 @@ export class PlayScene extends Phaser.Scene {
       this.platformGfx.fillStyle(0x3f8f8a, 1).fillRect(at.x, at.y, at.w, 8);
       this.platformGfx.fillStyle(0x2a5f5c, 1).fillRect(at.x, at.y + 5, at.w, 3);
       this.platformGfx.fillStyle(0xd7f2ee, 1).fillRect(at.x, at.y, at.w, 1);
+    }
+  }
+
+  /**
+   * Placeholder moving blocks (GDD-WLD-05): grey stone with a pale top edge, a darker bottom and right edge and a dark 2 px stud
+   * in each corner. Drawn between the last two steps, like Poncho, so he does not slide on it.
+   */
+  private renderBlocks(alpha: number): void {
+    this.blockGfx.clear();
+    for (const b of level.blocks ?? []) {
+      const at = blockAt(b, Math.max(0, this.run.platformTick - 1 + alpha));
+      this.blockGfx.fillStyle(0x8a8a8a, 1).fillRect(at.x, at.y, at.w, at.h);
+      this.blockGfx.fillStyle(0xc4c4c4, 1).fillRect(at.x, at.y, at.w, 1);
+      this.blockGfx.fillStyle(0x5e5e5e, 1).fillRect(at.x, at.y + at.h - 1, at.w, 1).fillRect(at.x + at.w - 1, at.y, 1, at.h);
+      this.blockGfx.fillStyle(0x3a3a3a, 1);
+      for (const [sx, sy] of [[1, 1], [at.w - 3, 1], [1, at.h - 3], [at.w - 3, at.h - 3]] as const) this.blockGfx.fillRect(at.x + sx, at.y + sy, 2, 2);
     }
   }
 
@@ -1002,6 +1025,7 @@ export class PlayScene extends Phaser.Scene {
     }
 
     this.renderPlatforms(alpha);
+    this.renderBlocks(alpha);
     this.renderBody(alpha);
     this.drawClaw();
     this.drawGameOver();
