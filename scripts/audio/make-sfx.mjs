@@ -4,18 +4,32 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderClaw, renderHilo, renderJump, renderLand, renderLifeLost, renderMeow, renderStomp } from './effects.mjs';
 import { renderOfrenda, toWav } from './ofrenda.mjs';
 
 const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'audio', 'sfx');
 mkdirSync(outDir, { recursive: true });
-const wav = toWav(renderOfrenda());
+/** [file name, samples] */
+const sounds = [
+  ['ofrenda', renderOfrenda()],
+  ['jump', renderJump()],
+  ['land', renderLand()],
+  ['claw', renderClaw()],
+  ['stomp', renderStomp()],
+  ['hilo', renderHilo()],
+  ['life-lost', renderLifeLost()],
+  ['meow', renderMeow()],
+];
 
-for (const [ext, codec] of [['ogg', ['-c:a', 'libvorbis', '-q:a', '4']], ['mp3', ['-c:a', 'libmp3lame', '-q:a', '4']]]) {
-  const file = join(outDir, `ofrenda.${ext}`);
-  const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'wav', '-i', 'pipe:0', ...codec, file], { input: wav });
-  if (r.status !== 0) {
-    console.error(`ffmpeg failed for ${file}: ${r.stderr?.toString() ?? r.error}`);
-    process.exit(1);
+for (const [name, samples] of sounds) {
+  const wav = toWav(samples);
+  for (const [ext, codec] of [['ogg', ['-c:a', 'libvorbis', '-q:a', '4']], ['mp3', ['-c:a', 'libmp3lame', '-q:a', '4']]]) {
+    const file = join(outDir, `${name}.${ext}`);
+    const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'wav', '-i', 'pipe:0', ...codec, file], { input: wav });
+    if (r.status !== 0) {
+      console.error(`ffmpeg failed for ${file}: ${r.stderr?.toString() ?? r.error}`);
+      process.exit(1);
+    }
+    console.log(`wrote ${file}`);
   }
-  console.log(`wrote ${file}`);
 }

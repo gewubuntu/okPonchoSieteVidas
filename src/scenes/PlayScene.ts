@@ -7,6 +7,20 @@ import { SANDBOX_LEVEL, SANDBOX_SPAWN } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
+import jumpOgg from '../../assets/audio/sfx/jump.ogg';
+import jumpMp3 from '../../assets/audio/sfx/jump.mp3';
+import landOgg from '../../assets/audio/sfx/land.ogg';
+import landMp3 from '../../assets/audio/sfx/land.mp3';
+import clawOgg from '../../assets/audio/sfx/claw.ogg';
+import clawMp3 from '../../assets/audio/sfx/claw.mp3';
+import stompOgg from '../../assets/audio/sfx/stomp.ogg';
+import stompMp3 from '../../assets/audio/sfx/stomp.mp3';
+import hiloOgg from '../../assets/audio/sfx/hilo.ogg';
+import hiloMp3 from '../../assets/audio/sfx/hilo.mp3';
+import lifeLostOgg from '../../assets/audio/sfx/life-lost.ogg';
+import lifeLostMp3 from '../../assets/audio/sfx/life-lost.mp3';
+import meowOgg from '../../assets/audio/sfx/meow.ogg';
+import meowMp3 from '../../assets/audio/sfx/meow.mp3';
 import { activateOfrenda, collectVeladora, isOutOfLives, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { clawBox } from '../sim/claw';
@@ -17,6 +31,7 @@ import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { isPortrait, pauseEvent, PLAYING, resumeHeld, type PauseEvent, type PauseState } from '../sim/pause';
 import { hilosCollected } from '../sim/hilo';
+import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
@@ -27,6 +42,8 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const level: Level = SANDBOX_LEVEL;
+/** GDD-AUD-02: the cache keys of every sound effect. */
+const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow'].map((n) => `sfx-${n}`);
 const world = level.world;
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
@@ -65,10 +82,12 @@ export interface PonchoDebug {
   bodyPose(): { x: number; y: number; rotation: number };
   /** Each ofrenda as drawn: its id and whether it is drawn as used. Read from what was drawn, not from the game state. */
   ofrendas(): { id: string; x: number; used: boolean }[];
-  /** Every sound effect asked for so far, in order (GDD-AUD-02). Browsers keep audio locked until a first gesture. */
+  /** Every sound effect asked for so far, in order (GDD-AUD-02); a hilo note is `hilo:<semitones>`. Browsers keep audio locked until a first gesture. */
   sfx(): string[];
-  /** Whether the ofrenda sound file was loaded and decoded into the audio cache. */
+  /** Whether every sound effect file was loaded and decoded into the audio cache. */
   sfxLoaded(): boolean;
+  /** Every sound effect handed to the audio system, with the playback rate it was given (GDD-AUD-02). */
+  sfxPlayed(): { key: string; rate: number }[];
   /** Triangles the HUD was asked to draw as cracking (GDD-LIFE-02): the place in the row and the fill and crack alpha. The pixels themselves are checked by reading the screenshot. */
   hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
   /** The scale the last triangle was drawn at while one life is left, or null when it does not pulse (GDD-LIFE-04). */
@@ -203,6 +222,9 @@ export class PlayScene extends Phaser.Scene {
   /** Which ofrendas the drawing shows as used, as a key, so a change of the set itself (not only its size) redraws. */
   private ofrendasKey = '';
   private sfxLog: string[] = [];
+  private sfxPlayed: { key: string; rate: number }[] = [];
+  /** GDD-AUD-02: how far up the scale the hilo notes have climbed. */
+  private hiloCombo: HiloCombo = NO_COMBO;
   private devOfrendas = 0;
   private devVeladoras = 0;
   private devKeys?: Record<'lose' | 'ofrenda' | 'veladora', Phaser.Input.Keyboard.Key>;
@@ -241,6 +263,13 @@ export class PlayScene extends Phaser.Scene {
   preload(): void {
     // GDD-AUD-02: Ogg where it plays, MP3 elsewhere. Phaser picks the first format the browser supports.
     this.load.audio('sfx-ofrenda', [ofrendaOgg, ofrendaMp3]);
+    this.load.audio('sfx-jump', [jumpOgg, jumpMp3]);
+    this.load.audio('sfx-land', [landOgg, landMp3]);
+    this.load.audio('sfx-claw', [clawOgg, clawMp3]);
+    this.load.audio('sfx-stomp', [stompOgg, stompMp3]);
+    this.load.audio('sfx-hilo', [hiloOgg, hiloMp3]);
+    this.load.audio('sfx-lifeLost', [lifeLostOgg, lifeLostMp3]);
+    this.load.audio('sfx-meow', [meowOgg, meowMp3]);
   }
 
   create(): void {
@@ -451,7 +480,8 @@ export class PlayScene extends Phaser.Scene {
         fragilesDrawn: () => this.fragilesPainted,
         sfx: () => this.sfxLog,
         touch: () => this.touch.debug(),
-        sfxLoaded: () => this.cache.audio.exists('sfx-ofrenda'),
+        sfxLoaded: () => SFX_KEYS.every((key) => this.cache.audio.exists(key)),
+        sfxPlayed: () => this.sfxPlayed,
         loseLife: () => this.setLives(loseLife(this.run.lives)),
         activateOfrenda: (id) => this.setLives(activateOfrenda(this.run.lives, id)),
         teleport: (x, y) => {
@@ -908,9 +938,12 @@ export class PlayScene extends Phaser.Scene {
     this.ofrendasKey = this.usedKey();
   }
 
-  private playSfx(name: 'ofrenda'): void {
-    this.sfxLog.push(name);
-    this.sound.play(`sfx-${name}`);
+  /** GDD-AUD-02: a hilo note is the one sound played faster, `semitones` above its root. */
+  private playSfx(name: 'ofrenda' | SfxName, semitones?: number): void {
+    this.sfxLog.push(semitones === undefined ? name : `${name}:${semitones}`);
+    const rate = semitones === undefined ? 1 : noteRate(semitones);
+    this.sound.play(`sfx-${name}`, { rate });
+    this.sfxPlayed.push({ key: `sfx-${name}`, rate });
   }
 
   private usedKey(): string {
@@ -973,6 +1006,9 @@ export class PlayScene extends Phaser.Scene {
   private simStep(input: PlayerInput): void {
     const before = this.run;
     this.run = stepRun(before, input, level);
+    const { sounds, combo } = stepSounds(before, this.run, this.hiloCombo);
+    this.hiloCombo = combo;
+    for (const sound of sounds) this.playSfx(sound.name, sound.semitones);
     // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
     this.ticks++;

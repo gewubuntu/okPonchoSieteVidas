@@ -111,10 +111,12 @@ export interface RunState {
   readonly checkpoint: Point;
   /** Position in `Level.ofrendas` of the ofrenda that is the checkpoint, or -1 for the level start. Only moves forward. */
   readonly checkpointIndex: number;
+  /** GDD-CMB-01: a stomp landed this step (one or more enemies), for its sound (GDD-AUD-02). */
+  readonly stomped: boolean;
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: freshHilos(level.hilos ?? []), tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies) };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: freshHilos(level.hilos ?? []), tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -151,9 +153,9 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     const shown = run.wait + 1;
     const down = buttonsDown(input);
     const press = (down & ~run.buttonsHeld) !== 0;
-    if (!press || shown <= GAME_OVER.lockoutSteps) return { ...run, buttonsHeld: down, wait: shown };
+    if (!press || shown <= GAME_OVER.lockoutSteps) return { ...run, buttonsHeld: down, wait: shown, stomped: false };
     // The world restarts with all seven lives, the ofrendas unused, from the level start, after the respawn flip.
-    return { ...run, buttonsHeld: down, lives: startWorld(), checkpoint: level.spawn, checkpointIndex: -1, phase: 'respawning', wait: FLIP.steps, restarting: true };
+    return { ...run, buttonsHeld: down, lives: startWorld(), checkpoint: level.spawn, checkpointIndex: -1, phase: 'respawning', wait: FLIP.steps, restarting: true, stomped: false };
   }
   if (run.phase === 'respawning') {
     // `elapsed` is the number of respawning steps taken including this one, so 0.3 s is step 18 and 0.8 s is step 48.
@@ -161,9 +163,9 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     // GDD-LIFE-02: any input is any button held, a slide stick push included (it sets left or right).
     const skip = !run.restarting && elapsed >= RESPAWN.skipAfterSteps && buttonsDown(input) !== 0;
     const wait = skip ? 0 : run.wait - 1;
-    if (wait > 0) return { ...run, wait };
+    if (wait > 0) return { ...run, wait, stomped: false };
     // GDD-LIFE-05: out of lives, the screen comes up instead of a respawn.
-    if (isOutOfLives(run.lives)) return { ...run, phase: 'gameover', wait: 0, buttonsHeld: buttonsDown(input) };
+    if (isOutOfLives(run.lives)) return { ...run, phase: 'gameover', wait: 0, buttonsHeld: buttonsDown(input), stomped: false };
     const back = respawnPoint(run, level);
     return {
       // Marked as already holding jump, so a button held through the respawn does not make Poncho jump at once.
@@ -195,6 +197,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       fireballs: [],
       fuegoHeld: false,
       enemies: freshEnemies(level.enemies),
+      stomped: false,
     };
   }
 
@@ -220,7 +223,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   const hilosTaken = collectHilos(level.hilos ?? [], run.hilosTaken, player);
   if (pushed.crushed || isInPit(player, level.world)) {
     // GDD-LIFE-02, GDD-CMB-03: a crush costs a life like a pit, in any power-up state and even while invulnerable.
-    return { ...run, player, crumbles, platformTick, hilosTaken, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
+    return { ...run, player, crumbles, platformTick, hilosTaken, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base', stomped: stomped.some(Boolean) };
   }
   // GDD-PWR-02: touching a taco in Base picks it up. In Taco it stays where it is. Picked up before a hit is resolved,
   // so a taco grabbed in the same step as a spike hit is spent on it.
@@ -297,7 +300,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   const enemy = run.invulnerable === 0 ? enemies.findIndex((e, i) => touchesEnemy(player, level.enemies[i]!, e) && !harmlessFromBelow(run.player, player, level.enemies[i]!, e)) : -1;
   const hitFrom = spike ? spike.col * TILE + TILE / 2 : enemy >= 0 ? enemies[enemy]!.x : undefined;
   if (hitFrom !== undefined && power === 'base') {
-    return { ...run, player, crumbles, platformTick, hilosTaken, tacosTaken, pinatasOpen, items, fragilesBroken, enemies, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
+    return { ...run, player, crumbles, platformTick, hilosTaken, tacosTaken, pinatasOpen, items, fragilesBroken, enemies, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base', stomped: stomped.some(Boolean) };
   }
   let hurt = player;
   if (hitFrom !== undefined) {
@@ -317,5 +320,5 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       checkpointIndex = index;
     }
   });
-  return { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: flying, enemies, fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
+  return { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: flying, enemies, stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
 }

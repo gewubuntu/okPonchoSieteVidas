@@ -103,6 +103,13 @@ describe('GDD-MOV-08 wall kick', () => {
     expect(s.x).toBeGreaterThan(FLUSH);
   });
 
+  it('GDD-AUD-02 a wall kick marks takeoff kick for that step only', () => {
+    const kicked = step(atWall(60), jump(-1), walled, CLING);
+    expect(kicked.takeoff).toBe('kick');
+    expect(step(kicked, jump(-1), walled, CLING).takeoff).toBeUndefined();
+    expect(step(atWall(60), idle, walled, CLING).takeoff).toBeUndefined();
+  });
+
   it('from a wall on his right it kicks left', () => {
     const right: World = { solidTile: (tx, ty) => tx >= 10 || ty >= 0 };
     const s = step({ ...atWall(60), x: 160 - FLUSH }, jump(1), right, CLING);
