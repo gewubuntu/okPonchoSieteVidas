@@ -57,6 +57,13 @@ export const GRAVITY = {
  */
 export const GLIDE = { fallSpeed: 70, stompLockSteps: Math.round(0.15 * TICK_HZ), holdSteps: FORGIVENESS.bufferSteps } as const;
 
+/**
+ * GDD-MOV-08: pressing toward a wall while falling caps the slide at `slideSpeed`. Jump beside a wall in the air (or within
+ * `graceSteps`, the coyote time, of leaving it) kicks away at `kickX` across and `kickY` up, then sideways control is locked
+ * for `lockSteps` (120 ms).
+ */
+export const WALL = { slideSpeed: 60, kickX: 130, kickY: 380, lockSteps: Math.round(0.12 * TICK_HZ), graceSteps: FORGIVENESS.coyoteSteps } as const;
+
 /** GDD-MOV-06: body hitbox for ground and walls, hurtbox for enemies and hazards, sprite frame. */
 export const HITBOX = { width: 12, height: 14 } as const;
 export const HURTBOX = { width: 10, height: 12 } as const;

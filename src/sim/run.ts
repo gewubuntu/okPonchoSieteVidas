@@ -199,7 +199,7 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   const patrolled = level.enemies.map((d, i) => stepEnemy(d, run.enemies[i]!, solid, run.player));
   const stomped = patrolled.map((e, i) => isStomp(run.player, sprung, level.enemies[i]!, e));
   const player = stomped.some(Boolean)
-    ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0, gliding: false, glideLock: GLIDE.stompLockSteps }
+    ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0, gliding: false, clinging: false, glideLock: GLIDE.stompLockSteps }
     : sprung;
   const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
   if (isInPit(player, level.world)) {

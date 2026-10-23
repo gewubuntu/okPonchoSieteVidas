@@ -241,5 +241,24 @@ Prefer an automated check over a prose rule.
 - **Root cause:** The new rule and the jump buffer both read the jump button while falling, and nothing checked them together.
 - **Rule:** When a new rule reads a button that an existing rule already reads (jump buffer, coyote time, variable jump, stomp boost), list those rules, write a unit test that plays each one with the new rule switched on, and run the whole playtest suite before showing screenshots.
 - **Recurrence 2 (2026-10-22, same PR, found by the review):** the list missed GDD-UI-02. A jump pressed while paused and held through the resume (marked as held by `resumeHeld`) still glided, because the glide counted any held input instead of a press the simulation saw.
-- **Recurrence:** 2
+- **Recurrence 3 (2026-10-23, GDD-MOV-08, found by the review):** the wall kick reads a jump press in the air, and the list did not have the spring launch, which GDD-WLD-05 says no jump press replaces. At the sandbox spring, against a wall, a late press kicked and cut the launch from 77 to 56 px. The skill's list now names the spring launch and stomp bounce, and says to look for the button in every GDD section, not only in movement.
+- **Recurrence:** 3
 - **Promoted:** step 5 of the `harness-feature` skill (input rules): list every rule that already reads the button, including the "already held" marks of the respawn and of the pause resume, and test each with the new rule on.
+
+## L-025 A guard that another rule already covers survived its mutant
+
+- **Date:** 2026-10-23
+- **What went wrong:** In the glide (GDD-MOV-07) a "not on the ground" condition survived its mutant, because landing ended the glide anyway. In the wall cling (GDD-MOV-08) the same happened twice: "not touching on the ground" and the kick's "not grounded" check, both already covered by the normal jump taking the press first and by landing ending the slide.
+- **Root cause:** Each guard was written for a case another rule already handles, so it had no behaviour of its own for a test to pin down.
+- **Rule:** When a mutant of a guard survives, first ask whether another rule already covers that case. If it does, delete the guard and say in a comment which rule covers it, instead of adding a test that cannot fail for the guard alone.
+- **Recurrence:** 2
+- **Promoted:** step 6 of the `harness-feature` skill.
+
+## L-026 A test measured over a window wide enough to include a second, unrelated event
+
+- **Date:** 2026-10-23
+- **What went wrong:** The sandbox spring test (GDD-MOV-08, GDD-WLD-05) took Poncho's highest point over 60 steps. With the spring guard removed, a press kicked him only 56 px up, but holding left walked him back onto the spring and a second launch reached the same 77 px, so the test stayed green. I claimed the mutant failed it after checking only the whole file, where another test caught it.
+- **Root cause:** The measuring window was longer than the event under test, and the mutant was checked against the file, not against the new test alone.
+- **Rule:** Stop a measurement at the end of the event it is about (the first apex, the first landing), and assert the sign of the effect directly on every step. When a description says a mutant fails a particular test, run that mutant against that test alone (`-t`).
+- **Recurrence:** 1
+- **Promoted:** no

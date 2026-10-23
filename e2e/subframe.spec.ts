@@ -178,3 +178,18 @@ test('GDD-LIFE-02 a claw tap inside one frame skips the respawn wait, and does n
   expect((await api(page, () => window.__PONCHO__!.ticks())) - start).toBeLessThan(40);
   expect(await api(page, () => window.__PONCHO__!.swings())).toBe(0);
 });
+
+test('GDD-MOV-08 a Space tap shorter than one frame, against the wall, still kicks off it', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
+  await page.evaluate(() => window.__PONCHO__!.teleport(6, 100)); // beside the level's left edge, a full-height wall
+  await page.keyboard.down('ArrowLeft');
+  await page.waitForFunction(() => window.__PONCHO__!.state().clinging === true);
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', keyCode: 32, bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', keyCode: 32, bubbles: true }));
+  });
+  await page.waitForFunction(() => window.__PONCHO__!.state().vx > 0 && window.__PONCHO__!.state().vy < 0);
+  await page.keyboard.up('ArrowLeft');
+});

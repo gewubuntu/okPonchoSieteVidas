@@ -66,7 +66,7 @@ export function landOnPlatforms(carried: PlayerState, stepped: PlayerState, plat
   for (const p of platforms) {
     const at = platformAt(p, tick + 1);
     if (overlapsX(stepped, at) && carried.y <= at.y + EPS && stepped.y >= at.y - EPS) {
-      return { ...stepped, y: at.y, vy: 0, grounded: true, bounced: false, gliding: false };
+      return { ...stepped, y: at.y, vy: 0, grounded: true, bounced: false, gliding: false, clinging: false };
     }
   }
   return stepped;
