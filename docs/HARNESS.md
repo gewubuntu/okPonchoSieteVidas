@@ -27,7 +27,7 @@ project get better at itself over time.
 4. `docs/BACKLOG.md` has exactly one valid row for every non-deprecated GDD ID and no unknown IDs.
 5. `docs/LESSONS.md` entries are well formed, IDs are unique, and any lesson with
    `Recurrence >= 2` has been promoted.
-6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and, if they set a model, set `inherit`, because repository files do not name models; `pr-reviewer` must set it, so the reviewer never runs on the cheaper default subagent model. `.claude/settings.json` is valid JSON and every hook script it points at exists.
+6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and, if they set a model, set `inherit`, because repository files do not name models; `pr-reviewer` must set it, so it runs on the main session's model. `.claude/settings.json` is valid JSON and every hook script it points at exists.
 7. No AI model identifiers in repository files.
 8. No mutation run was interrupted (`no-mutation`, L-020): `.mutating.json` from `scripts/mutate.mjs` must not exist, except for the test that the runner itself runs.
 9. Phaser key-down events (`'down'`, `Events.DOWN`, `'keydown-X'`) in `src/` appear only in the one-line form that presses an input latch (`key-down-handlers`, L-006).
@@ -62,7 +62,7 @@ Planning a feature takes judgement (the user's decisions, conflicts across the G
 2. The `implementer` subagent writes the tests and the code from the plan, runs the gate and the mutants, and reports. It never commits, edits the GDD or decides design; it stops and asks instead.
 3. The main session reads the diff, re-runs the gate and any unaccounted mutant, then does screenshots, docs, the retro and the commit as before. The `pr-reviewer` still reviews the PR.
 
-Repository files do not name models (gate check 7), so the agent file sets no model. Which model it runs on is set outside the repository with the `CLAUDE_CODE_SUBAGENT_MODEL` environment variable, the default model of every subagent that does not set its own: in a cloud session, add it in the environment's settings (the cloud environment menu in the session's title bar, then Edit, then Environment variables); locally, in your shell or your user-level `~/.claude/settings.json` under `env`. A new session picks it up. Without it the implementer runs on the main session's model and the split saves nothing. The `pr-reviewer` sets `model: inherit`, so it always runs on the main session's model. Do not set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, which would override the reviewer too.
+Repository files do not name models (gate check 7), so the agent file sets no model. Step 6 of `harness-feature` launches it with the Agent tool's `model` parameter set to the mid-tier model, cheaper than the main session's and more capable than the smallest; that parameter overrides the agent file, and needs no environment setting, so it works from any device. The `pr-reviewer` sets `model: inherit` (the gate requires it) and is launched without a `model`, so it always runs on the main session's model.
 
 ## Pull request review
 

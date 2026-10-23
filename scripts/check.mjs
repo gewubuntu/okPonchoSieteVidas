@@ -215,9 +215,9 @@ function checkAgents() {
     if (model && model.replace(/["']/g, '') !== 'inherit') {
       errors.push(`AGENT: ${file} model must be "inherit": repository files do not name models (CLAUDE.md)`);
     }
-    // The reviewer must stay on the main session's model even when CLAUDE_CODE_SUBAGENT_MODEL picks a cheaper default (HARNESS.md).
+    // The reviewer must stay on the main session's model; only the implementer is launched on a cheaper one (HARNESS.md).
     if (name === 'pr-reviewer' && model?.replace(/["']/g, '') !== 'inherit') {
-      errors.push(`AGENT: ${file} must set model: inherit, or it would run on the cheaper default subagent model`);
+      errors.push(`AGENT: ${file} must set model: inherit, so the review runs on the main session's model`);
     }
   }
   return errors;

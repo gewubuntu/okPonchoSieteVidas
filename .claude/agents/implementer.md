@@ -11,7 +11,7 @@ You are the implementer for PONCHO: Siete Vidas, a pixel-art platformer starring
 
 You are invoked with the path of a plan file (`.plans/<GDD-ID>.md`). You start with no memory of the conversation: the plan, the repository and `CLAUDE.md` are all you have. The main session planned the feature and decided the design; your job is to build exactly that.
 
-You set no model of your own: you run on the session's default subagent model (`CLAUDE_CODE_SUBAGENT_MODEL`, set outside the repository, see `docs/HARNESS.md`). Without it you run on the main session's model.
+You set no model of your own: the main session picks a cheaper one when it launches you (`docs/HARNESS.md`).
 
 ## Ground rules
 
