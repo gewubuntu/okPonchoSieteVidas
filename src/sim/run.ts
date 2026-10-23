@@ -11,6 +11,7 @@ import { squareBlocked } from './item';
 import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } from './door';
 import { releaseFrom, stepItem, touchesItem, type Item } from './item';
 import { bumpedPinata, freshPinatas, withPinatas, type Pinata } from './pinata';
+import { collideBlocks, moveBlocks, type MovingBlock } from './block';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
 import { bounce, withSprings, type Spring } from './spring';
 import { touchesSpike, type Spike } from './hazards';
@@ -43,6 +44,8 @@ export interface Level {
   readonly springs: readonly Spring[];
   /** GDD-WLD-05: moving platforms. */
   readonly platforms: readonly MovingPlatform[];
+  /** GDD-WLD-05: moving blocks, solid on every side, which crush. Left out means none. */
+  readonly blocks?: readonly MovingBlock[];
   /** GDD-PWR-02: taco pickups. */
   readonly tacos: readonly Taco[];
   /** GDD-PWR-05: piñata blocks. */
@@ -73,7 +76,7 @@ export interface RunState {
   readonly invulnerable: number;
   /** One state per `Level.crumbles` entry, in the same order (GDD-WLD-05). */
   readonly crumbles: readonly CrumbleState[];
-  /** Steps the moving platforms have travelled since the level start or the last respawn (GDD-WLD-05). */
+  /** Steps the moving platforms and blocks have travelled since the level start or the last respawn (GDD-WLD-05). */
   readonly platformTick: number;
   /** GDD-PWR-01: the power-up state. A life lost always brings Poncho back in Base. */
   readonly power: Power;
@@ -189,8 +192,10 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   // GDD-WLD-05: a platform carries Poncho, then he lands on the one he came down on.
   const solid = withFragiles(withDoors(withPinatas(withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles), level.pinatas), level.doors, run.doorsOpen), level.fragiles, run.fragilesBroken);
   const carried = carry(run.player, level.platforms, run.platformTick, solid);
-  const stepped = step(carried, input, solid, level.abilities);
-  const landed = landOnPlatforms(carried, stepped, level.platforms, run.platformTick);
+  // GDD-WLD-05: a moving block carries or pushes him too, and stops him on every side. GDD-LIFE-02: a push or a carry up into a solid tile crushes him.
+  const pushed = moveBlocks(carried, level.blocks ?? [], run.platformTick, solid);
+  const stepped = step(pushed.player, input, solid, level.abilities);
+  const landed = collideBlocks(pushed.player, landOnPlatforms(pushed.player, stepped, level.platforms, run.platformTick), level.blocks ?? [], run.platformTick);
   const platformTick = run.platformTick + 1;
   // GDD-WLD-05: a spring throws Poncho up the step he stands on it.
   const sprung = bounce(landed, level.springs);
@@ -202,8 +207,8 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
     ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0, gliding: false, clinging: false, glideLock: GLIDE.stompLockSteps }
     : sprung;
   const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
-  if (isInPit(player, level.world)) {
-    // Invulnerability does not protect from pits (GDD-CMB-03), so a life is lost even while it lasts.
+  if (pushed.crushed || isInPit(player, level.world)) {
+    // GDD-LIFE-02, GDD-CMB-03: a crush costs a life like a pit, in any power-up state and even while invulnerable.
     return { ...run, player, crumbles, platformTick, lives: loseLife(run.lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base' };
   }
   // GDD-PWR-02: touching a taco in Base picks it up. In Taco it stays where it is. Picked up before a hit is resolved,

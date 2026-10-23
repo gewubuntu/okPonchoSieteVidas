@@ -23,14 +23,22 @@ export interface PlatformPos {
 const EPS = 1e-6;
 const HALF = HITBOX.width / 2;
 
-/** Where the platform is after `tick` steps: it starts at its first end and turns round at each end without stopping. */
-export function platformAt(p: MovingPlatform, tick: number): PlatformPos {
-  const length = Math.hypot(p.x1 - p.x0, p.y1 - p.y0);
-  if (length === 0) return { x: p.x0, y: p.y0, w: p.w };
-  let d = ((PLATFORM.speed * tick) / TICK_HZ) % (2 * length);
+/**
+ * Where something is after `tick` steps along the straight path from (x0, y0) to (x1, y1) at `speed` px/s: it starts at the
+ * first end and turns round at each end without stopping. Shared by the moving platforms and the moving blocks (GDD-WLD-05).
+ */
+export function along(x0: number, y0: number, x1: number, y1: number, speed: number, tick: number): { x: number; y: number } {
+  const length = Math.hypot(x1 - x0, y1 - y0);
+  if (length === 0) return { x: x0, y: y0 };
+  let d = ((speed * tick) / TICK_HZ) % (2 * length);
   if (d > length) d = 2 * length - d;
   const f = d / length;
-  return { x: p.x0 + (p.x1 - p.x0) * f, y: p.y0 + (p.y1 - p.y0) * f, w: p.w };
+  return { x: x0 + (x1 - x0) * f, y: y0 + (y1 - y0) * f };
+}
+
+/** Where the platform is after `tick` steps: it starts at its first end and turns round at each end without stopping. */
+export function platformAt(p: MovingPlatform, tick: number): PlatformPos {
+  return { ...along(p.x0, p.y0, p.x1, p.y1, PLATFORM.speed, tick), w: p.w };
 }
 
 const overlapsX = (player: PlayerState, at: PlatformPos): boolean => player.x + HALF > at.x && player.x - HALF < at.x + at.w;

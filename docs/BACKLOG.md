@@ -16,7 +16,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-LOOP-02 | todo |  |
 | GDD-LOOP-03 | todo |  |
 | GDD-LIFE-01 | doing | rules as pure logic in src/sim/lives.ts; HUD, respawn and music pending |
-| GDD-LIFE-02 | doing | pit loss, 0.8 s wait with skip, hidden while waiting, invulnerability timer and blink, respawn at the latest ofrenda in src/sim/run.ts, HUD crack animation (src/ui/lifeCrack.ts), respawn flip (src/sim/respawnFlip.ts); the Alacrán, Zopilote, cactus buddy and Tlacuache hits are built |
+| GDD-LIFE-02 | doing | pit loss, 0.8 s wait with skip, hidden while waiting, invulnerability timer and blink, respawn at the latest ofrenda in src/sim/run.ts, HUD crack animation (src/ui/lifeCrack.ts), respawn flip (src/sim/respawnFlip.ts); the Alacrán, Zopilote, cactus buddy and Tlacuache hits are built; crushing by a moving block is built (src/sim/block.ts) |
 | GDD-LIFE-03 | doing | rules as pure logic in src/sim/lives.ts; touching an ofrenda restores a life and, if it is later in the level, sets the checkpoint (only forward) in src/sim/run.ts; ofrendas drawn as placeholders and placed in the sandbox level; the marimba sound plays on first use (GDD-AUD-02) |
 | GDD-LIFE-04 | doing | rules as pure logic in src/sim/lives.ts; the HUD pulse of the last triangle in src/ui/lastLife.ts; the tense music and the double hilo score pending (no music or hilos yet) |
 | GDD-LIFE-05 | doing | the Siete vidas gastadas screen (any button after 1.0 s) and the restart with 7 lives at the level start are built in src/sim/run.ts and PlayScene; per-world scope (several levels, hilos kept) pending until there are worlds and hilos |
@@ -30,7 +30,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-MOV-08 | doing | wall cling and kick in src/sim/movement.ts behind the level ability flag (on in the sandbox until GDD-PRG-01 unlocks it), placeholder claw marks; sprite and sound pending |
 | GDD-CMB-01 | doing | stomp with 260 and 410 px/s bounces in src/sim/enemy.ts and run.ts; the not-stompable marking (three pale thorns) is built for the Zopilote and the cactus buddy; the Tlacuache's first stomp makes it play dead |
 | GDD-CMB-02 | doing | claw swing, hit box, cooldown, input and touch button in src/sim/claw.ts; it opens piñatas, breaks fragile walls and defeats the Alacrán, Zopilote and Tlacuache (also while it plays dead); stun and sound pending |
-| GDD-CMB-03 | doing | spike and enemy hits: 2.0 s invulnerability and 80 px/s knockback in Taco and Fuego; crushing pending |
+| GDD-CMB-03 | doing | spike and enemy hits: 2.0 s invulnerability and 80 px/s knockback in Taco and Fuego; crushing by a moving block costs a life in any state, even while invulnerable (src/sim/block.ts, src/sim/run.ts) |
 | GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W, claw (X, J), Fuego (C, K) and pause (Escape, P) wired; remap pending |
 | GDD-CTL-02 | todo |  |
 | GDD-CTL-03 | doing | left, right and jump buttons with multi-touch, and the slide stick with a mode switch, in src/ui/touchLayout.ts and TouchControls.ts; the claw, Fuego and pause buttons are built; mirroring, opacity, vibration pending |
@@ -39,7 +39,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-WLD-02 | todo |  |
 | GDD-WLD-03 | todo |  |
 | GDD-WLD-04 | todo |  |
-| GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox, which also reaches the Tlacuache's ledge); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls in src/sim/fragile.ts (one in the sandbox) |
+| GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox, which also reaches the Tlacuache's ledge); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls in src/sim/fragile.ts (one in the sandbox); moving blocks, solid and crushing, in src/sim/block.ts (one in the sandbox pocket past the fragile wall) |
 | GDD-ENM-01 | doing | enemy contact is one hit, never more than a life; the 3-tile spawn rule is for the level validator |
 | GDD-ENM-02 | doing | the Alacrán, the Zopilote, the cactus buddy and the Tlacuache in src/sim/enemy.ts (one of each in the sandbox; the Tlacuache on a ledge in the top right corner); sounds and defeat animations pending; the cactus buddy's harmless-from-below rule has no level that exercises it (it needs a cactus with nothing beneath it), unit tests only |
 | GDD-BOS-01 | todo |  |
