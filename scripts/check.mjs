@@ -215,6 +215,10 @@ function checkAgents() {
     if (model && model.replace(/["']/g, '') !== 'inherit') {
       errors.push(`AGENT: ${file} model must be "inherit": repository files do not name models (CLAUDE.md)`);
     }
+    // The reviewer must stay on the main session's model; only the implementer is launched on a cheaper one (HARNESS.md).
+    if (name === 'pr-reviewer' && model?.replace(/["']/g, '') !== 'inherit') {
+      errors.push(`AGENT: ${file} must set model: inherit, so the review runs on the main session's model`);
+    }
   }
   return errors;
 }

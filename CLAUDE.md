@@ -23,7 +23,7 @@ commit refers to a stable GDD ID such as `GDD-MOV-02`.
 1. **Read** the GDD section(s) you are implementing, and `docs/LESSONS.md`.
 2. **Plan** briefly. Name the GDD IDs touched. Ask the user only when blocked on a decision that is theirs.
 3. **Test first** where logic is testable (movement, lives, damage, save data are pure code).
-4. **Implement** the smallest change that satisfies the GDD text.
+4. **Implement** the smallest change that satisfies the GDD text. For a feature, the main session writes the plan and the `implementer` subagent writes the tests and code from it, then the main session checks the result (`harness-feature` steps 5 to 7, `docs/HARNESS.md`).
 5. **Check**: run `node scripts/check.mjs`. It must pass before every commit.
 6. **Retro**: run the `harness-retro` skill. Append lessons, promote recurring ones.
 7. **Commit** with the GDD IDs in the message, e.g. `feat(GDD-MOV-02): variable jump height`.
@@ -62,6 +62,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - `docs/decisions/` architecture decision records
 - `.claude/skills/` project skills, all prefixed `harness-`: `harness-feature`, `harness-gdd-update`, `harness-playtest`, `harness-retro`
 - `.claude/agents/pr-reviewer.md` the subagent that reviews every pull request
+- `.claude/agents/implementer.md` the subagent that builds a feature from the main session's plan (`harness-feature` steps 5 to 7)
 - `.claude/settings.json` project hooks (a hook reminds you to run the reviewer after a PR is created)
 - `scripts/check.mjs` the gate
 - `src/config/tuning.ts` every gameplay number, tagged with its GDD ID

@@ -13,6 +13,7 @@ project get better at itself over time.
 | `docs/decisions/` | Architecture decision records (ADRs). |
 | `.claude/skills/*` | Repeatable procedures: `harness-feature`, `harness-gdd-update`, `harness-playtest`, `harness-retro` (all start with `harness-`, so typing `/harness` lists them). |
 | `.claude/agents/pr-reviewer.md` | The subagent that reviews every pull request in depth. |
+| `.claude/agents/implementer.md` | The subagent that builds a feature from the main session's plan. |
 | `.claude/settings.json` | Project hooks. After a PR is created, a hook tells Claude to run the reviewer. |
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
 | `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a visible change has no screenshots. |
@@ -26,7 +27,7 @@ project get better at itself over time.
 4. `docs/BACKLOG.md` has exactly one valid row for every non-deprecated GDD ID and no unknown IDs.
 5. `docs/LESSONS.md` entries are well formed, IDs are unique, and any lesson with
    `Recurrence >= 2` has been promoted.
-6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and, if they set a model, set `inherit`, because repository files do not name models. `.claude/settings.json` is valid JSON and every hook script it points at exists.
+6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and, if they set a model, set `inherit`, because repository files do not name models; `pr-reviewer` must set it, so it runs on the main session's model. `.claude/settings.json` is valid JSON and every hook script it points at exists.
 7. No AI model identifiers in repository files.
 8. No mutation run was interrupted (`no-mutation`, L-020): `.mutating.json` from `scripts/mutate.mjs` must not exist, except for the test that the runner itself runs.
 9. Phaser key-down events (`'down'`, `Events.DOWN`, `'keydown-X'`) in `src/` appear only in the one-line form that presses an input latch (`key-down-handlers`, L-006).
@@ -52,6 +53,16 @@ When a lesson is promoted, set its `Promoted:` field to where the rule now lives
 Add a function to `scripts/check.mjs` that returns a list of error strings, register it in
 the `checks` array, and make sure it fails on a bad input. The harness-retro skill should name the
 lesson that motivated the check in a comment.
+
+## Planning and building on different models
+
+Planning a feature takes judgement (the user's decisions, conflicts across the GDD, which older rules share a button); building it from a good plan mostly does not. So `harness-feature` splits the work:
+
+1. The main session reads the GDD, asks the user's design questions and writes a self-contained plan in `.plans/<GDD-ID>.md` (gitignored): files, tuning numbers, every test with expected values from the GDD, and the mutant list.
+2. The `implementer` subagent writes the tests and the code from the plan, runs the gate and the mutants, and reports. It never commits, edits the GDD or decides design; it stops and asks instead.
+3. The main session reads the diff, re-runs the gate and any unaccounted mutant, then does screenshots, docs, the retro and the commit as before. The `pr-reviewer` still reviews the PR.
+
+Repository files do not name models (gate check 7), so the agent file sets no model. Step 6 of `harness-feature` launches it with the Agent tool's `model` parameter set to the mid-tier model, cheaper than the main session's and more capable than the smallest; that parameter overrides the agent file, and needs no environment setting, so it works from any device. The `pr-reviewer` sets `model: inherit` (the gate requires it) and is launched without a `model`, so it always runs on the main session's model.
 
 ## Pull request review
 
