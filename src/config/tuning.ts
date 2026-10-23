@@ -219,3 +219,9 @@ export const LEVEL_RULES = {
   maxGapTiles: { 1: 3 } as Readonly<Record<number, number>>,
   enemyClearance: 3 * TILE,
 } as const;
+
+/**
+ * GDD-AUD-02: the land sound needs a fall at `landMinSpeed` px/s or faster. Hilos within `hiloWindowSteps` (0.75 s) of the
+ * previous one climb the major scale `hiloScale` (semitones above the root G5, up to the octave), where they stay.
+ */
+export const SFX = { landMinSpeed: 60, hiloWindowSteps: Math.round(0.75 * TICK_HZ), hiloScale: [0, 2, 4, 5, 7, 9, 11, 12] } as const;

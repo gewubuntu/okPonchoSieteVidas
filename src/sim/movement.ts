@@ -30,6 +30,8 @@ export interface PlayerState {
   wallGrace?: number;
   /** GDD-MOV-08: steps left in which sideways control is locked after a wall kick. */
   kickLock?: number;
+  /** GDD-AUD-02: set on the step a jump (GDD-MOV-02) or a wall kick (GDD-MOV-08) takes off. Left out means neither. */
+  takeoff?: 'jump' | 'kick';
 }
 
 /** Abilities unlocked by progression (GDD-PRG-01). Left out means none. */
@@ -115,6 +117,7 @@ function approach(value: number, target: number, delta: number): number {
 /** Advances one fixed step. Returns a new state and never mutates its input. */
 export function step(prev: PlayerState, input: PlayerInput, world: World, abilities: Abilities = {}): PlayerState {
   const s: PlayerState = { ...prev };
+  delete s.takeoff;
   const vx0 = prev.vx;
   const move = Math.max(-1, Math.min(1, input.move));
 
@@ -151,6 +154,7 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
     s.jumpBuffer = 0;
     s.coyote = 0;
     s.grounded = false;
+    s.takeoff = 'jump';
   } else if (pressed && abilities.wallCling === true && !s.bounced && (s.wallGrace ?? 0) > 0 && s.wallSide !== undefined) {
     // GDD-MOV-08: a jump press in the air beside a wall, or just after leaving it, kicks away from it (on the ground the
     // press is a normal jump, above). Not while rising from a spring: that launch is fixed once it starts (GDD-WLD-05; user,
@@ -161,6 +165,7 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
     s.vy = -WALL.kickY;
     s.facing = away;
     s.kickLock = WALL.lockSteps;
+    s.takeoff = 'kick';
     s.wallGrace = 0; // one kick per touch: a second press on the way out does not kick off the same wall again
   }
 

@@ -72,20 +72,22 @@ test('GDD-LIFE-05 losing the last life puts the ofrendas back and restarts at th
 
 test('GDD-AUD-02 the ofrenda sound plays on the first touch of each ofrenda, not on a repeat or a restart', async ({ page }) => {
   await boot(page);
+  // The other sounds (the meow, the life lost sound) share the log, so only the ofrenda ones are counted.
+  const ofrendas = () => page.evaluate(() => window.__PONCHO__!.sfx().filter((s) => s === 'ofrenda'));
   expect(await api(page, () => window.__PONCHO__!.sfx())).toEqual([]);
   await touch(page, 120);
-  await page.waitForFunction(() => window.__PONCHO__!.sfx().length === 1);
+  await page.waitForFunction(() => window.__PONCHO__!.sfx().filter((s) => s === 'ofrenda').length === 1);
   await touch(page, 312);
-  await page.waitForFunction(() => window.__PONCHO__!.sfx().length === 2);
+  await page.waitForFunction(() => window.__PONCHO__!.sfx().filter((s) => s === 'ofrenda').length === 2);
   await touch(page, 120); // already used
   await page.waitForTimeout(200);
-  expect(await api(page, () => window.__PONCHO__!.sfx())).toEqual(['ofrenda', 'ofrenda']);
+  expect(await ofrendas()).toEqual(['ofrenda', 'ofrenda']);
   for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
   await page.evaluate(() => window.__PONCHO__!.teleport(248, 150)); // lose the last life: the ofrendas reset on the restart
   await passGameOver(page);
   await page.waitForFunction(() => window.__PONCHO__!.ofrendas().every((o) => !o.used));
   await page.waitForTimeout(200);
-  expect(await api(page, () => window.__PONCHO__!.sfx())).toEqual(['ofrenda', 'ofrenda']);
+  expect(await ofrendas()).toEqual(['ofrenda', 'ofrenda']);
 });
 
 test('GDD-AUD-02 the sound files load without errors', async ({ page }) => {

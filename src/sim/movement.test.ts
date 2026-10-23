@@ -96,6 +96,18 @@ describe('GDD-MOV-02 jump', () => {
   });
 });
 
+describe('GDD-AUD-02 takeoff mark', () => {
+  it('a jump takeoff marks takeoff jump for that step only', () => {
+    const idleFloor = spawn(0, FLOOR);
+    expect(step(idleFloor, idle, flat).takeoff).toBeUndefined();
+    const up = step(idleFloor, { move: 0, jumpHeld: true }, flat);
+    expect(up.takeoff).toBe('jump');
+    expect(up.vy).toBeLessThan(0);
+    // Held on, the next steps are rises, not takeoffs.
+    expect(step(up, { move: 0, jumpHeld: true }, flat).takeoff).toBeUndefined();
+  });
+});
+
 describe('GDD-MOV-03 input forgiveness', () => {
   // Floor under tiles 0 to 2 (x below 48) and nothing beyond: a ledge.
   const ledge: World = { solidTile: (tx, ty) => tx < 3 && ty >= 0 };

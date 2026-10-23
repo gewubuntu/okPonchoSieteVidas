@@ -281,3 +281,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** For a flag that exempts something from some rules, plan a test with the flag on that breaks every rule it does not exempt, and a mutant that makes the flag exempt everything. For each definition, pick a fixture where the likely wrong definition gives a different answer.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-029 Planned mutants with no test to kill them
+
+- **Date:** 2026-10-23
+- **What went wrong:** The GDD-AUD-02 plan listed mutants for the land-only-in-play guard, the stomp mark on the life-lost returns and the stomp mark being cleared on the respawn paths, but named no test for them ("pick the test; or report if none"). The implementer had to design three extra tests on its own, and a `-t` filter with "(45 steps)" in the test name matched nothing, because `-t` is a regular expression.
+- **Root cause:** The plan was written from the rules down to mutants, not from each mutant back to a planned test, so a clause with no test only showed up when its mutant survived.
+- **Rule:** Every planned mutant names a test that is in the same plan. When a mutant has none, add the test to the plan (setup and expected value) before launching the implementer. Keep test names free of regex characters such as parentheses, or filter on a plain prefix.
+- **Recurrence:** 1
+- **Promoted:** no
