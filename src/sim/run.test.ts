@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HITBOX, LIVES_MAX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
+import { FLIP, HITBOX, LIVES_MAX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
 import { loseLife } from './lives';
 import { spawn, type PlayerInput } from './movement';
 import { isInPit, startRun, stepRun, touchesOfrenda, type Level, type Ofrenda, type RunState } from './run';
@@ -275,5 +275,98 @@ describe('GDD-LIFE-03 ofrenda checkpoints', () => {
     // and the first ofrenda counts as a checkpoint again, not only a later one
     r = go(r, right, 20);
     expect(r.checkpoint).toEqual({ x: near.x, y: near.y });
+  });
+});
+
+describe('GDD-WLD-04 hilos in a run', () => {
+  // Hilo 0 sits on the way at tile (2, 3), 16 px right of the spawn (box x 36 to 44, y 52 to 60: level with Poncho on the floor);
+  // hilo 1 is on the far side of the pit at (9, 3), where he does not get without a jump.
+  const hilos = [{ col: 2, row: 3 }, { col: 9, row: 3 }];
+  const withHilos: Level = { ...level, hilos };
+  const play = (r: RunState, input: PlayerInput, steps: number): RunState => {
+    for (let i = 0; i < steps; i++) r = stepRun(r, input, withHilos);
+    return r;
+  };
+  /** Runs right until the first hilo is collected. */
+  const collected = (): RunState => {
+    let r = startRun(withHilos);
+    for (let i = 0; i < 100 && !r.hilosTaken[0]; i++) r = stepRun(r, right, withHilos);
+    return r;
+  };
+
+  /** Runs right until Poncho has fallen into the pit and the run is respawning. */
+  const fall = (r: RunState): RunState => {
+    for (let i = 0; i < 600 && r.phase === 'playing'; i++) r = stepRun(r, right, withHilos);
+    return r;
+  };
+
+  it('starts with every hilo uncollected', () => {
+    expect(startRun(withHilos).hilosTaken).toEqual([false, false]);
+    expect(startRun(level).hilosTaken).toEqual([]);
+  });
+
+  it('walking into a hilo collects it, and it stays collected after he walks on', () => {
+    let r = startRun(withHilos);
+    for (let i = 0; i < 3; i++) r = stepRun(r, right, withHilos);
+    expect(r.player.x).toBeLessThan(30);
+    expect(r.hilosTaken).toEqual([false, false]); // still short of it: body right edge x < 36
+    r = collected();
+    expect(r.hilosTaken).toEqual([true, false]);
+    expect(r.player.x).toBeLessThan(46);
+    r = play(r, right, 20);
+    expect(r.player.x).toBeGreaterThan(50); // walked on, clear of it
+    expect(r.hilosTaken).toEqual([true, false]);
+  });
+
+  it('GDD-LIFE-02 a lost life keeps every collected hilo', () => {
+    let r = fall(collected());
+    expect(r.phase).toBe('respawning');
+    expect(r.hilosTaken).toEqual([true, false]);
+    r = play(r, idle, RESPAWN.delaySteps);
+    expect(r.phase).toBe('playing');
+    expect(r.hilosTaken).toEqual([true, false]);
+  });
+
+  it('GDD-LIFE-05 the restart after the last life keeps every collected hilo', () => {
+    let r = collected();
+    for (let i = 0; i < LIVES_MAX - 1; i++) r = { ...r, lives: loseLife(r.lives) };
+    r = fall(r); // into the pit, the last life
+    expect(r.lives.lives).toBe(0);
+    r = play(r, idle, RESPAWN.delaySteps);
+    expect(r.phase).toBe('gameover');
+    r = play(stepRun(play(r, idle, 60), { move: 0, jumpHeld: true }, withHilos), idle, FLIP.steps);
+    expect(r).toMatchObject({ phase: 'playing' });
+    expect(r.lives.lives).toBe(LIVES_MAX);
+    expect(r.hilosTaken).toEqual([true, false]);
+  });
+
+  it('is not collected while waiting to respawn', () => {
+    // Poncho's box overlaps the uncollected hilo 0 while he waits; the respawn puts him back at the spawn, clear of it.
+    let r: RunState = { ...startRun(withHilos), phase: 'respawning', wait: RESPAWN.delaySteps, player: spawn(40, 4 * TILE) };
+    for (let i = 0; i < RESPAWN.delaySteps - 1; i++) {
+      r = stepRun(r, idle, withHilos);
+      expect(r, `wait step ${i + 1}`).toMatchObject({ phase: 'respawning', hilosTaken: [false, false] });
+    }
+    r = stepRun(r, idle, withHilos);
+    expect(r).toMatchObject({ phase: 'playing', hilosTaken: [false, false] });
+    expect(r.player.x).toBe(24);
+  });
+
+  it('is not collected on the Siete vidas gastadas screen either', () => {
+    const over: RunState = { ...startRun(withHilos), phase: 'gameover', wait: 0, player: spawn(40, 4 * TILE) };
+    const r = play(over, idle, 90);
+    expect(r.phase).toBe('gameover');
+    expect(r.hilosTaken).toEqual([false, false]);
+  });
+
+  it('GDD-LIFE-02 a hilo touched on the step of a Base hit that costs a life is collected', () => {
+    // A spike in tile (4, 3) and a hilo in the same tile: standing on it, Poncho touches both on this one step.
+    const spiked: Level = { ...level, spikes: [{ col: 4, row: 3 }], hilos: [{ col: 4, row: 3 }] };
+    const on: RunState = { ...startRun(spiked), player: { ...spawn(72, 4 * TILE), grounded: true } };
+    expect(on.hilosTaken).toEqual([false]);
+    const r = stepRun(on, idle, spiked);
+    expect(r.phase).toBe('respawning');
+    expect(r.lives.lives).toBe(LIVES_MAX - 1);
+    expect(r.hilosTaken).toEqual([true]);
   });
 });

@@ -1,9 +1,9 @@
 // Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
+import { BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HILO, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_BLOCKS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES, SANDBOX_ENEMIES, SANDBOX_ABILITIES } from '../levels/sandbox';
+import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_BLOCKS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES, SANDBOX_ENEMIES, SANDBOX_ABILITIES, SANDBOX_HILOS } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
@@ -17,16 +17,18 @@ import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { isPortrait, pauseEvent, PLAYING, resumeHeld, type PauseEvent, type PauseState } from '../sim/pause';
 import { parseTiles } from '../sim/tilemap';
+import { hilosCollected } from '../sim/hilo';
 import type { Power } from '../sim/taco';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
 import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
+import { HILO_COLOURS, HILO_HUD, hiloColour, hiloCounterRight, hiloCounterText } from '../ui/hiloCounter';
 import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
 const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, blocks: SANDBOX_BLOCKS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS, fragiles: SANDBOX_FRAGILES, enemies: SANDBOX_ENEMIES, abilities: SANDBOX_ABILITIES };
+const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, blocks: SANDBOX_BLOCKS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS, fragiles: SANDBOX_FRAGILES, enemies: SANDBOX_ENEMIES, hilos: SANDBOX_HILOS, abilities: SANDBOX_ABILITIES };
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
@@ -93,6 +95,10 @@ export interface PonchoDebug {
   /** The power-up state (GDD-PWR-01), and the taco pickups the scene painted in the level (GDD-PWR-02). */
   power(): Power;
   tacosDrawn(): number;
+  /** GDD-WLD-04: the hilos collected and the level's total, read from the run, and the pickups the scene painted in the level. */
+  hilos(): { taken: number; total: number; drawn: number };
+  /** GDD-UI-01: the hilo counter as drawn: its text, the right edge and top of the text, and the middle x of the skein icon. */
+  hudHilos(): { text: string; right: number; top: number; iconX: number };
   /** Whether the taco in Poncho's hand and the power-up icon on the HUD are drawn. Read from what was drawn. */
   heldTacoVisible(): boolean;
   /** Each piñata as drawn: whether it is drawn open (GDD-PWR-05). And the walking tacos as drawn: where their feet are (GDD-PWR-02). */
@@ -154,6 +160,14 @@ export class PlayScene extends Phaser.Scene {
   private tacoGfx!: Phaser.GameObjects.Graphics;
   private heldGfx!: Phaser.GameObjects.Graphics;
   private tacosKey = '';
+  private hiloGfx!: Phaser.GameObjects.Graphics;
+  private hilosKey = '';
+  private hilosPainted = 0;
+  /** GDD-UI-01: the hilo counter's text and the graphics behind its skein icon, and the text and right edge it was last drawn with. */
+  private hiloText!: Phaser.GameObjects.Text;
+  private hiloIcon!: Phaser.GameObjects.Graphics;
+  private hiloHudKey = '';
+  private hiloIconX = 0;
   private tacosPainted = 0;
   private pinatasPainted: boolean[] = [];
   private doorsPaintedShut: boolean[] = [];
@@ -254,6 +268,8 @@ export class PlayScene extends Phaser.Scene {
     this.drawSprings();
     this.tacoGfx = this.add.graphics().setDepth(2);
     this.drawTacos();
+    this.hiloGfx = this.add.graphics().setDepth(2);
+    this.drawHilos();
     this.heldGfx = this.add.graphics().setDepth(4);
     this.fireballGfx = this.add.graphics().setDepth(4);
     this.enemyGfx = this.add.graphics().setDepth(3);
@@ -320,6 +336,11 @@ export class PlayScene extends Phaser.Scene {
     // GDD-CTL-03: on-screen buttons on touch devices, merged with the keyboard below.
     this.touch = new TouchControls(this);
 
+    // GDD-UI-01: the hilo counter in the top right, left of the touch pause button where there is one.
+    this.hiloIcon = this.add.graphics().setScrollFactor(0).setDepth(10);
+    this.hiloText = this.add.text(0, HILO_HUD.top, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff3dc' }).setOrigin(1, 0).setScrollFactor(0).setDepth(10);
+    this.drawHiloCounter();
+
     // GDD-UI-02: the pause screen, over the level and the Siete vidas gastadas screen, under the HUD and the touch buttons
     // (so the pause button stays there to resume with).
     const dim = this.add.rectangle(0, 0, BASE_WIDTH, BASE_HEIGHT, 0x0d1020, 0.75).setOrigin(0);
@@ -384,6 +405,8 @@ export class PlayScene extends Phaser.Scene {
           this.drawHud();
           this.drawCrumbles();
           this.drawTacos();
+          this.drawHilos();
+          this.drawHiloCounter();
           this.drawPinatas();
           this.drawItems();
           this.drawDoorsAndKeys();
@@ -399,6 +422,8 @@ export class PlayScene extends Phaser.Scene {
         checkpoint: () => this.run.checkpoint,
         power: () => this.run.power,
         tacosDrawn: () => this.tacosPainted,
+        hilos: () => ({ taken: hilosCollected(this.run.hilosTaken), total: level.hilos?.length ?? 0, drawn: this.hilosPainted }),
+        hudHilos: () => ({ text: this.hiloText.text, right: this.hiloText.x, top: this.hiloText.y, iconX: this.hiloIconX }),
         heldTacoVisible: () => this.heldGfx.visible,
         hudPowerIcon: () => this.hudPower !== 'base',
         heldPowerDrawn: () => this.heldPower,
@@ -439,9 +464,8 @@ export class PlayScene extends Phaser.Scene {
       // Polled with JustDown, not 'keydown-X' events: Phaser 4.2.1 can fire those more than once when several
       // key events land in the same frame (see docs/LESSONS.md L-006).
       this.devKeys = { lose: kb.addKey(K.L), ofrenda: kb.addKey(K.O), veladora: kb.addKey(K.V) };
-      // Left of the touch pause button, where there is one.
-      const pauseButton = this.touch.debug().buttons.find((b) => b.id === 'pause');
-      this.add.text(pauseButton ? pauseButton.x - 4 : BASE_WIDTH - 6, 6, 'dev: L lose life, O ofrenda, V veladora', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(1, 0);
+      // Centred under the controls line, clear of the title and of the hilo counter in the top right (GDD-UI-01).
+      this.add.text(BASE_WIDTH / 2, 58, 'dev: L lose life, O ofrenda, V veladora', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
     }
   }
 
@@ -679,6 +703,42 @@ export class PlayScene extends Phaser.Scene {
       this.tacosPainted++;
       this.paintTaco(this.tacoGfx, t.col * TILE + TILE / 2, t.row * TILE + TILE / 2 - 1, 12);
     });
+  }
+
+  /** The hilos not yet collected (GDD-WLD-04), each in the next serape colour. Redrawn when one is collected. */
+  private drawHilos(): void {
+    this.hilosKey = this.run.hilosTaken.join();
+    this.hiloGfx.clear();
+    this.hilosPainted = 0;
+    (level.hilos ?? []).forEach((h, i) => {
+      if (this.run.hilosTaken[i]) return;
+      this.hilosPainted++;
+      this.paintHilo(this.hiloGfx, h.col * TILE + TILE / 2, h.row * TILE + TILE / 2, hiloColour(i));
+    });
+  }
+
+  /** Placeholder skein (GDD-WLD-04): a round coil of thread, two dark wraps across it and a short loose end. The middle stays plain colour. */
+  private paintHilo(g: Phaser.GameObjects.Graphics, cx: number, cy: number, colour: number): void {
+    g.fillStyle(colour, 1).fillCircle(cx, cy, HILO.size / 2);
+    g.lineStyle(1, 0x382e47, 0.6);
+    for (const dy of [-2, 2]) g.beginPath().moveTo(cx - 3, cy + dy).lineTo(cx + 3, cy + dy).strokePath();
+    g.lineStyle(1, colour, 1).beginPath().moveTo(cx + 3, cy + 3).lineTo(cx + 6, cy + 5).strokePath();
+  }
+
+  /**
+   * GDD-UI-01: a yellow skein and "collected/total", right-aligned to the screen's edge, or to the touch pause button. Redrawn
+   * when the text or the right edge changes, which `update()` checks every frame.
+   */
+  private drawHiloCounter(): void {
+    const pause = this.touch.debug().buttons.find((b) => b.id === 'pause');
+    const text = hiloCounterText(hilosCollected(this.run.hilosTaken), level.hilos?.length ?? 0);
+    const right = hiloCounterRight(pause);
+    if (`${text}|${right}` === this.hiloHudKey) return;
+    this.hiloHudKey = `${text}|${right}`;
+    this.hiloText.setText(text).setPosition(right, HILO_HUD.top);
+    this.hiloIconX = right - this.hiloText.width - HILO_HUD.iconGap - HILO_HUD.iconSize / 2;
+    this.hiloIcon.clear();
+    this.paintHilo(this.hiloIcon, this.hiloIconX, HILO_HUD.top + this.hiloText.height / 2, HILO_COLOURS[1]);
   }
 
   /**
@@ -1010,6 +1070,8 @@ export class PlayScene extends Phaser.Scene {
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.pulseDrawn !== null || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
     if (`${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}` !== this.doorsKey) this.drawDoorsAndKeys();
     if (this.run.tacosTaken.join() !== this.tacosKey) this.drawTacos();
+    if (this.run.hilosTaken.join() !== this.hilosKey) this.drawHilos();
+    this.drawHiloCounter();
     if (this.run.pinatasOpen.join() !== this.pinatasKey) this.drawPinatas();
     if (this.run.fragilesBroken.join() !== this.fragilesKey) this.drawFragiles();
     this.drawItems();
