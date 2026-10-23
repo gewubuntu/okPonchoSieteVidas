@@ -53,6 +53,8 @@ export class TouchControls {
   private readonly fuegoLatch = new InputLatch();
   /** GDD-PWR-03: whether the Fuego button is shown, which is only while Poncho is in the Fuego state. */
   private fuego = false;
+  /** Hidden on the title screen (GDD-UI-02). */
+  private hidden = false;
   /** Fingers that already flipped the mode, so one touch flips it once. */
   private readonly flipped = new Set<number>();
 
@@ -85,6 +87,8 @@ export class TouchControls {
     const live = new Set(fingers.map((f) => f.id));
     for (const id of this.flipped) if (!live.has(id)) this.flipped.delete(id);
     const mode = this.buttons.filter((b) => b.id === 'mode');
+    // A finger that went down while the buttons were hidden flips nothing, then or later (GDD-UI-02).
+    if (this.hidden) for (const f of fingers) this.flipped.add(f.id);
     const flip = fingers.find((f) => !this.flipped.has(f.id) && pressedButtons(mode, [{ x: f.downX, y: f.downY }]).size > 0);
     if (flip) {
       this.flipped.add(flip.id);
@@ -119,6 +123,12 @@ export class TouchControls {
     if (on === this.fuego || !this.enabled) return;
     this.fuego = on;
     this.relayout();
+  }
+
+  /** Hides the buttons on the title screen (GDD-UI-02). */
+  setHidden(hidden: boolean): void {
+    this.hidden = hidden;
+    this.gfx.setVisible(this.enabled && !hidden);
   }
 
   /** Whether a point (in virtual px) is on the pause button (GDD-UI-02). Always false without touch. */

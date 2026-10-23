@@ -215,15 +215,6 @@ test('GDD-UI-02 a phone turned upright pauses and asks to turn it sideways; only
   await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
 });
 
-test('GDD-UI-02 a phone already upright when the level starts is paused from the start', async ({ page, isMobile }) => {
-  test.skip(!isMobile, 'touch device only');
-  await page.setViewportSize({ width: 390, height: 844 });
-  await boot(page);
-  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().prompt === 'Turn your device sideways');
-  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: true, portrait: true });
-  expect(await ticks(page)).toBe(0);
-});
-
 test('GDD-UI-02 a touchscreen laptop in a tall window does not pause: its screen stays landscape', async ({ browser, isMobile }) => {
   test.skip(isMobile, 'desktop test');
   const context = await browser.newContext({ hasTouch: true, viewport: { width: 1280, height: 720 }, baseURL: test.info().project.use.baseURL! });

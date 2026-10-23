@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot } from './helpers';
+import { boot, openGame } from './helpers';
 
 // L-006: a tap whose press and release land in one frame must still reach a simulation step. The events are dispatched in
 // one task, so the browser cannot show a frame in between.
@@ -49,6 +49,20 @@ test('L-006 a jump tap shorter than one frame still makes Poncho jump', async ({
   });
   await page.waitForFunction(() => !window.__PONCHO__!.state().grounded);
   expect(await api(page, () => window.__PONCHO__!.peakRise())).toBeGreaterThanOrEqual(0);
+});
+
+test('GDD-UI-02 a Space tap inside one task starts the level (L-006)', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await openGame(page);
+  await tapKey(page, 'Space', 32, 1);
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
+});
+
+test('GDD-UI-02 an Enter tap inside one task starts the level (L-006)', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await openGame(page);
+  await tapKey(page, 'Enter', 13, 1);
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
 });
 
 /** Where the centre of a touch button is on the page, in CSS px. */
