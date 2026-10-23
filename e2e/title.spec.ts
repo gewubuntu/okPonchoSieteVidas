@@ -44,9 +44,13 @@ test('GDD-UI-02 the game opens on the title screen with the level standing still
   expect(await ticks(page)).toBe(0);
   expect((await api(page, () => window.__PONCHO__!.touch())).visible).toBe(false);
   await page.keyboard.press('Enter');
-  await titleHidden(page);
+  // The buttons come back on the frame the title goes: read both in the same callback, so a frame of lag shows.
+  const atClose = await (await page.waitForFunction(() => {
+    const p = window.__PONCHO__!;
+    return p.titleDrawn().shown ? false : { buttons: p.touch().visible };
+  })).jsonValue();
+  expect(atClose).toEqual({ buttons: isMobile });
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  if (isMobile) expect((await api(page, () => window.__PONCHO__!.touch())).visible).toBe(true);
 });
 
 test('GDD-UI-02 the veil dims the level and the HUD, and Poncho stands on it in red', async ({ page }) => {

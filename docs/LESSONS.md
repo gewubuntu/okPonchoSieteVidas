@@ -317,3 +317,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** When a screen hides controls, list what each hidden control does besides the press the screen reads, and test a held touch (CDP, several frames), not only a tap. When a rule reads several events from one frame, decide on the state at the end of the frame and test a pair of conflicting events in one frame.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-033 A visibility was set from state before that frame changed the state
+
+- **Date:** 2026-10-23
+- **What went wrong:** The title screen hid the touch buttons with `setHidden(this.title.shown)` at the top of `update()`, but the title closes later in the same `update()`. For one frame after the title went the buttons stayed hidden. CI's phone run read `touch().visible` in that frame right after `boot()` and failed; 15 local runs passed.
+- **Root cause:** Drawing and visibility were set in two places, one before and one after the state change, and the playtests read the result a few frames later, so the lag never showed locally.
+- **Rule:** Set every visibility that follows a state in the same draw step that runs after the state can change (the `draw*` calls at the end of `update()`). When a test checks that two things change together, read both in one `waitForFunction` callback.
+- **Recurrence:** 1
+- **Promoted:** no

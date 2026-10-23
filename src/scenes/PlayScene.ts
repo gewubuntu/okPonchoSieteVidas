@@ -1096,7 +1096,6 @@ export class PlayScene extends Phaser.Scene {
     }
 
     // Keyboard and touch work together: either can move or jump (GDD-CTL-01, GDD-CTL-03).
-    this.touch.setHidden(this.title.shown);
     this.touch.setFuego(this.run.power === 'fuego'); // the Fuego button is there only in the Fuego state (GDD-CTL-03)
     const touch = this.touch.read();
     // Left and right also go in raw, before they cancel out in `move`: the Siete vidas gastadas screen counts a press of either (GDD-LIFE-05).
@@ -1186,6 +1185,8 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-UI-02: the title screen and its prompt line, which tells an upright phone to turn sideways first. */
   private drawTitle(): void {
     this.titleScreen.setVisible(this.title.shown);
+    // The touch buttons come back on the frame the title goes, not one frame later.
+    this.touch.setHidden(this.title.shown);
     const prompt = titlePrompt(this.title.portrait, this.sys.game.device.input.touch);
     if (this.titlePromptText.text !== prompt.text) this.titlePromptText.setText(prompt.text).setFontSize(prompt.size);
   }
