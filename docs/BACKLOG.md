@@ -38,7 +38,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-WLD-01 | todo |  |
 | GDD-WLD-02 | todo |  |
 | GDD-WLD-03 | todo |  |
-| GDD-WLD-04 | doing | hilo pickups and the HUD counter in progress |
+| GDD-WLD-04 | doing | hilo pickups (src/sim/hilo.ts, 20 in the sandbox in serape colours) and the HUD counter (src/ui/hiloCounter.ts); kept through lost lives and the restart; items giving hilos instead, the multi-piñata, sound, score and saving pending |
 | GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox, which also reaches the Tlacuache's ledge); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls in src/sim/fragile.ts (one in the sandbox); moving blocks, solid and crushing, in src/sim/block.ts (one in the sandbox pocket past the fragile wall) |
 | GDD-ENM-01 | doing | enemy contact is one hit, never more than a life; the 3-tile spawn rule is for the level validator |
 | GDD-ENM-02 | doing | the Alacrán, the Zopilote, the cactus buddy and the Tlacuache in src/sim/enemy.ts (one of each in the sandbox; the Tlacuache on a ledge in the top right corner); sounds and defeat animations pending; the cactus buddy's harmless-from-below rule has no level that exercises it (it needs a cactus with nothing beneath it), unit tests only |
@@ -47,7 +47,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-PRG-01 | todo |  |
 | GDD-PRG-02 | todo |  |
 | GDD-PRG-03 | todo |  |
-| GDD-UI-01 | doing | lives triangles drawn and tested (src/ui/livesLayout.ts); power-up icon and hilo counter pending |
+| GDD-UI-01 | doing | lives triangles (src/ui/livesLayout.ts), power-up icon, key icons and the hilo counter (src/ui/hiloCounter.ts) built; hiding during cutscenes pending |
 | GDD-UI-02 | doing | the pause in a level (keys, touch button, tap to resume, focus and portrait auto-pause) in src/sim/pause.ts and PlayScene; boot, title, world map, results and settings pending |
 | GDD-UI-03 | todo |  |
 | GDD-AUD-01 | todo | audio unlock on first gesture is handled by the engine; music and volume settings pending |

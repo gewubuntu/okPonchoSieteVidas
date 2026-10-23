@@ -263,3 +263,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** Stop a measurement at the end of the event it is about (the first apex, the first landing), and assert the sign of the effect directly on every step. When a description says a mutant fails a particular test, run that mutant against that test alone (`-t`).
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-027 A new HUD element pushed older on-screen text into the title
+
+- **Date:** 2026-10-23
+- **What went wrong:** The hilo counter (GDD-UI-01) took the top-right corner, where the dev-only key hint was. The implementer moved the hint down to y = 20, straight over the centred game title. No test reads either text, so the gate and the playtests were green; it showed only in the screenshots.
+- **Root cause:** The plan named the counter's place but not what else already draws near it, so the clash was solved by moving the old text without checking where it landed. Text overlap has no automated check.
+- **Rule:** When a plan puts something on the HUD or moves on-screen text, list every text and graphic already drawn in that area (title, controls line, dev hint, pause button, keys and icons) and say where each one goes, then look at both viewports' screenshots for overlap before showing them.
+- **Recurrence:** 1
+- **Promoted:** no
