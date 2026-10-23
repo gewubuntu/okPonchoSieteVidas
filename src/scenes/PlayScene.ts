@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HILO, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
-import { SANDBOX_OFRENDAS, SANDBOX_ROWS, SANDBOX_SPAWN, SANDBOX_SPIKES, SANDBOX_CRUMBLES, SANDBOX_PLATFORMS, SANDBOX_BLOCKS, SANDBOX_SPRINGS, SANDBOX_TACOS, SANDBOX_PINATAS, SANDBOX_DOORS, SANDBOX_KEYS, SANDBOX_FRAGILES, SANDBOX_ENEMIES, SANDBOX_ABILITIES, SANDBOX_HILOS } from '../levels/sandbox';
+import { SANDBOX_LEVEL, SANDBOX_SPAWN } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
@@ -16,7 +16,6 @@ import { blockAt } from '../sim/block';
 import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { isPortrait, pauseEvent, PLAYING, resumeHeld, type PauseEvent, type PauseState } from '../sim/pause';
-import { parseTiles } from '../sim/tilemap';
 import { hilosCollected } from '../sim/hilo';
 import type { Power } from '../sim/taco';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
@@ -27,8 +26,8 @@ import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
-const world = parseTiles(SANDBOX_ROWS);
-const level: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: SANDBOX_OFRENDAS, spikes: SANDBOX_SPIKES, crumbles: SANDBOX_CRUMBLES, springs: SANDBOX_SPRINGS, platforms: SANDBOX_PLATFORMS, blocks: SANDBOX_BLOCKS, tacos: SANDBOX_TACOS, pinatas: SANDBOX_PINATAS, doors: SANDBOX_DOORS, keys: SANDBOX_KEYS, fragiles: SANDBOX_FRAGILES, enemies: SANDBOX_ENEMIES, hilos: SANDBOX_HILOS, abilities: SANDBOX_ABILITIES };
+const level: Level = SANDBOX_LEVEL;
+const world = level.world;
 const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;

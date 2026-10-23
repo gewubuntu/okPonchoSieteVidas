@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.39
+Version: 0.4.40
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.40** (2026-10-23) GDD-TEC-04, GDD-WLD-03, GDD-ENM-01, GDD-TEC-06: the level validator is built, ahead of the Tiled loader. A test runs it over every level in the game and checks 3 ofrendas, an exit, a length of 3 to 6 screens, no gap wider than the world's limit and no enemy starting within 3 tiles of a respawn. A gap is a run of columns whose bottom row is empty. The sandbox is a test level, which skips the exit and length checks (user decisions, 2026-10-23: validator only, Tiled later; the sandbox marked as a test level; a gap is a run of pit columns).
 - **0.4.39** (2026-10-23) GDD-WLD-04, GDD-UI-01, GDD-LIFE-02, GDD-LIFE-04, GDD-LIFE-05, GDD-PWR-02, GDD-PWR-03: hilo pickups and the HUD hilo counter are built. A hilo is an 8 x 8 px skein in the middle of its tile, collected by touch with the body box, and once collected it stays collected through lost lives and the restart after the last life. The counter in the top right shows a skein and "collected/total" for the level. The sandbox has 20 (user decisions, 2026-10-23: pickups and counter first; about 20 in the sandbox, 50 stays the number for real levels; the counter reads collected/total; placeholder skeins in serape colours). Items that give hilos instead, the multi-piñata, the score and saving come later.
 - **0.4.38** (2026-10-23) GDD-WLD-05: a moving block carrying Poncho down past a tile he hangs over leaves him standing on the tile, as a platform does (found in review).
 - **0.4.37** (2026-10-23) GDD-WLD-05, GDD-LIFE-02, GDD-CMB-03: moving blocks and crushing are built. A moving block is solid on every side and travels like a moving platform at 40 px/s; a push or a carry into a solid tile crushes Poncho, which costs one life like a pit, in any power-up state and even while invulnerable. The sandbox has one in the pocket past the fragile wall (user decisions, 2026-10-23: a moving solid block is what crushes, a crush costs a life like a pit).
@@ -438,11 +439,11 @@ Status: Proposed. Names and themes are a starting point for the user to react to
 
 Status: Proposed
 
-- Length: 3 to 6 screens wide at 480 px (GDD-ART-01). Mostly horizontal; vertical sections allowed.
+- Length: 3 to 6 screens wide at 480 px (GDD-ART-01). Mostly horizontal; vertical sections allowed. (The sandbox, a test level, is one screen wide and has no exit; the level validator, GDD-TEC-04, checks the length and the exit of every other level.)
 - 3 ofrenda checkpoints at roughly 25%, 55% and 85% of the level, and an exit. (The sandbox test level puts the middle one at about 65% because 55% is in its pit; see GDD-WLD-05.)
 - 1 hidden secret per level (a room or a veladora).
 - Teaching order: new mechanic is introduced in a safe spot, then combined with a threat, then used in a test.
-- Gaps never exceed 3 tiles in World 1 (jump distance is about 4.1 to 4.3 tiles at full run, GDD-MOV-01 to GDD-MOV-04).
+- Gaps never exceed 3 tiles in World 1 (jump distance is about 4.1 to 4.3 tiles at full run, GDD-MOV-01 to GDD-MOV-04). The level validator checks it for every level (GDD-TEC-04).
 - Measured with the real body box against tiles (`src/sim/collision.test.ts`): a full jump can climb onto a wall 3 tiles high but not 4, and a running jump can cross a gap of 5 tiles but not 6. Gaps are measured edge to edge. The body only has to overlap the far edge, so a 5-tile gap (80 px) costs about 4.25 tiles (68 px) of travel from centre to centre, which is why it fits the 4.1 to 4.3 tile jump distance above. Walls taller than 3 tiles block the path; gaps wider than 5 tiles are impassable without a power. Design to the World 1 limit of 3 so there is room for mistakes.
 
 ### GDD-WLD-04 Collectibles
@@ -480,7 +481,7 @@ Status: Proposed
 
 - One idea per enemy, readable at a glance, with a 0.5 s telegraph before any attack. (Built for the Zopilote's dive and the Tlacuache's charge.)
 - Every enemy can be beaten at least one way: stomp, claw or avoidance.
-- Enemies never spawn on screen within 3 tiles of Poncho's respawn. (Checked for every enemy in the sandbox by `src/levels/sandbox.test.ts`; the level validator, GDD-TEC-04, will check authored levels.)
+- Enemies never spawn on screen within 3 tiles of Poncho's respawn. (Checked for every enemy in every level, the sandbox included, by the level validator, GDD-TEC-04.)
 - Enemy contact is resolved by GDD-CMB-03 and never costs more than 1 life. (Built for the Alacrán: it is a hit like a spike, one life in Base.) Avoidance is a built way to beat an enemy: the cactus buddy cannot be defeated at all (GDD-ENM-02).
 
 ### GDD-ENM-02 World 1 bestiary
@@ -673,6 +674,11 @@ Status: Proposed
 
 Levels are authored in Tiled and exported as JSON (tilemap and object layers: spawn, ofrendas, hilos, enemies, hazards, exit). A validator test loads every level and checks: exactly one spawn, 3 ofrendas, an exit, no gap wider than the world's limit (GDD-WLD-03).
 
+- The validator is built (`src/levels/validate.ts`) and a test runs it over every level in `src/levels/index.ts`. The Tiled JSON loader is not built yet: levels are still written in code, and the loader will feed the same validator (user decision, 2026-10-23). One spawn is guaranteed by the level data, which has exactly one; the loader will count spawn objects.
+- It checks 3 ofrendas, an exit, a length of 3 to 6 screens (GDD-WLD-03), no gap wider than the world's limit, and no enemy starting within 3 tiles of the spawn or an ofrenda (GDD-ENM-01). A world with no gap limit in GDD-WLD-03 is itself a problem; only World 1 has one so far.
+- A gap is a run of adjacent pit columns, and a pit column is one whose bottom row is empty, where Poncho falls out of the level. A floating tile higher up does not fill a pit (user decision, 2026-10-23).
+- A level marked as a test level (the sandbox) skips the exit and length checks and gets the others (user decision, 2026-10-23). The sandbox's pit, columns 14 to 16, is a gap of 3 tiles.
+
 ### GDD-TEC-05 Tuning in one place
 
 Status: Proposed
@@ -693,7 +699,7 @@ Status: Decided (use the latest stable releases, user, 2026-10-19). The review c
 Status: Proposed
 
 - Unit tests (Vitest) for simulation: movement numbers, forgiveness windows, lives rules, save migration.
-- Level validation tests (GDD-TEC-04).
+- Level validation tests (GDD-TEC-04): every level in `src/levels/index.ts` passes the validator.
 - Playwright playtests per the `harness-playtest` skill: boot, jump, life loss, touch input, console free of errors.
 - `scripts/check.mjs` runs all of these through npm scripts once they exist.
 
@@ -743,3 +749,4 @@ Answer these to move items from Proposed to Decided. Until then the Proposed tex
 10. **Score and medals (GDD-PRG-03):** keep or cut?
 11. **Distribution:** where will it be hosted (itch.io, own site, stores)? This drives PWA versus native packaging.
 12. **Taco pickups in Taco (GDD-PWR-02, GDD-PWR-06):** a taco lying on the floor is left where it is when Poncho is already Taco, but a walking taco released from a piñata is used up when he touches it. Should both behave the same?
+13. **Gap limits after World 1 (GDD-WLD-03, GDD-TEC-04):** only World 1 has one (3 tiles). The level validator fails a level in any other world until that world has a limit. Should the limit grow by world, up to the 5 tiles a running jump can cross?

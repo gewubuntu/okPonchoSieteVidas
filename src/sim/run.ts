@@ -60,6 +60,8 @@ export interface Level {
   readonly fragiles: readonly Fragile[];
   /** GDD-ENM-02: where the enemies start. */
   readonly enemies: readonly Enemy[];
+  /** GDD-TEC-04, GDD-WLD-03: where the level ends. Reaching it does nothing yet. Left out means none (the sandbox, a test level). */
+  readonly exit?: Point;
   /** GDD-MOV-07, GDD-PRG-01: the abilities unlocked here. Left out means none. */
   readonly abilities?: Abilities;
 }
