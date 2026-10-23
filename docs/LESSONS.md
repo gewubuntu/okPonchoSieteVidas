@@ -253,3 +253,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** When a mutant of a guard survives, first ask whether another rule already covers that case. If it does, delete the guard and say in a comment which rule covers it, instead of adding a test that cannot fail for the guard alone.
 - **Recurrence:** 2
 - **Promoted:** step 6 of the `harness-feature` skill.
+
+## L-026 A test measured over a window wide enough to include a second, unrelated event
+
+- **Date:** 2026-10-23
+- **What went wrong:** The sandbox spring test (GDD-MOV-08, GDD-WLD-05) took Poncho's highest point over 60 steps. With the spring guard removed, a press kicked him only 56 px up, but holding left walked him back onto the spring and a second launch reached the same 77 px, so the test stayed green. I claimed the mutant failed it after checking only the whole file, where another test caught it.
+- **Root cause:** The measuring window was longer than the event under test, and the mutant was checked against the file, not against the new test alone.
+- **Rule:** Stop a measurement at the end of the event it is about (the first apex, the first landing), and assert the sign of the effect directly on every step. When a description says a mutant fails a particular test, run that mutant against that test alone (`-t`).
+- **Recurrence:** 1
+- **Promoted:** no

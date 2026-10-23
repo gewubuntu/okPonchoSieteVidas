@@ -255,9 +255,12 @@ describe('GDD-MOV-08 in a run', () => {
     const rise = (pressAt: number | null) => {
       let r = startRun(level);
       r = { ...r, player: { ...r.player, x: 12 * TILE + FLUSH, y: 14 * TILE, grounded: true, vy: 0 } };
+      // Only the first launch: up to its top, where he stops rising. A kick would push him away from the wall (vx > 0).
       let top = r.player.y;
       for (let i = 0; i < 60; i++) {
         r = stepRun(r, { move: -1, jumpHeld: pressAt !== null && i >= pressAt }, level);
+        if (i > 0 && r.player.vy >= 0) break;
+        expect(r.player.vx, `step ${i}`).toBeLessThanOrEqual(0);
         top = Math.min(top, r.player.y);
       }
       return 14 * TILE - top;
