@@ -47,7 +47,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-PRG-01 | todo |  |
 | GDD-PRG-02 | todo |  |
 | GDD-PRG-03 | todo |  |
-| GDD-UI-01 | doing | lives triangles (src/ui/livesLayout.ts), power-up icon, key icons and the hilo counter (src/ui/hiloCounter.ts) built; hiding during cutscenes pending |
+| GDD-UI-01 | doing | lives triangles (src/ui/livesLayout.ts), power-up icon, key icons and the hilo counter (src/ui/hiloCounter.ts) built; the semi-transparent look, controls under the safe-area insets (GDD-CTL-03) and hiding during cutscenes pending |
 | GDD-UI-02 | doing | the pause in a level (keys, touch button, tap to resume, focus and portrait auto-pause) in src/sim/pause.ts and PlayScene; boot, title, world map, results and settings pending |
 | GDD-UI-03 | todo |  |
 | GDD-AUD-01 | todo | audio unlock on first gesture is handled by the engine; music and volume settings pending |

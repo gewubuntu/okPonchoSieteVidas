@@ -186,7 +186,7 @@ describe('GDD-WLD-04 the sandbox hilos', () => {
     for (const p of [SANDBOX_SPAWN, ...SANDBOX_OFRENDAS]) for (const h of SANDBOX_HILOS) expect(touchesHilo(standing(p.x, p.y), h), `hilo ${h.col},${h.row} at ${p.x}`).toBe(false);
   });
 
-  it('the pit hilo is collected on the usual route over the pit', () => {
+  it('the pit hilo is collected by a jump over the cactus buddy that comes down on the spring', () => {
     const sandbox: Level = {
       world,
       spawn: SANDBOX_SPAWN,
