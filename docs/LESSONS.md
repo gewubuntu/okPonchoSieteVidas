@@ -251,7 +251,8 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** In the glide (GDD-MOV-07) a "not on the ground" condition survived its mutant, because landing ended the glide anyway. In the wall cling (GDD-MOV-08) the same happened twice: "not touching on the ground" and the kick's "not grounded" check, both already covered by the normal jump taking the press first and by landing ending the slide.
 - **Root cause:** Each guard was written for a case another rule already handles, so it had no behaviour of its own for a test to pin down.
 - **Rule:** When a mutant of a guard survives, first ask whether another rule already covers that case. If it does, delete the guard and say in a comment which rule covers it, instead of adding a test that cannot fail for the guard alone.
-- **Recurrence:** 2
+- **Recurrence 3 (2026-10-23, GDD-WLD-05 moving blocks):** a `clinging: false` on the block's side stop survived, since movement only clings to tiles; deleted with a comment naming the covering rule. The skill step worked as written.
+- **Recurrence:** 3
 - **Promoted:** step 7 of the `harness-feature` skill (step 4 of `.claude/agents/implementer.md` too).
 
 ## L-026 A test measured over a window wide enough to include a second, unrelated event

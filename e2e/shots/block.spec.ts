@@ -14,10 +14,11 @@ test('GDD-WLD-05 moving block: at the top, on the floor, and carrying Poncho up'
     const g = window.__PONCHO__!;
     g.pause(true);
     g.teleport(472, 224); // column 29, the safe spot beside the block's path
-    g.step(1);
+    // Some steps ran before the pause: step on until the block is back at its top end (y = 112), exactly.
+    for (let i = 0; i < 300 && g.blocks()[0]!.y !== 112; i++) g.step(1);
   });
   await shot(page, info, 'block-top');
-  await page.evaluate(() => window.__PONCHO__!.step(143)); // the block rests on the floor
+  await page.evaluate(() => window.__PONCHO__!.step(144)); // 96 px at 40 px/s: the block rests on the floor (y = 208)
   await shot(page, info, 'block-floor');
   await page.evaluate(() => {
     const g = window.__PONCHO__!;

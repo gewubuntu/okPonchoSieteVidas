@@ -52,9 +52,11 @@ export function moveBlocks(player: PlayerState, blocks: readonly MovingBlock[], 
     const dy = to.y - from.y;
     if (p.grounded && Math.abs(p.y - from.y) < EPS && overlapsX(p, from)) {
       const x = blocked(solid, p.x + dx, p.y) ? p.x : p.x + dx;
-      // Carried down he moves away from any ceiling, so only carrying him up can crush him.
-      if (dy < 0 && blocked(solid, x, p.y + dy)) return { player, crushed: true };
-      p = { ...p, x, y: p.y + dy };
+      // Carried up into a tile he is crushed. Carried down into one (he hangs over a tile beside the block) he stays on it
+      // and the block slides on down away from him, as a platform never pushes him through a tile.
+      const into = blocked(solid, x, p.y + dy);
+      if (into && dy < 0) return { player, crushed: true };
+      p = { ...p, x, y: into ? p.y : p.y + dy };
       continue;
     }
     if (!overlaps(p, to)) continue;

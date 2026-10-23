@@ -110,6 +110,8 @@ describe('GDD-WLD-05 moving block is solid on every side', () => {
     const fromLeft = play(wall, runAt(wall, standing(60, 192)), 80, () => ({ move: 1, jumpHeld: false }));
     for (const s of fromLeft) expect(s.player.x).toBeLessThanOrEqual(100 - HALF + 1e-6);
     expect(fromLeft[79]!.player.x).toBeCloseTo(100 - HALF, 6);
+    // Stopped as at a tile wall: his run speed is gone, so when he clears it he speeds up from rest.
+    expect(fromLeft[79]!.player.vx).toBe(0);
     const fromRight = play(wall, runAt(wall, standing(180, 192)), 120, () => ({ move: -1, jumpHeld: false }));
     for (const s of fromRight) expect(s.player.x).toBeGreaterThanOrEqual(132 + HALF - 1e-6);
     expect(fromRight[119]!.player.x).toBeCloseTo(132 + HALF, 6);
@@ -118,8 +120,9 @@ describe('GDD-WLD-05 moving block is solid on every side', () => {
   it('pushes Poncho along when it moves sideways into him, with no life lost', () => {
     const level = levelOf([{ x0: 40, y0: 160, x1: 136, y1: 160, w: 16, h: 32 }]);
     // The step in which its face first passes his left edge (x = 94): it moves him to the face.
-    const first = moveBlocks(standing(100, 192), level.blocks!, 57, level.world);
+    const first = moveBlocks({ ...standing(100, 192), vx: -50 }, level.blocks!, 57, level.world);
     expect(first.crushed).toBe(false);
+    expect(first.player.vx).toBe(0);
     expect(first.player.x - HALF).toBeCloseTo(blockAt(level.blocks![0]!, 58).x + 16, 6);
     const states = play(level, runAt(level, standing(100, 192)), 120);
     const last = states[119]!;
@@ -289,6 +292,39 @@ describe('GDD-LIFE-02 crushing', () => {
     expect(back.phase).toBe('playing');
     expect(back.platformTick).toBe(0);
     expect(blockAt(dropper, back.platformTick)).toMatchObject({ x: dropper.x0, y: dropper.y0 });
+  });
+
+  it('a rising block that meets him from below lifts him onto its top', () => {
+    const level = levelOf([{ x0: 100, y0: 176, x1: 100, y1: 80, w: 32, h: 16 }]);
+    // His feet (y = 175.8) are below where its top will be after one step (y = 175.33): it lifts him and he stands on it.
+    const [after] = play(level, runAt(level, { ...airborne(116, 175.8), vy: -5 }), 1);
+    expect(after!.player.y).toBeCloseTo(176 - 40 / 60, 6);
+    expect(after!.player.x).toBe(116);
+    expect(after!.player.grounded).toBe(true);
+    // He stands on it at once, so a jump pressed the step it lifts him jumps that same step.
+    const [jumped] = play(level, runAt(level, { ...airborne(116, 175.8), vy: -5 }), 1, () => ({ move: 0, jumpHeld: true }));
+    expect(jumped!.player.vy).toBeLessThan(0);
+    expect(jumped!.player.y).toBeLessThan(176 - 40 / 60);
+  });
+
+  it('a block moving on both axes pushes him along the axis with the smaller overlap', () => {
+    // It travels 96 px right and only 8 px down, so it meets Poncho on the floor side on and pushes him right, not down into the floor.
+    const level = levelOf([{ x0: 60, y0: 170, x1: 156, y1: 178, w: 16, h: 16 }]);
+    const states = play(level, runAt(level, standing(100, 192)), 150);
+    expect(states.every((s) => s.lives.lives === 7 && s.phase === 'playing')).toBe(true);
+    expect(states[149]!.player.x).toBeGreaterThan(100);
+  });
+
+  it('carried down past a tile he hangs over, he stays on the tile and the block slides on down', () => {
+    // A tile at column 1, row 10 (x 16 to 32, top y = 160) beside the block's path (x 32 to 48). Poncho stands with 11 of his 12 px over it.
+    const world = worldOf((r) => (r === 10 ? '.#' + '.'.repeat(18) : '.'.repeat(20)));
+    const level = levelOf([{ x0: 32, y0: 128, x1: 32, y1: 176, w: 16, h: 16 }], world);
+    // After 33 steps the block's top is at y = 150, going down.
+    const states = play(level, runAt(level, standing(27, 150), { platformTick: 33 }), 40);
+    for (const s of states) expect(s.player.x).toBe(27);
+    expect(states[39]!.player.y).toBe(160);
+    expect(states[39]!.player.grounded).toBe(true);
+    expect(states[39]!.lives.lives).toBe(7);
   });
 
   it('a push that has room is not a crush: no life lost', () => {
