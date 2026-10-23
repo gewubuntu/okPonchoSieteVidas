@@ -1,6 +1,7 @@
 // GDD-MOV-01 to GDD-MOV-04 and GDD-MOV-06: Poncho's movement and tile collision. Pure logic, no Phaser (GDD-TEC-02).
-// The stomp bounce (GDD-MOV-03) arrives with combat. GDD-MOV-07: the glide, where the level allows it.
-import { FORGIVENESS, GLIDE, GRAVITY, HITBOX, JUMP, RUN, STEP, TILE } from '../config/tuning';
+// The stomp bounce (GDD-MOV-03) arrives with combat. GDD-MOV-07 and GDD-MOV-08: the glide and the wall cling and kick,
+// where the level allows them.
+import { FORGIVENESS, GLIDE, GRAVITY, HITBOX, JUMP, RUN, STEP, TILE, WALL } from '../config/tuning';
 
 export interface PlayerState {
   x: number;
@@ -22,11 +23,19 @@ export interface PlayerState {
   glideLock?: number;
   /** GDD-MOV-07: how many steps in a row jump has been held, this one included. Left out means none. */
   jumpHeldSteps?: number;
+  /** GDD-MOV-08: sliding down a wall this step. Left out means no. */
+  clinging?: boolean;
+  /** GDD-MOV-08: the side of the wall last touched in the air (-1 left, 1 right) and the steps left to kick off it. */
+  wallSide?: -1 | 1;
+  wallGrace?: number;
+  /** GDD-MOV-08: steps left in which sideways control is locked after a wall kick. */
+  kickLock?: number;
 }
 
 /** Abilities unlocked by progression (GDD-PRG-01). Left out means none. */
 export interface Abilities {
   readonly glide?: boolean;
+  readonly wallCling?: boolean;
 }
 
 export interface PlayerInput {
@@ -56,6 +65,8 @@ export const flatWorld = (floorY: number): World => ({ solidTile: (_tx, ty) => t
 const HALF_WIDTH = HITBOX.width / 2;
 /** Keeps a box that only touches a tile edge from counting as inside it. */
 const EDGE = 1e-6;
+/** How far beside his box a wall still counts as touching it (GDD-MOV-08), in px. */
+const WALL_PROBE = 0.01;
 
 /** Does Poncho's body box, centred on x with its feet at y (GDD-MOV-06), overlap a solid tile? */
 export function blocked(world: World, x: number, y: number): boolean {
@@ -107,8 +118,20 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
   const vx0 = prev.vx;
   const move = Math.max(-1, Math.min(1, input.move));
 
-  // GDD-MOV-01: horizontal movement
-  if (move === 0) {
+  // GDD-MOV-08: a wall right beside him, checked where he starts the step. On the ground it changes nothing: a jump there is a
+  // normal jump, and standing ends a slide. Running into a wall snaps him flush against it
+  // (GDD-MOV-06), so his box moved a hair that way overlaps a tile only while he touches it.
+  const touching: -1 | 0 | 1 = blocked(world, prev.x - WALL_PROBE, prev.y) ? -1 : blocked(world, prev.x + WALL_PROBE, prev.y) ? 1 : 0;
+  if (touching !== 0) {
+    s.wallSide = touching;
+    s.wallGrace = WALL.graceSteps;
+  }
+  s.kickLock = Math.max(0, (prev.kickLock ?? 0) - 1);
+
+  // GDD-MOV-01: horizontal movement. Locked for a moment after a wall kick (GDD-MOV-08).
+  if ((prev.kickLock ?? 0) > 0) {
+    // keep the kick's speed
+  } else if (move === 0) {
     s.vx = approach(s.vx, 0, (s.grounded ? RUN.groundDecel : RUN.airDecel) * STEP);
   } else {
     const turning = s.vx !== 0 && Math.sign(s.vx) !== Math.sign(move);
@@ -128,6 +151,16 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
     s.jumpBuffer = 0;
     s.coyote = 0;
     s.grounded = false;
+  } else if (pressed && abilities.wallCling === true && (s.wallGrace ?? 0) > 0 && s.wallSide !== undefined) {
+    // GDD-MOV-08: a jump press in the air beside a wall, or just after leaving it, kicks away from it (on the ground the
+    // press is a normal jump, above). Only a press the
+    // simulation saw counts, so a jump held through a respawn or a pause (GDD-UI-02) does not kick.
+    const away = s.wallSide === -1 ? 1 : -1;
+    s.vx = away * WALL.kickX;
+    s.vy = -WALL.kickY;
+    s.facing = away;
+    s.kickLock = WALL.lockSteps;
+    s.wallGrace = 0; // one kick per touch: a second press on the way out does not kick off the same wall again
   }
 
   // GDD-MOV-02: variable jump height, cut once on release while rising
@@ -148,7 +181,10 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
   // GDD-UI-02) does not glide until it is pressed again.
   const heldFor = prev.jumpHeldSteps ?? 0;
   s.jumpHeldSteps = input.jumpHeld && (pressed || heldFor > 0) ? heldFor + 1 : 0;
-  s.gliding = abilities.glide === true && s.jumpHeldSteps > GLIDE.holdSteps && s.vy > 0 && s.glideLock === 0;
+  // GDD-MOV-08: pressing toward a wall while falling slides down it slowly. The cling wins over the glide.
+  s.clinging = abilities.wallCling === true && touching !== 0 && move * touching > 0 && s.vy > 0;
+  if (s.clinging) s.vy = Math.min(s.vy, WALL.slideSpeed);
+  s.gliding = abilities.glide === true && !s.clinging && s.jumpHeldSteps > GLIDE.holdSteps && s.vy > 0 && s.glideLock === 0;
   if (s.gliding) s.vy = Math.min(s.vy, GLIDE.fallSpeed);
 
   // GDD-MOV-06: move one axis at a time and snap to the tile edge that was hit. The fastest speed is the 410 px/s jump
@@ -183,7 +219,11 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
   }
 
   s.grounded = landed;
-  if (landed) s.gliding = false; // GDD-MOV-07: standing (or landing) ends a glide
+  if (landed) {
+    s.gliding = false; // GDD-MOV-07: standing (or landing) ends a glide
+    s.clinging = false; // GDD-MOV-08: and a wall slide
+  }
+  s.wallGrace = Math.max(0, (s.wallGrace ?? 0) - 1);
   if (!landed) s.coyote = Math.max(0, s.coyote - 1);
 
   s.jumpWasHeld = input.jumpHeld;

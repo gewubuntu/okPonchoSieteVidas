@@ -243,3 +243,12 @@ Prefer an automated check over a prose rule.
 - **Recurrence 2 (2026-10-22, same PR, found by the review):** the list missed GDD-UI-02. A jump pressed while paused and held through the resume (marked as held by `resumeHeld`) still glided, because the glide counted any held input instead of a press the simulation saw.
 - **Recurrence:** 2
 - **Promoted:** step 5 of the `harness-feature` skill (input rules): list every rule that already reads the button, including the "already held" marks of the respawn and of the pause resume, and test each with the new rule on.
+
+## L-025 A guard that another rule already covers survived its mutant
+
+- **Date:** 2026-10-23
+- **What went wrong:** In the glide (GDD-MOV-07) a "not on the ground" condition survived its mutant, because landing ended the glide anyway. In the wall cling (GDD-MOV-08) the same happened twice: "not touching on the ground" and the kick's "not grounded" check, both already covered by the normal jump taking the press first and by landing ending the slide.
+- **Root cause:** Each guard was written for a case another rule already handles, so it had no behaviour of its own for a test to pin down.
+- **Rule:** When a mutant of a guard survives, first ask whether another rule already covers that case. If it does, delete the guard and say in a comment which rule covers it, instead of adding a test that cannot fail for the guard alone.
+- **Recurrence:** 2
+- **Promoted:** step 6 of the `harness-feature` skill.

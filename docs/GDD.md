@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.35
+Version: 0.4.36
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.4.36** (2026-10-23) GDD-MOV-08, GDD-PRG-01, GDD-MVP-02: the wall cling and kick is built ahead of the MVP, behind the same ability flag as the glide (on in the sandbox, where the level's left and right edges are full-height walls): pressing toward a wall while falling slides at 60 px/s; jump beside a wall in the air kicks away at 130 px/s across and 380 px/s up, then sideways control is locked for 120 ms (user decisions, 2026-10-23: a kick whenever he touches a wall in the air, the cling wins over the glide, a 0.1 s grace after leaving the wall, claw marks as the placeholder look).
 - **0.4.35** (2026-10-22) GDD-MOV-07, GDD-PRG-01, GDD-MVP-02: the glide is built ahead of the MVP, behind an ability flag a level turns on (the sandbox does, until World 2 can unlock it): holding jump while falling caps the fall at 70 px/s, sideways movement unchanged, as long as jump is held; not within 150 ms of a stomp bounce; a placeholder spread poncho is drawn (user decisions, 2026-10-22: unlock flag on in the sandbox, jump held as he falls, a wide poncho bar). New proposal: a glide starts only once jump has been held longer than the 0.1 s jump buffer (GDD-MOV-03), so a press just before landing stays a buffered jump. The hold counts from a press the game saw, so a jump pressed while paused or held through a respawn does not glide (GDD-UI-02). GDD-UI-02, GDD-CTL-01: Escape and P now pause on every keyboard layout and every quick press counts once (they are read from the browser's own key events by the key's label).
 - **0.4.34** (2026-10-22) GDD-UI-02, GDD-UI-01, GDD-CTL-01, GDD-CTL-03: the pause in a level is built: Escape or P, or a touch pause button in the top-right corner, pauses under a dimmed screen; the same key or button, or a tap anywhere, resumes; losing focus or a hidden tab pauses, and so does a phone turned upright, which first asks to be turned sideways; a press made while paused does nothing until pressed again (user decisions, 2026-10-22: resume only, button top-right, auto-pause on focus and portrait, resume with the pause key or a tap). The rest of the menus wait for a title screen.
 - **0.4.33** (2026-10-22) GDD-LIFE-04: the last-life pulse is built: with one life left its HUD triangle grows to 1.4x and back every 0.8 s; the size and timing are written out as proposals. The music shift and the double hilo score wait for music and hilos.
@@ -252,6 +253,11 @@ Hold jump while falling: the poncho spreads like a parachute. Fall speed capped 
 Status: Proposed. Post-MVP (GDD-MVP-02), unlocked by GDD-PRG-01.
 
 Cat claws: pressing toward a wall while falling slows the slide to 60 px/s. Jump from the wall kicks away at 130 px/s horizontal and 380 px/s upward. 120 ms of locked horizontal control after the kick.
+
+- **Built (kick timing, glide priority, grace and look decided by the user 2026-10-23, details Proposed):** the same ability flag as the glide turns it on (`abilities.wallCling`); the sandbox has it on, and the level's left and right edges are full-height walls to try it on, until clearing World 3 unlocks it (GDD-PRG-01). A wall counts when it is flush beside his body box (running into one snaps him flush, GDD-MOV-06).
+- **Cling:** in the air, falling, pressing toward a wall he touches (the left or right button, key or stick that way), the fall is capped at 60 px/s (a slower fall speeds up to it). Not while rising, not pressing away or nothing, not on the ground. Landing, on tiles or a moving platform, or a stomp bounce ends it. With the glide on too, the cling wins: against the wall pressing toward it he slides even with jump held, and glides once off it.
+- **Kick:** a jump press (one the game saw: a jump held through a respawn or a pause does not count, GDD-UI-02) while he touches a wall in the air, rising or falling, pressing toward it or not, kicks him away from it at 130 px/s across and 380 px/s up, facing away. It also works within 0.1 s (the coyote time, GDD-MOV-03) of leaving the wall, once per touch. A press that is a normal jump (on the ground, or in coyote time after walking off a ledge) stays a normal jump. For 120 ms (7 steps) after the kick, sideways input does nothing and he keeps the kick's speed. Releasing jump while rising cuts the kick like a jump (GDD-MOV-02). `WALL` in `src/config/tuning.ts`, `src/sim/movement.ts`.
+- **Look (placeholder):** three short pale claw marks, 2 px wide, slanting down the half of the body next to the wall, while sliding. The level's edges are not drawn as walls, so in the sandbox he seems to cling to the edge of the picture. Not built yet: the cling sprite and sound.
 
 ---
 
@@ -507,7 +513,7 @@ A giant vulture, Don Zopilote, circles the arena and drops cactus fruit. Phase 1
 
 Status: Proposed
 
-- Clearing worlds unlocks permanent **abilities** in order (these are not the temporary power-ups of section 6): Glide (GDD-MOV-07, after World 2), Wall cling (GDD-MOV-08, after World 3). Further powers are open (GDD-MVP-02). Until there are worlds, a level turns an ability on itself: the sandbox has the glide on.
+- Clearing worlds unlocks permanent **abilities** in order (these are not the temporary power-ups of section 6): Glide (GDD-MOV-07, after World 2), Wall cling (GDD-MOV-08, after World 3). Further powers are open (GDD-MVP-02). Until there are worlds, a level turns an ability on itself: the sandbox has the glide and the wall cling on.
 - Hilos buy cosmetics for the poncho (patterns and colours). Cosmetics never change gameplay.
 
 ### GDD-PRG-02 Save system
@@ -710,7 +716,7 @@ Status: Proposed
 
 Worlds 2 to 7, Chile Fantasma (GDD-PWR-04), glide, wall cling, further powers, medals and score, cosmetics shop, full soundtrack, localisation beyond English and Spanish, native packaging (new ADR).
 
-The glide is built early but stays off in real levels; only the sandbox turns it on (GDD-MOV-07).
+The glide and the wall cling are built early but stay off in real levels; only the sandbox turns them on (GDD-MOV-07, GDD-MOV-08).
 
 ---
 

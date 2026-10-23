@@ -114,5 +114,8 @@ export const SANDBOX_ENEMIES: readonly Enemy[] = [
   { x: 440, y: 6 * TILE, kind: 'tlacuache' },
 ];
 
-/** GDD-MOV-07: the glide is on in the sandbox, so it can be played, until clearing World 2 unlocks it (GDD-PRG-01). */
-export const SANDBOX_ABILITIES = { glide: true } as const;
+/**
+ * GDD-MOV-07, GDD-MOV-08: the glide and the wall cling are on in the sandbox, so they can be played, until clearing Worlds 2
+ * and 3 unlocks them (GDD-PRG-01). The level's left and right edges are full-height walls to cling to.
+ */
+export const SANDBOX_ABILITIES = { glide: true, wallCling: true } as const;

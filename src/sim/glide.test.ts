@@ -196,7 +196,7 @@ describe('GDD-MOV-07 glide in a run', () => {
 
   it('the sandbox level has the glide on', async () => {
     const { SANDBOX_ABILITIES } = await import('../levels/sandbox');
-    expect(SANDBOX_ABILITIES).toEqual({ glide: true });
+    expect(SANDBOX_ABILITIES).toMatchObject({ glide: true });
   });
 
 });

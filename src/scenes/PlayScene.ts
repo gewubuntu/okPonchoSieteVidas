@@ -120,6 +120,8 @@ export interface PonchoDebug {
   enemiesDrawn(): { x: number; y: number; kind: EnemyKind }[];
   /** GDD-MOV-07: whether the spread poncho is drawn over Poncho (gliding). Read from what was drawn. */
   glideDrawn(): boolean;
+  /** GDD-MOV-08: the side the claw marks are drawn on while sliding down a wall (-1 left, 1 right), or 0. Read from what was drawn. */
+  clingDrawn(): -1 | 0 | 1;
   /** Test hook: puts Poncho in a power-up state without playing for it. */
   setPower(power: Power): void;
 }
@@ -191,6 +193,9 @@ export class PlayScene extends Phaser.Scene {
   private body!: Phaser.GameObjects.Container;
   /** GDD-MOV-07: the poncho spread like a parachute over the body while gliding (placeholder). */
   private glideGfx!: Phaser.GameObjects.Graphics;
+  /** GDD-MOV-08: claw marks on the wall side of the body while sliding down a wall (placeholder), and the side drawn. */
+  private clingGfx!: Phaser.GameObjects.Graphics;
+  private clingPainted: -1 | 0 | 1 = 0;
   private touch!: TouchControls;
   private keys!: Record<'left' | 'right' | 'jump' | 'claw' | 'fuego', Phaser.Input.Keyboard.Key[]>;
   private fragileGfx!: Phaser.GameObjects.Graphics;
@@ -285,6 +290,7 @@ export class PlayScene extends Phaser.Scene {
         this.add.rectangle(0, 0, HITBOX.width, HITBOX.height, 0xb94842),
         this.add.rectangle(0, (HITBOX.height - FEET_HEIGHT) / 2, HITBOX.width, FEET_HEIGHT, 0xfff3dc),
         (this.glideGfx = this.paintGlide()),
+        (this.clingGfx = this.add.graphics().setVisible(false)),
       ])
       .setDepth(3);
 
@@ -397,6 +403,7 @@ export class PlayScene extends Phaser.Scene {
         enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? level.enemies[i]!.y, alive: e.alive, dir: e.dir, phase: e.flight?.phase ?? e.gait?.phase ?? 'walk' })),
         enemiesDrawn: () => this.enemiesPainted,
         glideDrawn: () => this.glideGfx.visible,
+        clingDrawn: () => (this.clingGfx.visible ? this.clingPainted : 0),
         setPower: (power) => {
           this.run = { ...this.run, power };
           this.drawHud();
@@ -441,6 +448,19 @@ export class PlayScene extends Phaser.Scene {
         g.fillRect(tx * TILE, ty * TILE, TILE, TILE).strokeRect(tx * TILE + 0.5, ty * TILE + 0.5, TILE - 1, TILE - 1);
       }
     }
+  }
+
+  /**
+   * Placeholder wall cling (GDD-MOV-08): three short pale claw marks, 2 px wide, slanting down the half of the body next to
+   * the wall, like the claw button's icon. Redrawn only when the side changes.
+   */
+  private paintCling(side: -1 | 0 | 1): void {
+    this.clingGfx.setVisible(side !== 0);
+    if (side === 0 || side === this.clingPainted) return;
+    this.clingPainted = side;
+    const g = this.clingGfx.clear().lineStyle(2, 0xfff3dc, 1);
+    const edge = side * (HITBOX.width / 2 - 2);
+    for (const dy of [-4, 0, 4]) g.lineBetween(edge, dy - 2, edge - side * 3, dy + 1);
   }
 
   /**
@@ -904,6 +924,7 @@ export class PlayScene extends Phaser.Scene {
       this.body.setPosition(lerp(this.prevPlayer.x, player.x), lerp(this.prevPlayer.y, player.y) - HITBOX.height / 2).setRotation(0).setVisible(true);
     }
     this.glideGfx.setVisible(this.run.phase === 'playing' && player.gliding === true);
+    this.paintCling(this.run.phase === 'playing' && player.clinging === true ? (player.wallSide ?? 0) : 0);
     // The blink phase comes from the invulnerability counter, so it is the same every time: bright for the first
     // 0.1 s after a respawn, then dim and bright in turn.
     this.body.setAlpha(Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
