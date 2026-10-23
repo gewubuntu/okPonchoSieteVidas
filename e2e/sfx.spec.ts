@@ -52,4 +52,9 @@ test('GDD-AUD-02 hilos play rising notes', async ({ page }) => {
   });
   expect(await api(page, () => window.__PONCHO__!.hilos().taken)).toBe(2);
   expect((await sfx(page)).filter((s) => s.startsWith('hilo'))).toEqual(['hilo:0', 'hilo:2']);
+  // The rates the audio system was given: the root, then a whole tone up (2^(2/12)).
+  const rates = (await api(page, () => window.__PONCHO__!.sfxPlayed())).filter((p) => p.key === 'sfx-hilo').map((p) => p.rate);
+  expect(rates).toHaveLength(2);
+  expect(rates[0]).toBe(1);
+  expect(rates[1]).toBeCloseTo(1.122462, 5);
 });

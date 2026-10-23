@@ -38,6 +38,9 @@ export function stepHiloCombo(combo: HiloCombo, collected: number): { combo: Hil
   return { combo: { degree, since: 0 }, semitones: SFX.hiloScale[degree]! };
 }
 
+/** The playback rate that raises a sound by `semitones` (equal temperament): an octave, 12, doubles it. */
+export const noteRate = (semitones: number): number => 2 ** (semitones / 12);
+
 /** Whether Poncho is on screen: playing, or in the flip of a respawn that is not the wait after the last life (GDD-LIFE-02, GDD-LIFE-05). */
 export const shown = (run: RunState): boolean =>
   run.phase === 'playing' || (run.phase === 'respawning' && !isOutOfLives(run.lives) && flipPose(run.wait).visible);

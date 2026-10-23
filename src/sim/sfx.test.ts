@@ -3,7 +3,7 @@ import { loseLife } from './lives';
 import { spawn, type Abilities, type PlayerInput, type PlayerState } from './movement';
 import type { MovingBlock } from './block';
 import { startRun, stepRun, type Level, type RunState } from './run';
-import { NO_COMBO, stepHiloCombo, stepSounds, type HiloCombo, type Sfx, type SfxName } from './sfx';
+import { NO_COMBO, noteRate, stepHiloCombo, stepSounds, type HiloCombo, type Sfx, type SfxName } from './sfx';
 import { parseTiles } from './tilemap';
 
 const idle: PlayerInput = { move: 0, jumpHeld: false };
@@ -380,5 +380,14 @@ describe('GDD-AUD-02 hilo combo', () => {
     const beats = play(level, startRun(level), 60, () => right);
     const notes = beats.flatMap((b) => b.sounds).filter((s) => s.name === 'hilo');
     expect(notes).toEqual([{ name: 'hilo', semitones: 0 }, { name: 'hilo', semitones: 2 }, { name: 'hilo', semitones: 4 }]);
+  });
+});
+
+describe('GDD-AUD-02 hilo note rate', () => {
+  it('plays a note faster by the equal-tempered ratio of its semitones', () => {
+    expect(noteRate(0)).toBe(1);
+    expect(noteRate(2)).toBeCloseTo(1.122462, 6);
+    expect(noteRate(7)).toBeCloseTo(1.498307, 6);
+    expect(noteRate(12)).toBe(2);
   });
 });

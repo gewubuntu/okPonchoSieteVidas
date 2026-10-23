@@ -31,7 +31,7 @@ import { platformAt } from '../sim/platform';
 import { respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { isPortrait, pauseEvent, PLAYING, resumeHeld, type PauseEvent, type PauseState } from '../sim/pause';
 import { hilosCollected } from '../sim/hilo';
-import { NO_COMBO, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
+import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
@@ -86,6 +86,8 @@ export interface PonchoDebug {
   sfx(): string[];
   /** Whether every sound effect file was loaded and decoded into the audio cache. */
   sfxLoaded(): boolean;
+  /** Every sound effect handed to the audio system, with the playback rate it was given (GDD-AUD-02). */
+  sfxPlayed(): { key: string; rate: number }[];
   /** Triangles the HUD was asked to draw as cracking (GDD-LIFE-02): the place in the row and the fill and crack alpha. The pixels themselves are checked by reading the screenshot. */
   hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
   /** The scale the last triangle was drawn at while one life is left, or null when it does not pulse (GDD-LIFE-04). */
@@ -220,6 +222,7 @@ export class PlayScene extends Phaser.Scene {
   /** Which ofrendas the drawing shows as used, as a key, so a change of the set itself (not only its size) redraws. */
   private ofrendasKey = '';
   private sfxLog: string[] = [];
+  private sfxPlayed: { key: string; rate: number }[] = [];
   /** GDD-AUD-02: how far up the scale the hilo notes have climbed. */
   private hiloCombo: HiloCombo = NO_COMBO;
   private devOfrendas = 0;
@@ -478,6 +481,7 @@ export class PlayScene extends Phaser.Scene {
         sfx: () => this.sfxLog,
         touch: () => this.touch.debug(),
         sfxLoaded: () => SFX_KEYS.every((key) => this.cache.audio.exists(key)),
+        sfxPlayed: () => this.sfxPlayed,
         loseLife: () => this.setLives(loseLife(this.run.lives)),
         activateOfrenda: (id) => this.setLives(activateOfrenda(this.run.lives, id)),
         teleport: (x, y) => {
@@ -937,7 +941,9 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-AUD-02: a hilo note is the one sound played faster, `semitones` above its root. */
   private playSfx(name: 'ofrenda' | SfxName, semitones?: number): void {
     this.sfxLog.push(semitones === undefined ? name : `${name}:${semitones}`);
-    this.sound.play(`sfx-${name}`, semitones === undefined ? undefined : { rate: 2 ** (semitones / 12) });
+    const rate = semitones === undefined ? 1 : noteRate(semitones);
+    this.sound.play(`sfx-${name}`, { rate });
+    this.sfxPlayed.push({ key: `sfx-${name}`, rate });
   }
 
   private usedKey(): string {
