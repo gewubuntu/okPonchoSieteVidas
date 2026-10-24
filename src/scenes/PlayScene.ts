@@ -1,7 +1,7 @@
 // Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HILO, HITBOX, OFRENDA, SPIKE, TILE } from '../config/tuning';
+import { BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, SPIKE, TILE } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { SANDBOX_LEVEL, SANDBOX_SPAWN } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
@@ -29,8 +29,8 @@ import { flipPose } from '../sim/respawnFlip';
 import { blockAt } from '../sim/block';
 import { platformAt } from '../sim/platform';
 import { buttonsDown, respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
-import { isPortrait, pauseEvent, PLAYING, resumeHeld, type PauseEvent, type PauseState } from '../sim/pause';
-import { TITLE, titleFrame, titlePrompt, type TitleEvent, type TitleState } from '../sim/title';
+import { isPortrait, pauseFrame, PLAYING, resumeHeld, type MenuItem, type PauseEvent, type PauseState } from '../sim/pause';
+import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleEvent, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
@@ -39,6 +39,7 @@ import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack
 import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
 import { HILO_COLOURS, HILO_HUD, hiloColour, hiloCounterRight, hiloCounterText } from '../ui/hiloCounter';
 import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
+import { layoutPauseMenu, pauseMenuItemAt, type MenuRow } from '../ui/pauseMenu';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
@@ -95,10 +96,22 @@ export interface PonchoDebug {
   hudPulse(): number | null;
   /** Freezes the simulation and the animations on the current frame, for screenshots and pixel tests. Not the player's pause. */
   pause(on: boolean): void;
-  /** The player's pause (GDD-UI-02): whether the level is paused, and whether because the phone is upright. */
+  /** The player's pause (GDD-UI-02): whether the level is paused, whether because the phone is upright, and the chosen menu item. */
   playerPause(): PauseState;
-  /** The pause screen as drawn: whether it is shown, its title and its prompt line. */
-  pauseDrawn(): { shown: boolean; title: string; prompt: string; promptSize: number };
+  /**
+   * The pause screen as drawn: whether it is shown, its title and its prompt line ("Turn your device sideways" upright, empty
+   * otherwise), and the pause menu (GDD-UI-02): whether it is shown (not upright), its two items' texts and colours, the item the
+   * ">" stands beside and the ">" 's y, both null while the menu is hidden.
+   */
+  pauseDrawn(): {
+    shown: boolean;
+    title: string;
+    prompt: string;
+    promptSize: number;
+    menu: { shown: boolean; items: string[]; colors: string[]; chosen: MenuItem | null; markerY: number | null };
+  };
+  /** The pause menu's rows as laid out now, in virtual px, for tapping them (GDD-UI-02). */
+  pauseMenu(): MenuRow[];
   /** The title screen as drawn (GDD-UI-02): whether it is shown, its two title lines, its prompt and size, and whether the placeholder Poncho is drawn on it. */
   titleDrawn(): { shown: boolean; title: string; subtitle: string; prompt: string; promptSize: number; ponchoShown: boolean };
   /** While paused, runs exactly `n` simulation steps, with no input unless given, so a frame can be reached without timing luck. */
@@ -220,6 +233,10 @@ export class PlayScene extends Phaser.Scene {
   private pauseScreen!: Phaser.GameObjects.Container;
   private pauseTitle!: Phaser.GameObjects.Text;
   private pausePrompt!: Phaser.GameObjects.Text;
+  /** GDD-UI-02: the pause menu's two item texts, the ">" in front of the chosen one, and the rows as last laid out. */
+  private pauseItems!: Record<MenuItem, Phaser.GameObjects.Text>;
+  private pauseMarker!: Phaser.GameObjects.Text;
+  private pauseRows: MenuRow[] = layoutPauseMenu(1);
   /** GDD-UI-02: the title screen, and Enter presses since the last frame. */
   private title: TitleState = TITLE;
   private titleEvents: TitleEvent[] = [];
@@ -364,6 +381,8 @@ export class PlayScene extends Phaser.Scene {
       claw: [kb.addKey(K.X), kb.addKey(K.J)],
       fuego: [kb.addKey(K.C), kb.addKey(K.K)],
     };
+    // Down would scroll the page; the pause menu reads it (and S) from raw events (GDD-UI-02).
+    kb.addCapture([K.DOWN, K.S]);
     // The Key 'down' event fires for a press even when it ends before the next frame. It can fire twice for one press, and
     // repeats fire it too (L-006), but pressing a latch again changes nothing, so only latch presses may hang on it.
     for (const k of this.keys.jump) k.on('down', () => this.jumpLatch.press());
@@ -384,19 +403,34 @@ export class PlayScene extends Phaser.Scene {
     // (so the pause button stays there to resume with).
     const dim = this.add.rectangle(0, 0, BASE_WIDTH, BASE_HEIGHT, 0x0d1020, 0.75).setOrigin(0);
     this.pauseTitle = this.add.text(BASE_WIDTH / 2, 120, 'Paused', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
-    this.pausePrompt = this.add.text(BASE_WIDTH / 2, 146, '', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
-    this.pauseScreen = this.add.container(0, 0, [dim, this.pauseTitle, this.pausePrompt]).setScrollFactor(0).setDepth(9.5).setVisible(false);
-    // Escape or P pauses and resumes; a tap or click anywhere resumes; the touch pause button does both. The keys are read
+    // Upright, the whole level is drawn small, so the prompt is set larger than the 8 px prompts.
+    this.pausePrompt = this.add.text(BASE_WIDTH / 2, 146, '', { fontFamily: 'monospace', fontSize: '12px', color: '#9ba3c4' }).setOrigin(0.5);
+    const menuStyle = { fontFamily: 'monospace', fontSize: `${PAUSE_MENU.textSize}px`, color: '#9ba3c4' };
+    this.pauseItems = { resume: this.add.text(0, 0, 'Resume', menuStyle).setOrigin(0.5), quit: this.add.text(0, 0, 'Quit to title', menuStyle).setOrigin(0.5) };
+    this.pauseMarker = this.add.text(0, 0, '>', menuStyle).setOrigin(1, 0.5);
+    this.pauseScreen = this.add.container(0, 0, [dim, this.pauseTitle, this.pausePrompt, this.pauseItems.resume, this.pauseItems.quit, this.pauseMarker]).setScrollFactor(0).setDepth(9.5).setVisible(false);
+    // Escape or P pauses and resumes; a tap or click anywhere off the menu rows resumes; the touch pause button does both. The keys are read
     // from raw browser events, one per press with auto-repeat ignored: Phaser's Key 'down' event can fire again on the
     // release when a press and release land in one frame (L-006), and here every extra event would toggle the pause back.
-    // Enter, which starts the level from the title screen (GDD-UI-02), is read the same way.
+    // Enter, which starts the level from the title screen, and the pause menu's keys (Up or W, Down or S choose; Enter, Space or Z
+    // pick) are read the same way (GDD-UI-02).
     const onPauseKey = (e: KeyboardEvent) => {
+      if (e.repeat) return;
       // By keyCode, the key's label, as Phaser matches the other keys: on Dvorak or Colemak the P key still pauses.
-      if (!e.repeat && (e.keyCode === K.ESC || e.keyCode === K.P)) this.pauseEvents.push('key');
-      if (!e.repeat && e.keyCode === K.ENTER) this.titleEvents.push('confirm');
+      const code = e.keyCode;
+      if (code === K.ESC || code === K.P) this.pauseEvents.push('key');
+      if (code === K.UP || code === K.W) this.pauseEvents.push('menuUp');
+      if (code === K.DOWN || code === K.S) this.pauseEvents.push('menuDown');
+      if (code === K.ENTER || code === K.SPACE || code === K.Z) this.pauseEvents.push('pick');
+      if (code === K.ENTER) this.titleEvents.push('confirm');
     };
     window.addEventListener('keydown', onPauseKey);
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.pauseEvents.push(this.touch.isPauseButton(p.x, p.y) ? 'button' : 'tap'));
+    // A pointer is classified by where it went down, never by the state: an Escape and a tap in one frame apply in order. A tap on
+    // the Resume row is a plain tap: a tap anywhere off the Quit row already resumes, whichever item is chosen (L-025).
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      const row = pauseMenuItemAt(layoutPauseMenu(this.scale.displaySize.width / BASE_WIDTH), p.x, p.y);
+      this.pauseEvents.push(this.touch.isPauseButton(p.x, p.y) ? 'button' : row === 'quit' ? 'tapQuit' : 'tap');
+    });
     // It pauses by itself when the tab or window loses focus, or a phone is turned upright, and never resumes by itself.
     const onBlur = () => this.pauseEvents.push('blur');
     const onVisibility = () => {
@@ -453,7 +487,24 @@ export class PlayScene extends Phaser.Scene {
           this.paused = on;
         },
         playerPause: () => this.pauseState,
-        pauseDrawn: () => ({ shown: this.pauseScreen.visible, title: this.pauseTitle.text, prompt: this.pausePrompt.text, promptSize: Number.parseInt(String(this.pausePrompt.style.fontSize), 10) }),
+        pauseDrawn: () => {
+          const { resume, quit } = this.pauseItems;
+          const marked = this.pauseMarker.visible;
+          return {
+            shown: this.pauseScreen.visible,
+            title: this.pauseTitle.text,
+            prompt: this.pausePrompt.text,
+            promptSize: Number.parseInt(String(this.pausePrompt.style.fontSize), 10),
+            menu: {
+              shown: this.pauseScreen.visible && resume.visible,
+              items: [resume.text, quit.text],
+              colors: [resume, quit].map((t) => (typeof t.style.color === 'string' ? t.style.color : '')),
+              chosen: marked ? this.pauseState.choice : null,
+              markerY: marked ? this.pauseMarker.y : null,
+            },
+          };
+        },
+        pauseMenu: () => this.pauseRows,
         titleDrawn: () => ({
           shown: this.titleScreen.visible,
           title: this.titleText.text,
@@ -1119,12 +1170,17 @@ export class PlayScene extends Phaser.Scene {
     }
     this.titleEvents = [];
 
-    // GDD-UI-02: apply the pause events since the last frame. While paused no step runs; on resume
+    // GDD-UI-02: apply the pause events since the last frame, in order. While paused no step runs; on resume
     // every button down counts as already held, so a press made while paused does nothing until pressed again.
+    // Picking Quit to title ends the pause over a fresh run and the title screen.
     const wasPaused = this.pauseState.paused;
-    for (const e of this.pauseEvents) this.pauseState = pauseEvent(this.pauseState, e);
+    const frame = pauseFrame(this.pauseState, this.pauseEvents);
     this.pauseEvents = [];
-    if (wasPaused && !this.pauseState.paused) this.run = resumeHeld(this.run, input);
+    if (frame.quit) this.quitToTitle(input, frame.portrait);
+    else {
+      this.pauseState = frame.state;
+      if (wasPaused && !this.pauseState.paused) this.run = resumeHeld(this.run, input);
+    }
 
     let stepped = false;
     if (!this.paused && !this.pauseState.paused && !this.title.shown) {
@@ -1174,12 +1230,45 @@ export class PlayScene extends Phaser.Scene {
     this.drawTitle();
   }
 
-  /** GDD-UI-02: the pause screen and its prompt, which tells an upright phone to turn sideways first. */
+  /**
+   * GDD-UI-02: Quit to title. A fresh run as when the game opens, behind the title screen waiting for a press. No step runs on
+   * the title, so every latched key press is spent here, or a quick tap that picked would stay latched and a new press would not be new.
+   * The buttons down now count as held on the title, so the one that picked does not start the level.
+   */
+  private quitToTitle(input: PlayerInput, portrait: boolean): void {
+    this.run = startRun(level);
+    this.prevPlayer = this.run.player;
+    this.peak = 0;
+    this.hiloCombo = NO_COMBO;
+    this.stepper.reset();
+    // The HUD's crack and last-life pulse need no reset: `updateCracks` drops a crack on a triangle that is filled again and
+    // `updatePulseStart` clears at any life count but one.
+    this.title = titleAfterQuit(portrait, buttonsDown(input));
+    this.pauseState = PLAYING;
+    this.jumpLatch.consume();
+    this.clawLatch.consume();
+    this.fuegoLatch.consume();
+    this.leftLatch.consume();
+    this.rightLatch.consume();
+    this.touch.consume();
+  }
+
+  /**
+   * GDD-UI-02: the pause screen. Sideways it shows the menu, with a ">" in front of the chosen item; upright the menu is hidden
+   * and the prompt asks to turn the device sideways. The rows follow the window, since they grow on a small screen.
+   */
   private drawPause(): void {
     this.pauseScreen.setVisible(this.pauseState.paused);
-    const prompt = this.pauseState.portrait ? 'Turn your device sideways' : this.sys.game.device.input.touch ? 'Tap to resume' : 'Press Escape or P to resume';
-    // Upright, the whole level is drawn small, so the prompt is set larger.
-    if (this.pausePrompt.text !== prompt) this.pausePrompt.setText(prompt).setFontSize(this.pauseState.portrait ? 12 : 8);
+    const upright = this.pauseState.portrait;
+    const prompt = upright ? 'Turn your device sideways' : '';
+    if (this.pausePrompt.text !== prompt) this.pausePrompt.setText(prompt);
+    this.pauseRows = layoutPauseMenu(this.scale.displaySize.width / BASE_WIDTH);
+    for (const row of this.pauseRows) {
+      const text = this.pauseItems[row.item];
+      const chosen = row.item === this.pauseState.choice;
+      text.setPosition(row.x + row.w / 2, row.y + row.h / 2).setColor(chosen ? '#fff3dc' : '#9ba3c4').setVisible(!upright);
+      if (chosen) this.pauseMarker.setPosition(text.x - text.width / 2 - 8, text.y).setVisible(!upright);
+    }
   }
 
   /** GDD-UI-02: the title screen and its prompt line, which tells an upright phone to turn sideways first. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TITLE, titleFrame, titlePrompt } from './title';
+import { TITLE, titleAfterQuit, titleFrame, titlePrompt } from './title';
 
 // Bits of `buttonsDown` (src/sim/run.ts): jump 1, left 2, right 4, claw 8, Fuego 16.
 const UPRIGHT = titleFrame(TITLE, ['portrait'], 0);
@@ -84,5 +84,28 @@ describe('GDD-UI-02 title screen', () => {
 
   it('prompt upright: Turn your device sideways, 12 px', () => {
     expect(titlePrompt(true, true)).toEqual({ text: 'Turn your device sideways', size: 12 });
+  });
+});
+
+describe('GDD-UI-02 title screen after quitting from the pause menu', () => {
+  it('a tap on a menu row place starts the level like any tap', () => {
+    expect(titleFrame(TITLE, ['tapQuit'], 0).shown).toBe(false);
+  });
+
+  it('up, down and pick do nothing on the title screen', () => {
+    expect(titleFrame(TITLE, ['menuUp', 'menuDown', 'pick'], 0).shown).toBe(true);
+  });
+
+  it('after a quit the title waits for a new press: the button that picked counts as held', () => {
+    const quit = titleAfterQuit(false, 1);
+    expect(quit).toEqual({ shown: true, portrait: false, buttonsHeld: 1 });
+    expect(titleFrame(quit, [], 1).shown).toBe(true);
+    expect(titleFrame(titleFrame(quit, [], 0), [], 1).shown).toBe(false);
+  });
+
+  it('after a quit upright, nothing starts until sideways', () => {
+    const quit = titleAfterQuit(true, 0);
+    expect(quit).toEqual({ shown: true, portrait: true, buttonsHeld: 0 });
+    expect(titleFrame(quit, ['tap'], 0).shown).toBe(true);
   });
 });

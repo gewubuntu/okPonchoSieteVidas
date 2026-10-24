@@ -98,6 +98,9 @@ export const TOUCH = {
   stickDeadZone: 0.2,
 } as const;
 
+/** GDD-UI-02: the pause menu's rows, in virtual pixels; each grows so it is never under TOUCH.minCssPx tall. */
+export const PAUSE_MENU = { width: 160, rowHeight: 28, top: 136, textSize: 12 } as const;
+
 /**
  * GDD-LIFE-05: the "Siete vidas gastadas" screen after the last life waits for a press of any button, but ignores presses for its
  * first `lockoutSteps` (1.0 s).
