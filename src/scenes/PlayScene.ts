@@ -37,6 +37,7 @@ import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleItem, type Ti
 import { hilosCollected } from '../sim/hilo';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
+import { GamepadReader } from '../ui/gamepad';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
 import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
@@ -54,6 +55,14 @@ const level: Level = SANDBOX_LEVEL;
 const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow'].map((n) => `sfx-${n}`);
 const world = level.world;
 const FLOOR_Y = SANDBOX_SPAWN.y;
+/** GDD-CTL-02: the pads the browser reports now. `getGamepads` can throw where a permissions policy forbids it. */
+const readGamepads = () => {
+  try {
+    return navigator.getGamepads?.() ?? [];
+  } catch {
+    return [];
+  }
+};
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
 const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
@@ -329,6 +338,8 @@ export class PlayScene extends Phaser.Scene {
   private clingGfx!: Phaser.GameObjects.Graphics;
   private clingPainted: -1 | 0 | 1 = 0;
   private touch!: TouchControls;
+  /** GDD-CTL-02: the gamepads, read once per frame at the top of `update`. */
+  private readonly pad = new GamepadReader();
   private keys!: Record<'left' | 'right' | 'jump' | 'claw' | 'fuego', Phaser.Input.Keyboard.Key[]>;
   private fragileGfx!: Phaser.GameObjects.Graphics;
   private clawGfx!: Phaser.GameObjects.Graphics;
@@ -1299,6 +1310,8 @@ export class PlayScene extends Phaser.Scene {
     }
 
     this.touch.setFuego(this.run.power === 'fuego'); // the Fuego button is there only in the Fuego state (GDD-CTL-03)
+    // GDD-CTL-02: the gamepads, read once per frame (browsers report them only when asked, so they cannot be latched, GDD-CTL-04).
+    this.pauseEvents.push(...this.pad.poll(readGamepads()));
     let input = this.readInput();
 
     const settingsBefore = this.settings;
@@ -1402,24 +1415,26 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-UI-02: the game pauses. The fingers and the Left and Right keys down now keep pressing after it. */
   private notePause(): void {
     this.touch.notePause();
+    this.pad.notePause();
     this.keysAtPause = new Map([...this.keys.left, ...this.keys.right].filter((k) => k.isDown).map((k) => [k, k.timeDown]));
   }
 
-  /** What the keys and the touch controls press now. Keyboard and touch work together: either can move or jump (GDD-CTL-01, GDD-CTL-03). */
+  /** What the keys, the touch controls and the gamepads press now. They work together: any can move or jump (GDD-CTL-01, GDD-CTL-02, GDD-CTL-03). */
   private readInput(): PlayerInput {
     const touch = this.touch.read();
+    const pad = this.pad.input(); // the last poll: the same pad for every read in a frame
     // GDD-UI-02: a Left or Right key held back since a pause counts as up until it is released.
     for (const [k, t] of this.heldKeys) if (!k.isDown || k.timeDown !== t) this.heldKeys.delete(k);
     const leftKey = effectiveHeld(downExcept(this.keys.left, this.heldKeys), this.leftLatch);
     const rightKey = effectiveHeld(downExcept(this.keys.right, this.heldKeys), this.rightLatch);
     // Left and right also go in raw, before they cancel out in `move`: the Siete vidas gastadas screen counts a press of either (GDD-LIFE-05).
     return {
-      left: leftKey || touch.left === true,
-      right: rightKey || touch.right === true,
-      move: Math.max(-1, Math.min(1, (rightKey ? 1 : 0) - (leftKey ? 1 : 0) + touch.move)),
-      jumpHeld: effectiveHeld(down(this.keys.jump), this.jumpLatch) || touch.jumpHeld,
-      claw: effectiveHeld(down(this.keys.claw), this.clawLatch) || touch.claw === true,
-      fuego: effectiveHeld(down(this.keys.fuego), this.fuegoLatch) || touch.fuego === true,
+      left: leftKey || touch.left === true || pad.left === true,
+      right: rightKey || touch.right === true || pad.right === true,
+      move: Math.max(-1, Math.min(1, (rightKey ? 1 : 0) - (leftKey ? 1 : 0) + touch.move + pad.move)),
+      jumpHeld: effectiveHeld(down(this.keys.jump), this.jumpLatch) || touch.jumpHeld || pad.jumpHeld,
+      claw: effectiveHeld(down(this.keys.claw), this.clawLatch) || touch.claw === true || pad.claw === true,
+      fuego: effectiveHeld(down(this.keys.fuego), this.fuegoLatch) || touch.fuego === true || pad.fuego === true,
     };
   }
 
@@ -1429,6 +1444,7 @@ export class PlayScene extends Phaser.Scene {
    */
   private endPause(): PlayerInput {
     this.touch.holdBack();
+    this.pad.holdBack();
     for (const k of [...this.keys.left, ...this.keys.right]) if (k.isDown && this.keysAtPause.get(k) !== k.timeDown) this.heldKeys.set(k, k.timeDown);
     this.keysAtPause = new Map();
     // A quick tap of Left or Right while paused is spent too. Jump, claw and Fuego taps are held by `resumeHeld` instead.
@@ -1459,6 +1475,7 @@ export class PlayScene extends Phaser.Scene {
     // The finger that picked Quit is held back too, and the fingers and keys down at the pause are forgotten: on the title screen
     // none was held before.
     this.touch.holdBack();
+    this.pad.holdBack();
     this.keysAtPause = new Map();
   }
 
