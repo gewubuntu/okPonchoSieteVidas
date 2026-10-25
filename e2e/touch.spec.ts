@@ -154,20 +154,44 @@ test('GDD-CTL-03 sliding the finger right of the stick centre runs right, slower
   const cdp = await page.context().newCDPSession(page);
   await switchTo(page, cdp, 'stick');
   const track = await buttonAt(page, 'stick');
-  const speedAt = async (frac: number) => {
+  let finger = 1;
+  const speedAt = async (frac: number, steers = true) => {
     await page.evaluate(() => window.__PONCHO__!.teleport(280, 224));
     await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
-    await fingers(cdp, 'touchStart', [{ x: track.x + frac * (track.widthCss / 2), y: track.y, id: 1 }]);
-    await page.waitForTimeout(300); // long enough to reach that stick position's top speed, short of the wall at x 352
-    const vx = await page.evaluate(() => window.__PONCHO__!.state().vx);
+    // A new finger each time, so the browser never takes it for the last one moved (slow frames can put a lift and the next
+    // touch in one frame).
+    await fingers(cdp, 'touchStart', [{ x: track.x + frac * (track.widthCss / 2), y: track.y, id: finger++ }]);
+    // Counted in simulation steps from the frame the stick reads this finger, however slow the frames (L-042): 0.3 s is long
+    // enough to reach that stick position's top speed. A finger in the dead zone never moves the stick.
+    if (steers) await page.waitForFunction((sign) => Math.sign(window.__PONCHO__!.touch().stick) === sign, Math.sign(frac));
+    // His top speed the way the stick points, over the next 18 steps, sampled on every frame in the page: a late poll could
+    // otherwise run him on into the spikes at x 320 and read their knockback.
+    const vx = await page.evaluate(
+      (sign) =>
+        new Promise<number>((done) => {
+          const p = window.__PONCHO__!;
+          const until = p.ticks() + 18;
+          let top = 0;
+          const tick = () => {
+            const v = p.state().vx;
+            if (sign === 0 ? Math.abs(v) > Math.abs(top) : sign * v > sign * top) top = v;
+            if (p.ticks() < until) requestAnimationFrame(tick);
+            else done(top);
+          };
+          tick();
+        }),
+      steers ? Math.sign(frac) : 0,
+    );
     await fingers(cdp, 'touchEnd', []);
+    // The lift has been read before the next finger goes down.
+    await page.waitForFunction(() => window.__PONCHO__!.touch().stick === 0 && window.__PONCHO__!.state().vx === 0);
     return vx;
   };
   const slow = await speedAt(0.6); // 0.5 of full speed (dead zone 0.2)
   const full = await speedAt(1);
   expect(slow).toBeCloseTo(60, 0);
   expect(full).toBeCloseTo(120, 0);
-  expect(await speedAt(0.1)).toBe(0); // inside the dead zone
+  expect(await speedAt(0.1, false)).toBe(0); // inside the dead zone
   expect(await speedAt(-1)).toBeCloseTo(-120, 0);
 });
 

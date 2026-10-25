@@ -1,10 +1,11 @@
 // Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
-// Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
+// Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, SETTINGS_MENU, SPIKE, TILE } from '../config/tuning';
+import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TITLE_MENU } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { SANDBOX_LEVEL, SANDBOX_SPAWN } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
+import ponchoPng from '../../assets/sprites/poncho.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import jumpOgg from '../../assets/audio/sfx/jump.ogg';
@@ -42,6 +43,8 @@ import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack
 import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
 import { HILO_COLOURS, HILO_HUD, hiloColour, hiloCounterRight, hiloCounterText } from '../ui/hiloCounter';
 import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
+import { gamePoint } from '../ui/gamePoint';
+import { startAnim, stepAnim, STAND, type PonchoAnim } from '../ui/ponchoAnim';
 import { layoutPauseMenu, layoutTitleMenu, pauseMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
 import { layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
@@ -67,8 +70,6 @@ const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
 const downExcept = (keys: Phaser.Input.Keyboard.Key[], held: ReadonlyMap<Phaser.Input.Keyboard.Key, number>) => keys.some((k) => k.isDown && !held.has(k));
 /** Steps per half of the invulnerability blink (0.1 s). */
 const BLINK_STEPS = 6;
-/** Height of the pale strip along Poncho's feet on the placeholder body, in px. */
-const FEET_HEIGHT = 3;
 
 /** The colour a text was last set to, as the string it was given. */
 const colorOf = (t: Phaser.GameObjects.Text): string => (typeof t.style.color === 'string' ? t.style.color : '');
@@ -90,6 +91,8 @@ export interface PonchoDebug {
   teleport(x: number, y: number): void;
   /** 'playing', 'respawning' while waiting after a lost life (GDD-LIFE-02), or 'gameover' on the Siete vidas gastadas screen (GDD-LIFE-05). */
   phase(): RunState['phase'];
+  /** The step count (`ticks()`) when the phase last changed, so a playtest can time a phase in steps however fast the frames come. */
+  phaseSince(): number;
   /** The Siete vidas gastadas screen as drawn: whether it is shown, its title and "Game over" lines, and whether its prompt line is (GDD-LIFE-05). */
   gameOverDrawn(): { shown: boolean; title: string; subtitle: string; prompt: boolean; promptText: string };
   /** Steps of invulnerability left after a respawn (GDD-LIFE-02). */
@@ -99,6 +102,8 @@ export interface PonchoDebug {
   bodyAlpha(): number;
   /** Where the body is drawn: feet position, and turn in radians (GDD-LIFE-02 respawn flip). */
   bodyPose(): { x: number; y: number; rotation: number };
+  /** Poncho's sprite as passed to Phaser (GDD-ART-04): the sheet frame, whether it is mirrored, its displayed size and its bottom edge and middle in game px. */
+  ponchoSprite(): { frame: number; flipX: boolean; width: number; height: number; bottom: number; centerX: number };
   /** Each ofrenda as drawn: its id and whether it is drawn as used. Read from what was drawn, not from the game state. */
   ofrendas(): { id: string; x: number; used: boolean }[];
   /** Every sound effect asked for so far, in order (GDD-AUD-02); a hilo note is `hilo:<semitones>`. Browsers keep audio locked until a first gesture. */
@@ -131,7 +136,7 @@ export interface PonchoDebug {
   pauseMenu(): MenuRow[];
   /**
    * The title screen as drawn (GDD-UI-02): whether it is shown (not while its settings screen covers it), its two title lines, its
-   * prompt and size, whether the placeholder Poncho is drawn on it, and the title menu: whether it is shown (not upright), its
+   * prompt and size, whether Poncho is drawn on it and where his feet are (game px), and the title menu: whether it is shown (not upright), its
    * two items' texts and colours, the item the ">" stands beside and the ">" 's y, both null while the menu is hidden.
    */
   titleDrawn(): {
@@ -141,6 +146,7 @@ export interface PonchoDebug {
     prompt: string;
     promptSize: number;
     ponchoShown: boolean;
+    ponchoBottom: number;
     menu: { shown: boolean; items: string[]; colors: string[]; chosen: TitleItem | null; markerY: number | null };
   };
   /** The title menu's rows as laid out now, in game px, for tapping them (GDD-UI-02). */
@@ -228,6 +234,8 @@ export class PlayScene extends Phaser.Scene {
   private run: RunState = startRun(level);
   private prevPlayer: PlayerState = this.run.player;
   private ticks = 0;
+  /** The step count when the run's phase last changed (`PonchoDebug.phaseSince`). */
+  private phaseSince = 0;
   private peak = 0;
   private lastPeak = 0;
   private hud!: Phaser.GameObjects.Graphics;
@@ -307,6 +315,7 @@ export class PlayScene extends Phaser.Scene {
   private titleSubtitle!: Phaser.GameObjects.Text;
   private titlePromptText!: Phaser.GameObjects.Text;
   private titlePoncho!: Phaser.GameObjects.Container;
+  private titlePonchoSprite!: Phaser.GameObjects.Image;
   /** The last render interpolation factor, so a paused frame keeps the picture it had. */
   private alpha = 0;
   /** Which ofrendas the drawing shows as used, as a key, so a change of the set itself (not only its size) redraws. */
@@ -318,8 +327,11 @@ export class PlayScene extends Phaser.Scene {
   private devOfrendas = 0;
   private devVeladoras = 0;
   private devKeys?: Record<'lose' | 'ofrenda' | 'veladora', Phaser.Input.Keyboard.Key>;
-  /** Placeholder body: a red box with a pale strip along the feet, so a flip shows which way up he is. */
+  /** Poncho (GDD-ART-04): his sheet frame at the box's feet, in a container at the middle of the body box, with the glide and cling placeholders. */
   private body!: Phaser.GameObjects.Container;
+  private bodySprite!: Phaser.GameObjects.Image;
+  /** GDD-ART-04: which frame shows, advanced by each simulation step. */
+  private anim: PonchoAnim = startAnim(this.run.player.x);
   /** GDD-MOV-07: the poncho spread like a parachute over the body while gliding (placeholder). */
   private glideGfx!: Phaser.GameObjects.Graphics;
   /** GDD-MOV-08: claw marks on the wall side of the body while sliding down a wall (placeholder), and the side drawn. */
@@ -359,6 +371,8 @@ export class PlayScene extends Phaser.Scene {
   }
 
   preload(): void {
+    // GDD-ART-04: the standing frame and the four run frames, each SPRITE_FRAME game px wide (160 art px).
+    this.load.spritesheet('poncho', ponchoPng, { frameWidth: SPRITE_FRAME * ART_SCALE, frameHeight: SPRITE_FRAME * ART_SCALE });
     // GDD-AUD-02: Ogg where it plays, MP3 elsewhere. Phaser picks the first format the browser supports.
     this.load.audio('sfx-ofrenda', [ofrendaOgg, ofrendaMp3]);
     this.load.audio('sfx-jump', [jumpOgg, jumpMp3]);
@@ -378,6 +392,9 @@ export class PlayScene extends Phaser.Scene {
       this.settings = DEFAULT_SETTINGS;
     }
     this.cameras.main.setBackgroundColor('#1b2036');
+    // GDD-ART-01: the canvas is ART_SCALE times larger than the game pixels everything is placed in, so the camera draws them zoomed in
+    // from the top left corner, world objects and fixed ones alike.
+    this.cameras.main.setOrigin(0, 0).setZoom(ART_SCALE);
     this.drawTiles();
     this.add
       .text(BASE_WIDTH / 2, 28, 'PONCHO: Siete Vidas', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' })
@@ -437,11 +454,11 @@ export class PlayScene extends Phaser.Scene {
     this.gameOverPrompt = this.add.text(BASE_WIDTH / 2, 186, 'Press any button to Retry', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
     this.gameOver = this.add.container(0, 0, [g, this.gameOverTitle, this.gameOverSubtitle, this.gameOverPrompt]).setScrollFactor(0).setDepth(9).setVisible(false);
 
-    // GDD-MOV-06: body hitbox, feet at the origin.
+    // GDD-MOV-06, GDD-ART-04: the container sits at the middle of the body box; the frame stands on its feet (bottom row at the box's
+    // bottom), scaled from art pixels to game pixels.
     this.body = this.add
       .container(this.run.player.x, this.run.player.y - HITBOX.height / 2, [
-        this.add.rectangle(0, 0, HITBOX.width, HITBOX.height, 0xb94842),
-        this.add.rectangle(0, (HITBOX.height - FEET_HEIGHT) / 2, HITBOX.width, FEET_HEIGHT, 0xfff3dc),
+        (this.bodySprite = this.add.image(0, HITBOX.height / 2, 'poncho', STAND).setOrigin(0.5, 1).setScale(1 / ART_SCALE)),
         (this.glideGfx = this.paintGlide()),
         (this.clingGfx = this.add.graphics().setVisible(false)),
       ])
@@ -529,15 +546,17 @@ export class PlayScene extends Phaser.Scene {
     // A pointer is classified by where it went down on every menu at once, never by the state: an Escape and a tap in one frame apply
     // in order, and the state each reaches decides which menu reads the tap.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.touch.isPauseButton(p.x, p.y)) {
+      // The canvas is ART_SCALE times the game pixels the layouts are in (GDD-ART-01).
+      const at = gamePoint(p);
+      if (this.touch.isPauseButton(at.x, at.y)) {
         this.pauseEvents.push('button');
         return;
       }
       const k = this.scale.displaySize.width / BASE_WIDTH;
       this.pauseEvents.push({
-        pause: pauseMenuItemAt(layoutPauseMenu(k), p.x, p.y),
-        title: titleMenuItemAt(layoutTitleMenu(k), p.x, p.y),
-        settings: settingsTapAt(layoutSettingsMenu(k), p.x, p.y),
+        pause: pauseMenuItemAt(layoutPauseMenu(k), at.x, at.y),
+        title: titleMenuItemAt(layoutTitleMenu(k), at.x, at.y),
+        settings: settingsTapAt(layoutSettingsMenu(k), at.x, at.y),
       });
     });
     // It pauses by itself when the tab or window loses focus, or a phone is turned upright, and never resumes by itself.
@@ -568,10 +587,9 @@ export class PlayScene extends Phaser.Scene {
     const veil = this.add.rectangle(0, 0, BASE_WIDTH, BASE_HEIGHT, 0x0d1020, 0.82).setOrigin(0);
     this.titleText = this.add.text(BASE_WIDTH / 2, 84, 'PONCHO', { fontFamily: 'monospace', fontSize: '32px', color: '#fff3dc' }).setOrigin(0.5);
     this.titleSubtitle = this.add.text(BASE_WIDTH / 2, 112, 'Siete Vidas', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
-    // The placeholder body at twice his size, the feet strip along the bottom (the colours of `this.body`).
-    this.titlePoncho = this.add.container(BASE_WIDTH / 2, 150, [
-      this.add.rectangle(0, 0, HITBOX.width * 2, HITBOX.height * 2, 0xb94842),
-      this.add.rectangle(0, HITBOX.height - FEET_HEIGHT, HITBOX.width * 2, FEET_HEIGHT * 2, 0xfff3dc),
+    // GDD-UI-02: his standing frame, feet 8 px above the title menu.
+    this.titlePoncho = this.add.container(BASE_WIDTH / 2, TITLE_MENU.top - 8, [
+      (this.titlePonchoSprite = this.add.image(0, 0, 'poncho', STAND).setOrigin(0.5, 1).setScale(1 / ART_SCALE)),
     ]);
     this.titlePromptText = this.add.text(BASE_WIDTH / 2, 190, '', { fontFamily: 'monospace', fontSize: '12px', color: '#9ba3c4' }).setOrigin(0.5);
     // The title menu, drawn like the pause menu; upright it gives way to the prompt.
@@ -590,11 +608,20 @@ export class PlayScene extends Phaser.Scene {
         peakRise: () => this.lastPeak,
         lives: () => this.run.lives.lives,
         phase: () => this.run.phase,
+        phaseSince: () => this.phaseSince,
         gameOverDrawn: () => ({ shown: this.gameOver.visible, title: this.gameOverTitle.text, subtitle: this.gameOverSubtitle.text, prompt: this.gameOverPrompt.visible, promptText: this.gameOverPrompt.text }),
         invulnerable: () => this.run.invulnerable,
         bodyVisible: () => this.body.visible,
         bodyAlpha: () => this.body.alpha,
         bodyPose: () => ({ x: this.body.x, y: this.body.y + HITBOX.height / 2, rotation: this.body.rotation }),
+        ponchoSprite: () => ({
+          frame: Number(this.bodySprite.frame.name),
+          flipX: this.bodySprite.flipX,
+          width: this.bodySprite.displayWidth,
+          height: this.bodySprite.displayHeight,
+          bottom: this.body.y + this.bodySprite.y,
+          centerX: this.body.x + this.bodySprite.x,
+        }),
         hudFilled: () => this.hudFilled,
         hudCracking: () => this.cracksDrawn,
         hudPulse: () => this.pulseDrawn,
@@ -630,6 +657,7 @@ export class PlayScene extends Phaser.Scene {
             prompt: this.titlePromptText.text,
             promptSize: Number.parseInt(String(this.titlePromptText.style.fontSize), 10),
             ponchoShown: this.titleScreen.visible && this.titlePoncho.visible,
+            ponchoBottom: this.titlePoncho.y + this.titlePonchoSprite.y,
             menu: {
               shown: this.titleScreen.visible && start.visible,
               items: [start.text, settings.text],
@@ -1230,6 +1258,8 @@ export class PlayScene extends Phaser.Scene {
     // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
     this.ticks++;
+    if (this.run.phase !== before.phase) this.phaseSince = this.ticks;
+    this.anim = stepAnim(this.anim, this.run.player, this.run.phase === 'playing');
     if (before.claw.phase === 'idle' && this.run.claw.phase === 'windup') this.swings++;
     this.spits += this.run.fireballs.filter((f) => f.age === 0).length;
     const { player } = this.run;
@@ -1259,6 +1289,7 @@ export class PlayScene extends Phaser.Scene {
     } else {
       this.body.setPosition(lerp(this.prevPlayer.x, player.x), lerp(this.prevPlayer.y, player.y) - HITBOX.height / 2).setRotation(0).setVisible(true);
     }
+    this.bodySprite.setFrame(this.anim.frame).setFlipX(player.facing < 0);
     this.glideGfx.setVisible(this.run.phase === 'playing' && player.gliding === true);
     this.paintCling(this.run.phase === 'playing' && player.clinging === true ? (player.wallSide ?? 0) : 0);
     // The blink phase comes from the invulnerability counter, so it is the same every time: bright for the first
@@ -1432,6 +1463,7 @@ export class PlayScene extends Phaser.Scene {
   private quitToTitle(input: PlayerInput, portrait: boolean): void {
     this.run = startRun(level);
     this.prevPlayer = this.run.player;
+    this.anim = startAnim(this.run.player.x);
     this.peak = 0;
     this.hiloCombo = NO_COMBO;
     this.stepper.reset();

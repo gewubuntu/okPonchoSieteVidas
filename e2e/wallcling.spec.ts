@@ -80,7 +80,7 @@ test('GDD-MOV-08 touch: hold the left button against the wall, then a Jump tap k
   test.skip(!isMobile, 'touch device only');
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
-  await page.evaluate((p) => window.__PONCHO__!.teleport(p.x, p.y), WALL);
+  // Everything slow is set up before he is put by the wall, so the finger is down within his fall however slow the frames are.
   const buttons = (await api(page, () => window.__PONCHO__!.touch())).buttons;
   const box = (await page.locator('canvas').boundingBox())!;
   const k = box.width / 480;
@@ -89,6 +89,7 @@ test('GDD-MOV-08 touch: hold the left button against the wall, then a Jump tap k
     return { x: box.x + (b.x + b.w / 2) * k, y: box.y + (b.y + b.h / 2) * k };
   };
   const cdp = await page.context().newCDPSession(page);
+  await page.evaluate((p) => window.__PONCHO__!.teleport(p.x, p.y), WALL);
   await fingers(cdp, 'touchStart', [{ ...at('left'), id: 1 }]);
   await page.waitForFunction(() => window.__PONCHO__!.state().clinging === true);
   await fingers(cdp, 'touchStart', [{ ...at('left'), id: 1 }, { ...at('jump'), id: 2 }]);

@@ -131,8 +131,8 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** For the touch controls I ran `node scripts/check.mjs | tail -1; git commit ...`. The gate had failed (a TypeScript error: `toSorted` is not in the ES2022 lib), but the pipe kept only `tail`'s exit status and `;` ignores failures, so the commit and push went ahead. I saw "1 problem(s) found" in the output and fixed it in a second commit before opening the PR, so nothing broke, but CLAUDE.md says the gate must pass before every commit.
 - **Root cause:** I chained the commit after a pipeline that hides the gate's exit code, and read the result only after the commit had happened.
 - **Rule:** Run the gate on its own and check its exit code, then commit: `node scripts/check.mjs && git commit ...` with no pipe to `tail` (or `set -o pipefail`). If the output is needed, read it from a separate run.
-- **Recurrence:** 1
-- **Promoted:** .claude/skills/harness-feature (Gate step)
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-feature (Gate step). Second time (2026-10-25, GDD-ART-02): `node scripts/check.mjs 2>&1 | tail -1 && git commit` committed a lessons-format failure; the next commit fixed it. The rule stands: never pipe the gate.
 
 ## L-013 Sentences the new feature made false were left in the GDD
 
@@ -404,3 +404,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** Before planning a press made on a menu or pause screen, look up what that screen does with the button (`pauseEvent`, `titleFrame`, `settingsEvent`); for a button that picks (Space, Z, south), the hold-back test holds the press that picked.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-042 A bigger canvas slowed the playtests' frames and exposed timing by polls
+
+- **Date:** 2026-10-25
+- **What went wrong:** With the 1920 x 1080 canvas (GDD-ART-01) the headless browser, which has no GPU, drew about 20 to 30 frames a second instead of 60. Phaser's delta smoothing fed the fixed-step loop 1/60 s per frame, so the game ran in slow motion and ten playtests failed. With smoothing off, two still failed: one timed the respawn skip by polling `ticks()`, which lags a few steps per slow frame, and one did slow setup (a CDP session) after putting Poncho in the air, so he landed first.
+- **Root cause:** The playtests assumed a fast frame rate: they measured steps from polls and spent real time inside a timed window. Nothing had ever made the frames slow before.
+- **Rule:** A playtest times things in simulation steps recorded where they happen (`phaseSince()`, the step counters), never by polling `ticks()` around an event, and does all its slow setup (layout reads, CDP sessions) before it starts anything timed. The game keeps Phaser's delta smoothing off, so the fixed-step loop holds real time on slow frames.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-playtest (Writing a scenario: time in simulation steps). Second time, the same PR, in the full run after merging main: the touch stick speed test waited 300 ms of real time before reading the speed; under the parallel run the game lagged behind and he had not reached top speed. It now waits 18 steps.

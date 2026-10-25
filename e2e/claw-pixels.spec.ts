@@ -54,11 +54,12 @@ for (const dir of [1, -1] as const) {
     // The box starts at the front edge of the body, 6 px out. Slash i leans 4 px and its middle is 2 px along from its top.
     const edge = x + dir * 6;
     const mids = [0, 1, 2].map((i) => ({ x: edge + dir * (3 + i * 6 + 2), y: y - 7 }));
-    const behindMids = mids.map((m) => ({ x: x - (m.x - x), y: m.y }));
+    // Behind him only the slashes' mirror positions that lie clear of his sprite, which is 32 px wide (GDD-ART-02): 17 and 23 px out.
+    const behindMids = mids.slice(1).map((m) => ({ x: x - (m.x - x), y: m.y }));
     const front = await Promise.all(mids.map(async (m) => (await pixelsAt(page, around(m))).some(pale)));
     const behind = await Promise.all(behindMids.map(async (m) => (await pixelsAt(page, around(m))).every(dark)));
     expect(front).toEqual([true, true, true]);
-    expect(behind).toEqual([true, true, true]);
+    expect(behind).toEqual([true, true]);
   });
 }
 

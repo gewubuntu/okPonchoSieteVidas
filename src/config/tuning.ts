@@ -10,6 +10,8 @@ export const STEP = 1 / TICK_HZ;
 export const BASE_WIDTH = 480;
 export const BASE_HEIGHT = 270;
 export const TILE = 16;
+/** GDD-ART-01: art pixels per game pixel, so the canvas is 1920 x 1080 (BASE_WIDTH * ART_SCALE by BASE_HEIGHT * ART_SCALE). */
+export const ART_SCALE = 4;
 
 /** GDD-LIFE-01: lives per world. */
 export const LIVES_MAX = 7;
@@ -67,7 +69,9 @@ export const WALL = { slideSpeed: 60, kickX: 130, kickY: 380, lockSteps: Math.ro
 /** GDD-MOV-06: body hitbox for ground and walls, hurtbox for enemies and hazards, sprite frame. */
 export const HITBOX = { width: 12, height: 14 } as const;
 export const HURTBOX = { width: 10, height: 12 } as const;
-export const SPRITE_FRAME = 32;
+export const SPRITE_FRAME = 40;
+/** GDD-ART-04: the run frames play on the ground at `runMinSpeed` px/s or more, one frame for every `runFramePx` px run, `runFrames` of them. */
+export const ANIM = { runMinSpeed: 10, runFramePx: 8, runFrames: 4 } as const;
 
 /** GDD-WLD-05: a spike tile hurts only in its lower half, the full tile wide, so a graze over the points is safe. */
 export const SPIKE = { height: TILE / 2 } as const;
