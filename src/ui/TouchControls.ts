@@ -173,7 +173,7 @@ export class TouchControls {
     this.gfx.setVisible(this.enabled && !hidden);
   }
 
-  /** Whether a point (in virtual px) is on the pause button (GDD-UI-02). Always false without touch. */
+  /** Whether a point (in game px) is on the pause button (GDD-UI-02). Always false without touch. */
   isPauseButton(x: number, y: number): boolean {
     return pressedButtons(this.buttons.filter((b) => b.id === 'pause'), [{ x, y }]).size > 0;
   }

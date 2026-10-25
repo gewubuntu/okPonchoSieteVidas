@@ -3,13 +3,13 @@
 import { LIVES_MAX } from '../config/tuning';
 
 export interface LifeTriangle {
-  /** Apex (top), then bottom-left, then bottom-right, in virtual pixels. */
+  /** Apex (top), then bottom-left, then bottom-right, in game pixels. */
   readonly points: readonly [x1: number, y1: number, x2: number, y2: number, x3: number, y3: number];
   /** Filled = a life left. Outline only = a life lost (GDD-UI-03: not told apart by colour alone). */
   readonly filled: boolean;
 }
 
-/** Top-left corner of the HUD and the size of one triangle, in virtual pixels (GDD-UI-01). */
+/** Top-left corner of the HUD and the size of one triangle, in game pixels (GDD-UI-01). */
 export const LIVES_HUD = { left: 8, top: 8, width: 10, height: 9, gap: 3 } as const;
 
 /**

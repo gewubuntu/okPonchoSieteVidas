@@ -378,7 +378,25 @@ Prefer an automated check over a prose rule.
 - **Recurrence:** 1
 - **Promoted:** no
 
-## L-039 A "pressed while paused" test used a button the pause menu also reads
+## L-039 A style mock-up was drawn before asking for the user's own art references
+
+- **Date:** 2026-10-25
+- **What went wrong:** For the style guide (GDD-ART-01 to GDD-ART-07) I drew a full mock-up board from the one illustration in the repository: a front-facing Poncho, an orange sky. The user then shared side-view sprite sheets and a desert scene of their own, which changed the view, the proportions, the colours and the resolution (480 x 270 to 1920 x 1080). The first board was thrown away.
+- **Root cause:** The feature skill only asks whether the character reference blocks the work. It does not ask whether the user has further references (sprite sheets, scenes, moods) for the specific art about to be drawn.
+- **Rule:** Before drawing any new art (a sprite, a tileset, a scene, a UI look), ask the user whether they have reference images for it, and save any they share under `assets/` with a README before drawing.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-040 Source files edited while the playtests ran
+
+- **Date:** 2026-10-25
+- **What went wrong:** During the 0.5.0 dependency review (GDD-TEC-07) I edited comments in `src/` while `npm run test:e2e` was running. The Vite dev server reloaded the page, and two playtests failed with "Execution context was destroyed". Both passed alone and in a full re-run, but it cost a second 8-minute run.
+- **Root cause:** The playtests run against the live dev server, which reloads on any change under `src/`, and nothing warns that the run is still going.
+- **Rule:** Finish every edit under `src/`, `index.html` and `e2e/` before starting `npm run test:e2e`, and make no edits there until it ends. A failure with "Execution context was destroyed" during a run with edits is a reload, so re-run the whole suite rather than counting it as a pass.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-041 A "pressed while paused" test used a button the pause menu also reads
 
 - **Date:** 2026-10-25
 - **What went wrong:** The GDD-CTL-02 plan had a playtest press the gamepad's south button while paused and hold it through a resume by start. South is also "pick" on the pause menu, so the press itself picked Resume, and the start press after it paused again. The implementer rewrote the test to hold south through the resume that its own press causes.

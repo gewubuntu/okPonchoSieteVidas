@@ -17,8 +17,8 @@ describe('GDD-UI-02 pause menu rows', () => {
     expect(settings).toMatchObject({ y: 184, h: 48 });
     expect(quit).toMatchObject({ y: 232, h: 48 });
     expect(layoutPauseMenu(48 / 40)[0]!.h).toBe(40);
-    expect(layoutPauseMenu(1.44)[0]!.h).toBe(34); // ceil(33.33): 34 virtual px are at least 48 CSS px
-    // The 844 x 390 phone: the canvas is fit to its height, 1.444 CSS px per virtual px.
+    expect(layoutPauseMenu(1.44)[0]!.h).toBe(34); // ceil(33.33): 34 game px are at least 48 CSS px
+    // The 844 x 390 phone: the canvas is fit to its height, 1.444 CSS px per game px.
     expect(layoutPauseMenu(390 / 270).map((r) => [r.y, r.h])).toEqual([[136, 34], [170, 34], [204, 34]]);
   });
 

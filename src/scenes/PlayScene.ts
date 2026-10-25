@@ -127,7 +127,7 @@ export interface PonchoDebug {
     promptSize: number;
     menu: { shown: boolean; items: string[]; colors: string[]; chosen: MenuItem | null; markerY: number | null };
   };
-  /** The pause menu's rows as laid out now, in virtual px, for tapping them (GDD-UI-02). */
+  /** The pause menu's rows as laid out now, in game px, for tapping them (GDD-UI-02). */
   pauseMenu(): MenuRow[];
   /**
    * The title screen as drawn (GDD-UI-02): whether it is shown (not while its settings screen covers it), its two title lines, its
@@ -143,7 +143,7 @@ export interface PonchoDebug {
     ponchoShown: boolean;
     menu: { shown: boolean; items: string[]; colors: string[]; chosen: TitleItem | null; markerY: number | null };
   };
-  /** The title menu's rows as laid out now, in virtual px, for tapping them (GDD-UI-02). */
+  /** The title menu's rows as laid out now, in game px, for tapping them (GDD-UI-02). */
   titleMenu(): MenuRow<TitleItem>[];
   /**
    * The settings screen as drawn (GDD-UI-02): whether it is shown, its title and its prompt line ("Turn your device sideways"
@@ -158,7 +158,7 @@ export interface PonchoDebug {
     rows: { item: SettingsRow; label: string; value: number | null; color: string }[];
     chosen: SettingsRow | null;
   };
-  /** The settings screen's rows as laid out now, in virtual px, for tapping them (GDD-UI-02). */
+  /** The settings screen's rows as laid out now, in game px, for tapping them (GDD-UI-02). */
   settingsMenu(): SettingsMenuRow[];
   /** The volumes in use now (GDD-UI-02, GDD-AUD-01). */
   settings(): Settings;

@@ -52,10 +52,13 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-UI-03 | todo |  |
 | GDD-AUD-01 | doing | audio unlock on first gesture is handled by the engine; Master and Effects volume on the settings screen (src/sim/settings.ts); music and its volume pending |
 | GDD-AUD-02 | doing | generated placeholders for the ofrenda marimba, jump, land, claw, stomp, hilo (climbing major scale), life lost and meow, triggered from the step diff in src/sim/sfx.ts (scripts/audio/effects.mjs); real audio pending (Open Question 9) |
-| GDD-ART-01 | doing | 480x270 canvas scaled to fit; art not started |
+| GDD-ART-01 | doing | 480x270 canvas scaled to fit; art not started; the 1920x1080 art resolution (4x4 art pixels per game pixel) is decided, the switch comes with Poncho's sprite |
 | GDD-ART-02 | todo |  |
 | GDD-ART-03 | todo |  |
 | GDD-ART-04 | todo |  |
+| GDD-ART-05 | todo |  |
+| GDD-ART-06 | todo |  |
+| GDD-ART-07 | todo |  |
 | GDD-TEC-01 | done | scaffold on latest stable: Phaser 4, TS 7, Vite 8, Vitest 5, Playwright, Oxlint |
 | GDD-TEC-02 | done | src/sim/fixedStep.ts, sim has no Phaser imports |
 | GDD-TEC-03 | doing | fit-to-screen test only; fps and size budgets pending |
