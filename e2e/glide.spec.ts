@@ -62,11 +62,19 @@ test('GDD-MOV-07 gliding into the pit loses the life, and the respawn flip shows
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.pause(true));
   await page.evaluate(() => window.__PONCHO__!.teleport(248, 150)); // over the pit
-  for (let i = 0; i < 600 && (await api(page, () => window.__PONCHO__!.phase())) === 'playing'; i++) await step(page, 1, hold);
+  // One step at a time until the life is lost, in one call: each call waits for a frame, and slow frames (L-042) made a call per step
+  // outlast the test's time.
+  await page.evaluate((input) => {
+    const p = window.__PONCHO__!;
+    for (let i = 0; i < 600 && p.phase() === 'playing'; i++) p.step(1, input);
+  }, hold);
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('respawning');
   expect(await api(page, () => window.__PONCHO__!.state().gliding)).toBe(true); // he was gliding when the life was lost
   // Nothing held, so the wait is not skipped (GDD-LIFE-02) and the flip plays: hidden at first, then shown dropping in.
-  for (let i = 0; i < 60 && !(await api(page, () => window.__PONCHO__!.bodyVisible())); i++) await step(page, 1, idle);
+  await page.evaluate((input) => {
+    const p = window.__PONCHO__!;
+    for (let i = 0; i < 60 && !p.bodyVisible(); i++) p.step(1, input);
+  }, idle);
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('respawning');
   await frames(page);
   expect(await api(page, () => window.__PONCHO__!.bodyVisible())).toBe(true); // in the flip
@@ -81,11 +89,12 @@ test('GDD-MOV-07 holding the touch Jump button glides too', async ({ page, isMob
   test.skip(!isMobile, 'touch device only');
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
-  await page.evaluate((p) => window.__PONCHO__!.teleport(p.x, p.y), DROP);
+  // The slow setup comes before he is dropped, so the finger is down within his fall however slow the frames are (L-042).
   const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'jump')!;
   const box = (await page.locator('canvas').boundingBox())!;
   const k = box.width / 480;
   const cdp = await page.context().newCDPSession(page);
+  await page.evaluate((p) => window.__PONCHO__!.teleport(p.x, p.y), DROP);
   await fingers(cdp, 'touchStart', [{ x: box.x + (b.x + b.w / 2) * k, y: box.y + (b.y + b.h / 2) * k, id: 1 }]);
   await page.waitForFunction(() => window.__PONCHO__!.glideDrawn() && window.__PONCHO__!.state().vy === 70);
   await fingers(cdp, 'touchEnd', []);

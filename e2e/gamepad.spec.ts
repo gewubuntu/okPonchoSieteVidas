@@ -195,11 +195,13 @@ test('GDD-CTL-02 GDD-UI-02 a D-pad direction held since before the pause keeps r
   expect(await paused(page)).toBe(true);
   await tap(page, START);
   expect(await paused(page)).toBe(false);
-  const x0 = (await state(page)).x;
-  await page.waitForTimeout(300);
+  // Counted in simulation steps, not real time (L-042): 6 steps after the resume he is still running, well before the closed
+  // door at tile column 8 that a long real-time wait on slow frames runs him into.
+  const { t0, x0 } = await api(page, () => ({ t0: window.__PONCHO__!.ticks(), x0: window.__PONCHO__!.state().x }));
+  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 6, t0);
   const now = await state(page);
   expect(now.vx).toBeGreaterThan(0);
-  expect(now.x).toBeGreaterThan(x0 + 20);
+  expect(now.x).toBeGreaterThan(x0 + 6);
   await press(page, RIGHT, false);
 });
 
