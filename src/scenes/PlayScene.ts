@@ -1,7 +1,7 @@
 // Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
 // Final art arrives with GDD-ART-01 and GDD-ART-02, Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, SPIKE, TILE } from '../config/tuning';
+import { BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, SETTINGS_MENU, SPIKE, TILE } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { SANDBOX_LEVEL, SANDBOX_SPAWN } from '../levels/sandbox';
 import { FixedStepper } from '../sim/fixedStep';
@@ -30,7 +30,9 @@ import { blockAt } from '../sim/block';
 import { platformAt } from '../sim/platform';
 import { buttonsDown, respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { isPortrait, pauseFrame, PLAYING, resumeHeld, type MenuItem, type PauseEvent, type PauseState } from '../sim/pause';
-import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleEvent, type TitleState } from '../sim/title';
+import { readSave, SAVE_KEY, saveText } from '../sim/save';
+import { DEFAULT_SETTINGS, sfxVolume, type Settings, type SettingsRow } from '../sim/settings';
+import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
@@ -39,7 +41,8 @@ import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack
 import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
 import { HILO_COLOURS, HILO_HUD, hiloColour, hiloCounterRight, hiloCounterText } from '../ui/hiloCounter';
 import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
-import { layoutPauseMenu, pauseMenuItemAt, type MenuRow } from '../ui/pauseMenu';
+import { layoutPauseMenu, layoutTitleMenu, pauseMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
+import { layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 // GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
@@ -57,6 +60,9 @@ const downExcept = (keys: Phaser.Input.Keyboard.Key[], held: ReadonlyMap<Phaser.
 const BLINK_STEPS = 6;
 /** Height of the pale strip along Poncho's feet on the placeholder body, in px. */
 const FEET_HEIGHT = 3;
+
+/** The colour a text was last set to, as the string it was given. */
+const colorOf = (t: Phaser.GameObjects.Text): string => (typeof t.style.color === 'string' ? t.style.color : '');
 
 /** Dev-only hook for the `harness-playtest` skill. Exposed only by the Vite dev server (see PlayScene.create). */
 export interface PonchoDebug {
@@ -90,8 +96,8 @@ export interface PonchoDebug {
   sfx(): string[];
   /** Whether every sound effect file was loaded and decoded into the audio cache. */
   sfxLoaded(): boolean;
-  /** Every sound effect handed to the audio system, with the playback rate it was given (GDD-AUD-02). */
-  sfxPlayed(): { key: string; rate: number }[];
+  /** Every sound effect handed to the audio system, with the playback rate and the volume it was given (GDD-AUD-02, GDD-AUD-01). */
+  sfxPlayed(): { key: string; rate: number; volume: number }[];
   /** Triangles the HUD was asked to draw as cracking (GDD-LIFE-02): the place in the row and the fill and crack alpha. The pixels themselves are checked by reading the screenshot. */
   hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
   /** The scale the last triangle was drawn at while one life is left, or null when it does not pulse (GDD-LIFE-04). */
@@ -102,7 +108,7 @@ export interface PonchoDebug {
   playerPause(): PauseState;
   /**
    * The pause screen as drawn: whether it is shown, its title and its prompt line ("Turn your device sideways" upright, empty
-   * otherwise), and the pause menu (GDD-UI-02): whether it is shown (not upright), its two items' texts and colours, the item the
+   * otherwise), and the pause menu (GDD-UI-02): whether it is shown (not upright), its three items' texts and colours, the item the
    * ">" stands beside and the ">" 's y, both null while the menu is hidden.
    */
   pauseDrawn(): {
@@ -114,8 +120,39 @@ export interface PonchoDebug {
   };
   /** The pause menu's rows as laid out now, in virtual px, for tapping them (GDD-UI-02). */
   pauseMenu(): MenuRow[];
-  /** The title screen as drawn (GDD-UI-02): whether it is shown, its two title lines, its prompt and size, and whether the placeholder Poncho is drawn on it. */
-  titleDrawn(): { shown: boolean; title: string; subtitle: string; prompt: string; promptSize: number; ponchoShown: boolean };
+  /**
+   * The title screen as drawn (GDD-UI-02): whether it is shown (not while its settings screen covers it), its two title lines, its
+   * prompt and size, whether the placeholder Poncho is drawn on it, and the title menu: whether it is shown (not upright), its
+   * two items' texts and colours, the item the ">" stands beside and the ">" 's y, both null while the menu is hidden.
+   */
+  titleDrawn(): {
+    shown: boolean;
+    title: string;
+    subtitle: string;
+    prompt: string;
+    promptSize: number;
+    ponchoShown: boolean;
+    menu: { shown: boolean; items: string[]; colors: string[]; chosen: TitleItem | null; markerY: number | null };
+  };
+  /** The title menu's rows as laid out now, in virtual px, for tapping them (GDD-UI-02). */
+  titleMenu(): MenuRow<TitleItem>[];
+  /**
+   * The settings screen as drawn (GDD-UI-02): whether it is shown, its title and its prompt line ("Turn your device sideways"
+   * upright, empty otherwise), the menu it was opened from, its rows (the label, the bars drawn filled for a volume row, null for
+   * Back, and the colour) and the row the chosen look is on. The rows are empty and `chosen` null while it is hidden or upright.
+   */
+  settingsDrawn(): {
+    shown: boolean;
+    title: string;
+    prompt: string;
+    from: 'pause' | 'title' | null;
+    rows: { item: SettingsRow; label: string; value: number | null; color: string }[];
+    chosen: SettingsRow | null;
+  };
+  /** The settings screen's rows as laid out now, in virtual px, for tapping them (GDD-UI-02). */
+  settingsMenu(): SettingsMenuRow[];
+  /** The volumes in use now (GDD-UI-02, GDD-AUD-01). */
+  settings(): Settings;
   /** While paused, runs exactly `n` simulation steps, with no input unless given, so a frame can be reached without timing luck. */
   step(n: number, input?: PlayerInput): void;
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed (GDD-CTL-03). */
@@ -239,9 +276,23 @@ export class PlayScene extends Phaser.Scene {
   private pauseItems!: Record<MenuItem, Phaser.GameObjects.Text>;
   private pauseMarker!: Phaser.GameObjects.Text;
   private pauseRows: MenuRow[] = layoutPauseMenu(1);
-  /** GDD-UI-02: the title screen, and Enter presses since the last frame. */
+  /** GDD-UI-02, GDD-AUD-01: the volumes, loaded from the browser's storage (GDD-PRG-02), and the settings screen. */
+  private settings: Settings = DEFAULT_SETTINGS;
+  private settingsScreen!: Phaser.GameObjects.Container;
+  private settingsVeil!: Phaser.GameObjects.Rectangle;
+  private settingsTitle!: Phaser.GameObjects.Text;
+  private settingsPrompt!: Phaser.GameObjects.Text;
+  private settingsLabels!: Record<SettingsRow, Phaser.GameObjects.Text>;
+  private settingsArrows!: Phaser.GameObjects.Text[];
+  private settingsBars!: Phaser.GameObjects.Graphics;
+  private settingsMarker!: Phaser.GameObjects.Text;
+  private settingsRows: SettingsMenuRow[] = layoutSettingsMenu(1);
+  private settingsPainted: ReturnType<PonchoDebug['settingsDrawn']> = { shown: false, title: '', prompt: '', from: null, rows: [], chosen: null };
+  /** GDD-UI-02: the title screen, and its menu's two item texts, the ">" in front of the chosen one, and the rows as last laid out. */
   private title: TitleState = TITLE;
-  private titleEvents: TitleEvent[] = [];
+  private titleItems!: Record<TitleItem, Phaser.GameObjects.Text>;
+  private titleMarker!: Phaser.GameObjects.Text;
+  private titleRows: MenuRow<TitleItem>[] = layoutTitleMenu(1);
   private titleScreen!: Phaser.GameObjects.Container;
   private titleText!: Phaser.GameObjects.Text;
   private titleSubtitle!: Phaser.GameObjects.Text;
@@ -252,7 +303,7 @@ export class PlayScene extends Phaser.Scene {
   /** Which ofrendas the drawing shows as used, as a key, so a change of the set itself (not only its size) redraws. */
   private ofrendasKey = '';
   private sfxLog: string[] = [];
-  private sfxPlayed: { key: string; rate: number }[] = [];
+  private sfxPlayed: { key: string; rate: number; volume: number }[] = [];
   /** GDD-AUD-02: how far up the scale the hilo notes have climbed. */
   private hiloCombo: HiloCombo = NO_COMBO;
   private devOfrendas = 0;
@@ -309,6 +360,12 @@ export class PlayScene extends Phaser.Scene {
   }
 
   create(): void {
+    // GDD-PRG-02: the saved settings; where the browser refuses storage the game plays with the defaults.
+    try {
+      this.settings = readSave(window.localStorage.getItem(SAVE_KEY));
+    } catch {
+      this.settings = DEFAULT_SETTINGS;
+    }
     this.cameras.main.setBackgroundColor('#1b2036');
     this.drawTiles();
     this.add
@@ -414,14 +471,38 @@ export class PlayScene extends Phaser.Scene {
     // Upright, the whole level is drawn small, so the prompt is set larger than the 8 px prompts.
     this.pausePrompt = this.add.text(BASE_WIDTH / 2, 146, '', { fontFamily: 'monospace', fontSize: '12px', color: '#9ba3c4' }).setOrigin(0.5);
     const menuStyle = { fontFamily: 'monospace', fontSize: `${PAUSE_MENU.textSize}px`, color: '#9ba3c4' };
-    this.pauseItems = { resume: this.add.text(0, 0, 'Resume', menuStyle).setOrigin(0.5), quit: this.add.text(0, 0, 'Quit to title', menuStyle).setOrigin(0.5) };
+    this.pauseItems = {
+      resume: this.add.text(0, 0, 'Resume', menuStyle).setOrigin(0.5),
+      settings: this.add.text(0, 0, 'Settings', menuStyle).setOrigin(0.5),
+      quit: this.add.text(0, 0, 'Quit to title', menuStyle).setOrigin(0.5),
+    };
     this.pauseMarker = this.add.text(0, 0, '>', menuStyle).setOrigin(1, 0.5);
-    this.pauseScreen = this.add.container(0, 0, [dim, this.pauseTitle, this.pausePrompt, this.pauseItems.resume, this.pauseItems.quit, this.pauseMarker]).setScrollFactor(0).setDepth(9.5).setVisible(false);
+    this.pauseScreen = this.add.container(0, 0, [dim, this.pauseTitle, this.pausePrompt, this.pauseItems.resume, this.pauseItems.settings, this.pauseItems.quit, this.pauseMarker]).setScrollFactor(0).setDepth(9.5).setVisible(false);
+
+    // GDD-UI-02: the settings screen, opened from the pause menu (under the HUD and the touch buttons, like the pause screen) or
+    // from the title menu (over everything, like the title screen). It replaces the menu it was opened from.
+    this.settingsVeil = this.add.rectangle(0, 0, BASE_WIDTH, BASE_HEIGHT, 0x0d1020, 0.75).setOrigin(0);
+    this.settingsTitle = this.add.text(BASE_WIDTH / 2, SETTINGS_MENU.titleY, 'Settings', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
+    this.settingsPrompt = this.add.text(BASE_WIDTH / 2, 146, '', { fontFamily: 'monospace', fontSize: '12px', color: '#9ba3c4' }).setOrigin(0.5);
+    this.settingsLabels = {
+      master: this.add.text(0, 0, 'Master volume', menuStyle).setOrigin(0, 0.5),
+      effects: this.add.text(0, 0, 'Effects volume', menuStyle).setOrigin(0, 0.5),
+      back: this.add.text(0, 0, 'Back', menuStyle).setOrigin(0.5),
+    };
+    // "<" and ">" for the two volume rows, left then right, row by row.
+    this.settingsArrows = ['<', '>', '<', '>'].map((c) => this.add.text(0, 0, c, menuStyle).setOrigin(0.5));
+    this.settingsBars = this.add.graphics();
+    this.settingsMarker = this.add.text(0, 0, '>', menuStyle).setOrigin(1, 0.5);
+    this.settingsScreen = this.add
+      .container(0, 0, [this.settingsVeil, this.settingsTitle, this.settingsPrompt, ...Object.values(this.settingsLabels), ...this.settingsArrows, this.settingsBars, this.settingsMarker])
+      .setScrollFactor(0)
+      .setDepth(9.5)
+      .setVisible(false);
     // Escape or P pauses and resumes; a tap or click anywhere off the menu rows resumes; the touch pause button does both. The keys are read
     // from raw browser events, one per press with auto-repeat ignored: Phaser's Key 'down' event can fire again on the
     // release when a press and release land in one frame (L-006), and here every extra event would toggle the pause back.
-    // Enter, which starts the level from the title screen, and the pause menu's keys (Up or W, Down or S choose; Enter, Space or Z
-    // pick) are read the same way (GDD-UI-02).
+    // The menu keys (Up or W, Down or S choose; Left or A, Right or D change a volume; Enter, Space or Z pick) are read the same
+    // way (GDD-UI-02). The game reads Left, Right, Space and the rest as buttons too, from its own latches.
     const onPauseKey = (e: KeyboardEvent) => {
       if (e.repeat) return;
       // By keyCode, the key's label, as Phaser matches the other keys: on Dvorak or Colemak the P key still pauses.
@@ -429,15 +510,24 @@ export class PlayScene extends Phaser.Scene {
       if (code === K.ESC || code === K.P) this.pauseEvents.push('key');
       if (code === K.UP || code === K.W) this.pauseEvents.push('menuUp');
       if (code === K.DOWN || code === K.S) this.pauseEvents.push('menuDown');
+      if (code === K.LEFT || code === K.A) this.pauseEvents.push('menuLeft');
+      if (code === K.RIGHT || code === K.D) this.pauseEvents.push('menuRight');
       if (code === K.ENTER || code === K.SPACE || code === K.Z) this.pauseEvents.push('pick');
-      if (code === K.ENTER) this.titleEvents.push('confirm');
     };
     window.addEventListener('keydown', onPauseKey);
-    // A pointer is classified by where it went down, never by the state: an Escape and a tap in one frame apply in order. A tap on
-    // the Resume row is a plain tap: a tap anywhere off the Quit row already resumes, whichever item is chosen (L-025).
+    // A pointer is classified by where it went down on every menu at once, never by the state: an Escape and a tap in one frame apply
+    // in order, and the state each reaches decides which menu reads the tap.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      const row = pauseMenuItemAt(layoutPauseMenu(this.scale.displaySize.width / BASE_WIDTH), p.x, p.y);
-      this.pauseEvents.push(this.touch.isPauseButton(p.x, p.y) ? 'button' : row === 'quit' ? 'tapQuit' : 'tap');
+      if (this.touch.isPauseButton(p.x, p.y)) {
+        this.pauseEvents.push('button');
+        return;
+      }
+      const k = this.scale.displaySize.width / BASE_WIDTH;
+      this.pauseEvents.push({
+        pause: pauseMenuItemAt(layoutPauseMenu(k), p.x, p.y),
+        title: titleMenuItemAt(layoutTitleMenu(k), p.x, p.y),
+        settings: settingsTapAt(layoutSettingsMenu(k), p.x, p.y),
+      });
     });
     // It pauses by itself when the tab or window loses focus, or a phone is turned upright, and never resumes by itself.
     const onBlur = () => this.pauseEvents.push('blur');
@@ -472,8 +562,14 @@ export class PlayScene extends Phaser.Scene {
       this.add.rectangle(0, 0, HITBOX.width * 2, HITBOX.height * 2, 0xb94842),
       this.add.rectangle(0, HITBOX.height - FEET_HEIGHT, HITBOX.width * 2, FEET_HEIGHT * 2, 0xfff3dc),
     ]);
-    this.titlePromptText = this.add.text(BASE_WIDTH / 2, 190, '', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
-    this.titleScreen = this.add.container(0, 0, [veil, this.titleText, this.titleSubtitle, this.titlePoncho, this.titlePromptText]).setScrollFactor(0).setDepth(11);
+    this.titlePromptText = this.add.text(BASE_WIDTH / 2, 190, '', { fontFamily: 'monospace', fontSize: '12px', color: '#9ba3c4' }).setOrigin(0.5);
+    // The title menu, drawn like the pause menu; upright it gives way to the prompt.
+    this.titleItems = { start: this.add.text(0, 0, 'Start', menuStyle).setOrigin(0.5), settings: this.add.text(0, 0, 'Settings', menuStyle).setOrigin(0.5) };
+    this.titleMarker = this.add.text(0, 0, '>', menuStyle).setOrigin(1, 0.5);
+    this.titleScreen = this.add
+      .container(0, 0, [veil, this.titleText, this.titleSubtitle, this.titlePoncho, this.titlePromptText, this.titleItems.start, this.titleItems.settings, this.titleMarker])
+      .setScrollFactor(0)
+      .setDepth(11);
     this.drawTitle();
 
     if (import.meta.env.DEV) {
@@ -496,7 +592,7 @@ export class PlayScene extends Phaser.Scene {
         },
         playerPause: () => this.pauseState,
         pauseDrawn: () => {
-          const { resume, quit } = this.pauseItems;
+          const { resume, settings, quit } = this.pauseItems;
           const marked = this.pauseMarker.visible;
           return {
             shown: this.pauseScreen.visible,
@@ -505,22 +601,37 @@ export class PlayScene extends Phaser.Scene {
             promptSize: Number.parseInt(String(this.pausePrompt.style.fontSize), 10),
             menu: {
               shown: this.pauseScreen.visible && resume.visible,
-              items: [resume.text, quit.text],
-              colors: [resume, quit].map((t) => (typeof t.style.color === 'string' ? t.style.color : '')),
+              items: [resume.text, settings.text, quit.text],
+              colors: [resume, settings, quit].map((t) => colorOf(t)),
               chosen: marked ? this.pauseState.choice : null,
               markerY: marked ? this.pauseMarker.y : null,
             },
           };
         },
         pauseMenu: () => this.pauseRows,
-        titleDrawn: () => ({
-          shown: this.titleScreen.visible,
-          title: this.titleText.text,
-          subtitle: this.titleSubtitle.text,
-          prompt: this.titlePromptText.text,
-          promptSize: Number.parseInt(String(this.titlePromptText.style.fontSize), 10),
-          ponchoShown: this.titleScreen.visible && this.titlePoncho.visible,
-        }),
+        titleDrawn: () => {
+          const { start, settings } = this.titleItems;
+          const marked = this.titleMarker.visible;
+          return {
+            shown: this.titleScreen.visible,
+            title: this.titleText.text,
+            subtitle: this.titleSubtitle.text,
+            prompt: this.titlePromptText.text,
+            promptSize: Number.parseInt(String(this.titlePromptText.style.fontSize), 10),
+            ponchoShown: this.titleScreen.visible && this.titlePoncho.visible,
+            menu: {
+              shown: this.titleScreen.visible && start.visible,
+              items: [start.text, settings.text],
+              colors: [start, settings].map((t) => colorOf(t)),
+              chosen: marked ? this.title.choice : null,
+              markerY: marked ? this.titleMarker.y : null,
+            },
+          };
+        },
+        titleMenu: () => this.titleRows,
+        settingsDrawn: () => this.settingsPainted,
+        settingsMenu: () => this.settingsRows,
+        settings: () => this.settings,
         step: (n, input = { move: 0, jumpHeld: false }) => {
           if (!this.paused) throw new Error('step() needs the game paused');
           for (let i = 0; i < n; i++) this.simStep(input);
@@ -1036,8 +1147,10 @@ export class PlayScene extends Phaser.Scene {
   private playSfx(name: 'ofrenda' | SfxName, semitones?: number): void {
     this.sfxLog.push(semitones === undefined ? name : `${name}:${semitones}`);
     const rate = semitones === undefined ? 1 : noteRate(semitones);
-    this.sound.play(`sfx-${name}`, { rate });
-    this.sfxPlayed.push({ key: `sfx-${name}`, rate });
+    // GDD-UI-02, GDD-AUD-01: every sound effect plays at Master times Effects. The log holds what the audio system was given.
+    const options = { rate, volume: sfxVolume(this.settings) };
+    this.sound.play(`sfx-${name}`, options);
+    this.sfxPlayed.push({ key: `sfx-${name}`, ...options });
   }
 
   private usedKey(): string {
@@ -1157,26 +1270,41 @@ export class PlayScene extends Phaser.Scene {
     this.touch.setFuego(this.run.power === 'fuego'); // the Fuego button is there only in the Fuego state (GDD-CTL-03)
     let input = this.readInput();
 
-    // GDD-UI-02: the title screen. While it is up no step runs, and the pause events go to it: a tap starts the level, Escape,
-    // P and losing focus do nothing. The button that started the level counts as already held, as after a resume.
+    const settingsBefore = this.settings;
+
+    // GDD-UI-02: the title screen. While it is up no step runs, and the pause events go to it: the title menu, its settings screen,
+    // a tap that starts the level; Escape, P and losing focus do nothing on the menu. The button that started the level counts as
+    // already held, as after a resume.
     if (this.title.shown) {
-      this.title = titleFrame(this.title, [...this.pauseEvents, ...this.titleEvents], buttonsDown(input));
+      const frame = titleFrame(this.title, this.pauseEvents, buttonsDown(input), this.settings);
+      this.title = frame.state;
+      this.settings = frame.settings;
       this.pauseEvents = [];
       if (!this.title.shown) input = this.endPause();
+      // No step runs while the title stays up, so the title frame is what uses the latched presses: they are spent, or a Left
+      // tapped on the settings screen would stay pending and make the held Left look like a new press at the next frame.
+      else this.consumeLatches();
     }
-    this.titleEvents = [];
 
     // GDD-UI-02: apply the pause events since the last frame, in order. While paused no step runs; on resume
     // every button down counts as already held, so a press made while paused does nothing until pressed again.
     // Picking Quit to title ends the pause over a fresh run and the title screen.
     const wasPaused = this.pauseState.paused;
-    const frame = pauseFrame(this.pauseState, this.pauseEvents);
+    const frame = pauseFrame(this.pauseState, this.pauseEvents, this.settings);
     this.pauseEvents = [];
+    this.settings = frame.settings;
     if (frame.quit) this.quitToTitle(input, frame.portrait);
     else {
       this.pauseState = frame.state;
       if (!wasPaused && this.pauseState.paused) this.notePause();
       if (wasPaused && !this.pauseState.paused) input = this.endPause();
+    }
+
+    // GDD-PRG-02: a change is saved at once. GDD-UI-02: it plays the jump sound at the new volume, so the player hears it; a volume
+    // already at its end changes nothing, so nothing is saved or played.
+    if (this.settings.master !== settingsBefore.master || this.settings.effects !== settingsBefore.effects) {
+      this.saveSettings();
+      this.playSfx('jump');
     }
 
     let stepped = false;
@@ -1190,14 +1318,7 @@ export class PlayScene extends Phaser.Scene {
     }
     const alpha = this.alpha;
     // A latched tap is spent once a step has used it; if the frame ran no step it waits for the next one.
-    if (stepped) {
-      this.jumpLatch.consume();
-      this.clawLatch.consume();
-      this.fuegoLatch.consume();
-      this.leftLatch.consume();
-      this.rightLatch.consume();
-      this.touch.consume();
-    }
+    if (stepped) this.consumeLatches();
     // Redraw when the lives change, and on every step while a triangle is cracking.
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.pulseDrawn !== null || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
     if (`${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}` !== this.doorsKey) this.drawDoorsAndKeys();
@@ -1225,6 +1346,26 @@ export class PlayScene extends Phaser.Scene {
     this.drawGameOver();
     this.drawPause();
     this.drawTitle();
+    this.drawSettings();
+  }
+
+  /** GDD-PRG-02: the settings go to the browser's storage. Where it is refused the game plays on with this visit's settings, silently. */
+  private saveSettings(): void {
+    try {
+      window.localStorage.setItem(SAVE_KEY, saveText(this.settings));
+    } catch {
+      // storage refused: the settings last until the page closes
+    }
+  }
+
+  /** Spends every latched press (L-006): a step has used them, or no step will (the title screen, quitting to it). */
+  private consumeLatches(): void {
+    this.jumpLatch.consume();
+    this.clawLatch.consume();
+    this.fuegoLatch.consume();
+    this.leftLatch.consume();
+    this.rightLatch.consume();
+    this.touch.consume();
   }
 
   /** GDD-UI-02: the game pauses. The fingers and the Left and Right keys down now keep pressing after it. */
@@ -1282,12 +1423,7 @@ export class PlayScene extends Phaser.Scene {
     // `updatePulseStart` clears at any life count but one.
     this.title = titleAfterQuit(portrait, buttonsDown(input));
     this.pauseState = PLAYING;
-    this.jumpLatch.consume();
-    this.clawLatch.consume();
-    this.fuegoLatch.consume();
-    this.leftLatch.consume();
-    this.rightLatch.consume();
-    this.touch.consume();
+    this.consumeLatches();
     // The finger that picked Quit is held back too, and the fingers and keys down at the pause are forgotten: on the title screen
     // none was held before.
     this.touch.holdBack();
@@ -1296,10 +1432,12 @@ export class PlayScene extends Phaser.Scene {
 
   /**
    * GDD-UI-02: the pause screen. Sideways it shows the menu, with a ">" in front of the chosen item; upright the menu is hidden
-   * and the prompt asks to turn the device sideways. The rows follow the window, since they grow on a small screen.
+   * and the prompt asks to turn the device sideways. The rows follow the window, since they grow on a small screen. While the
+   * settings screen is open it takes the pause screen's place.
    */
   private drawPause(): void {
-    this.pauseScreen.setVisible(this.pauseState.paused);
+    const settingsOpen = this.pauseState.settings !== null;
+    this.pauseScreen.setVisible(this.pauseState.paused && !settingsOpen);
     const upright = this.pauseState.portrait;
     const prompt = upright ? 'Turn your device sideways' : '';
     if (this.pausePrompt.text !== prompt) this.pausePrompt.setText(prompt);
@@ -1312,12 +1450,80 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-  /** GDD-UI-02: the title screen and its prompt line, which tells an upright phone to turn sideways first. */
+  /**
+   * GDD-UI-02: the title screen and its prompt line, which tells an upright phone to turn sideways first. Sideways the title menu
+   * is there, with a ">" in front of the chosen item, as the pause menu; upright it is hidden. While the settings screen is open it
+   * takes the title screen's place.
+   */
   private drawTitle(): void {
-    this.titleScreen.setVisible(this.title.shown);
+    this.titleScreen.setVisible(this.title.shown && this.title.settings === null);
     // The touch buttons come back on the frame the title goes, not one frame later.
     this.touch.setHidden(this.title.shown);
-    const prompt = titlePrompt(this.title.portrait, this.sys.game.device.input.touch);
+    const prompt = titlePrompt(this.title.portrait);
     if (this.titlePromptText.text !== prompt.text) this.titlePromptText.setText(prompt.text).setFontSize(prompt.size);
+    const upright = this.title.portrait;
+    this.titleRows = layoutTitleMenu(this.scale.displaySize.width / BASE_WIDTH);
+    for (const row of this.titleRows) {
+      const text = this.titleItems[row.item];
+      const chosen = row.item === this.title.choice;
+      text.setPosition(row.x + row.w / 2, row.y + row.h / 2).setColor(chosen ? '#fff3dc' : '#9ba3c4').setVisible(!upright);
+      if (chosen) this.titleMarker.setPosition(text.x - text.width / 2 - 8, text.y).setVisible(!upright);
+    }
+  }
+
+  /**
+   * GDD-UI-02: the settings screen, open from the pause menu or the title menu. Sideways it shows the three rows, the chosen one
+   * pale and the others grey; a volume row has "<" and ">" and its bars, Back a ">" in front of it when chosen. Upright the rows
+   * are hidden and the prompt asks to turn the device sideways; the chosen row is kept. The rows follow the window.
+   */
+  private drawSettings(): void {
+    const fromTitle = this.title.shown && this.title.settings !== null;
+    const fromPause = !this.title.shown && this.pauseState.paused && this.pauseState.settings !== null;
+    const row = fromTitle ? this.title.settings : fromPause ? this.pauseState.settings : null;
+    const from = fromTitle ? 'title' : fromPause ? 'pause' : null;
+    const upright = fromTitle ? this.title.portrait : this.pauseState.portrait;
+    this.settingsScreen.setVisible(row !== null).setDepth(fromTitle ? 11 : 9.5);
+    this.settingsVeil.setFillStyle(0x0d1020, fromTitle ? 0.82 : 0.75);
+    const prompt = row !== null && upright ? 'Turn your device sideways' : '';
+    if (this.settingsPrompt.text !== prompt) this.settingsPrompt.setText(prompt);
+    this.settingsRows = layoutSettingsMenu(this.scale.displaySize.width / BASE_WIDTH);
+    const painted: ReturnType<PonchoDebug['settingsDrawn']>['rows'] = [];
+    const show = row !== null && !upright;
+    this.settingsBars.clear();
+    this.settingsMarker.setVisible(false);
+    this.settingsArrows.forEach((a) => a.setVisible(false));
+    let arrow = 0;
+    for (const r of this.settingsRows) {
+      const label = this.settingsLabels[r.item];
+      const chosen = r.item === row;
+      const colour = chosen ? '#fff3dc' : '#9ba3c4';
+      label.setVisible(show);
+      if (r.item === 'back') {
+        label.setPosition(r.x + r.w / 2, r.y + r.h / 2).setColor(colour);
+        if (show && chosen) this.settingsMarker.setPosition(label.x - label.width / 2 - 8, label.y).setVisible(true);
+        if (show) painted.push({ item: r.item, label: label.text, value: null, color: colour });
+        continue;
+      }
+      label.setPosition(r.x + SETTINGS_MENU.labelInset, r.y + r.h / 2).setColor(colour);
+      const left = this.settingsArrows[arrow++]!;
+      const right = this.settingsArrows[arrow++]!;
+      left.setPosition(r.x + SETTINGS_MENU.arrowInset, r.y + r.h / 2).setColor(colour).setVisible(show);
+      right.setPosition(r.x + r.w - SETTINGS_MENU.arrowInset, r.y + r.h / 2).setColor(colour).setVisible(show);
+      if (!show) continue;
+      const value = this.settings[r.item];
+      for (const bar of volumeBars(r, value)) {
+        if (bar.filled) this.settingsBars.fillStyle(chosen ? 0xfff3dc : 0x9ba3c4, 1).fillRect(bar.x, bar.y, bar.w, bar.h);
+        else this.settingsBars.lineStyle(1, 0x3a4060, 1).strokeRect(bar.x + 0.5, bar.y + 0.5, bar.w - 1, bar.h - 1);
+      }
+      painted.push({ item: r.item, label: label.text, value, color: colour });
+    }
+    this.settingsPainted = {
+      shown: this.settingsScreen.visible,
+      title: this.settingsTitle.text,
+      prompt: this.settingsPrompt.text,
+      from,
+      rows: painted,
+      chosen: show ? row : null,
+    };
   }
 }

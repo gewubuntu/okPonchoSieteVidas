@@ -57,4 +57,8 @@ test('GDD-AUD-02 hilos play rising notes', async ({ page }) => {
   expect(rates).toHaveLength(2);
   expect(rates[0]).toBe(1);
   expect(rates[1]).toBeCloseTo(1.122462, 5);
+  // At the default settings (Master 10, Effects 10, GDD-UI-02) every sound plays at full volume (GDD-AUD-01).
+  const played = await api(page, () => window.__PONCHO__!.sfxPlayed());
+  expect(played.length).toBeGreaterThan(0);
+  expect(played.every((p) => p.volume === 1)).toBe(true);
 });

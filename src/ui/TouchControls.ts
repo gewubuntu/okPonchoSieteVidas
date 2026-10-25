@@ -73,6 +73,8 @@ export class TouchControls {
     const onResize = () => this.relayout();
     scene.scale.on(Phaser.Scale.Events.RESIZE, onResize);
     scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      // A tap latched while the buttons are hidden is never read: `read()` returns nothing while hidden, and the latches are spent
+      // each frame of the title and when it closes (`consume`, `holdBack`). No guard here (L-025).
       const hit = pressedButtons(this.buttons, [{ x: p.x, y: p.y }]);
       if (hit.has('jump')) this.jumpLatch.press();
       if (hit.has('claw')) this.clawLatch.press();
@@ -83,10 +85,24 @@ export class TouchControls {
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off(Phaser.Scale.Events.RESIZE, onResize));
   }
 
-  /** What the fingers on the screen press now, as the same input the keyboard gives. */
+  /** What the fingers on the screen press now, as the same input the keyboard gives. Nothing while the buttons are hidden. */
   read(): PlayerInput {
     if (!this.enabled) return { move: 0, jumpHeld: false };
     const fingers = this.scene.input.manager.pointers.filter((p) => p.isDown);
+    // Fingers that have lifted no longer count as flipped, so the next touch can flip the mode.
+    const live = new Set(fingers.map((f) => f.id));
+    for (const id of this.flipped) if (!live.has(id)) this.flipped.delete(id);
+    if (this.hidden) {
+      // GDD-UI-02: hidden buttons press nothing, the slide stick's area included, and a finger that went down while they were
+      // hidden flips nothing, then or later.
+      for (const f of fingers) this.flipped.add(f.id);
+      if (this.pressed.size > 0 || this.stick !== 0) {
+        this.pressed = new Set();
+        this.stick = 0;
+        this.draw();
+      }
+      return { move: 0, jumpHeld: false };
+    }
     // GDD-UI-02: a finger held back since a pause presses nothing until it lifts.
     const keys = new Set(fingers.map(fingerKey));
     for (const k of this.heldBack) if (!keys.has(k)) this.heldBack.delete(k);
@@ -94,11 +110,7 @@ export class TouchControls {
     const pressed = pressedButtons(this.buttons, active);
     // A finger that went down on the mode switch flips the zone once. A finger that slid onto it from the stick, or
     // that stays on it, does not.
-    const live = new Set(fingers.map((f) => f.id));
-    for (const id of this.flipped) if (!live.has(id)) this.flipped.delete(id);
     const mode = this.buttons.filter((b) => b.id === 'mode');
-    // A finger that went down while the buttons were hidden flips nothing, then or later (GDD-UI-02).
-    if (this.hidden) for (const f of fingers) this.flipped.add(f.id);
     const flip = fingers.find((f) => !this.flipped.has(f.id) && pressedButtons(mode, [{ x: f.downX, y: f.downY }]).size > 0);
     if (flip) {
       this.flipped.add(flip.id);

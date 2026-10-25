@@ -20,6 +20,9 @@ test('GDD-UI-02 playing, with the touch pause button, then paused', async ({ pag
   // A key event on the window, so the phone project, which has a keyboard too, takes the same path.
   const press = (code: string, keyCode: number) => page.evaluate(({ c, k }) => window.dispatchEvent(new KeyboardEvent('keydown', { code: c, keyCode: k, bubbles: true })), { c: code, k: keyCode });
   await press('ArrowDown', 40);
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.chosen === 'settings');
+  await shot(page, info, 'pause-menu-settings');
+  await press('ArrowDown', 40);
   await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.chosen === 'quit');
   await shot(page, info, 'pause-menu-quit');
   await press('Enter', 13);
