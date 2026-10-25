@@ -26,6 +26,8 @@ npm run test:e2e
 5. For anything visual, also take a screenshot into the scratchpad and look at it. Pixels are for people; tests assert on state.
 6. When a test does read pixels (`pixelsAt` in `e2e/helpers.ts`), pick points the phone's touch buttons do not cover: they sit on top of everything in the bottom corners, and `window.__PONCHO__.touch().buttons` says where (L-018). Read features at least 2 px across, from their middle (L-017).
 
+- **Time in simulation steps, not real time (L-042).** The headless browser has no GPU and draws the 1920 x 1080 canvas at 20 to 30 frames a second, slower still under the parallel run, and the loop catches up at most 5 steps a frame, so real time and game time drift apart. Wait for a number of steps (`waitForFunction` on `ticks()` against a count read before), measure a phase with `phaseSince()`, never with `waitForTimeout` before reading a speed or position, and never by polling `ticks()` around an event. Do all slow setup (layout reads, a CDP session) before anything timed starts.
+
 ## Screenshots for visual review
 
 ```

@@ -157,8 +157,11 @@ test('GDD-CTL-03 sliding the finger right of the stick centre runs right, slower
   const speedAt = async (frac: number) => {
     await page.evaluate(() => window.__PONCHO__!.teleport(280, 224));
     await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+    const from = await page.evaluate(() => window.__PONCHO__!.ticks());
     await fingers(cdp, 'touchStart', [{ x: track.x + frac * (track.widthCss / 2), y: track.y, id: 1 }]);
-    await page.waitForTimeout(300); // long enough to reach that stick position's top speed, short of the wall at x 352
+    // 0.3 s of simulation steps, however slow the frames (L-042): long enough to reach that stick position's top speed, short of
+    // the wall at x 352.
+    await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 18, from);
     const vx = await page.evaluate(() => window.__PONCHO__!.state().vx);
     await fingers(cdp, 'touchEnd', []);
     return vx;
