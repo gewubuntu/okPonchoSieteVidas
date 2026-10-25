@@ -11,7 +11,15 @@ test('GDD-UI-02 the title screen', async ({ page }, info) => {
   await openGame(page);
   await page.waitForTimeout(300);
   expect((await page.evaluate(() => window.__PONCHO__!.titleDrawn())).shown).toBe(true);
+  expect((await page.evaluate(() => window.__PONCHO__!.titleDrawn())).menu).toMatchObject({ shown: true, chosen: 'start' });
   await shot(page, info, 'title');
+});
+
+test('GDD-UI-02 the title screen with Settings chosen', async ({ page }, info) => {
+  await openGame(page);
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown', keyCode: 40, bubbles: true })));
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().menu.chosen === 'settings');
+  await shot(page, info, 'title-settings-chosen');
 });
 
 test('GDD-UI-02 the title screen on an upright phone', async ({ page, isMobile }, info) => {

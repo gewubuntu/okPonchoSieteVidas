@@ -2,9 +2,12 @@
 // `PauseEvent`s and stops stepping the simulation while `paused` is true.
 import { buttonsDown, type RunState } from './run';
 import type { PlayerInput } from './movement';
+import { DEFAULT_SETTINGS, settingsEvent, type Settings, type SettingsRow } from './settings';
+import type { TitleItem } from './title';
 
-/** The pause menu's two items (GDD-UI-02). */
-export type MenuItem = 'resume' | 'quit';
+/** The pause menu's three items (GDD-UI-02). */
+export type MenuItem = 'resume' | 'settings' | 'quit';
+const MENU_ITEMS: readonly MenuItem[] = ['resume', 'settings', 'quit'];
 
 export interface PauseState {
   readonly paused: boolean;
@@ -12,60 +15,92 @@ export interface PauseState {
   readonly portrait: boolean;
   /** The chosen menu item. Every pause opens on `resume`. */
   readonly choice: MenuItem;
+  /** The chosen row of the settings screen, or null while it is closed. It opens on `master`, every time. */
+  readonly settings: SettingsRow | null;
 }
 
 /**
- * - `key`: Escape or P. `button`: the touch pause button. Both pause, and resume when paused.
- * - `tap`: a tap or click anywhere off the menu rows. It only resumes; while playing a tap is game input.
- * - `tapQuit`: a tap or click on the Quit to title row. It quits to the title screen. A tap on the Resume row is a plain `tap`,
- *   which resumes whichever item is chosen.
- * - `menuUp` / `menuDown`: Up or W, Down or S choose Resume or Quit to title (no wrap-around). `pick`: Enter, Space or Z picks the chosen item.
+ * Where a tap or click went down, on every menu at once. The scene classifies it by place, never by state; the state it
+ * reaches decides which menu reads it, so an Escape and a tap in one frame apply in order.
+ */
+export interface Tap {
+  readonly pause: MenuItem | null;
+  readonly title: TitleItem | null;
+  readonly settings: { readonly row: SettingsRow; readonly side: 'left' | 'right' } | null;
+}
+
+/** A tap off every row. */
+export const TAP_OFF: Tap = { pause: null, title: null, settings: null };
+
+/**
+ * - `key`: Escape or P. `button`: the touch pause button. Both pause, and resume when paused (leave the settings screen when it is open).
+ * - A `Tap`: a tap or click, by place. While playing it is game input. On the pause menu it resumes, except on the Settings row
+ *   (opens settings) and the Quit to title row (quits); on the settings screen see `settingsEvent`.
+ * - `menuUp` / `menuDown`: Up or W, Down or S choose the item above or below (no wrap-around). `menuLeft` / `menuRight`: Left or A,
+ *   Right or D, which change a volume on the settings screen. `pick`: Enter, Space or Z picks the chosen item.
  * - `blur`: the tab or window lost focus or was hidden. It pauses and never resumes by itself.
  * - `portrait` / `landscape`: a phone turned upright pauses; turning it back allows a resume but does not resume.
  */
-export type PauseEvent = 'key' | 'button' | 'tap' | 'tapQuit' | 'menuUp' | 'menuDown' | 'pick' | 'blur' | 'portrait' | 'landscape';
+export type PauseEvent = 'key' | 'button' | 'menuUp' | 'menuDown' | 'menuLeft' | 'menuRight' | 'pick' | 'blur' | 'portrait' | 'landscape' | Tap;
 
-export const PLAYING: PauseState = { paused: false, portrait: false, choice: 'resume' };
+export const PLAYING: PauseState = { paused: false, portrait: false, choice: 'resume', settings: null };
 
-/** One event. `'quit'` when it picks Quit to title. Resuming goes back to `PLAYING`, so the next pause opens on Resume. */
-export function pauseEvent(state: PauseState, event: PauseEvent): PauseState | 'quit' {
-  // The menu can be chosen from and picked on only while it is shown: paused, and not upright.
-  const open = state.paused && !state.portrait;
+/** The settings screen opens on Master volume, every time. */
+const openSettings = (state: PauseState): PauseState => ({ ...state, settings: 'master' });
+
+/**
+ * One event, with the settings values it may change. `'quit'` when it picks Quit to title. Resuming goes back to `PLAYING`, so
+ * the next pause opens on Resume with the settings screen closed.
+ */
+export function pauseEvent(state: PauseState, event: PauseEvent, settings: Settings = DEFAULT_SETTINGS): { state: PauseState; settings: Settings } | 'quit' {
+  const same = { state, settings };
+  if (event === 'blur') return { state: { ...state, paused: true }, settings };
+  if (event === 'portrait') return { state: { ...state, paused: true, portrait: true }, settings };
+  if (event === 'landscape') return { state: { ...state, portrait: false }, settings };
+  if (!state.paused) return event === 'key' || event === 'button' ? { state: { ...state, paused: true }, settings } : same;
+  // The menus can be chosen from and picked on only while shown: paused, and not upright.
+  if (state.portrait) return same;
+  if (state.settings !== null) {
+    const result = settingsEvent(state.settings, settings, event);
+    if (result === 'back') return { state: { ...state, settings: null, choice: 'settings' }, settings };
+    return { state: { ...state, settings: result.row }, settings: result.settings };
+  }
+  if (typeof event === 'object') {
+    if (event.pause === 'settings') return { state: openSettings(state), settings };
+    return event.pause === 'quit' ? 'quit' : { state: PLAYING, settings };
+  }
   switch (event) {
     case 'key':
     case 'button':
-      if (!state.paused) return { ...state, paused: true };
-      return open ? PLAYING : state;
-    case 'tap':
-      return open ? PLAYING : state;
-    case 'tapQuit':
-      return open ? 'quit' : state;
+      return { state: PLAYING, settings };
     case 'menuUp':
-      return open ? { ...state, choice: 'resume' } : state;
+      return { state: { ...state, choice: MENU_ITEMS[Math.max(0, MENU_ITEMS.indexOf(state.choice) - 1)]! }, settings };
     case 'menuDown':
-      return open ? { ...state, choice: 'quit' } : state;
+      return { state: { ...state, choice: MENU_ITEMS[Math.min(MENU_ITEMS.length - 1, MENU_ITEMS.indexOf(state.choice) + 1)]! }, settings };
     case 'pick':
-      if (!open) return state;
-      return state.choice === 'quit' ? 'quit' : PLAYING;
-    case 'blur':
-      return { ...state, paused: true };
-    case 'portrait':
-      return { ...state, paused: true, portrait: true };
+      if (state.choice === 'quit') return 'quit';
+      return { state: state.choice === 'settings' ? openSettings(state) : PLAYING, settings };
   }
-  // 'landscape'
-  return { ...state, portrait: false };
+  return same; // menuLeft, menuRight
 }
 
 /**
- * One frame of pause events, applied in order. After a quit the rest of the frame only tracks the orientation, so a press
- * after the pick does nothing, but a turn upright still shows. `portrait` is the orientation at the end of the frame.
+ * One frame of pause events, applied in order, threading the settings values. After a quit the rest of the frame only tracks the
+ * orientation, so a press after the pick does nothing, but a turn upright still shows. `portrait` is the orientation at the end
+ * of the frame.
  */
-export function pauseFrame(state: PauseState, events: readonly PauseEvent[]): { state: PauseState; quit: boolean; portrait: boolean } {
+export function pauseFrame(
+  state: PauseState,
+  events: readonly PauseEvent[],
+  settings: Settings = DEFAULT_SETTINGS,
+): { state: PauseState; quit: boolean; portrait: boolean; settings: Settings } {
   let current = state;
+  let values = settings;
   for (let i = 0; i < events.length; i++) {
-    const next = pauseEvent(current, events[i]!);
+    const next = pauseEvent(current, events[i]!, values);
     if (next !== 'quit') {
-      current = next;
+      current = next.state;
+      values = next.settings;
       continue;
     }
     // A pick needs the menu shown, so the phone is sideways when it comes.
@@ -74,9 +109,9 @@ export function pauseFrame(state: PauseState, events: readonly PauseEvent[]): { 
       if (e === 'portrait') portrait = true;
       else if (e === 'landscape') portrait = false;
     }
-    return { state: PLAYING, quit: true, portrait };
+    return { state: PLAYING, quit: true, portrait, settings: values };
   }
-  return { state: current, quit: false, portrait: current.portrait };
+  return { state: current, quit: false, portrait: current.portrait, settings: values };
 }
 
 /**

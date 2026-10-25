@@ -58,6 +58,30 @@ test('GDD-UI-02 a Space tap inside one task starts the level (L-006)', async ({ 
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
 });
 
+test('GDD-UI-02 a Left, Right, claw or Fuego tap inside one task starts the level from the title (L-006)', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  for (const [code, keyCode] of [['ArrowLeft', 37], ['ArrowRight', 39], ['KeyX', 88], ['KeyC', 67]] as const) {
+    await openGame(page);
+    await tapKey(page, code, keyCode, 1);
+    await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
+  }
+});
+
+test('GDD-UI-02 on the title, Down and Enter tapped inside one task open the settings screen, and a Left tap there lowers a volume and starts nothing', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await openGame(page);
+  await page.evaluate(() => {
+    for (const [code, keyCode] of [['ArrowDown', 40], ['Enter', 13], ['ArrowLeft', 37]] as const) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code, keyCode, bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { code, keyCode, bubbles: true }));
+    }
+  });
+  await page.waitForFunction(() => window.__PONCHO__!.settings().master === 9);
+  expect(await api(page, () => window.__PONCHO__!.settingsDrawn())).toMatchObject({ shown: true, from: 'title', chosen: 'master' });
+  await page.waitForTimeout(250);
+  expect(await api(page, () => window.__PONCHO__!.ticks())).toBe(0);
+});
+
 test('GDD-UI-02 an Enter tap inside one task starts the level (L-006)', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await openGame(page);
@@ -215,6 +239,7 @@ test('GDD-UI-02 a Space tapped inside one task picks Quit to title and does not 
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
   await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
   await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.chosen === 'quit');
   await tapKey(page, 'Space', 32, 1);
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
@@ -225,14 +250,14 @@ test('GDD-UI-02 a Space tapped inside one task picks Quit to title and does not 
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
 });
 
-test('GDD-UI-02 Down then Enter, each tapped inside one task, quit to the title screen', async ({ page, isMobile }) => {
+test('GDD-UI-02 Down, Down then Enter, each tapped inside one task, quit to the title screen', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
   await page.evaluate(() => {
-    for (const [code, keyCode] of [['ArrowDown', 40], ['Enter', 13]] as const) {
+    for (const [code, keyCode] of [['ArrowDown', 40], ['ArrowDown', 40], ['Enter', 13]] as const) {
       window.dispatchEvent(new KeyboardEvent('keydown', { code, keyCode, bubbles: true }));
       window.dispatchEvent(new KeyboardEvent('keyup', { code, keyCode, bubbles: true }));
     }

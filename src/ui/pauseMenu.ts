@@ -1,11 +1,12 @@
-// GDD-UI-02: where the pause menu's two rows are and which one a point is on. Pure data, no Phaser, so it can be unit
-// tested. The scene draws the texts and feeds in where the pointer went down.
-import { BASE_WIDTH, PAUSE_MENU, TOUCH } from '../config/tuning';
+// GDD-UI-02: where the pause menu's three rows and the title menu's two rows are and which one a point is on. Pure data, no
+// Phaser, so it can be unit tested. The scene draws the texts and feeds in where the pointer went down.
+import { BASE_WIDTH, PAUSE_MENU, TITLE_MENU, TOUCH } from '../config/tuning';
 import type { MenuItem } from '../sim/pause';
+import type { TitleItem } from '../sim/title';
 
 /** A row's rectangle in virtual pixels. */
-export interface MenuRow {
-  readonly item: MenuItem;
+export interface MenuRow<Item extends string = MenuItem> {
+  readonly item: Item;
   readonly x: number;
   readonly y: number;
   readonly w: number;
@@ -13,20 +14,25 @@ export interface MenuRow {
 }
 
 /**
- * Two rows, "Resume" then "Quit to title", centred, the first's top at PAUSE_MENU.top and the second directly below. A row is
- * never under TOUCH.minCssPx tall on the player's screen, so on a small screen both grow. `cssPerVirtualPx` is how big one
- * virtual pixel is there.
+ * Rows for `items`, centred, the first's top at `top` and each next directly below. A row is never under TOUCH.minCssPx tall on
+ * the player's screen, so on a small screen they grow. `cssPerVirtualPx` is how big one virtual pixel is there.
  */
-export function layoutPauseMenu(cssPerVirtualPx: number): [MenuRow, MenuRow] {
-  const h = Math.max(PAUSE_MENU.rowHeight, Math.ceil(TOUCH.minCssPx / cssPerVirtualPx));
-  const x = (BASE_WIDTH - PAUSE_MENU.width) / 2;
-  return [
-    { item: 'resume', x, y: PAUSE_MENU.top, w: PAUSE_MENU.width, h },
-    { item: 'quit', x, y: PAUSE_MENU.top + h, w: PAUSE_MENU.width, h },
-  ];
+function stackRows<Item extends string>(items: readonly Item[], menu: { width: number; rowHeight: number; top: number }, cssPerVirtualPx: number): MenuRow<Item>[] {
+  const h = Math.max(menu.rowHeight, Math.ceil(TOUCH.minCssPx / cssPerVirtualPx));
+  const x = (BASE_WIDTH - menu.width) / 2;
+  return items.map((item, i) => ({ item, x, y: menu.top + i * h, w: menu.width, h }));
 }
 
+/** Three rows, "Resume", "Settings" and "Quit to title", the first's top at PAUSE_MENU.top. */
+export const layoutPauseMenu = (cssPerVirtualPx: number): MenuRow[] => stackRows(['resume', 'settings', 'quit'] as const, PAUSE_MENU, cssPerVirtualPx);
+
+/** Two rows, "Start" and "Settings", the first's top at TITLE_MENU.top. */
+export const layoutTitleMenu = (cssPerVirtualPx: number): MenuRow<TitleItem>[] => stackRows(['start', 'settings'] as const, TITLE_MENU, cssPerVirtualPx);
+
 /** The item whose row holds the point, or null. A row covers its left and top edge but not its right and bottom edge, like a touch button. */
-export function pauseMenuItemAt(rows: readonly MenuRow[], x: number, y: number): MenuItem | null {
+function itemAt<Item extends string>(rows: readonly MenuRow<Item>[], x: number, y: number): Item | null {
   return rows.find((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h)?.item ?? null;
 }
+
+export const pauseMenuItemAt = (rows: readonly MenuRow[], x: number, y: number): MenuItem | null => itemAt(rows, x, y);
+export const titleMenuItemAt = (rows: readonly MenuRow<TitleItem>[], x: number, y: number): TitleItem | null => itemAt(rows, x, y);

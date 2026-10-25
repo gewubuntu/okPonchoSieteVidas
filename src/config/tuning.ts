@@ -101,6 +101,19 @@ export const TOUCH = {
 /** GDD-UI-02: the pause menu's rows, in virtual pixels; each grows so it is never under TOUCH.minCssPx tall. */
 export const PAUSE_MENU = { width: 160, rowHeight: 28, top: 136, textSize: 12 } as const;
 
+/** GDD-UI-02: the title menu's rows ("Start", "Settings"), in virtual pixels; each grows like the pause menu's. The text size is `PAUSE_MENU.textSize`. */
+export const TITLE_MENU = { width: 160, rowHeight: 28, top: 176 } as const;
+
+/**
+ * GDD-UI-02: the settings screen, in virtual pixels. Rows grow like the pause menu's. A volume row has its label `labelInset`
+ * from its left edge, "<" and ">" `arrowInset` inside its edges, and its bars (`barWidth` wide, `barGap` apart) ending
+ * `barsInset` inside its right edge.
+ */
+export const SETTINGS_MENU = { width: 260, rowHeight: 28, top: 96, titleY: 76, labelInset: 20, arrowInset: 8, barWidth: 5, barHeight: 10, barGap: 2, barsInset: 20 } as const;
+
+/** GDD-UI-02, GDD-AUD-01: a volume is a whole number of `steps` shares, and starts at `default`. */
+export const VOLUME = { steps: 10, default: 10 } as const;
+
 /**
  * GDD-LIFE-05: the "Siete vidas gastadas" screen after the last life waits for a press of any button, but ignores presses for its
  * first `lockoutSteps` (1.0 s).

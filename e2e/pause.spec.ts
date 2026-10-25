@@ -206,7 +206,7 @@ test('GDD-UI-02 a phone turned upright pauses and asks to turn it sideways; only
   await started(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().prompt === 'Turn your device sideways');
-  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: true, portrait: true, choice: 'resume' });
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: true, portrait: true, choice: 'resume', settings: null });
   const upright = await api(page, () => window.__PONCHO__!.pauseDrawn());
   expect(upright.promptSize).toBe(12); // larger, the level is drawn small
   expect(upright.menu.shown).toBe(false);
@@ -246,21 +246,29 @@ test('GDD-UI-02 a narrow desktop window is not a phone: it does not pause', asyn
 const PALE = '#fff3dc';
 const GREY = '#9ba3c4';
 const menuOf = async (page: Page) => (await api(page, () => window.__PONCHO__!.pauseDrawn())).menu;
-const chosenIs = (page: Page, item: 'resume' | 'quit') => page.waitForFunction((want) => window.__PONCHO__!.pauseDrawn().menu.chosen === want, item);
+const chosenIs = (page: Page, item: 'resume' | 'settings' | 'quit') => page.waitForFunction((want) => window.__PONCHO__!.pauseDrawn().menu.chosen === want, item);
 const resumed = (page: Page) => page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
 const titleShown = (page: Page) => api(page, () => window.__PONCHO__!.titleDrawn().shown);
+/** Chooses Quit to title: Down twice, through Settings (GDD-UI-02). `raw` sends the key as a bare browser event. */
+const chooseQuit = async (page: Page, raw = false) => {
+  for (const want of ['settings', 'quit'] as const) {
+    if (raw) await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown', keyCode: 40, bubbles: true })));
+    else await page.keyboard.press('ArrowDown');
+    await chosenIs(page, want);
+  }
+};
 const pauseWithEscape = async (page: Page) => {
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
 };
 /** The middle of a menu row on the page, in CSS px, read from the laid-out rows and the canvas. */
-async function rowCentre(page: Page, item: 'resume' | 'quit'): Promise<{ x: number; y: number }> {
+async function rowCentre(page: Page, item: 'resume' | 'settings' | 'quit'): Promise<{ x: number; y: number }> {
   const row = (await api(page, () => window.__PONCHO__!.pauseMenu())).find((r) => r.item === item)!;
   const box = (await page.locator('canvas').boundingBox())!;
   const k = box.width / 480;
   return { x: box.x + (row.x + row.w / 2) * k, y: box.y + (row.y + row.h / 2) * k };
 }
-const clickRow = async (page: Page, item: 'resume' | 'quit') => {
+const clickRow = async (page: Page, item: 'resume' | 'settings' | 'quit') => {
   const at = await rowCentre(page, item);
   await page.mouse.click(at.x, at.y);
 };
@@ -270,38 +278,42 @@ const startAgain = async (page: Page) => {
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
 };
 
-test('GDD-UI-02 the pause menu shows Resume chosen, then Down chooses Quit to title and Up Resume again', async ({ page, isMobile }) => {
+test('GDD-UI-02 the pause menu shows Resume chosen, then Down chooses Settings and Quit to title and Up comes back', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await started(page);
   await pauseWithEscape(page);
   const rows = await api(page, () => window.__PONCHO__!.pauseMenu());
   const middle = (i: number) => rows[i]!.y + rows[i]!.h / 2;
-  expect(await menuOf(page)).toEqual({ shown: true, items: ['Resume', 'Quit to title'], colors: [PALE, GREY], chosen: 'resume', markerY: middle(0) });
+  expect(await menuOf(page)).toEqual({ shown: true, items: ['Resume', 'Settings', 'Quit to title'], colors: [PALE, GREY, GREY], chosen: 'resume', markerY: middle(0) });
+  await page.keyboard.press('ArrowDown');
+  await chosenIs(page, 'settings');
+  expect(await menuOf(page)).toMatchObject({ colors: [GREY, PALE, GREY], chosen: 'settings', markerY: middle(1) });
   await page.keyboard.press('ArrowDown');
   await chosenIs(page, 'quit');
-  expect(await menuOf(page)).toMatchObject({ colors: [GREY, PALE], chosen: 'quit', markerY: middle(1) });
+  expect(await menuOf(page)).toMatchObject({ colors: [GREY, GREY, PALE], chosen: 'quit', markerY: middle(2) });
   await page.keyboard.press('KeyS'); // already on Quit to title: no wrap-around
   await frames(page);
-  expect(await menuOf(page)).toMatchObject({ colors: [GREY, PALE], chosen: 'quit' });
+  expect(await menuOf(page)).toMatchObject({ colors: [GREY, GREY, PALE], chosen: 'quit' });
+  await page.keyboard.press('ArrowUp');
+  await chosenIs(page, 'settings');
   await page.keyboard.press('ArrowUp');
   await chosenIs(page, 'resume');
-  expect(await menuOf(page)).toMatchObject({ colors: [PALE, GREY], markerY: middle(0) });
+  expect(await menuOf(page)).toMatchObject({ colors: [PALE, GREY, GREY], markerY: middle(0) });
   await page.keyboard.press('ArrowUp'); // already on Resume: no wrap-around
   await frames(page);
   expect(await menuOf(page)).toMatchObject({ chosen: 'resume' });
   await page.keyboard.press('KeyS');
-  await chosenIs(page, 'quit');
+  await chosenIs(page, 'settings');
   await page.keyboard.press('KeyW');
   await chosenIs(page, 'resume');
-  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: true, portrait: false, choice: 'resume' });
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: true, portrait: false, choice: 'resume', settings: null });
 });
 
 test('GDD-UI-02 the pause menu opens on Resume every time', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await started(page);
   await pauseWithEscape(page);
-  await page.keyboard.press('ArrowDown');
-  await chosenIs(page, 'quit');
+  await chooseQuit(page);
   await page.keyboard.press('Escape'); // resumes with Quit to title chosen
   await resumed(page);
   await pauseWithEscape(page);
@@ -355,12 +367,11 @@ test('GDD-UI-02 Down then Enter quits to the title screen over a fresh run', asy
   const sfxBefore = (await api(page, () => window.__PONCHO__!.sfx())).length;
 
   await pauseWithEscape(page);
-  await page.keyboard.press('ArrowDown');
-  await chosenIs(page, 'quit');
+  await chooseQuit(page);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
-  expect(await api(page, () => window.__PONCHO__!.titleDrawn())).toMatchObject({ shown: true, prompt: 'Press any button to start' });
-  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false, choice: 'resume' });
+  expect(await api(page, () => window.__PONCHO__!.titleDrawn())).toMatchObject({ shown: true, prompt: '', menu: { chosen: 'start' } });
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false, choice: 'resume', settings: null });
   expect((await api(page, () => window.__PONCHO__!.pauseDrawn())).shown).toBe(false);
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   expect(await api(page, () => window.__PONCHO__!.hudFilled())).toBe(7);
@@ -387,8 +398,7 @@ test('GDD-UI-02 the Space that quits counts as held on the title screen, and a n
   test.skip(isMobile, 'keyboard test');
   await started(page);
   await pauseWithEscape(page);
-  await page.keyboard.press('ArrowDown');
-  await chosenIs(page, 'quit');
+  await chooseQuit(page);
   await page.keyboard.down('Space');
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
   await page.waitForTimeout(250);
@@ -403,14 +413,15 @@ test('GDD-UI-02 each menu key counts once per press, and auto-repeat is no press
   test.skip(isMobile, 'keyboard test');
   await started(page);
   await pauseWithEscape(page);
-  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown', keyCode: 40, bubbles: true })));
-  await chosenIs(page, 'quit');
+  await chooseQuit(page, true);
   // A held key's auto-repeat is no new press: five repeats of Up leave Quit to title chosen.
   await page.evaluate(() => {
     for (let n = 0; n < 5; n++) window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowUp', keyCode: 38, repeat: true, bubbles: true }));
   });
   await frames(page);
   expect((await menuOf(page)).chosen).toBe('quit');
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowUp', keyCode: 38, bubbles: true })));
+  await chosenIs(page, 'settings'); // one press, one step up
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowUp', keyCode: 38, bubbles: true })));
   await chosenIs(page, 'resume');
   // The key labelled S chooses on any layout: on Dvorak it sits where QWERTY has Semicolon (keyCode 83), and the key in
@@ -419,7 +430,7 @@ test('GDD-UI-02 each menu key counts once per press, and auto-repeat is no press
   await frames(page);
   expect((await menuOf(page)).chosen).toBe('resume');
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Semicolon', key: 's', keyCode: 83, bubbles: true })));
-  await chosenIs(page, 'quit');
+  await chosenIs(page, 'settings');
 });
 
 test('GDD-UI-02 a click on the Quit row quits, a click on the Resume row resumes, with either item chosen', async ({ page, isMobile }) => {
@@ -428,18 +439,16 @@ test('GDD-UI-02 a click on the Quit row quits, a click on the Resume row resumes
   await pauseWithEscape(page);
   await clickRow(page, 'quit');
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
-  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false, choice: 'resume' });
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false, choice: 'resume', settings: null });
   await startAgain(page);
   await pauseWithEscape(page);
-  await page.keyboard.press('ArrowDown');
-  await chosenIs(page, 'quit');
+  await chooseQuit(page);
   await clickRow(page, 'resume');
   await resumed(page);
   expect(await titleShown(page)).toBe(false);
   // With Quit to title chosen, a click on the Quit row quits too.
   await pauseWithEscape(page);
-  await page.keyboard.press('ArrowDown');
-  await chosenIs(page, 'quit');
+  await chooseQuit(page);
   await clickRow(page, 'quit');
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
 });
@@ -476,7 +485,7 @@ test('GDD-UI-02 upright, the menu is hidden and a tap on its rows does nothing',
   const quit = await rowCentre(page, 'quit');
   await page.touchscreen.tap(quit.x, quit.y);
   await standsStill(page);
-  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: true, portrait: true, choice: 'resume' });
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: true, portrait: true, choice: 'resume', settings: null });
   expect(await titleShown(page)).toBe(false);
   await page.setViewportSize({ width: 844, height: 390 });
   await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.shown && document.querySelector('canvas')!.getBoundingClientRect().width > 600);
@@ -493,8 +502,7 @@ test('GDD-UI-02 quitting from the Siete vidas gastadas screen gives a fresh run'
   await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
   await page.waitForFunction(() => window.__PONCHO__!.gameOverDrawn().prompt);
   await pauseWithEscape(page);
-  await page.keyboard.press('ArrowDown');
-  await chosenIs(page, 'quit');
+  await chooseQuit(page);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('playing');
@@ -520,8 +528,7 @@ test('GDD-UI-02 quitting starts the hilo notes over from the first', async ({ pa
   await toFirstHilo();
   expect(await hiloNotes()).toEqual(['hilo:0']);
   await pauseWithEscape(page);
-  await page.keyboard.press('ArrowDown');
-  await chosenIs(page, 'quit');
+  await chooseQuit(page);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
   await startAgain(page);
@@ -542,8 +549,7 @@ test('GDD-UI-02 quitting in mid-air starts a run with no jump behind it', async 
   });
   expect((await api(page, () => window.__PONCHO__!.state())).grounded).toBe(false);
   await pauseWithEscape(page);
-  await page.keyboard.press('ArrowDown');
-  await chosenIs(page, 'quit');
+  await chooseQuit(page);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
   await startAgain(page);
@@ -557,8 +563,7 @@ test('GDD-UI-02 a pick and a turn upright in one frame quit to a title that asks
   await started(page);
   await tapButton(page, 'pause');
   await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.shown);
-  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown', keyCode: 40, bubbles: true })));
-  await chosenIs(page, 'quit');
+  await chooseQuit(page, true);
   // Enter and the turn upright land in one task, so in one frame; the pick came first.
   await page.evaluate(() => {
     Object.defineProperty(window.screen.orientation, 'type', { value: 'portrait-primary', configurable: true });
@@ -575,7 +580,7 @@ test('GDD-UI-02 a pick and a turn upright in one frame quit to a title that asks
     Object.defineProperty(window.screen.orientation, 'type', { value: 'landscape-primary', configurable: true });
     window.dispatchEvent(new Event('resize'));
   });
-  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().prompt === 'Tap to start');
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().prompt === '');
   await page.touchscreen.tap(420, 100);
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
 });
@@ -592,8 +597,7 @@ for (const [code, keyCode] of [['KeyX', 88], ['ArrowLeft', 37], ['ArrowRight', 3
         window.dispatchEvent(new KeyboardEvent('keyup', { code: c, keyCode: k, bubbles: true }));
       }, [code, keyCode] as const);
     await tap();
-    await page.keyboard.press('ArrowDown');
-    await chosenIs(page, 'quit');
+    await chooseQuit(page);
     await page.keyboard.press('Enter');
     await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
     await standsStill(page);
@@ -667,6 +671,7 @@ test('GDD-UI-02 in slide-stick mode, a finger held through quitting and the star
   await touchAt(page, cdp, 'touchStart', [{ x: 100, y: 240, id: 1 }]); // steering before the pause
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
@@ -796,6 +801,7 @@ test('GDD-UI-02 a Right key held through quitting and the start of the level doe
   await page.keyboard.down('ArrowRight'); // running before the pause
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);

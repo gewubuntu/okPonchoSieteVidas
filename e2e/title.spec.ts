@@ -31,14 +31,19 @@ const titlePoncho = { x: 240, y: 146 };
 
 test('GDD-UI-02 the game opens on the title screen with the level standing still', async ({ page, isMobile }) => {
   await openGame(page);
+  const rows = await api(page, () => window.__PONCHO__!.titleMenu());
+  const middle = (i: number) => rows[i]!.y + rows[i]!.h / 2;
   expect(await api(page, () => window.__PONCHO__!.titleDrawn())).toEqual({
     shown: true,
     title: 'PONCHO',
     subtitle: 'Siete Vidas',
-    prompt: isMobile ? 'Tap to start' : 'Press any button to start',
-    promptSize: 8,
+    prompt: '',
+    promptSize: 12,
     ponchoShown: true,
+    menu: { shown: true, items: ['Start', 'Settings'], colors: ['#fff3dc', '#9ba3c4'], chosen: 'start', markerY: middle(0) },
   });
+  expect(rows.map((r) => r.item)).toEqual(['start', 'settings']);
+  expect(rows[0]).toMatchObject({ x: 160, y: 176, w: 160 });
   expect(await ticks(page)).toBe(0);
   await page.waitForTimeout(300);
   expect(await ticks(page)).toBe(0);
@@ -67,11 +72,31 @@ test('GDD-UI-02 the veil dims the level and the HUD, and Poncho stands on it in 
 
 test('GDD-UI-02 each game key starts the level', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
-  for (const key of ['Space', 'ArrowLeft', 'ArrowRight', 'KeyX', 'KeyC', 'KeyZ', 'KeyA', 'KeyD', 'KeyJ', 'KeyK', 'KeyW', 'ArrowUp']) {
+  // Space and Z pick Start; the others are game buttons (claw, Fuego, Left, Right) whose new press starts it.
+  for (const key of ['Space', 'KeyZ', 'Enter', 'ArrowLeft', 'ArrowRight', 'KeyX', 'KeyC', 'KeyA', 'KeyD', 'KeyJ', 'KeyK']) {
     await openGame(page);
     await page.keyboard.press(key);
     await titleHidden(page);
   }
+});
+
+test('GDD-UI-02 Up and W choose, they do not start the level', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await openGame(page);
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('KeyW');
+  await page.waitForTimeout(300);
+  expect(await titleShown(page)).toBe(true);
+  expect(await ticks(page)).toBe(0);
+  // Down chooses Settings (no start), Up chooses Start again.
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().menu.chosen === 'settings');
+  expect(await titleShown(page)).toBe(true);
+  await page.keyboard.press('KeyS'); // no wrap-around
+  await page.keyboard.press('KeyW');
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().menu.chosen === 'start');
+  await page.keyboard.press('ArrowUp');
+  expect(await titleShown(page)).toBe(true);
 });
 
 test('GDD-UI-02 a click or a tap anywhere starts the level', async ({ page, isMobile }) => {
@@ -92,7 +117,7 @@ test('GDD-UI-02 Escape, P and losing focus do nothing on the title screen, and t
   await page.keyboard.press('Enter');
   await titleHidden(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false, choice: 'resume' });
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false, choice: 'resume', settings: null });
 });
 
 test('GDD-UI-02 the jump that starts the level, held, does not jump until pressed again', async ({ page, isMobile }) => {
@@ -127,21 +152,20 @@ test('GDD-UI-02 a phone upright when the game opens is asked to turn sideways, a
   await page.setViewportSize({ width: 390, height: 844 }); // before the game opens: it starts in this state (L-023)
   await openGame(page);
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().prompt === 'Turn your device sideways');
-  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).promptSize).toBe(12);
+  expect(await api(page, () => window.__PONCHO__!.titleDrawn())).toMatchObject({ promptSize: 12, menu: { shown: false, chosen: null, markerY: null } });
   await tapCentre(page, true);
   await page.keyboard.press('Enter');
   await page.waitForTimeout(300);
   expect(await titleShown(page)).toBe(true);
   expect(await ticks(page)).toBe(0);
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().prompt === 'Tap to start');
-  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).promptSize).toBe(8);
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().prompt === '' && window.__PONCHO__!.titleDrawn().menu.shown);
   await page.waitForTimeout(300);
   expect(await titleShown(page)).toBe(true); // turning sideways starts nothing
   await tapCentre(page, true);
   await titleHidden(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false, choice: 'resume' });
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false, choice: 'resume', settings: null });
 });
 
 test('GDD-UI-02 a phone turned upright on the title screen asks to turn sideways', async ({ page, isMobile }) => {
@@ -153,7 +177,7 @@ test('GDD-UI-02 a phone turned upright on the title screen asks to turn sideways
   await page.waitForTimeout(300);
   expect(await titleShown(page)).toBe(true);
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().prompt === 'Tap to start');
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().prompt === '' && window.__PONCHO__!.titleDrawn().menu.shown);
   await tapCentre(page, true);
   await titleHidden(page);
   expect((await api(page, () => window.__PONCHO__!.playerPause())).paused).toBe(false);
