@@ -4,6 +4,7 @@ import { blockAt } from '../sim/block';
 import { freshEnemies, stepEnemy, touchesEnemy } from '../sim/enemy';
 import { spawn, type PlayerState } from '../sim/movement';
 import { touchesHilo } from '../sim/hilo';
+import { withPinatas } from '../sim/pinata';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import {
@@ -15,6 +16,7 @@ import {
   SANDBOX_FRAGILES,
   SANDBOX_HILOS,
   SANDBOX_KEYS,
+  SANDBOX_LEVEL,
   SANDBOX_OFRENDAS,
   SANDBOX_PINATAS,
   SANDBOX_PLATFORMS,
@@ -65,6 +67,26 @@ describe('GDD-ENM-02 the sandbox cactus buddy', () => {
   });
 });
 
+describe('GDD-ENM-02 the sandbox Alacrán and its platform (row 10, columns 4 to 8, then the piñata at column 9, top y = 160)', () => {
+  const alacran = SANDBOX_ENEMIES.find((e) => e.kind === undefined)!;
+  const away = standing(24, 14 * TILE);
+
+  it('patrols from the platform\'s left end (x = 64) across the piñata\'s top to its right end (x = 160), turning 7 px short of each', () => {
+    expect(alacran.y).toBe(160);
+    expect(SANDBOX_PINATAS[0]).toEqual({ col: 9, row: 10 });
+    let s = freshEnemies([alacran])[0]!;
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = 0; i < 1200; i++) {
+      s = stepEnemy(alacran, s, withPinatas(world, SANDBOX_PINATAS), away);
+      min = Math.min(min, s.x);
+      max = Math.max(max, s.x);
+    }
+    expect(min).toBe(71);
+    expect(max).toBe(153);
+  });
+});
+
 describe('GDD-ENM-02 the sandbox Tlacuache and its ledge (row 6, columns 25 to 29, x 400 to 480, top y = 96)', () => {
   const tlacuache = SANDBOX_ENEMIES.find((e) => e.kind === 'tlacuache')!;
   const away = standing(24, 14 * TILE);
@@ -85,15 +107,16 @@ describe('GDD-ENM-02 the sandbox Tlacuache and its ledge (row 6, columns 25 to 2
 
   it('Poncho gets onto it from the moving platform at its right end, with a jump to the right', () => {
     const sandbox: Level = { world, spawn: SANDBOX_SPAWN, ofrendas: [], spikes: [], crumbles: [], springs: [], platforms: SANDBOX_PLATFORMS, tacos: [], pinatas: SANDBOX_PINATAS, doors: [], keys: [], fragiles: [], enemies: [] };
-    // The platform reaches its right end (x 336 to 384) after 96 px at 40 px/s, 144 steps.
-    let r: RunState = { ...startRun(sandbox), player: standing(378, 128), platformTick: 144 };
+    // The platform reaches its right end (x 336 to 384) after 96 px at 40 px/s, 144 steps. The piñata at column 23 (x 368 to 384,
+    // y 112 to 128) stops him at x = 362, so the jump rises 16 px against its side, clears its top and comes down on the ledge.
+    let r: RunState = { ...startRun(sandbox), player: standing(362, 128), platformTick: 144 };
     let landed = false;
     for (let i = 0; i < 120 && !landed; i++) {
       r = stepRun(r, { move: 1, jumpHeld: i < 20 }, sandbox);
       landed = r.player.grounded && r.player.y === 96;
     }
     expect(landed).toBe(true);
-    expect(r.player.x).toBeGreaterThan(400);
+    expect(r.player.x).toBeGreaterThanOrEqual(400); // lands at x = 400 with a 20 step hold: his middle on the ledge's edge
   });
 
   it('is out of the Zopilote\'s reach: it never spots Poncho anywhere on the ledge', () => {
@@ -197,16 +220,16 @@ describe('GDD-WLD-04 the sandbox hilos', () => {
     };
     const pit = SANDBOX_HILOS.findIndex((h) => h.col === 15);
     expect(pit).toBeGreaterThanOrEqual(0);
-    // From the top of the 2-tile wall (columns 10 and 11, top y = 192): jump held for 12 steps, right held for the first 15 steps,
-    // then let go until step 36 (he comes down on the spring at about step 31 and is thrown up), then right again over the pit.
-    // Holding right all the way flies past the spring (the spring ledge is 16 px higher since the body grew to 20 px, GDD-MOV-06).
+    // From the top of the 2-tile wall (columns 10 and 11, top y = 192): jump held for 12 steps, right held for the first 14 steps,
+    // then let go until step 29 (he comes down on the spring at step 34 and is thrown up), then right again over the pit.
+    // Holding right all the way flies past the spring (the spring ledge is 16 px higher since the body grew, GDD-MOV-06).
     let r: RunState = { ...startRun(sandbox), player: standing(166, 12 * TILE) };
     expect(r.hilosTaken[pit]).toBe(false);
     // Stop at the first landing past the pit (it ends at x = 272), asserting every step on the way.
     let landed = false;
     let launched = false;
     for (let i = 0; i < 200 && !landed; i++) {
-      r = stepRun(r, { move: i < 15 || i >= 36 ? 1 : 0, jumpHeld: i < 12 }, sandbox);
+      r = stepRun(r, { move: i < 14 || i >= 29 ? 1 : 0, jumpHeld: i < 12 }, sandbox);
       launched ||= r.player.vy <= -450; // the spring's plain launch is 480 px/s up; his own jump is 410
       expect(r.phase, `step ${i}`).toBe('playing');
       expect(r.lives.lives, `step ${i}`).toBe(7);
@@ -215,5 +238,47 @@ describe('GDD-WLD-04 the sandbox hilos', () => {
     expect(landed).toBe(true);
     expect(launched).toBe(true);
     expect(r.hilosTaken[pit]).toBe(true);
+  });
+});
+
+describe('GDD-PWR-05 the sandbox piñata at column 9', () => {
+  it('opens when Poncho stands under it and jumps: his 32 px head is 16 px short of its underside (y = 176) before the jump', () => {
+    const L = SANDBOX_LEVEL;
+    let r: RunState = { ...startRun(L), player: standing(152, 14 * TILE) };
+    expect(r.pinatasOpen[0]).toBe(false);
+    for (let i = 0; i < 40 && !r.pinatasOpen[0]; i++) r = stepRun(r, { move: 0, jumpHeld: true }, L);
+    expect(r.pinatasOpen[0]).toBe(true);
+    expect(r.items).toHaveLength(1);
+  });
+});
+
+describe('GDD-PWR-03 the sandbox piñata at column 23 (row 7, underside y = 128)', () => {
+  it('opens when Poncho jumps from the top of the 3-tile wall (y = 176) under it: his 32 px head is 16 px short of it before the jump', () => {
+    const L: Level = { ...SANDBOX_LEVEL, enemies: [] };
+    let r: RunState = { ...startRun(L), player: standing(372, 11 * TILE) };
+    expect(r.player.y - 32).toBe(144); // head 16 px under the underside, no touch
+    expect(r.pinatasOpen[1]).toBe(false);
+    for (let i = 0; i < 40 && !r.pinatasOpen[1]; i++) r = stepRun(r, { move: 0, jumpHeld: true }, L);
+    expect(r.pinatasOpen[1]).toBe(true);
+  });
+});
+
+describe('GDD-WLD-05 the moving platform meets the piñata at column 23 (x 368 to 384, y 112 to 128)', () => {
+  it('stops Poncho standing on its right end against the piñata at x = 362, keeps his lives, and the run goes on', () => {
+    const L: Level = { ...SANDBOX_LEVEL, enemies: [] };
+    // Standing 40 px in from the platform's left edge (x = 240 at the start), carried right by its 96 px travel: the body's right edge
+    // (x + 6) meets the piñata's left side (x = 368) at x = 362, while the platform is still 14 px short of its far end.
+    let r: RunState = { ...startRun(L), player: standing(280, 8 * TILE) };
+    let stopped = 0;
+    for (let i = 0; i < 300; i++) {
+      r = stepRun(r, { move: 0, jumpHeld: false }, L);
+      expect(r.phase, `step ${i}`).toBe('playing');
+      expect(r.lives.lives, `step ${i}`).toBe(7);
+      expect(r.player.x, `step ${i}`).toBeLessThanOrEqual(362);
+      expect(r.player.y, `step ${i}`).toBe(128);
+      if (r.player.x === 362) stopped++;
+    }
+    expect(stopped).toBeGreaterThan(20); // held there while the platform runs on to its far end and turns back
+    expect(r.pinatasOpen[1]).toBe(false); // carried against its side, not into it from below
   });
 });

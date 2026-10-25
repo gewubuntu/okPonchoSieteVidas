@@ -38,10 +38,10 @@ test('GDD-MOV-06 Poncho bumps his head on the underside of a platform', async ({
   await page.waitForTimeout(450);
   await page.keyboard.up('Space');
   await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
-  // The head (20 px above the feet) stops at 176, so the feet reach y = 196, which is a rise of 28 px.
+  // The head (32 px above the feet) stops at 176, so the feet reach y = 208, which is a rise of 16 px.
   const peak = await page.evaluate(() => window.__PONCHO__!.peakRise());
-  expect(peak).toBeGreaterThan(27);
-  expect(peak).toBeLessThan(29);
+  expect(peak).toBeGreaterThan(15);
+  expect(peak).toBeLessThan(17);
 });
 
 test('GDD-MOV-03 a jump that clips the corner of a platform by 3 px slides around it and keeps rising', async ({ page, isMobile }) => {

@@ -3,7 +3,7 @@ import { boot } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 
-// The sandbox level has a piñata at tile column 9, row 11 (x 144 to 160, underside y = 192), 32 px above the floor.
+// The sandbox level has a piñata at tile column 9, row 10 (x 144 to 160, underside y = 176), 48 px above the floor.
 const bumpIt = (page: Page) =>
   page.evaluate(() => {
     window.__PONCHO__!.pause(true);
@@ -29,7 +29,7 @@ test('GDD-PWR-05 a jump from underneath opens the piñata and a taco walks out o
   expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([true, false]);
   const items = await api(page, () => window.__PONCHO__!.itemsDrawn());
   expect(items).toHaveLength(1);
-  expect(items[0]!.y).toBe(176); // standing on the piñata's top, not fallen through it
+  expect(items[0]!.y).toBe(160); // standing on the piñata's top, not fallen through it
   const x0 = items[0]!.x;
   await page.evaluate(() => window.__PONCHO__!.step(10));
   expect((await api(page, () => window.__PONCHO__!.itemsDrawn()))[0]!.x).toBeGreaterThan(x0); // walking away

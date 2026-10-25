@@ -16,8 +16,8 @@ const level: Level = { world, spawn: { x: 24, y: 4 * TILE }, ofrendas: [], spike
 const at = (x: number, y: number) => spawn(x, y);
 
 describe('GDD-WLD-05 and GDD-MOV-06 spike hit box', () => {
-  it('Poncho is hurt through a 10 x 18 box centred in his 12 x 20 body', () => {
-    expect(hurtbox(at(40, 64))).toEqual({ x: 35, y: 45, w: 10, h: 18 }); // 1 px in from each side, 1 px above the feet
+  it('Poncho is hurt through a 10 x 30 box centred in his 12 x 32 body', () => {
+    expect(hurtbox(at(40, 64))).toEqual({ x: 35, y: 33, w: 10, h: 30 }); // 1 px in from each side, 1 px above the feet
   });
 
   it('a spike hurts across its whole tile width, 8 px up from the floor', () => {
@@ -40,8 +40,8 @@ describe('GDD-WLD-05 and GDD-MOV-06 spike hit box', () => {
   });
 
   it('does not hurt from below the spike tile', () => {
-    expect(touchesSpike(at(88, 82.99), spike)).toBe(true);
-    expect(touchesSpike(at(88, 83), spike)).toBe(false); // hurtbox top (y - 19) = 64 is the spike bottom
+    expect(touchesSpike(at(88, 94.99), spike)).toBe(true);
+    expect(touchesSpike(at(88, 95), spike)).toBe(false); // hurtbox top (y - 31) = 64 is the spike bottom
   });
 });
 

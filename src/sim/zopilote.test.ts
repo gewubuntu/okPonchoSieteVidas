@@ -10,7 +10,7 @@ import { parseTiles } from './tilemap';
 const idle: PlayerInput = { move: 0, jumpHeld: false };
 
 // Floor at row 10 (top y = 160) with a wall in column 12 (x 192 to 208, y 128 to 160). The Zopilote cruises at y = 100 from
-// x = 160, so it flies 112 to 208 either side. Poncho standing on the floor has his hurtbox centred at y = 150, 50 px below it.
+// x = 160, so it flies 112 to 208 either side. Poncho standing on the floor has his hurtbox centred at y = 144, 44 px below it.
 const rows = Array.from({ length: 12 }, (_, r) => {
   if (r >= 10) return '#'.repeat(20);
   if (r >= 8) return '............#.......';
@@ -95,22 +95,22 @@ describe('GDD-ENM-02 the Zopilote cruises', () => {
 });
 
 describe('GDD-ENM-02 the Zopilote spots Poncho', () => {
-  // After one step it is at x = 160.67 and y = 100 + 12 sin(2 pi / 150). Poncho's hurtbox centre is 10 px above his feet (GDD-MOV-06: 18 px tall, 1 px above them).
+  // After one step it is at x = 160.67 and y = 100 + 12 sin(2 pi / 150). Poncho's hurtbox centre is 16 px above his feet (GDD-MOV-06: 30 px tall, 1 px above them).
   const x1 = 160 + 40 / 60;
   const y1 = 100 + 12 * Math.sin((2 * Math.PI) / 150);
 
   it('when he is within 96 px to either side and up to 80 px below it', () => {
-    expect(spotted(standing(x1 + 96, y1 + 10 + 50))).toBe(true);
-    expect(spotted(standing(x1 - 96, y1 + 10 + 50))).toBe(true);
-    expect(spotted(standing(x1 + 96.5, y1 + 10 + 50))).toBe(false);
-    expect(spotted(standing(x1 - 96.5, y1 + 10 + 50))).toBe(false);
-    expect(spotted(standing(x1, y1 + 10 + 80))).toBe(true);
-    expect(spotted(standing(x1, y1 + 10 + 80.5))).toBe(false);
+    expect(spotted(standing(x1 + 96, y1 + 16 + 50))).toBe(true);
+    expect(spotted(standing(x1 - 96, y1 + 16 + 50))).toBe(true);
+    expect(spotted(standing(x1 + 96.5, y1 + 16 + 50))).toBe(false);
+    expect(spotted(standing(x1 - 96.5, y1 + 16 + 50))).toBe(false);
+    expect(spotted(standing(x1, y1 + 16 + 80))).toBe(true);
+    expect(spotted(standing(x1, y1 + 16 + 80.5))).toBe(false);
   });
 
   it('not when he is level with it or above it', () => {
-    expect(spotted(standing(x1, y1 + 10))).toBe(false);
-    expect(spotted(standing(x1, y1 + 10 - 20))).toBe(false);
+    expect(spotted(standing(x1, y1 + 16))).toBe(false);
+    expect(spotted(standing(x1, y1 + 16 - 20))).toBe(false);
   });
 });
 
@@ -132,29 +132,29 @@ describe('GDD-ENM-02 the Zopilote dives and climbs back', () => {
   it('aims at where Poncho was when the telegraph ended, not where he was when it began', () => {
     let s = start(standing(160));
     for (let i = 0; i < 30; i++) s = stepEnemy(def, s, world, standing(150 + i)); // he walks on
-    expect(flight(s)).toMatchObject({ phase: 'dive', aimX: 150 + 29, aimY: 160 - 10 });
+    expect(flight(s)).toMatchObject({ phase: 'dive', aimX: 150 + 29, aimY: 160 - 16 });
   });
 
   it('flies straight at the aim point at 150 px/s, 2.5 px a step, and does not follow him on', () => {
     let s = start(standing(160));
     s = until(s, 'dive', standing(160)).s;
     const { x, y } = { x: s.x, y: flight(s).y };
-    const dist = Math.hypot(160 - x, 150 - y);
+    const dist = Math.hypot(160 - x, 144 - y);
     s = stepEnemy(def, s, world, away); // he has moved away
     expect(Math.hypot(s.x - x, flight(s).y - y)).toBeCloseTo(2.5, 9);
-    expect((160 - x) * (flight(s).y - y)).toBeCloseTo((150 - y) * (s.x - x), 9); // along the line to (160, 150)
+    expect((160 - x) * (flight(s).y - y)).toBeCloseTo((144 - y) * (s.x - x), 9); // along the line to (160, 144)
     const { steps, s: end } = until(s, 'return', away);
     expect(steps).toBe(Math.ceil(dist / 2.5) - 1);
-    expect([end.x, flight(end).y]).toEqual([160, 150]);
+    expect([end.x, flight(end).y]).toEqual([160, 144]);
   });
 
   it('then climbs back to its cruise line at 60 px/s, 1 px a step, and cruises again', () => {
     let s = until(start(standing(160)), 'return', standing(160)).s;
-    expect(flight(s).y).toBe(150);
+    expect(flight(s).y).toBe(144);
     s = stepEnemy(def, s, world, away);
-    expect(flight(s).y).toBe(149);
+    expect(flight(s).y).toBe(143);
     const { steps, s: back } = until(s, 'cruise', away);
-    expect(steps).toBe(49); // 49 px from 149 up to 100
+    expect(steps).toBe(43); // 43 px from 143 up to 100
     expect(flight(back)).toMatchObject({ y: 100, age: 0 });
   });
 
@@ -162,7 +162,7 @@ describe('GDD-ENM-02 the Zopilote dives and climbs back', () => {
     const p = standing(200); // right under the wall tile at column 12 (x 192 to 208), at y 128 to 160
     let s = start(p);
     s = until(s, 'return', p).s;
-    expect([s.x, flight(s).y]).toEqual([200, 150]); // inside the wall tile row, which it reached
+    expect([s.x, flight(s).y]).toEqual([200, 144]); // inside the wall tile row, which it reached
   });
 });
 
@@ -194,7 +194,7 @@ describe('GDD-CMB-03 a Zopilote hit', () => {
 
 describe('GDD-CMB-02 and GDD-PWR-03 the claw and a fireball defeat it', () => {
   it('a claw swing that reaches it defeats it', () => {
-    // It hovers at y 95 to 105; Poncho stands on a tall step so the claw box (20 tall from his feet) reaches it.
+    // It hovers at y 95 to 105; Poncho stands on a tall step so the claw box (32 tall from his feet) reaches it.
     const swing = { phase: 'swing', steps: 1, cooldown: 10, dir: 1, held: true } as const;
     const r = run(withPlayer({ ...spawn(142, 108), facing: 1, grounded: true }, { claw: swing }), idle, 1);
     expect(r.enemies[0]!.alive).toBe(false);

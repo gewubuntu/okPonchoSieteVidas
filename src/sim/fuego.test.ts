@@ -105,8 +105,8 @@ const fly = (fb: Fireball, steps: number): Fireball | null => {
 describe('GDD-PWR-03 the fireball', () => {
 
   it('starts at Poncho\'s front edge, level with the middle of his body, heading the way he faces at 180 px/s', () => {
-    expect(spawnFireball({ ...at(100), facing: 1 })).toEqual({ x: 109, y: 57, vx: 180, vy: 0, age: 0 });
-    expect(spawnFireball({ ...at(100), facing: -1 })).toEqual({ x: 91, y: 57, vx: -180, vy: 0, age: 0 });
+    expect(spawnFireball({ ...at(100), facing: 1 })).toEqual({ x: 109, y: 51, vx: 180, vy: 0, age: 0 });
+    expect(spawnFireball({ ...at(100), facing: -1 })).toEqual({ x: 91, y: 51, vx: -180, vy: 0, age: 0 });
   });
 
   it('flies 3 px a step', () => {
@@ -174,7 +174,7 @@ describe('GDD-PWR-03 the fireball', () => {
 describe('GDD-PWR-03 spitting', () => {
   it('a press in Fuego spits one fireball, on the press step, in front of Poncho', () => {
     const r = stepRun(as('fuego'), spit, level);
-    expect(r.fireballs).toEqual([{ x: 33, y: 57, vx: 180, vy: 0, age: 0 }]);
+    expect(r.fireballs).toEqual([{ x: 33, y: 51, vx: 180, vy: 0, age: 0 }]);
   });
 
   it('only in Fuego: Base and Taco spit nothing', () => {

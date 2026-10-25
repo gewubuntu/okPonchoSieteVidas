@@ -36,8 +36,8 @@ for (const dir of [1, -1] as const) {
     const x = (await api(page, () => window.__PONCHO__!.state())).x;
     const y = (await api(page, () => window.__PONCHO__!.state())).y;
     const [front, behind] = await pixelsAt(page, [
-      { x: x + dir * 8, y: y - 21 }, // the mark sits 1 px above his 20 px body
-      { x: x - dir * 8, y: y - 21 },
+      { x: x + dir * 8, y: y - 33 }, // the mark sits 1 px above his 32 px body
+      { x: x - dir * 8, y: y - 33 },
     ]);
     expect(pale(front!)).toBe(true);
     expect(pale(behind!)).toBe(false); // his hat is there now, so not the sky: the mark would show cream on it
@@ -53,7 +53,7 @@ for (const dir of [1, -1] as const) {
     const { x, y } = await api(page, () => window.__PONCHO__!.state());
     // The box starts at the front edge of the body, 6 px out. Slash i leans 4 px and its middle is 2 px along from its top.
     const edge = x + dir * 6;
-    const mids = [0, 1, 2].map((i) => ({ x: edge + dir * (3 + i * 6 + 2), y: y - 10 }));
+    const mids = [0, 1, 2].map((i) => ({ x: edge + dir * (3 + i * 6 + 2), y: y - 16 }));
     // Behind him only the slashes' mirror positions that lie clear of his sprite, which is 32 px wide (GDD-ART-02): 17 and 23 px out.
     const behindMids = mids.slice(1).map((m) => ({ x: x - (m.x - x), y: m.y }));
     const front = await Promise.all(mids.map(async (m) => (await pixelsAt(page, around(m))).some(pale)));
@@ -80,7 +80,7 @@ test('GDD-WLD-05 a broken fragile tile disappears from the picture, and the othe
   await page.evaluate(() => window.__PONCHO__!.step(5));
   await frames(page);
   const after = await pixelsAt(page, rows);
-  expect(after.map(pink)).toEqual([true, true, false, false]); // the 20 px claw broke the bottom two tiles
+  expect(after.map(pink)).toEqual([true, true, false, false]); // the 32 px claw broke the bottom two tiles
   expect(dark(after[2]!)).toBe(true);
   expect(dark(after[3]!)).toBe(true);
 });

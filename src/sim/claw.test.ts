@@ -53,9 +53,9 @@ const swinging = (dir: 1 | -1): ClawState => ({ ...IDLE_CLAW, phase: 'swing', st
 const at = (x: number, y: number): PlayerState => spawn(x, y);
 
 describe('GDD-CMB-02 claw hit area', () => {
-  it('is 20 x 20 px, as tall as the body, starting at its front edge', () => {
-    expect(clawBox(at(100, 64), swinging(1))).toEqual({ x0: 106, x1: 126, y0: 44, y1: 64 });
-    expect(clawBox(at(100, 64), swinging(-1))).toEqual({ x0: 74, x1: 94, y0: 44, y1: 64 });
+  it('is 20 x 32 px, as tall as the body, starting at its front edge', () => {
+    expect(clawBox(at(100, 64), swinging(1))).toEqual({ x0: 106, x1: 126, y0: 32, y1: 64 });
+    expect(clawBox(at(100, 64), swinging(-1))).toEqual({ x0: 74, x1: 94, y0: 32, y1: 64 });
   });
 
   it('exists only while swinging', () => {
@@ -126,12 +126,12 @@ describe('GDD-WLD-05 the claw breaks a fragile wall', () => {
     expect(r.player.x).toBeGreaterThan(112);
   });
 
-  it('only the tiles the claw box overlaps: a taller wall keeps the rows above its reach (the claw is 20 px tall)', () => {
+  it('only the tiles the claw box overlaps: a taller wall keeps the rows above its reach (the claw is 32 px tall)', () => {
     const tall: Level = { ...level, fragiles: fragile([0, 1, 2, 3]) };
     let r = swingFrom(84, tall);
     r = stepRun(r, swipe, tall);
     r = run(r, idle, SWING_AT - 1, tall);
-    expect(r.fragilesBroken).toEqual([false, false, true, true]); // the box is y 44 to 64, so rows 2 and 3 (y 32 to 64)
+    expect(r.fragilesBroken).toEqual([false, false, true, true]); // the box is y 32 to 64, so rows 2 and 3 (y 32 to 64)
   });
 
   it('a wall out of reach stays: the claw is 20 px long', () => {
@@ -207,8 +207,8 @@ describe('GDD-PWR-05 the claw opens a piñata', () => {
     r = run(r, idle, 10, hanging);
     expect(r.pinatasOpen).toEqual([false]);
   });
-  it('a piñata under the box but out of its height is not hit: the claw is 20 px tall', () => {
-    const high: Level = { ...hanging, pinatas: [{ col: 5, row: 1 }] }; // y 16 to 32, well above the box (y 44 to 64)
+  it('a piñata under the box but out of its height is not hit: the claw is 32 px tall', () => {
+    const high: Level = { ...hanging, pinatas: [{ col: 5, row: 1 }] }; // y 16 to 32, just above the box (y 32 to 64), touching only its top edge
     let r = swingFrom(70, high);
     r = stepRun(r, swipe, high);
     r = run(r, idle, 10, high);

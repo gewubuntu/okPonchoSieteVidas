@@ -18,7 +18,7 @@ const vulture = async (page: Page) => (await api(page, () => window.__PONCHO__!.
 const brown = (c: Colour) => Math.abs(c.r - 74) < 12 && Math.abs(c.g - 58) < 12 && Math.abs(c.b - 48) < 12; // the body, 4a3a30
 const red = (c: Colour) => c.r > 220 && c.g < 120 && c.b < 90; // the telegraph flash, ff5030
 const pale = (c: Colour) => c.r > 220 && c.g > 220 && c.b > 205; // the thorns, f2efe6
-const ledge = (page: Page) => page.evaluate(() => window.__PONCHO__!.teleport(224, 112)); // on the spring ledge, 38 px below its line
+const ledge = (page: Page) => page.evaluate(() => window.__PONCHO__!.teleport(224, 112)); // on the spring ledge, 32 px below its line
 
 test('GDD-ENM-02 the Zopilote cruises on its line, bobbing, and is painted where it is', async ({ page }) => {
   await start(page);

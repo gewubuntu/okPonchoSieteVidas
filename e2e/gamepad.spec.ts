@@ -86,6 +86,9 @@ test('GDD-CTL-02 start on the title starts the level, south jumps, the D-pad run
   await page.waitForFunction(() => window.__PONCHO__!.state().vx >= 115, undefined, { timeout: 3000 });
   await press(page, RIGHT, false);
   await page.waitForFunction(() => window.__PONCHO__!.state().vx === 0 && window.__PONCHO__!.state().grounded);
+  // He has stopped under the Alacrán's platform, whose underside is 16 px above his 32 px head: a jump there is over in two steps.
+  await page.evaluate(() => window.__PONCHO__!.teleport(40, 224)); // open sky, so the jump rises long enough to be seen
+  await grounded(page);
   await press(page, SOUTH, true);
   await page.waitForFunction(() => window.__PONCHO__!.state().vy < 0, undefined, { timeout: 1000 });
   await press(page, SOUTH, false);

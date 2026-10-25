@@ -71,7 +71,7 @@ describe('GDD-MOV-06 floors, walls and ceilings', () => {
     expect(s.x).toBeCloseTo(HITBOX.width / 2, 5);
   });
 
-  it('GDD-MOV-06 the body box is 20 px tall: a ceiling stops his head 20 px above his feet', () => {
+  it('GDD-MOV-06 the body box is 32 px tall: a ceiling stops his head 32 px above his feet', () => {
     const w = parseTiles(['..........', '...####...', '..........', '..........', '##########']);
     let s = run(standAt(4, 4), idle, 5, w);
     let highest = s.y;
@@ -79,8 +79,8 @@ describe('GDD-MOV-06 floors, walls and ceilings', () => {
       s = step(s, { move: 0, jumpHeld: true }, w);
       highest = Math.min(highest, s.y);
     }
-    // The ceiling's underside is at y = 32, so the feet stop at 32 + 20 and the head touches the underside.
-    expect(highest - 2 * TILE).toBeCloseTo(20, 5);
+    // The ceiling's underside is at y = 32, so the feet stop at 32 + 32 and the head touches the underside.
+    expect(highest - 2 * TILE).toBeCloseTo(32, 5);
     expect(s.grounded).toBe(true);
   });
 
@@ -90,7 +90,7 @@ describe('GDD-MOV-06 floors, walls and ceilings', () => {
     expect(s.x).toBeCloseTo(4 * TILE - HITBOX.width / 2, 5); // stopped against the slot's left wall
   });
 
-  it('GDD-MOV-06 walks under a gap two tiles high', () => {
+  it('GDD-MOV-06 walks under a gap exactly two tiles high, as tall as he is', () => {
     const w = parseTiles(['....########', '............', '............', '############']);
     const s = run(standAt(1, 3), right, 300, w);
     expect(s.x).toBeCloseTo(12 * TILE - HITBOX.width / 2, 5); // walked the whole slot to the far wall
@@ -109,15 +109,15 @@ describe('GDD-MOV-06 floors, walls and ceilings', () => {
   });
 
   it('pressed into a wall and ceiling corner stops flush against both', () => {
-    const w = parseTiles(['########', '......#.', '......#.', '########']); // a 2-tile-high room
-    let s = standAt(5, 3);
+    const w = parseTiles(['########', '......#.', '......#.', '......#.', '########']); // a 3-tile-high room
+    let s = standAt(5, 4);
     let highest = s.y;
     for (let i = 0; i < 90; i++) {
       s = step(s, { move: 1, jumpHeld: i >= 5 }, w);
       highest = Math.min(highest, s.y);
     }
     expect(s.x).toBeCloseTo(6 * TILE - HITBOX.width / 2, 5); // flush with the wall
-    expect(highest).toBeCloseTo(TILE + 20, 5); // head flush with the ceiling's underside (y = 16)
+    expect(highest).toBeCloseTo(TILE + 32, 5); // head flush with the ceiling's underside (y = 16)
   });
 
   it('does not stick to a wall it is pressed against: a jump still rises to full height', () => {

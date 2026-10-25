@@ -59,7 +59,7 @@ export const SANDBOX_SPRINGS: readonly Spring[] = [{ col: 12, row: 14 }];
 
 // GDD-WLD-05: the ledge at tile columns 13 and 14, row 7 (top y = 112, underside y = 128), is 112 px above the floor: a plain spring
 // launch (about 77 px) falls short of it and a timed one (about 120 px) clears it. It moved up a tile from row 8 when the body grew
-// to 20 px (GDD-MOV-06): from the 2-tile wall his head clipped the old ledge's side on the way down to the spring.
+// to 20 px (GDD-MOV-06): from the 2-tile wall his head clipped the old ledge's side on the way down to the spring. The body is 32 px now.
 
 /**
  * GDD-WLD-05: a moving platform 3 tiles wide (top y = 128), 16 px below the spring ledge's top. It starts against the
@@ -79,15 +79,19 @@ export const SANDBOX_BLOCKS: readonly MovingBlock[] = [{ x0: 448, y0: 112, x1: 4
 export const SANDBOX_TACOS: readonly Taco[] = [{ col: 18, row: 13 }];
 
 /**
- * GDD-PWR-05: a piñata at tile column 9, row 11 (underside y = 192): 32 px above the floor, so a standing Poncho's head is
- * 18 px short of it and any jump bumps it. Row 10 above it is open, so the taco it releases has room, and it is clear of
- * the platform above (columns 4 to 8) and of the touch buttons.
+ * GDD-PWR-05: a piñata at tile column 9, row 10 (underside y = 176): 48 px above the floor, so a standing Poncho's head is
+ * 16 px short of it and any jump bumps it (it was at row 11, 32 px up, until the body grew to 32 px, GDD-MOV-06: his head was
+ * flush with it and a jump could not bump it). Row 9 above it is open, so the taco it releases has room. It stands beside the
+ * end of the platform at columns 4 to 8 (same top, y = 160), and is clear of the touch buttons.
  */
 export const SANDBOX_PINATAS: readonly Pinata[] = [
-  { col: 9, row: 11 },
-  // GDD-PWR-03: the second piñata hangs at tile column 23, row 8 (underside y = 144), 32 px above the top of the 3-tile wall at
-  // columns 22 and 23 (y = 176), so Poncho standing on the wall bumps it with a jump. In Taco it releases a chile.
-  { col: 23, row: 8 },
+  { col: 9, row: 10 },
+  // GDD-PWR-03: the second piñata hangs at tile column 23, row 7 (underside y = 128), 48 px above the top of the 3-tile wall at
+  // columns 22 and 23 (y = 176), so Poncho standing on the wall (head 16 px short of it) bumps it with a jump. In Taco it releases a
+  // chile. It moved up a tile from row 8 when the body grew to 32 px (GDD-MOV-06): his head was flush with the old one. It hangs
+  // in the path of the moving platform's far end (the platform's right edge reaches x = 384): a platform never carries him into a
+  // solid tile (GDD-WLD-05), so he is stopped against the piñata, not crushed.
+  { col: 23, row: 7 },
 ];
 
 /**
@@ -107,14 +111,15 @@ export const SANDBOX_FRAGILES: readonly Fragile[] = [10, 11, 12, 13].map((row) =
 
 /**
  * GDD-ENM-02: an Alacrán on the platform at row 10, columns 4 to 8 (top y = 160, x 64 to 144), starting in the middle and
- * heading right. It patrols that platform and turns at both ends. Poncho gets up there from the top of the 2-tile wall at
+ * heading right. It patrols that platform and on across the top of the piñata at column 9 (same top, x 144 to 160), and turns at
+ * both ends, at x = 71 and x = 153. Poncho gets up there from the top of the 2-tile wall at
  * columns 10 and 11 (32 px below it), clear of the first ofrenda's respawn (the platform is 64 px above it).
  */
 export const SANDBOX_ENEMIES: readonly Enemy[] = [
   { x: 104, y: 160 },
   // GDD-ENM-02: a Zopilote cruises above the middle of the level, at y = 64 from x = 216, so it flies 168 to 264. Poncho on the floor is
-  // 150 px below it (his hurtbox centre is 10 px above his feet, GDD-MOV-06) and never spots it; on the Alacrán's platform he is 86 px
-  // below it, spotted only at the low end of its bob; the spring ledge (38 px below) and the moving platform (54 px) are well within reach.
+  // 144 px below it (his hurtbox centre is 16 px above his feet, GDD-MOV-06) and never spots it; on the Alacrán's platform he is 80 px
+  // below it, spotted only at the low end of its bob; the spring ledge (32 px below) and the moving platform (48 px) are well within reach.
   { x: 216, y: 64, kind: 'zopilote' },
   // GDD-ENM-02: a cactus buddy on the right half of the top of the 2-tile wall (columns 10 and 11, top y = 192), at x = 184, so the left
   // 18 px of the top stay free to stand on and jump to the Alacrán's platform from.
