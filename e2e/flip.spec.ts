@@ -71,13 +71,13 @@ test('GDD-MOV-05 the drawn body really turns: his poncho is where it should be u
   // A point of the body in its own frame (x to the right, y down from the middle), where it is on the screen now.
   const onScreen = async (lx: number, ly: number) => {
     const p = await pose(page);
-    const cy = p.y - 7; // the middle of the 14 px body
+    const cy = p.y - 10; // the middle of the 20 px body
     return { x: p.x + lx * Math.cos(p.rotation) - ly * Math.sin(p.rotation), y: cy + lx * Math.sin(p.rotation) + ly * Math.cos(p.rotation) };
   };
 
   await step(page, 27 + 10); // wait 11: upside down, about 188 degrees
-  // The blue pixel is 0.75 right of the middle and 11.25 - 7 = 4.25 above it, in his own frame.
-  const [mark] = await pixelsAt(page, [await onScreen(0.75, -4.25)]);
+  // The blue pixel is 0.75 right of the middle and 11.25 - 10 = 1.25 above it, in his own frame.
+  const [mark] = await pixelsAt(page, [await onScreen(0.75, -1.25)]);
   expect(blue(mark!)).toBe(true); // it has turned with him
   const p0 = await pose(page);
   const [ifUpright] = await pixelsAt(page, [{ x: p0.x + 0.75, y: p0.y - 11.25 }]); // where it would be if he had not turned

@@ -60,7 +60,7 @@ describe('WLD-05 a door is solid until opened', () => {
 
 describe('WLD-05 picking up a key', () => {
   it('is a 12 x 12 box in the middle of its tile, touched by the body box', () => {
-    // Key box x 34 to 46, y 50 to 62. The body is x - 6 to x + 6 and y - 14 to y.
+    // Key box x 34 to 46, y 50 to 62. The body is x - 6 to x + 6 and y - 20 to y.
     expect(touchesKey(at(27.99, 56), key)).toBe(false);
     expect(touchesKey(at(28, 56), key)).toBe(false); // only touching its left edge
     expect(touchesKey(at(28.01, 56), key)).toBe(true);
@@ -69,8 +69,8 @@ describe('WLD-05 picking up a key', () => {
     expect(touchesKey(at(52.01, 56), key)).toBe(false);
     expect(touchesKey(at(40, 50), key)).toBe(false); // feet at the key's top edge
     expect(touchesKey(at(40, 50.01), key)).toBe(true);
-    expect(touchesKey(at(40, 75.99), key)).toBe(true);
-    expect(touchesKey(at(40, 76), key)).toBe(false); // body top at the key's bottom edge
+    expect(touchesKey(at(40, 81.99), key)).toBe(true);
+    expect(touchesKey(at(40, 82), key)).toBe(false); // body top at the key's bottom edge
     expect(KEY.size).toBe(12);
   });
   it('walking over it takes it: one key held, and it is gone from the floor', () => {
@@ -111,8 +111,8 @@ describe('WLD-05 opening a door', () => {
   it('standing on top of it or bumping it from below does not open it', () => {
     expect(touchesDoor(at(104, 32), door)).toBe(false); // feet on the door's top
     expect(touchesDoor(at(104, 32.01), door)).toBe(true);
-    expect(touchesDoor(at(104, 77.99), door)).toBe(true);
-    expect(touchesDoor(at(104, 78), door)).toBe(false); // head at the door's bottom (y 64)
+    expect(touchesDoor(at(104, 83.99), door)).toBe(true);
+    expect(touchesDoor(at(104, 84), door)).toBe(false); // head at the door's bottom (y 64)
   });
   it('one key opens one door: a second door stays shut', () => {
     const two: Level = { ...level, doors: [door, { col: 7, row: 2, height: 2 }] };

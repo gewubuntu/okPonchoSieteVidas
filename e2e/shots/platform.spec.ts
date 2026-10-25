@@ -13,7 +13,7 @@ test('GDD-WLD-05 moving platform: at the ledge, carrying Poncho, and at the far 
   await page.evaluate(() => {
     const g = window.__PONCHO__!;
     g.pause(true);
-    g.teleport(225, 100); // above the spring ledge, whose top is the same height as the platform
+    g.teleport(225, 100); // above the spring ledge, whose top (y = 112) is 16 px above the platform
     g.step(30);
   });
   await shot(page, info, 'platform-start');

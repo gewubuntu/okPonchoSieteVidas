@@ -10,7 +10,7 @@ const idle: PlayerInput = { move: 0, jumpHeld: false };
 const jump: PlayerInput = { move: 0, jumpHeld: true };
 
 // Floor top at y = 128 (row 8). A piñata in column 5, row 5: x 80 to 96, underside y = 96. A standing Poncho's head is at
-// 114, so a jump bumps it after rising 18 px. A wall in column 14 (rows 6 and 7) turns a walking taco round.
+// 108, so a jump bumps it after rising 12 px. A wall in column 14 (rows 6 and 7) turns a walking taco round.
 const rows = [...Array.from({ length: 6 }, () => '..............#...'), '..............#...', '..............#...', '#################.'];
 const world = parseTiles(rows);
 const pinata: Pinata = { col: 5, row: 5 };
@@ -58,33 +58,33 @@ describe('GDD-PWR-05 a piñata is a solid tile, closed or open', () => {
 });
 
 /** Poncho with his head flush against the piñata's underside (y 96). */
-const head = (x: number, vy = 0) => at(x, 96 + 14, vy);
+const head = (x: number, vy = 0) => at(x, 96 + 20, vy);
 
 describe('GDD-PWR-05 what counts as a head bump', () => {
   it('rising, then stopped with the head flush under the tile', () => {
-    expect(bumpedPinata(at(88, 111, -100), head(88), [pinata])).toBe(0);
+    expect(bumpedPinata(at(88, 117, -100), head(88), [pinata])).toBe(0);
   });
   it('not when he was not rising', () => {
-    expect(bumpedPinata(at(88, 110, 0), head(88), [pinata])).toBe(-1);
-    expect(bumpedPinata(at(88, 110, 50), head(88), [pinata])).toBe(-1);
+    expect(bumpedPinata(at(88, 116, 0), head(88), [pinata])).toBe(-1);
+    expect(bumpedPinata(at(88, 116, 50), head(88), [pinata])).toBe(-1);
   });
   it('not when he is still moving up after the step (a corner nudge, not a bump)', () => {
-    expect(bumpedPinata(at(88, 111, -100), head(88, -50), [pinata])).toBe(-1);
+    expect(bumpedPinata(at(88, 117, -100), head(88, -50), [pinata])).toBe(-1);
   });
   it('not when the head is not flush with the underside', () => {
-    expect(bumpedPinata(at(88, 111, -100), at(88, 109.9), [pinata])).toBe(-1);
-    expect(bumpedPinata(at(88, 111, -100), at(88, 110.1), [pinata])).toBe(-1);
+    expect(bumpedPinata(at(88, 117, -100), at(88, 115.9), [pinata])).toBe(-1);
+    expect(bumpedPinata(at(88, 117, -100), at(88, 116.1), [pinata])).toBe(-1);
   });
   it('the body must overlap the tile column: touching only an edge is not a bump', () => {
-    expect(bumpedPinata(at(74.01, 111, -100), head(74.01), [pinata])).toBe(0); // body right edge 80.01
-    expect(bumpedPinata(at(74, 111, -100), head(74), [pinata])).toBe(-1);
-    expect(bumpedPinata(at(101.99, 111, -100), head(101.99), [pinata])).toBe(0);
-    expect(bumpedPinata(at(102, 111, -100), head(102), [pinata])).toBe(-1);
+    expect(bumpedPinata(at(74.01, 117, -100), head(74.01), [pinata])).toBe(0); // body right edge 80.01
+    expect(bumpedPinata(at(74, 117, -100), head(74), [pinata])).toBe(-1);
+    expect(bumpedPinata(at(101.99, 117, -100), head(101.99), [pinata])).toBe(0);
+    expect(bumpedPinata(at(102, 117, -100), head(102), [pinata])).toBe(-1);
   });
   it('two neighbouring piñatas: the one whose middle is nearer wins', () => {
     const two: Pinata[] = [pinata, { col: 6, row: 5 }]; // middles 88 and 104
-    expect(bumpedPinata(at(95, 111, -100), head(95), two)).toBe(0);
-    expect(bumpedPinata(at(97, 111, -100), head(97), two)).toBe(1);
+    expect(bumpedPinata(at(95, 117, -100), head(95), two)).toBe(0);
+    expect(bumpedPinata(at(97, 117, -100), head(97), two)).toBe(1);
   });
 });
 
@@ -181,14 +181,14 @@ describe('GDD-PWR-02 the walking taco', () => {
     expect(releaseFrom(pinata, withPinatas(world, [{ col: 5, row: 4 }]), 'taco')).toBeNull();
   });
 
-  it('is touched by the 12 x 14 body: edges that only meet do not count', () => {
+  it('is touched by the 12 x 20 body: edges that only meet do not count', () => {
     const item: Item = { x: 100, y: 128, vx: 0, vy: 0, kind: 'taco' }; // box x 94 to 106, y 116 to 128
     expect(touchesItem(at(87.99, 128), item)).toBe(false); // body right edge 93.99
     expect(touchesItem(at(88.01, 128), item)).toBe(true);
     expect(touchesItem(at(111.99, 128), item)).toBe(true);
     expect(touchesItem(at(112.01, 128), item)).toBe(false);
-    expect(touchesItem(at(100, 142), item)).toBe(false); // body top at 128: only touching
-    expect(touchesItem(at(100, 141.99), item)).toBe(true);
+    expect(touchesItem(at(100, 148), item)).toBe(false); // body top at 128: only touching
+    expect(touchesItem(at(100, 147.99), item)).toBe(true);
     expect(touchesItem(at(100, 116), item)).toBe(false); // feet at its top
     expect(touchesItem(at(100, 116.01), item)).toBe(true);
   });

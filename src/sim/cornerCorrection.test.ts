@@ -19,8 +19,8 @@ const world = parseTiles([
 ]);
 const BLOCK = { left: 5 * TILE, right: 6 * TILE, bottom: 4 * TILE };
 
-/** Rising towards the block with the head about to enter it: feet at 78.5, so the head is at 64.5 and moves up 4.9 px. */
-const rising = (x: number): PlayerState => ({ ...spawn(x, 78.5), vy: -300, grounded: false, jumpWasHeld: true });
+/** Rising towards the block with the head about to enter it: feet at 84.5, so the head (20 px up) is at 64.5 and moves up 4.9 px. */
+const rising = (x: number): PlayerState => ({ ...spawn(x, 84.5), vy: -300, grounded: false, jumpWasHeld: true });
 
 describe('GDD-MOV-03 corner correction', () => {
   it('is 4 px', () => {
@@ -86,13 +86,13 @@ describe('GDD-MOV-03 corner correction', () => {
 
   it('lets a real jump go past a block corner it clips by 3 px', () => {
     // Stand on the floor 3 px to the left of the block's left edge and jump straight up: without the nudge his head
-    // hits the block at feet y = 78 and he falls; with it he slides left around the corner and rises the full jump.
+    // hits the block at feet y = 84 and he falls; with it he slides left around the corner and rises the full jump.
     let s = spawn(BLOCK.left - HITBOX.width / 2 + 3, 6 * TILE);
     let top = s.y;
     for (let i = 0; i < 60; i++) {
       s = step(s, { move: 0, jumpHeld: i < 40 }, world);
       top = Math.min(top, s.y);
     }
-    expect(top).toBeLessThan(6 * TILE - 50); // a full jump is about 56 px, a bump at the block would stop at 18
+    expect(top).toBeLessThan(6 * TILE - 50); // a full jump is about 56 px, a bump at the block would stop at 12
   });
 });

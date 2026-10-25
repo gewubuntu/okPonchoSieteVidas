@@ -70,7 +70,7 @@ describe('GDD-CMB-01 and GDD-CMB-03 touching a cactus buddy', () => {
   });
 });
 
-// Hurtbox top = feet - 13. Before: feet 113.5, top 100.5 (just below its underside at y = 100). After rising 6 px, it overlaps.
+// Hurtbox top = feet - 19 (GDD-MOV-06: 18 px tall, 1 px above the feet). Before: feet 119.5, top 100.5 (just below its underside at y = 100). After rising 6 px, it overlaps.
 const rising = (feet: number, vy: number) => {
   const before: PlayerState = { ...spawn(100, feet), vy, grounded: false };
   const after: PlayerState = { ...before, y: feet - 6.5 };
@@ -82,38 +82,38 @@ describe('GDD-ENM-02 a cactus buddy is harmless from below', () => {
   const state = freshEnemies([high])[0]!;
 
   it('is harmless when he rises into it with his head below its underside a step before', () => {
-    const { before, after } = rising(113.5, -400);
+    const { before, after } = rising(119.5, -400);
     expect(touchesEnemy(after, high, state)).toBe(true);
     expect(harmlessFromBelow(before, after, high, state)).toBe(true);
   });
 
   it('still counts when his head was exactly at its underside a step before', () => {
-    const { before, after } = rising(113, -400); // head top at y = 100, the underside
+    const { before, after } = rising(119, -400); // head top at y = 100, the underside
     expect(harmlessFromBelow(before, after, high, state)).toBe(true);
   });
 
   it('is a hit when he is not rising, or was already inside it a step before', () => {
-    const { before, after } = rising(113.5, -400);
+    const { before, after } = rising(119.5, -400);
     expect(harmlessFromBelow(before, { ...after, vy: 0 }, high, state)).toBe(false);
     expect(harmlessFromBelow(before, { ...after, vy: 50 }, high, state)).toBe(false);
-    expect(harmlessFromBelow({ ...before, y: 112.5 }, after, high, state)).toBe(false); // head at y = 99.5, already above its underside
+    expect(harmlessFromBelow({ ...before, y: 118.5 }, after, high, state)).toBe(false); // hurtbox top at y = 99.5, already above its underside
   });
 
   it('applies only to the cactus buddy, not to other enemies in the same place', () => {
-    const { before, after } = rising(113.5, -400);
+    const { before, after } = rising(119.5, -400);
     expect(harmlessFromBelow(before, after, { ...high, kind: 'zopilote' }, state)).toBe(false);
     expect(harmlessFromBelow(before, after, { x: high.x, y: high.y }, state)).toBe(false);
   });
 
   it('costs nothing in the step: he passes up through it in Base', () => {
-    const r = run(withPlayer({ ...spawn(100, 113.5), vy: -400, grounded: false, jumpWasHeld: true }, {}, highLevel), 1, highLevel, { move: 0, jumpHeld: true });
+    const r = run(withPlayer({ ...spawn(100, 119.5), vy: -400, grounded: false, jumpWasHeld: true }, {}, highLevel), 1, highLevel, { move: 0, jumpHeld: true });
     expect(r.phase).toBe('playing');
     expect(r.lives.lives).toBe(LIVES_MAX);
     expect(r.invulnerable).toBe(0);
   });
 
   it('but the next step he is inside it and, now above its underside, falls under the usual hit', () => {
-    let r = withPlayer({ ...spawn(100, 113.5), vy: -400, grounded: false, jumpWasHeld: true }, {}, highLevel);
+    let r = withPlayer({ ...spawn(100, 119.5), vy: -400, grounded: false, jumpWasHeld: true }, {}, highLevel);
     r = run(r, 4, highLevel, { move: 0, jumpHeld: true });
     expect(r.phase).not.toBe('playing'); // his head went on up into the cactus: that is a hit, not a free pass
   });

@@ -67,8 +67,8 @@ export const GLIDE = { fallSpeed: 70, stompLockSteps: Math.round(0.15 * TICK_HZ)
 export const WALL = { slideSpeed: 60, kickX: 130, kickY: 380, lockSteps: Math.round(0.12 * TICK_HZ), graceSteps: FORGIVENESS.coyoteSteps } as const;
 
 /** GDD-MOV-06: body hitbox for ground and walls, hurtbox for enemies and hazards, sprite frame. */
-export const HITBOX = { width: 12, height: 14 } as const;
-export const HURTBOX = { width: 10, height: 12 } as const;
+export const HITBOX = { width: 12, height: 20 } as const;
+export const HURTBOX = { width: 10, height: 18 } as const;
 export const SPRITE_FRAME = 40;
 /** GDD-ART-04: the run frames play on the ground at `runMinSpeed` px/s or more, one frame for every `runFramePx` px run, `runFrames` of them. */
 export const ANIM = { runMinSpeed: 10, runFramePx: 8, runFrames: 4 } as const;
@@ -173,7 +173,7 @@ export const KEY = { size: 12, doorReachPx: 1 } as const;
  * `height` px tall, level with the body and starting at the body's front edge. The next swing may start `cooldownSteps`
  * (0.25 s) after the press that started the last one.
  */
-export const CLAW = { windupSteps: 2, activeSteps: 3, cooldownSteps: Math.round(0.25 * TICK_HZ), reach: 20, height: 14 } as const;
+export const CLAW = { windupSteps: 2, activeSteps: 3, cooldownSteps: Math.round(0.25 * TICK_HZ), reach: 20, height: 20 } as const;
 
 /**
  * GDD-PWR-03: a salsa fireball. It leaves Poncho's front at `speed` px/s, falls and bounces along the ground so each bounce

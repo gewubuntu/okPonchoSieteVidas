@@ -10,7 +10,7 @@ export interface Spike {
 }
 
 /**
- * Poncho's hurtbox (GDD-MOV-06): 10 x 12 px inside the body box, centred on it. `y` is the top, `x` the left edge.
+ * Poncho's hurtbox (GDD-MOV-06): 10 x 18 px inside the body box, centred on it. `y` is the top, `x` the left edge.
  * Poncho's own position is the middle of his feet.
  */
 export function hurtbox(player: PlayerState): { x: number; y: number; w: number; h: number } {

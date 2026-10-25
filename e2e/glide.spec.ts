@@ -28,9 +28,9 @@ test('GDD-MOV-07 holding jump while falling glides at 70 px/s under the spread p
   const s = await api(page, () => window.__PONCHO__!.state());
   expect(s).toMatchObject({ gliding: true, vy: 70, grounded: false });
   expect(await api(page, () => window.__PONCHO__!.glideDrawn())).toBe(true);
-  // The bar spans x - 14 to x + 14, 6 to 2 px above the body's top (feet y - 14): a red stripe at its left end, cream next to it.
+  // The bar spans x - 14 to x + 14, 6 to 2 px above the body's top (feet y - 20): a red stripe at its left end, cream next to it.
   const { x, y } = await api(page, () => window.__PONCHO__!.bodyPose());
-  const top = y - 14 - 4;
+  const top = y - 20 - 4;
   const [r, c] = await pixelsAt(page, [{ x: x - 12, y: top }, { x: x - 8, y: top }]);
   expect(red(r!), JSON.stringify(r)).toBe(true);
   expect(cream(c!), JSON.stringify(c)).toBe(true);

@@ -14,8 +14,8 @@ describe('GDD-WLD-04 hilo pickups', () => {
     expect(touchesHilo(spawn(97.5, 216), hilo)).toBe(true);
     expect(touchesHilo(spawn(88, 212), hilo)).toBe(false); // feet at the hilo's top
     expect(touchesHilo(spawn(88, 212.5), hilo)).toBe(true);
-    expect(touchesHilo(spawn(88, 234), hilo)).toBe(false); // head (14 above) at the hilo's bottom
-    expect(touchesHilo(spawn(88, 233.5), hilo)).toBe(true);
+    expect(touchesHilo(spawn(88, 240), hilo)).toBe(false); // head (20 above) at the hilo's bottom
+    expect(touchesHilo(spawn(88, 239.5), hilo)).toBe(true);
   });
 
   it('collects every hilo touched in one step and keeps the ones already collected', () => {

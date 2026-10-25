@@ -71,7 +71,7 @@ describe('GDD-MOV-06 floors, walls and ceilings', () => {
     expect(s.x).toBeCloseTo(HITBOX.width / 2, 5);
   });
 
-  it('bumps its head on a ceiling and falls back', () => {
+  it('GDD-MOV-06 the body box is 20 px tall: a ceiling stops his head 20 px above his feet', () => {
     const w = parseTiles(['..........', '...####...', '..........', '..........', '##########']);
     let s = run(standAt(4, 4), idle, 5, w);
     let highest = s.y;
@@ -79,14 +79,20 @@ describe('GDD-MOV-06 floors, walls and ceilings', () => {
       s = step(s, { move: 0, jumpHeld: true }, w);
       highest = Math.min(highest, s.y);
     }
-    // The ceiling's underside is at y = 32, so the feet stop at 32 + 14 and the head touches the underside.
-    expect(highest).toBeCloseTo(2 * TILE + HITBOX.height, 5);
+    // The ceiling's underside is at y = 32, so the feet stop at 32 + 20 and the head touches the underside.
+    expect(highest - 2 * TILE).toBeCloseTo(20, 5);
     expect(s.grounded).toBe(true);
   });
 
-  it('fits through a gap exactly one tile high', () => {
+  it('GDD-MOV-06 does not fit under a gap one tile high', () => {
     const w = parseTiles(['....########', '............', '############']);
     const s = run(standAt(1, 2), right, 300, w);
+    expect(s.x).toBeCloseTo(4 * TILE - HITBOX.width / 2, 5); // stopped against the slot's left wall
+  });
+
+  it('GDD-MOV-06 walks under a gap two tiles high', () => {
+    const w = parseTiles(['....########', '............', '............', '############']);
+    const s = run(standAt(1, 3), right, 300, w);
     expect(s.x).toBeCloseTo(12 * TILE - HITBOX.width / 2, 5); // walked the whole slot to the far wall
   });
 
@@ -111,7 +117,7 @@ describe('GDD-MOV-06 floors, walls and ceilings', () => {
       highest = Math.min(highest, s.y);
     }
     expect(s.x).toBeCloseTo(6 * TILE - HITBOX.width / 2, 5); // flush with the wall
-    expect(highest).toBeCloseTo(TILE + HITBOX.height, 5); // head flush with the ceiling's underside (y = 16)
+    expect(highest).toBeCloseTo(TILE + 20, 5); // head flush with the ceiling's underside (y = 16)
   });
 
   it('does not stick to a wall it is pressed against: a jump still rises to full height', () => {

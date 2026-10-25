@@ -100,15 +100,15 @@ describe('GDD-ENM-02 the Alacrán patrols', () => {
 
 describe('GDD-ENM-02 touching an Alacrán', () => {
   const s = alive(104); // box x 97 to 111, y 70 to 80
-  it('is the hurtbox (10 x 12) against its box: edges that only meet do not touch', () => {
+  it('is the hurtbox (10 x 18) against its box: edges that only meet do not touch', () => {
     expect(touchesEnemy(at(92, 80), def, s)).toBe(false); // hurtbox right edge 97
     expect(touchesEnemy(at(92.01, 80), def, s)).toBe(true);
     expect(touchesEnemy(at(115.99, 80), def, s)).toBe(true);
     expect(touchesEnemy(at(116, 80), def, s)).toBe(false);
     expect(touchesEnemy(at(104, 71), def, s)).toBe(false); // hurtbox bottom (feet - 1) = 70, its top
     expect(touchesEnemy(at(104, 71.01), def, s)).toBe(true);
-    expect(touchesEnemy(at(104, 92.99), def, s)).toBe(true);
-    expect(touchesEnemy(at(104, 93), def, s)).toBe(false); // hurtbox top (feet - 13) = 80, its bottom
+    expect(touchesEnemy(at(104, 98.99), def, s)).toBe(true);
+    expect(touchesEnemy(at(104, 99), def, s)).toBe(false); // hurtbox top (feet - 19) = 80, its bottom
   });
   it('a defeated one is not touched, and boxes that only share an edge do not hit it', () => {
     expect(touchesEnemy(at(104, 80), def, { ...s, alive: false })).toBe(false);

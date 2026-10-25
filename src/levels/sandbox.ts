@@ -26,8 +26,8 @@ export const SANDBOX_ROWS: readonly string[] = [
   '..............................',
   '..............................',
   '.........................#####',
-  '..............................',
   '.............##...............',
+  '..............................',
   '..............................',
   '....#####.....................',
   '......................##......',
@@ -57,12 +57,13 @@ export const SANDBOX_CRUMBLES: readonly Crumble[] = [24, 25, 26].map((col) => ({
 /** GDD-WLD-05: a spring set into the floor at tile column 12, flush with the floor, between the 2-tile wall and the pit, clear of the touch buttons. */
 export const SANDBOX_SPRINGS: readonly Spring[] = [{ col: 12, row: 14 }];
 
-// GDD-WLD-05: the ledge at tile columns 13 and 14, row 8 (top y = 128), is 96 px above the floor: a plain spring launch
-// (about 77 px) falls short of it and a timed one (about 120 px) clears it.
+// GDD-WLD-05: the ledge at tile columns 13 and 14, row 7 (top y = 112, underside y = 128), is 112 px above the floor: a plain spring
+// launch (about 77 px) falls short of it and a timed one (about 120 px) clears it. It moved up a tile from row 8 when the body grew
+// to 20 px (GDD-MOV-06): from the 2-tile wall his head clipped the old ledge's side on the way down to the spring.
 
 /**
- * GDD-WLD-05: a moving platform 3 tiles wide at the height of the spring ledge (top y = 128). It starts against the
- * ledge's right edge (x = 240) and travels 96 px right and back, so it carries Poncho from the ledge towards the crumbling
+ * GDD-WLD-05: a moving platform 3 tiles wide (top y = 128), 16 px below the spring ledge's top. It starts against the
+ * ledge's right edge (x = 240) and travels 96 px right and back, so it carries Poncho from the ledge's side towards the crumbling
  * tiles at x = 384, whose top is 32 px lower.
  */
 export const SANDBOX_PLATFORMS: readonly MovingPlatform[] = [{ x0: 240, y0: 128, x1: 336, y1: 128, w: 48 }];
@@ -112,8 +113,8 @@ export const SANDBOX_FRAGILES: readonly Fragile[] = [10, 11, 12, 13].map((row) =
 export const SANDBOX_ENEMIES: readonly Enemy[] = [
   { x: 104, y: 160 },
   // GDD-ENM-02: a Zopilote cruises above the middle of the level, at y = 64 from x = 216, so it flies 168 to 264. Poncho on the floor is
-  // 153 px below it and never spots it; on the Alacrán's platform he is 89 px below it, spotted only at the low end of its bob; the
-  // spring ledge and the moving platform are well within reach.
+  // 150 px below it (his hurtbox centre is 10 px above his feet, GDD-MOV-06) and never spots it; on the Alacrán's platform he is 86 px
+  // below it, spotted only at the low end of its bob; the spring ledge (38 px below) and the moving platform (54 px) are well within reach.
   { x: 216, y: 64, kind: 'zopilote' },
   // GDD-ENM-02: a cactus buddy on the right half of the top of the 2-tile wall (columns 10 and 11, top y = 192), at x = 184, so the left
   // 18 px of the top stay free to stand on and jump to the Alacrán's platform from.
@@ -134,7 +135,7 @@ export const SANDBOX_ABILITIES = { glide: true, wallCling: true } as const;
  * GDD-WLD-04: 20 hilos in short trails along the path, as (column, row) tiles, in the order the serape colours cycle through them:
  * the floor before the door, either side of the key (4,13) (6,13); over the Alacrán's platform (row 10, top y = 160) (5,9) (7,9);
  * on the 2-tile wall, left of the cactus buddy (10,11); above the spring, which a plain launch passes through (12,10) (12,8);
- * on the spring ledge (row 8) (13,7) (14,7); over the middle of the pit (15,10); along the moving platform's route (top y = 128)
+ * on the spring ledge (row 7, top y = 112) (13,6) (14,6); over the middle of the pit (15,10); along the moving platform's route (top y = 128)
  * (17,7) (19,7) (21,7); over the two spikes (20,11) (21,11); on the 3-tile wall (22,10); over the crumbling tiles (row 10)
  * (24,9) (26,9); and on the Tlacuache's ledge (row 6) (26,5) (28,5).
  */
@@ -143,7 +144,7 @@ export const SANDBOX_HILOS: readonly Hilo[] = [
   [5, 9], [7, 9],
   [10, 11],
   [12, 10], [12, 8],
-  [13, 7], [14, 7],
+  [13, 6], [14, 6],
   [15, 10],
   [17, 7], [19, 7], [21, 7],
   [20, 11], [21, 11],

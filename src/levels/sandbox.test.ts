@@ -45,7 +45,7 @@ describe('GDD-ENM-02 the sandbox Zopilote', () => {
   });
 
   it('spots him on the spring ledge, on the Alacrán platform, and in the moving platform route', () => {
-    expect(spotted(standing(224, 8 * TILE))).toBe(true); // the spring ledge, columns 13 and 14
+    expect(spotted(standing(224, 7 * TILE))).toBe(true); // the spring ledge, columns 13 and 14 (top y = 112)
     expect(spotted(standing(140, 10 * TILE))).toBe(true); // the Alacrán's platform, at its low bob only
     expect(spotted(standing(300, 8 * TILE))).toBe(true); // the moving platform (top y = 128)
   });
@@ -197,18 +197,23 @@ describe('GDD-WLD-04 the sandbox hilos', () => {
     };
     const pit = SANDBOX_HILOS.findIndex((h) => h.col === 15);
     expect(pit).toBeGreaterThanOrEqual(0);
-    // From the top of the 2-tile wall (columns 10 and 11, top y = 192), holding right with jump held for 12 steps.
+    // From the top of the 2-tile wall (columns 10 and 11, top y = 192): jump held for 12 steps, right held for the first 15 steps,
+    // then let go until step 36 (he comes down on the spring at about step 31 and is thrown up), then right again over the pit.
+    // Holding right all the way flies past the spring (the spring ledge is 16 px higher since the body grew to 20 px, GDD-MOV-06).
     let r: RunState = { ...startRun(sandbox), player: standing(166, 12 * TILE) };
     expect(r.hilosTaken[pit]).toBe(false);
     // Stop at the first landing past the pit (it ends at x = 272), asserting every step on the way.
     let landed = false;
+    let launched = false;
     for (let i = 0; i < 200 && !landed; i++) {
-      r = stepRun(r, { move: 1, jumpHeld: i < 12 }, sandbox);
+      r = stepRun(r, { move: i < 15 || i >= 36 ? 1 : 0, jumpHeld: i < 12 }, sandbox);
+      launched ||= r.player.vy <= -450; // the spring's plain launch is 480 px/s up; his own jump is 410
       expect(r.phase, `step ${i}`).toBe('playing');
       expect(r.lives.lives, `step ${i}`).toBe(7);
       landed = r.player.grounded && r.player.x > 272;
     }
     expect(landed).toBe(true);
+    expect(launched).toBe(true);
     expect(r.hilosTaken[pit]).toBe(true);
   });
 });
