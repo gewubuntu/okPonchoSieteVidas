@@ -252,8 +252,9 @@ Prefer an automated check over a prose rule.
 - **Root cause:** Each guard was written for a case another rule already handles, so it had no behaviour of its own for a test to pin down.
 - **Rule:** When a mutant of a guard survives, first ask whether another rule already covers that case. If it does, delete the guard and say in a comment which rule covers it, instead of adding a test that cannot fail for the guard alone.
 - **Recurrence 3 (2026-10-23, GDD-WLD-05 moving blocks):** a `clinging: false` on the block's side stop survived, since movement only clings to tiles; deleted with a comment naming the covering rule. The skill step worked as written.
-- **Recurrence:** 3
-- **Promoted:** step 7 of the `harness-feature` skill (step 4 of `.claude/agents/implementer.md` too).
+- **Recurrence 4 (2026-10-23, GDD-UI-02 pause menu):** the plan itself designed the redundancy: a `tapResume` event for a tap on the Resume row, which did exactly what a plain `tap` already did (resume, whichever item is chosen). Its mutant could not die. Deleted in the check step, the Resume row now sends `tap`. The rule caught it, but only after a plan, an implementation and tests had been built for it.
+- **Recurrence:** 4
+- **Promoted:** step 7 of the `harness-feature` skill (step 4 of `.claude/agents/implementer.md` too), and since recurrence 4 also step 5 (plan): a new event, state or branch must do something no existing one does.
 
 ## L-026 A test measured over a window wide enough to include a second, unrelated event
 
@@ -315,8 +316,9 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** On the title screen (GDD-UI-02) the touch buttons were hidden with `setVisible(false)`, but `read()` still acted on them: a finger held on the invisible mode switch flipped the slide stick and saved the choice. A tap and a turn upright in the same frame also started the level upright. The review found both with probes; the playtests used `page.touchscreen.tap`, which is shorter than a frame, and never put two events in one frame.
 - **Root cause:** The plan treated "hidden" as a drawing change and listed every input source for starting the level, but not the side effects those sources have on their own (the mode switch). Events were applied in order, but the rule was really about the state at the end of the frame.
 - **Rule:** When a screen hides controls, list what each hidden control does besides the press the screen reads, and test a held touch (CDP, several frames), not only a tap. When a rule reads several events from one frame, decide on the state at the end of the frame and test a pair of conflicting events in one frame.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-10-25, GDD-UI-02 pause menu, found by the review):** the Resume row was placed half inside the lower left quarter of the screen, which the slide stick reads, so in stick mode the tap that resumed also steered Poncho. The plan's unit test checked the rows against the stick's drawn track only, not the area it reads, and passed. Fixed by holding back from the stick any finger that went down while paused or on the title screen, until it lifts.
+- **Recurrence:** 2
+- **Promoted:** step 5 of the `harness-feature` skill: a new on-screen tap target is checked against the area each touch control reads, not only its drawn box.
 
 ## L-033 A visibility was set from state before that frame changed the state
 
@@ -326,3 +328,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** Set every visibility that follows a state in the same draw step that runs after the state can change (the `draw*` calls at the end of `update()`). When a test checks that two things change together, read both in one `waitForFunction` callback.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-034 The mutation runner took one test command per file, but each mutant needs its own test
+
+- **Date:** 2026-10-23
+- **What went wrong:** L-026 says to run each mutant against the one test that must kill it, alone. `scripts/mutate.mjs` took a single `test` command for the whole file, so for GDD-UI-02 the implementer and then the main session each wrote an ad hoc wrapper that made one mutants file per mutant (57 mutants, unit and playtest).
+- **Root cause:** The runner was built before the rule; the rule was added as prose and the tool never caught up.
+- **Rule:** Give each mutant its own `test` command in the mutants file (it replaces the file's `test`), so `node scripts/mutate.mjs <file>` runs every mutant against its named test with no wrapper.
+- **Recurrence:** 2
+- **Promoted:** `scripts/mutate.mjs` (a mutant's own `test` field), and step 7 of the `harness-feature` skill.

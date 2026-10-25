@@ -92,7 +92,7 @@ test('GDD-UI-02 Escape, P and losing focus do nothing on the title screen, and t
   await page.keyboard.press('Enter');
   await titleHidden(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false });
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false, choice: 'resume' });
 });
 
 test('GDD-UI-02 the jump that starts the level, held, does not jump until pressed again', async ({ page, isMobile }) => {
@@ -141,7 +141,7 @@ test('GDD-UI-02 a phone upright when the game opens is asked to turn sideways, a
   await tapCentre(page, true);
   await titleHidden(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false });
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toEqual({ paused: false, portrait: false, choice: 'resume' });
 });
 
 test('GDD-UI-02 a phone turned upright on the title screen asks to turn sideways', async ({ page, isMobile }) => {

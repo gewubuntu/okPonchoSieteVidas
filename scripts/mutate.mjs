@@ -2,7 +2,8 @@
 // Mutation runner (L-010, L-020). Zero dependencies.
 //   node scripts/mutate.mjs <mutants.json>   run each mutant and report whether a test went red
 //   node scripts/mutate.mjs --restore        put back a file left mutated by an interrupted run
-// mutants.json: { "test": "<shell command>", "mutants": [{ "name": "...", "file": "src/...", "from": "...", "to": "..." }] }
+// mutants.json: { "test": "<shell command>", "mutants": [{ "name": "...", "file": "src/...", "from": "...", "to": "...", "test"?: "..." }] }
+// A mutant's own `test` replaces the file's, so each mutant can run against the one test that must kill it (L-026).
 // `from` must occur exactly once in the file. Before each mutant the original is saved to .mutating.json; it is put back
 // after the mutant, and the marker deleted. If the run is killed the marker stays, and scripts/check.mjs fails until
 // `--restore` has run, so a mutation can never be committed.
@@ -52,7 +53,7 @@ for (const m of mutants) {
   try {
     writeFileSync(path, original.replace(m.from, () => m.to));
     // PONCHO_MUTATING tells scripts/check.mjs not to fail on this run's own marker, so the gate can be a mutant's test.
-    const r = spawnSync(test, { cwd: ROOT, shell: true, stdio: 'ignore', env: { ...process.env, PONCHO_MUTATING: '1' } });
+    const r = spawnSync(m.test ?? test, { cwd: ROOT, shell: true, stdio: 'ignore', env: { ...process.env, PONCHO_MUTATING: '1' } });
     if (r.status === 0) survived++;
     console.log(`${r.status === 0 ? 'GREEN (survived)' : 'RED  '} ${m.name}`);
   } finally {
