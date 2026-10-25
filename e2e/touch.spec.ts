@@ -154,13 +154,14 @@ test('GDD-CTL-03 sliding the finger right of the stick centre runs right, slower
   const cdp = await page.context().newCDPSession(page);
   await switchTo(page, cdp, 'stick');
   const track = await buttonAt(page, 'stick');
-  const speedAt = async (frac: number) => {
+  const speedAt = async (frac: number, steers = true) => {
     await page.evaluate(() => window.__PONCHO__!.teleport(280, 224));
     await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
-    const from = await page.evaluate(() => window.__PONCHO__!.ticks());
     await fingers(cdp, 'touchStart', [{ x: track.x + frac * (track.widthCss / 2), y: track.y, id: 1 }]);
-    // 0.3 s of simulation steps, however slow the frames (L-042): long enough to reach that stick position's top speed, short of
-    // the wall at x 352.
+    // Counted in simulation steps from the frame the stick reads the finger, however slow the frames (L-042): 0.3 s is long enough
+    // to reach that stick position's top speed, short of the wall at x 352. A finger in the dead zone never moves the stick.
+    if (steers) await page.waitForFunction(() => window.__PONCHO__!.touch().stick !== 0);
+    const from = await page.evaluate(() => window.__PONCHO__!.ticks());
     await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 18, from);
     const vx = await page.evaluate(() => window.__PONCHO__!.state().vx);
     await fingers(cdp, 'touchEnd', []);
@@ -170,7 +171,7 @@ test('GDD-CTL-03 sliding the finger right of the stick centre runs right, slower
   const full = await speedAt(1);
   expect(slow).toBeCloseTo(60, 0);
   expect(full).toBeCloseTo(120, 0);
-  expect(await speedAt(0.1)).toBe(0); // inside the dead zone
+  expect(await speedAt(0.1, false)).toBe(0); // inside the dead zone
   expect(await speedAt(-1)).toBeCloseTo(-120, 0);
 });
 
