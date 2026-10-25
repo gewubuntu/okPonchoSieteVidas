@@ -289,8 +289,9 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** The GDD-AUD-02 plan listed mutants for the land-only-in-play guard, the stomp mark on the life-lost returns and the stomp mark being cleared on the respawn paths, but named no test for them ("pick the test; or report if none"). The implementer had to design three extra tests on its own, and a `-t` filter with "(45 steps)" in the test name matched nothing, because `-t` is a regular expression.
 - **Root cause:** The plan was written from the rules down to mutants, not from each mutant back to a planned test, so a clause with no test only showed up when its mutant survived.
 - **Rule:** Every planned mutant names a test that is in the same plan. When a mutant has none, add the test to the plan (setup and expected value) before launching the implementer. Keep test names free of regex characters such as parentheses, or filter on a plain prefix.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-10-25, GDD-CTL-02):** the other direction. The plan listed `this.pad.holdBack()` in `quitToTitle` as a code change but gave it no mutant and no test; the implementer's own mutant survived every test and it added a playtest.
+- **Recurrence:** 2
+- **Promoted:** step 5 of the `harness-feature` skill (mutants): every code line the plan lists gets a mutant, and every mutant a test in the plan.
 
 ## L-030 The session started on a branch left behind by an earlier merged PR
 
@@ -374,5 +375,14 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** GDD-UI-02 says a game button held through the title's settings screen is no new press after it. The plan compared the buttons down with the ones down on the frame before, so a Left going down in the same frame that the settings screen was left (or opened and left) still counted as new and started the level. It was found in review of the implementer's report, which named the case as "timing-sensitive by design".
 - **Root cause:** The plan stated the rule per frame, and the events within one frame are applied in order, so a screen can open and close between two frame boundaries.
 - **Rule:** When a rule depends on a screen being open, decide it on "open at any time in the frame", and plan a unit test where the screen opens or closes in the same frame as the press.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-039 A "pressed while paused" test used a button the pause menu also reads
+
+- **Date:** 2026-10-25
+- **What went wrong:** The GDD-CTL-02 plan had a playtest press the gamepad's south button while paused and hold it through a resume by start. South is also "pick" on the pause menu, so the press itself picked Resume, and the start press after it paused again. The implementer rewrote the test to hold south through the resume that its own press causes.
+- **Root cause:** The plan treated south only as the jump button and did not look up what the paused screen does with it (Space and Z have the same double role).
+- **Rule:** Before planning a press made on a menu or pause screen, look up what that screen does with the button (`pauseEvent`, `titleFrame`, `settingsEvent`); for a button that picks (Space, Z, south), the hold-back test holds the press that picked.
 - **Recurrence:** 1
 - **Promoted:** no

@@ -234,3 +234,35 @@ describe('GDD-UI-02 title screen after quitting from the pause menu', () => {
     expect(frame(quit, [TAP_OFF]).shown).toBe(true);
   });
 });
+
+describe('GDD-CTL-02 the gamepad on the title screen', () => {
+  it('start starts the level whichever row is chosen', () => {
+    expect(titleFrame(TITLE, ['start'], 0).state.shown).toBe(false);
+    expect(titleFrame(TITLE, ['menuDown', 'start'], 0).state.shown).toBe(false);
+  });
+
+  it("start on the title's settings screen leaves it and does not start", () => {
+    const one = titleFrame(TITLE, ['menuDown', 'pick', 'start'], 0).state;
+    expect(one.shown).toBe(true);
+    expect(one.settings).toBeNull();
+    expect(one.choice).toBe('settings');
+    const opened = titleFrame(TITLE, ['menuDown', 'pick'], 0).state;
+    expect(opened.settings).toBe('master');
+    const two = titleFrame(opened, ['start'], 0).state;
+    expect(two.shown).toBe(true);
+    expect(two.settings).toBeNull();
+    expect(two.choice).toBe('settings');
+  });
+
+  it('start upright does not start, a start and a turn sideways in one frame does', () => {
+    expect(titleFrame(UPRIGHT, ['start'], 0).state.shown).toBe(true);
+    const upright = titleFrame(TITLE, ['portrait'], 0).state;
+    expect(titleFrame(upright, ['start'], 0).state.shown).toBe(true);
+    expect(titleFrame(upright, ['start', 'landscape'], 0).state.shown).toBe(false);
+    expect(titleFrame(TITLE, ['landscape', 'start', 'portrait'], 0).state.shown).toBe(true);
+  });
+
+  it('Escape still does nothing on the title', () => {
+    expect(titleFrame(TITLE, ['key'], 0).state.shown).toBe(true);
+  });
+});

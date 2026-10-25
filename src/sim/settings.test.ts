@@ -87,3 +87,10 @@ describe('GDD-AUD-01 effects volume', () => {
     expect(sfxVolume(at(0, 10))).toBe(0);
   });
 });
+
+describe('GDD-CTL-02 gamepad start on the settings screen', () => {
+  it('GDD-CTL-02 start leaves the settings screen like Escape', () => {
+    expect(settingsEvent('master', DEFAULT_SETTINGS, 'start')).toBe('back');
+    expect(settingsEvent('effects', DEFAULT_SETTINGS, 'start')).toBe('back');
+  });
+});

@@ -23,8 +23,8 @@ function nudge(settings: Settings, row: SettingsRow, delta: number): Settings {
 
 /**
  * One event on the open settings screen, which only the sideways screen takes (callers handle orientation). Up and Down choose
- * a row (no wrap-around), Left and Right move the chosen volume, Enter, Space or Z picks Back, Escape, P and the pause button
- * leave. A tap on a volume row chooses it and moves it by its half; a tap on Back leaves; any other tap does nothing.
+ * a row (no wrap-around), Left and Right move the chosen volume, Enter, Space or Z picks Back, Escape, P, the pause button
+ * and the gamepad's start leave. A tap on a volume row chooses it and moves it by its half; a tap on Back leaves; any other tap does nothing.
  * `'back'` when the event leaves the screen.
  */
 export function settingsEvent(row: SettingsRow, settings: Settings, event: PauseEvent): { row: SettingsRow; settings: Settings } | 'back' {
@@ -48,6 +48,7 @@ export function settingsEvent(row: SettingsRow, settings: Settings, event: Pause
       return row === 'back' ? 'back' : { row, settings };
     case 'key':
     case 'button':
+    case 'start':
       return 'back';
     default: // blur, portrait, landscape
       return { row, settings };

@@ -30,7 +30,8 @@ const START_BITS = 2 | 4 | 8 | 16;
  * One frame of the title screen, the events in order. Up and Down choose Start or Settings (no wrap-around); Enter, Space or Z
  * picks. Picking Start, a tap or click anywhere off the Settings row, the pause button's place too, or a new press of claw, Fuego,
  * Left or Right starts the level, if the frame ends sideways with the settings screen closed. Picking Settings or a tap on its row
- * opens the settings screen (see `settingsEvent`). Escape, P and losing focus do nothing on the menu.
+ * opens the settings screen (see `settingsEvent`). Start on a gamepad starts too, but on the settings screen it leaves it (GDD-CTL-02).
+ * Escape, P and losing focus do nothing on the menu.
  */
 export function titleFrame(state: TitleState, events: readonly PauseEvent[], down: number, settings: Settings = DEFAULT_SETTINGS): { state: TitleState; settings: Settings } {
   if (!state.shown) return { state, settings };
@@ -45,7 +46,7 @@ export function titleFrame(state: TitleState, events: readonly PauseEvent[], dow
     else if (e === 'landscape') portrait = false;
     else if (portrait) {
       // Upright nothing is chosen, picked or opened, but a tap or the pause button's place still counts as a start press.
-      if (typeof e === 'object' || e === 'button') pressed = true;
+      if (typeof e === 'object' || e === 'button' || e === 'start') pressed = true;
     } else if (row !== null) {
       // The pause button is hidden on the title, so its place is a plain spot on the settings screen.
       const result = settingsEvent(row, values, e === 'button' ? TAP_OFF : e);
@@ -66,7 +67,7 @@ export function titleFrame(state: TitleState, events: readonly PauseEvent[], dow
       if (e.title === 'settings') row = 'master';
       else pressed = true;
       opened ||= row !== null;
-    } else if (e === 'button') pressed = true;
+    } else if (e === 'button' || e === 'start') pressed = true;
   }
   // A start counts only in a frame that ends sideways with the settings screen closed, so a tap and a turn upright in one
   // frame do not start the level, and a game button held through the settings screen, or pressed while it was open in this frame,
