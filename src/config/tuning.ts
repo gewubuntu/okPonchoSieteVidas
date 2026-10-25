@@ -6,7 +6,7 @@
 export const TICK_HZ = 60;
 export const STEP = 1 / TICK_HZ;
 
-/** GDD-ART-01: base resolution and tile grid. */
+/** GDD-ART-01: the screen in game pixels and the tile grid. */
 export const BASE_WIDTH = 480;
 export const BASE_HEIGHT = 270;
 export const TILE = 16;

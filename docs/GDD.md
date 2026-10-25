@@ -639,17 +639,17 @@ Status: Decided (appearance from the user's reference image, 2026-10-19; the spr
 
 References, all in `assets/characters/poncho/`:
 
-- `reference.jpg`: the illustration (512 x 512, orange background), the source for his colours, face, taco and PB badge.
+- `reference.jpg`: the illustration (512 x 512, orange background), the source for Poncho's colours, face, taco and PB badge.
 - **Sprite references (Decided, user, 2026-10-25):** `sprite-side.jpg` (two side views), `sprite-back-front.jpg` (back and front), `sprite-walk-a.jpg` and `sprite-walk-b.jpg` (walk cycles of four frames). Poncho is drawn side-on, as in these. Where they and the illustration differ, the sprite references win for the sprite (user, 2026-10-25: "side view as drawn").
 
 The look:
 
-- **Build:** chubby chibi cat standing upright on two legs, large round head, big pointed ears with pink insides. Below the poncho his ginger legs show, with cream paws.
+- **Build:** chubby chibi cat standing upright on two legs, large round head, big pointed ears with pink insides. Below the poncho the ginger legs show, with cream paws.
 - **Fur:** warm tan and ginger, cream muzzle, chest and paws, darker ginger tabby marks on the forehead (illustration).
-- **Face:** large dark brown eyes with white highlights, pink cheek blush, small pink nose, small smirk, slightly furrowed brows (confident, cheeky; illustration). Side-on (sprite references): one big dark eye with a white highlight, a pink blush below it and a small smile on the cream muzzle. The front view shows his eyes shut in a happy smile.
-- **Sombrero:** wide brim, blue on top with a red rim and a zigzag trim; a tall, rounded red crown with a blue band. In the sprite references the ear nearer the viewer pokes up above the brim in front of the crown, and the brim tilts as he faces.
+- **Face:** large dark brown eyes with white highlights, pink cheek blush, small pink nose, small smirk, slightly furrowed brows (confident, cheeky; illustration). Side-on (sprite references): one big dark eye with a white highlight, a pink blush below it and a small smile on the cream muzzle. The front view shows the eyes shut in a happy smile.
+- **Sombrero:** wide brim, blue on top with a red rim and a zigzag trim; a tall, rounded red crown with a blue band. In the sprite references the ear nearer the viewer pokes up above the brim in front of the crown, and the brim tilts with the way Poncho faces.
 - **Poncho:** blue, with a red V-shaped chevron at the neck and a red border at the hem, both dotted white, and small white triangles in the blue field. The illustration also has a cream fringe and a darker navy layer behind (cape or back panel); the sprite references show neither, so the sprite leaves them out (Proposed reading of "side view as drawn").
-- **Tail (from the sprite references):** long and ginger, curving up behind him, with a white tip.
+- **Tail (from the sprite references):** long and ginger, curving up behind the body, with a white tip.
 - **Back (from the sprite references):** the crown and brim cover the head and the ears poke up behind the crown; the back of the poncho has the same chevron and triangles.
 - **Held item:** a taco with lettuce, tomato and meat in one hand (illustration). This becomes the Taco state (GDD-PWR-01); the sprite references, in Base, hold nothing.
 - **Glow:** the illustration has a golden rim light. It is reserved as the invulnerability effect (GDD-CMB-03, GDD-PWR-04).
@@ -686,7 +686,7 @@ From the illustration (`reference.jpg`):
 | Illustration background (marketing only) | #D2690D |
 
 - Each material gets three shades: base, shadow and highlight (GDD-ART-05). Poncho's palette is fixed across all worlds, at most 16 colours, the Taco and Fuego states included.
-- Each world adds its own palette of at most 24 colours for tiles, scenery and enemies (GDD-ART-06), starting from these and adding talavera, serape and marigold tones. Poncho must stay readable against every world background: his outline and his blue and red do that against the warm desert.
+- Each world adds its own palette of at most 24 colours for tiles, scenery and enemies (GDD-ART-06), starting from these and adding talavera, serape and marigold tones. Poncho must stay readable against every world background: the outline and the poncho's blue and red do that against the warm desert.
 
 ### GDD-ART-04 Poncho animation set
 
@@ -694,18 +694,18 @@ Status: Proposed
 
 Idle (blink, glances at the taco in Taco state), run, skid, jump up, apex, fall, land, claw swipe, fireball spit (Fuego), hurt (sombrero tips off, taco bitten), respawn flip, eating a taco or chile, victory (taco in the air), wall cling (post-MVP), glide (post-MVP). Exact frame counts decided with the final sprite sheet.
 
-The run cycle starts from the four-frame walk of the sprite references (`sprite-walk-a.jpg`, `sprite-walk-b.jpg`), side-on, his tail swinging behind him.
+The run cycle starts from the four-frame walk of the sprite references (`sprite-walk-a.jpg`, `sprite-walk-b.jpg`), side-on, the tail swinging behind.
 
 ### GDD-ART-05 Pixel rules
 
 Status: Proposed
 
-- **Outline:** every character, enemy, item and pickup has a dark plum outline (#301830, as in the sprite references), never pure black, 2 art pixels thick on the outside (about as thick, for his size, as in the sprite references). Tiles and scenery have no outline, so what can be touched stands out.
+- **Outline:** every character, enemy, item and pickup has a dark plum outline (#301830, as in the sprite references), never pure black, 2 art pixels thick on the outside (about as thick, for Poncho's size, as in the sprite references). Tiles and scenery have no outline, so what can be touched stands out.
 - **Light** comes from the upper left. Each material has three shades: base, a shadow on the lower right and a highlight on the upper left. No soft gradients, no blurred or blended edges, no anti-aliasing.
 - **Dither** (a checker of two colours) only in skies and far scenery, never on characters or pickups.
 - **Three layers:** far scenery (sky, mountains, clouds; low contrast, scrolls slower than the level), the play area (tiles, mid contrast) and characters and pickups (highest contrast, outlined).
 - **Hazards** have a pale edge or tip (cream on a spike's points, a scorpion's sting): this is how the high-contrast hazard outlines of GDD-UI-03 are drawn, so danger never rests on colour alone. Hazard tiles get this edge although other tiles have no outline.
-- **Silhouette first:** Poncho must be told apart by his shape alone, the wide brim and tall crown above a poncho and a tail.
+- **Silhouette first:** Poncho must be told apart by shape alone, the wide brim and tall crown above a poncho and a tail.
 - Sprites are drawn facing right and flipped for left.
 
 ### GDD-ART-06 World moods
