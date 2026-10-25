@@ -98,6 +98,14 @@ export const TOUCH = {
   stickDeadZone: 0.2,
 } as const;
 
+/** GDD-CTL-02: the gamepad's left stick. */
+export const GAMEPAD = {
+  /** The share of the stick's push that does nothing (the slide stick's is the same, `TOUCH.stickDeadZone`). */
+  deadZone: 0.2,
+  /** A push past this, along the larger axis, is a direction in the menus. */
+  menuThreshold: 0.5,
+} as const;
+
 /** GDD-UI-02: the pause menu's rows, in game pixels; each grows so it is never under TOUCH.minCssPx tall. */
 export const PAUSE_MENU = { width: 160, rowHeight: 28, top: 136, textSize: 12 } as const;
 

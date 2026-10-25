@@ -333,3 +333,18 @@ describe('GDD-UI-02 a press made while paused does nothing on resume', () => {
     expect(resumeHeld(r, idle)).toEqual(r);
   });
 });
+
+describe('GDD-CTL-02 the gamepad start button', () => {
+  it('start pauses, resumes and is ignored upright like Escape', () => {
+    expect(one(PLAYING, 'start')).toEqual(PAUSED);
+    expect(one(PLAYING, 'start')).toEqual(one(PLAYING, 'key'));
+    expect(one(PAUSED, 'start')).toEqual(PLAYING);
+    expect(one(UPRIGHT, 'start')).toEqual(UPRIGHT);
+    const open = after(PAUSED, 'menuDown', 'pick');
+    expect(open.settings).toBe('master');
+    const back = one(open, 'start');
+    expect(back.settings).toBeNull();
+    expect(back.choice).toBe('settings');
+    expect(back.paused).toBe(true);
+  });
+});

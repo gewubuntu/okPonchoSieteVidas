@@ -34,6 +34,7 @@ export const TAP_OFF: Tap = { pause: null, title: null, settings: null };
 
 /**
  * - `key`: Escape or P. `button`: the touch pause button. Both pause, and resume when paused (leave the settings screen when it is open).
+ * - `start`: the gamepad's start button: like `key`, and it starts the level on the title (GDD-CTL-02).
  * - A `Tap`: a tap or click, by place. While playing it is game input. On the pause menu it resumes, except on the Settings row
  *   (opens settings) and the Quit to title row (quits); on the settings screen see `settingsEvent`.
  * - `menuUp` / `menuDown`: Up or W, Down or S choose the item above or below (no wrap-around). `menuLeft` / `menuRight`: Left or A,
@@ -41,7 +42,7 @@ export const TAP_OFF: Tap = { pause: null, title: null, settings: null };
  * - `blur`: the tab or window lost focus or was hidden. It pauses and never resumes by itself.
  * - `portrait` / `landscape`: a phone turned upright pauses; turning it back allows a resume but does not resume.
  */
-export type PauseEvent = 'key' | 'button' | 'menuUp' | 'menuDown' | 'menuLeft' | 'menuRight' | 'pick' | 'blur' | 'portrait' | 'landscape' | Tap;
+export type PauseEvent = 'key' | 'button' | 'start' | 'menuUp' | 'menuDown' | 'menuLeft' | 'menuRight' | 'pick' | 'blur' | 'portrait' | 'landscape' | Tap;
 
 export const PLAYING: PauseState = { paused: false, portrait: false, choice: 'resume', settings: null };
 
@@ -57,7 +58,7 @@ export function pauseEvent(state: PauseState, event: PauseEvent, settings: Setti
   if (event === 'blur') return { state: { ...state, paused: true }, settings };
   if (event === 'portrait') return { state: { ...state, paused: true, portrait: true }, settings };
   if (event === 'landscape') return { state: { ...state, portrait: false }, settings };
-  if (!state.paused) return event === 'key' || event === 'button' ? { state: { ...state, paused: true }, settings } : same;
+  if (!state.paused) return event === 'key' || event === 'button' || event === 'start' ? { state: { ...state, paused: true }, settings } : same;
   // The menus can be chosen from and picked on only while shown: paused, and not upright.
   if (state.portrait) return same;
   if (state.settings !== null) {
@@ -72,6 +73,7 @@ export function pauseEvent(state: PauseState, event: PauseEvent, settings: Setti
   switch (event) {
     case 'key':
     case 'button':
+    case 'start':
       return { state: PLAYING, settings };
     case 'menuUp':
       return { state: { ...state, choice: MENU_ITEMS[Math.max(0, MENU_ITEMS.indexOf(state.choice) - 1)]! }, settings };
