@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { spawn } from './movement';
 import { collectHilos, hilosCollected, touchesHilo, type Hilo } from './hilo';
 
-// The hilo at (5, 13): its middle is (88, 216), so its 8 x 8 box is x 84 to 92, y 212 to 220. Poncho's body box is 12 x 14,
+// The hilo at (5, 13): its middle is (88, 216), so its 8 x 8 box is x 84 to 92, y 212 to 220. Poncho's body box is 12 x 32,
 // `x` its middle and `y` its feet.
 const hilo: Hilo = { col: 5, row: 13 };
 
@@ -14,8 +14,8 @@ describe('GDD-WLD-04 hilo pickups', () => {
     expect(touchesHilo(spawn(97.5, 216), hilo)).toBe(true);
     expect(touchesHilo(spawn(88, 212), hilo)).toBe(false); // feet at the hilo's top
     expect(touchesHilo(spawn(88, 212.5), hilo)).toBe(true);
-    expect(touchesHilo(spawn(88, 234), hilo)).toBe(false); // head (14 above) at the hilo's bottom
-    expect(touchesHilo(spawn(88, 233.5), hilo)).toBe(true);
+    expect(touchesHilo(spawn(88, 252), hilo)).toBe(false); // head (32 above) at the hilo's bottom
+    expect(touchesHilo(spawn(88, 251.5), hilo)).toBe(true);
   });
 
   it('collects every hilo touched in one step and keeps the ones already collected', () => {

@@ -3,8 +3,8 @@ import { boot } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 
-// The sandbox level has a fragile wall four tiles tall at tile column 27 (x 432 to 448), and a piñata at column 9, row 11
-// (x 144 to 160, y 176 to 192) that Poncho can reach with the claw from the top of the 2-tile wall at columns 10 and 11.
+// The sandbox level has a fragile wall four tiles tall at tile column 27 (x 432 to 448), and a piñata at column 9, row 10
+// (x 144 to 160, y 160 to 176) that Poncho can reach with the claw from the top of the 2-tile wall at columns 10 and 11.
 const start = async (page: Page, x: number, y = 224) => {
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
@@ -43,7 +43,14 @@ test('GDD-WLD-05 a claw swipe breaks the fragile wall where it reaches, and Ponc
   expect((await api(page, () => window.__PONCHO__!.state())).x).toBe(432 - 6); // the wall stops him
   await press(page, 1);
   await idle(page, 4);
-  await page.waitForFunction(() => window.__PONCHO__!.fragilesDrawn() === 3); // the 14 px claw hits only the bottom tile
+  await page.waitForFunction(() => window.__PONCHO__!.fragilesDrawn() === 2); // the 32 px claw hits the two bottom tiles
+  // The moving block in column 28 (x 448 to 464, top y 112 to 208) hangs over the way through. Wait, with the game paused, until it is
+  // well up (top y <= 160, so its underside is 32 px or more clear of his 32 px height for the 20 steps he needs), so the test does not
+  // depend on where the block was when the page was paused.
+  await page.evaluate(() => {
+    const g = window.__PONCHO__!;
+    for (let i = 0; i < 300 && g.blocks()[0]!.y > 160; i++) g.step(1);
+  });
   await page.evaluate(() => window.__PONCHO__!.step(60, { move: 1, jumpHeld: false }));
   expect((await api(page, () => window.__PONCHO__!.state())).x).toBeGreaterThan(448);
 });
@@ -62,7 +69,7 @@ test('GDD-WLD-05 losing a life puts the fragile wall back', async ({ page }) => 
   await start(page, 418);
   await press(page, 1);
   await idle(page, 4);
-  await page.waitForFunction(() => window.__PONCHO__!.fragilesDrawn() === 3);
+  await page.waitForFunction(() => window.__PONCHO__!.fragilesDrawn() === 2);
   await page.evaluate(() => {
     window.__PONCHO__!.teleport(248, 150); // into the pit
     window.__PONCHO__!.step(140);

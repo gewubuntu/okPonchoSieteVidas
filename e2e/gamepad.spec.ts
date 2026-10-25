@@ -86,6 +86,9 @@ test('GDD-CTL-02 start on the title starts the level, south jumps, the D-pad run
   await page.waitForFunction(() => window.__PONCHO__!.state().vx >= 115, undefined, { timeout: 3000 });
   await press(page, RIGHT, false);
   await page.waitForFunction(() => window.__PONCHO__!.state().vx === 0 && window.__PONCHO__!.state().grounded);
+  // He has stopped under the Alacrán's platform, whose underside is 16 px above his 32 px head: a jump there is over in two steps.
+  await page.evaluate(() => window.__PONCHO__!.teleport(40, 224)); // open sky, so the jump rises long enough to be seen
+  await grounded(page);
   await press(page, SOUTH, true);
   await page.waitForFunction(() => window.__PONCHO__!.state().vy < 0, undefined, { timeout: 1000 });
   await press(page, SOUTH, false);
@@ -193,15 +196,18 @@ test('GDD-CTL-02 GDD-UI-02 a D-pad direction held since before the pause keeps r
   await page.waitForFunction(() => window.__PONCHO__!.state().vx > 0);
   await tap(page, START);
   expect(await paused(page)).toBe(true);
+  // While paused, put him back at the left of the floor, standing still: the real-time waits around the pause let him run
+  // most of the way to the closed door at tile column 8 (L-042), and from here his speed can only come from the held D-pad.
+  await page.evaluate(() => window.__PONCHO__!.teleport(40, 224));
   await tap(page, START);
   expect(await paused(page)).toBe(false);
-  // Counted in simulation steps, not real time (L-042): 6 steps after the resume he is still running, well before the closed
-  // door at tile column 8 that a long real-time wait on slow frames runs him into.
+  // Counted in simulation steps, not real time (L-042): 12 steps after the resume he is running right, still short of the door.
   const { t0, x0 } = await api(page, () => ({ t0: window.__PONCHO__!.ticks(), x0: window.__PONCHO__!.state().x }));
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 6, t0);
+  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 12, t0);
   const now = await state(page);
   expect(now.vx).toBeGreaterThan(0);
-  expect(now.x).toBeGreaterThan(x0 + 6);
+  // From a standstill at 800 px/s squared (RUN.groundAccel) he covers about 17 px in 12 steps; 10 leaves room for the landing step.
+  expect(now.x).toBeGreaterThan(x0 + 10);
   await press(page, RIGHT, false);
 });
 

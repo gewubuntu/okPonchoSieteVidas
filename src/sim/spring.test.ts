@@ -143,7 +143,7 @@ describe('GDD-WLD-05 spring', () => {
 });
 
 describe('GDD-WLD-05 the sandbox spring and its ledge', () => {
-  // The ledge (tile columns 13 and 14, row 8) has its top at y = 128, 96 px above the floor next to the spring.
+  // The ledge (tile columns 13 and 14, row 7) has its top at y = 112, 112 px above the floor next to the spring.
   const sandbox: Level = {
     world: parseTiles(SANDBOX_ROWS),
     spawn: SANDBOX_SPAWN,
@@ -164,18 +164,18 @@ describe('GDD-WLD-05 the sandbox spring and its ledge', () => {
     let up = false;
     for (let i = 0; i < 300; i++) {
       up ||= r.player.vy <= -400;
-      const drift = up && r.player.y < 128 ? 1 : 0;
+      const drift = up && r.player.y < 112 ? 1 : 0;
       r = stepRun(r, { move: drift, jumpHeld: timed && i >= 8 && !up }, sandbox);
-      if (r.player.grounded && r.player.y === 128) return true;
+      if (r.player.grounded && r.player.y === 112) return true;
     }
     return false;
   };
 
-  it('a timed press lands on the ledge, 96 px up', () => {
+  it('a timed press lands on the ledge, 112 px up', () => {
     expect(reachesLedge(true)).toBe(true);
   });
 
   it('the plain launch falls short of it', () => {
-    expect(reachesLedge(false)).toBe(false); // it keeps bouncing on the spring, 77 px up, 19 px short
+    expect(reachesLedge(false)).toBe(false); // it keeps bouncing on the spring, 77 px up, 35 px short
   });
 });

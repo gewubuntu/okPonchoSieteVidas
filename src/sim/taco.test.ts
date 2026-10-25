@@ -34,8 +34,8 @@ const run = (r: RunState, input: PlayerInput, steps: number): RunState => {
 const onSpike = (power: RunState['power'], extra: Partial<RunState> = {}): RunState => ({ ...startRun(level), power, player: at(136, 64), ...extra });
 
 describe('GDD-PWR-02 the taco pickup', () => {
-  it('is a 12 x 12 box in the middle of its tile, touched by the 12 x 14 body', () => {
-    // Taco box x 50 to 62, y 50 to 62. Body box is x - 6 to x + 6, y - 14 to y.
+  it('is a 12 x 12 box in the middle of its tile, touched by the 12 x 32 body', () => {
+    // Taco box x 50 to 62, y 50 to 62. Body box is x - 6 to x + 6, y - 32 to y.
     expect(touchesTaco(at(43.99, 56), taco)).toBe(false); // body right edge 49.99
     expect(touchesTaco(at(44, 56), taco)).toBe(false); // only touching its left edge
     expect(touchesTaco(at(44.01, 56), taco)).toBe(true);
@@ -44,8 +44,8 @@ describe('GDD-PWR-02 the taco pickup', () => {
     expect(touchesTaco(at(68.01, 56), taco)).toBe(false);
     expect(touchesTaco(at(56, 50), taco)).toBe(false); // feet at the taco's top edge: only touching
     expect(touchesTaco(at(56, 50.01), taco)).toBe(true);
-    expect(touchesTaco(at(56, 75.99), taco)).toBe(true);
-    expect(touchesTaco(at(56, 76), taco)).toBe(false); // body top at the taco's bottom edge
+    expect(touchesTaco(at(56, 93.99), taco)).toBe(true);
+    expect(touchesTaco(at(56, 94), taco)).toBe(false); // body top at the taco's bottom edge
   });
 
   it('Poncho starts in Base with every taco waiting', () => {

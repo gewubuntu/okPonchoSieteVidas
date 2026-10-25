@@ -34,7 +34,7 @@ test('GDD-WLD-05 spring: beside it, plain launch, timed launch, and on the ledge
   // Then drift right above the ledge and land on it.
   await page.evaluate(() => {
     const g = window.__PONCHO__!;
-    for (let i = 0; i < 120 && !(g.state().grounded && g.state().y === 128); i++) g.step(1, { move: g.state().y < 128 ? 1 : 0, jumpHeld: false });
+    for (let i = 0; i < 120 && !(g.state().grounded && g.state().y === 112); i++) g.step(1, { move: g.state().y < 112 ? 1 : 0, jumpHeld: false });
   });
   await shot(page, info, 'spring-ledge');
 });

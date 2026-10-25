@@ -216,15 +216,15 @@ const crushedAt = (states: RunState[]) => states.findIndex((s) => s.phase === 'r
 const floor = (level: Level, extra: Partial<RunState> = {}) => runAt(level, standing(108, 192), extra);
 
 describe('GDD-LIFE-02 crushing', () => {
-  // A block coming down onto Poncho standing on the floor at x = 108: its underside meets his head (y = 178) after ~93 steps.
+  // A block coming down onto Poncho standing on the floor at x = 108: its underside meets his head (y = 160) after ~66 steps.
   const dropper: MovingBlock = { x0: 100, y0: 100, x1: 100, y1: 176, w: 16, h: 16 };
 
   it('a block coming down onto Poncho on the floor costs one life', () => {
     const level = levelOf([dropper]);
     const states = play(level, floor(level), 130);
     const i = crushedAt(states);
-    expect(i).toBeGreaterThan(80);
-    expect(i).toBeLessThan(100);
+    expect(i).toBeGreaterThan(60);
+    expect(i).toBeLessThan(72);
     expect(states[i]!.lives.lives).toBe(6);
     expect(states[i]!.wait).toBe(RESPAWN.delaySteps);
     expect(states[i - 1]!.lives.lives).toBe(7);
@@ -236,9 +236,9 @@ describe('GDD-LIFE-02 crushing', () => {
     const level = levelOf([{ x0: 100, y0: 176, x1: 100, y1: 100, w: 32, h: 16 }], ceiling);
     const states = play(level, runAt(level, standing(116, 176)), 120);
     const i = crushedAt(states);
-    expect(i).toBeGreaterThan(60);
+    expect(i).toBeGreaterThan(40);
     expect(states[i]!.lives.lives).toBe(6);
-    expect(states[i - 1]!.player.y).toBeGreaterThan(126 - 1); // head (14 above) was under the ceiling's underside, y = 112
+    expect(states[i - 1]!.player.y).toBeGreaterThan(144 - 1); // head (32 above) was under the ceiling's underside, y = 112
   });
 
   it('a block pushing him sideways into a wall costs one life', () => {

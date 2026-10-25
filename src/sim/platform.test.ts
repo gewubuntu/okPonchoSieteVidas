@@ -160,8 +160,8 @@ describe('GDD-WLD-05 moving platform: never carries Poncho into a tile', () => {
     const l: Level = { ...levelOf(up), world: rows((r) => (r === 6 ? '..###' + '.'.repeat(15) : '.'.repeat(20))) };
     const states = play(l, runAt(l, spawn(60, 176)), 160);
     const ys = states.map((s) => s.player.y);
-    expect(Math.min(...ys)).toBeGreaterThanOrEqual(126 - 1e-6); // the ceiling's underside at 112 plus his 14 px height
-    expect(Math.min(...ys)).toBeLessThan(127); // he did rise right up to it
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(144 - 1e-6); // the ceiling's underside at 112 plus his 32 px height
+    expect(Math.min(...ys)).toBeLessThan(145); // he did rise right up to it
     expect(states.every((s) => Math.abs(s.player.x - 60) < 1e-9)).toBe(true);
   });
 });

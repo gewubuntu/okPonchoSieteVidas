@@ -5,6 +5,7 @@ The user's reference images of Poncho. They are the source of truth for his look
 - `sprite-pixel.jpg`: the main reference (user, 2026-10-25), the user's pixel drawing of Poncho standing side-on. The sprite is this drawing, pixel for pixel, with a tail added (`scripts/art/poncho-pixels.mjs`, `scripts/art/poncho.mjs`). It wins over the images below.
 - `reference.jpg`: the illustration (512 x 512, orange background), for his colours, face, taco and PB badge.
 - `sprite-side.jpg`, `sprite-back-front.jpg`, `sprite-walk-a.jpg`, `sprite-walk-b.jpg`: the sprite references (user, 2026-10-25): side views, back and front, and two four-frame walk cycles. Poncho is drawn side-on as in these, and where they and the illustration differ, they win for the sprite.
+- `sprite-run.jpg`: the user's run cycle (user, 2026-10-25), four frames of legs; the run frames are these legs under the main reference's body (`scripts/art/poncho-run-legs.mjs`).
 
 The design notes derived from them are in `docs/GDD.md`: GDD-ART-02 (character), GDD-ART-03 (palette), GDD-ART-04 (animations), GDD-ART-05 (pixel rules), GDD-MOV-06 (size and hitbox). The "PB" marks stand for Poncho on Base (GDD-VIS-05).
 

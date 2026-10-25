@@ -19,7 +19,13 @@ test('GDD-ENM-02 tlacuache: walking, the telegraph, the charge, and playing dead
   await start(page);
   expect(await phase(page)).toBe('walk');
   await shot(page, info, 'tlacuache-walk');
-  const x = (await page.evaluate(() => window.__PONCHO__!.enemies()))[3]!.x;
+  // Where it walked to before the pause depends on how fast the frames came: step until it heads right with room ahead of it,
+  // so Poncho in front of it is in the picture and its charge runs right (L-042).
+  const x = await page.evaluate(() => {
+    const api = window.__PONCHO__!;
+    for (let i = 0; i < 600 && !(api.enemies()[3]!.dir > 0 && api.enemies()[3]!.x <= 440); i++) api.step(1, { move: 0, jumpHeld: false });
+    return api.enemies()[3]!.x;
+  });
   await page.evaluate((ox) => window.__PONCHO__!.teleport(ox + 24, 96), x); // on its ledge, 24 px in front of it
   await step(page, 1); // the body flashes red for the first 4 steps of every 8
   expect(await phase(page)).toBe('telegraph');

@@ -5,7 +5,7 @@ const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
 
 // The sandbox has a Zopilote cruising at y = 64 from x = 216, between x = 168 and 264. Poncho on the floor is far below its 80 px
-// reach. It spots him from the spring ledge (columns 13 and 14, top y = 128), the moving platform, and the Alacrán's platform at the low end of its bob.
+// reach. It spots him from the spring ledge (columns 13 and 14, top y = 112), the moving platform, and the Alacrán's platform at the low end of its bob.
 const start = async (page: Page) => {
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
@@ -18,7 +18,7 @@ const vulture = async (page: Page) => (await api(page, () => window.__PONCHO__!.
 const brown = (c: Colour) => Math.abs(c.r - 74) < 12 && Math.abs(c.g - 58) < 12 && Math.abs(c.b - 48) < 12; // the body, 4a3a30
 const red = (c: Colour) => c.r > 220 && c.g < 120 && c.b < 90; // the telegraph flash, ff5030
 const pale = (c: Colour) => c.r > 220 && c.g > 220 && c.b > 205; // the thorns, f2efe6
-const ledge = (page: Page) => page.evaluate(() => window.__PONCHO__!.teleport(224, 128)); // on the spring ledge, 57 px below its line
+const ledge = (page: Page) => page.evaluate(() => window.__PONCHO__!.teleport(224, 112)); // on the spring ledge, 32 px below its line
 
 test('GDD-ENM-02 the Zopilote cruises on its line, bobbing, and is painted where it is', async ({ page }) => {
   await start(page);

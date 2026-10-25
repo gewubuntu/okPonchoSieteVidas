@@ -4,7 +4,7 @@ import { boot, pixelsAt } from './helpers';
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
 
-// The sandbox level has a piñata at tile column 23, row 8 (x 368 to 384, underside y = 144) above the 3-tile wall at columns
+// The sandbox level has a piñata at tile column 23, row 7 (x 368 to 384, underside y = 128) above the 3-tile wall at columns
 // 22 and 23 (top y = 176). Poncho in Taco bumps it from the wall top and a chile comes out.
 const start = async (page: Page, x: number, y: number) => {
   await boot(page);
@@ -25,14 +25,14 @@ test('GDD-PWR-03 a piñata bumped in Taco releases a chile that stays put, and e
   await page.evaluate(() => window.__PONCHO__!.step(25, { move: 0, jumpHeld: true }));
   const items = await api(page, () => window.__PONCHO__!.itemsDrawn());
   expect(items).toHaveLength(1);
-  expect(items[0]).toMatchObject({ kind: 'chile', y: 128 }); // on top of the piñata (row 8, top y = 128)
+  expect(items[0]).toMatchObject({ kind: 'chile', y: 112 }); // on top of the piñata (row 7, top y = 112)
   const { x } = items[0]!;
   await page.evaluate(() => window.__PONCHO__!.step(20));
   expect((await api(page, () => window.__PONCHO__!.itemsDrawn()))[0]!.x).toBe(x); // a chile does not walk
   await page.evaluate(({ cx, cy }) => {
     window.__PONCHO__!.teleport(cx, cy);
     window.__PONCHO__!.step(2);
-  }, { cx: x, cy: 128 });
+  }, { cx: x, cy: 112 });
   await frames(page);
   expect(await api(page, () => window.__PONCHO__!.power())).toBe('fuego');
   expect(await api(page, () => window.__PONCHO__!.itemsDrawn())).toEqual([]);
@@ -80,17 +80,17 @@ test('GDD-PWR-03 the chile is painted: on the piñata, in Poncho\'s hand in Fueg
   await frames(page);
   const chile = (await api(page, () => window.__PONCHO__!.itemsDrawn()))[0]!;
   expect(await anyRed(page, chile.x + 1, chile.y - 6)).toBe(true); // the pepper's body, in the middle of its 12 px box
-  // Poncho in the empty sky: the chile in his hand sits 12 px out and 11 px up from his feet, facing right.
+  // Poncho in the empty sky: the chile in his hand sits 12 px out and 20 px up from his feet (the hand is half the 32 px body up, GDD-MOV-06), facing right.
   await page.evaluate(() => {
     window.__PONCHO__!.teleport(300, 100);
     window.__PONCHO__!.step(2);
   });
   await frames(page);
   const { x, y } = await api(page, () => window.__PONCHO__!.state());
-  expect(await anyRed(page, x + 12.5, y - 11.5)).toBe(false); // Taco: a taco, no chile
+  expect(await anyRed(page, x + 12.5, y - 20)).toBe(false); // Taco: a taco, no chile
   await page.evaluate(() => window.__PONCHO__!.setPower('fuego'));
   await frames(page);
-  expect(await anyRed(page, x + 12.5, y - 11.5)).toBe(true);
+  expect(await anyRed(page, x + 12.5, y - 20)).toBe(true);
   expect(await anyRed(page, 8 + 7 * 13 + 6 + 13 * 0.55 + 1, 8 + 3 - 13 * 0.35)).toBe(true); // the HUD icon, right of the triangles
 });
 

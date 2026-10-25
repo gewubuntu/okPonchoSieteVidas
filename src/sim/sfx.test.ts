@@ -150,7 +150,7 @@ describe('GDD-AUD-02 sound triggers', () => {
     expect(beat!.after.enemies[0]!.alive).toBe(false);
     expect(beat!.names).toEqual(['lifeLost', 'stomp']);
     // The same falling into a pit: an Alacrán below the level's bottom edge (y = 160), stomped as he drops past it.
-    const [deep, below] = stomping([{ x: 104, y: 200 }], airborne(104, 188, 300));
+    const [deep, below] = stomping([{ x: 104, y: 200 }], airborne(104, 192, 300)); // his 32 px body just clear of the floor above (it ends at y = 160)
     const [pitBeat] = play(deep, below, 1);
     expect(pitBeat!.after.phase).toBe('respawning');
     expect(pitBeat!.names).toEqual(['lifeLost', 'stomp']);
@@ -225,7 +225,7 @@ describe('GDD-AUD-02 sound triggers', () => {
     expect(count(beats.slice(lost, lost + 28), 'lifeLost')).toBe(1);
   });
 
-  // A floor at row 12 (top y = 192); a block coming down onto Poncho standing at x = 108 crushes him after about 93 steps.
+  // A floor at row 12 (top y = 192); a block coming down onto Poncho standing at x = 108 crushes him after about 66 steps.
   const crushWorld = parseTiles(Array.from({ length: 13 }, (_, r) => (r === 12 ? '#'.repeat(20) : '.'.repeat(20))));
   const dropper: MovingBlock = { x0: 100, y0: 100, x1: 100, y1: 176, w: 16, h: 16 };
   const crusher = (more: Partial<Level> = {}): Level => ({ ...base, world: crushWorld, spawn: { x: 16, y: 192 }, blocks: [dropper], ...more });
@@ -234,16 +234,16 @@ describe('GDD-AUD-02 sound triggers', () => {
     const level = crusher();
     const beats = play(level, withPlayer(level, spawn(108, 192)), 130);
     const lost = beats.findIndex((b) => b.after.phase === 'respawning');
-    expect(lost).toBeGreaterThan(80);
+    expect(lost).toBeGreaterThan(60);
     expect(beats[lost]!.names).toEqual(['lifeLost']);
     expect(count(beats, 'lifeLost')).toBe(1);
   });
 
   it('hilos collected on the step a life is lost still play', () => {
-    // From tick 93 the block is already beside his head: the first step crushes him and pushes his body onto the hilo in
+    // From tick 66 the block is already beside his head: the first step crushes him and pushes his body onto the hilo in
     // tile (7, 11), so the crush step is the step he touches it.
     const level = crusher({ hilos: [{ col: 7, row: 11 }] });
-    const start = withPlayer(level, spawn(108, 192), { platformTick: 93 });
+    const start = withPlayer(level, spawn(108, 192), { platformTick: 66 });
     const [first] = play(level, start, 1);
     expect(first!.after.phase).toBe('respawning');
     expect(first!.sounds).toEqual([{ name: 'lifeLost' }, { name: 'hilo', semitones: 0 }]);

@@ -132,7 +132,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** I chained the commit after a pipeline that hides the gate's exit code, and read the result only after the commit had happened.
 - **Rule:** Run the gate on its own and check its exit code, then commit: `node scripts/check.mjs && git commit ...` with no pipe to `tail` (or `set -o pipefail`). If the output is needed, read it from a separate run.
 - **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-feature (Gate step). Second time (2026-10-25, GDD-ART-02): `node scripts/check.mjs 2>&1 | tail -1 && git commit` committed a lessons-format failure; the next commit fixed it. The rule stands: never pipe the gate.
+- **Promoted:** .claude/skills/harness-feature (Gate step), then, after the second time, `scripts/hooks/gate-pipe.mjs`: a PreToolUse hook that denies a shell command committing after the gate with anything but `&&` between them. Second time (2026-10-25, GDD-ART-02): `node scripts/check.mjs 2>&1 | tail -1 && git commit` committed a lessons-format failure; the next commit fixed it. The rule stands: never pipe the gate.
 
 ## L-013 Sentences the new feature made false were left in the GDD
 
@@ -411,5 +411,14 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** With the 1920 x 1080 canvas (GDD-ART-01) the headless browser, which has no GPU, drew about 20 to 30 frames a second instead of 60. Phaser's delta smoothing fed the fixed-step loop 1/60 s per frame, so the game ran in slow motion and ten playtests failed. With smoothing off, two still failed: one timed the respawn skip by polling `ticks()`, which lags a few steps per slow frame, and one did slow setup (a CDP session) after putting Poncho in the air, so he landed first.
 - **Root cause:** The playtests assumed a fast frame rate: they measured steps from polls and spent real time inside a timed window. Nothing had ever made the frames slow before.
 - **Rule:** A playtest times things in simulation steps recorded where they happen (`phaseSince()`, the step counters), never by polling `ticks()` around an event, and does all its slow setup (layout reads, CDP sessions) before it starts anything timed. The game keeps Phaser's delta smoothing off, so the fixed-step loop holds real time on slow frames.
-- **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-playtest (Writing a scenario: time in simulation steps). Second time, the same PR, in the full run after merging main: the touch stick speed test waited 300 ms of real time before reading the speed; under the parallel run the game lagged behind and he had not reached top speed. It now waits 18 steps.
+- **Recurrence:** 4
+- **Promoted:** .claude/skills/harness-playtest (Writing a scenario: time in simulation steps). Third and fourth times (2026-10-25, GDD-MOV-06): the gamepad "held through the pause" test let real-time waits around the pause run Poncho into a door (found by the review of PR #51), and the Tlacuache screenshot scenario assumed where the Tlacuache had walked before the pause; both now step the game to a known state. An automated check is still open: no cheap rule tells a harmless real-time wait from a timed one. Second time, the same PR, in the full run after merging main: the touch stick speed test waited 300 ms of real time before reading the speed; under the parallel run the game lagged behind and he had not reached top speed. It now waits 18 steps.
+
+## L-043 A PR was merged before its deep review reported
+
+- **Date:** 2026-10-25
+- **What went wrong:** The user said "Merge" on PR #51 while the `pr-reviewer` agent was still running. CI was green, so I merged. The review came in afterwards with three blocking findings (a flaky gamepad playtest, the Decided 12 x 20 body box not built, stale GDD sentences), which then needed a follow-up PR.
+- **Root cause:** CLAUDE.md says to fix the reviewer's blocking findings before telling the user the PR is ready, but I treated green CI as ready and did not tell the user the review was still pending when they asked to merge.
+- **Rule:** Before merging, check that the `pr-reviewer` has posted its review on the current head. If it is still running when the user says merge, say so and ask whether to wait; merge without it only when the user says so knowing that.
+- **Recurrence:** 1
+- **Promoted:** no
