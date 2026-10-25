@@ -206,7 +206,8 @@ test('GDD-CTL-02 GDD-UI-02 a D-pad direction held since before the pause keeps r
   await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 12, t0);
   const now = await state(page);
   expect(now.vx).toBeGreaterThan(0);
-  expect(now.x).toBeGreaterThan(x0);
+  // From a standstill at 800 px/s squared (RUN.groundAccel) he covers about 17 px in 12 steps; 10 leaves room for the landing step.
+  expect(now.x).toBeGreaterThan(x0 + 10);
   await press(page, RIGHT, false);
 });
 

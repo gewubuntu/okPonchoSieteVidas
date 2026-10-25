@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { spawn } from './movement';
 import { collectHilos, hilosCollected, touchesHilo, type Hilo } from './hilo';
 
-// The hilo at (5, 13): its middle is (88, 216), so its 8 x 8 box is x 84 to 92, y 212 to 220. Poncho's body box is 12 x 14,
+// The hilo at (5, 13): its middle is (88, 216), so its 8 x 8 box is x 84 to 92, y 212 to 220. Poncho's body box is 12 x 32,
 // `x` its middle and `y` its feet.
 const hilo: Hilo = { col: 5, row: 13 };
 

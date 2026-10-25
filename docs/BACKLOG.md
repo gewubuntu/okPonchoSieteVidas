@@ -25,7 +25,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-MOV-03 | doing | coyote, buffer and corner correction done; stomp bounce buffer pending (needs combat) |
 | GDD-MOV-04 | doing | sim done and tested |
 | GDD-MOV-05 | doing | respawn flip lands feet-first (src/sim/respawnFlip.ts); landing squash and mid-air sprite flip pending (need the real sprite) |
-| GDD-MOV-06 | done | the 12 x 20 body box collides with tiles (floors, walls, ceilings; no 1-tile gap) and the 10 x 18 hurtbox meets enemies and hazards in src/sim; the 40 x 40 sprite frame is drawn (GDD-ART-04) |
+| GDD-MOV-06 | done | the 12 x 32 body box collides with tiles (floors, walls, ceilings; walks under a 2-tile gap, not a 1-tile one) and the 10 x 30 hurtbox meets enemies and hazards in src/sim; the 40 x 40 sprite frame is drawn (GDD-ART-04) |
 | GDD-MOV-07 | doing | glide in src/sim/movement.ts behind a level ability flag (on in the sandbox until GDD-PRG-01 unlocks it), placeholder spread poncho; sprite and sound pending |
 | GDD-MOV-08 | doing | wall cling and kick in src/sim/movement.ts behind the level ability flag (on in the sandbox until GDD-PRG-01 unlocks it), placeholder claw marks; sprite and sound pending |
 | GDD-CMB-01 | doing | stomp with 260 and 410 px/s bounces in src/sim/enemy.ts and run.ts; the not-stompable marking (three pale thorns) is built for the Zopilote and the cactus buddy; the Tlacuache's first stomp makes it play dead |
@@ -39,7 +39,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-WLD-02 | todo |  |
 | GDD-WLD-03 | todo |  |
 | GDD-WLD-04 | doing | hilo pickups (src/sim/hilo.ts, 20 in the sandbox in serape colours) and the HUD counter (src/ui/hiloCounter.ts); kept through lost lives and the restart; the pickup sound climbs a scale (GDD-AUD-02); items giving hilos instead, the multi-piñata, score and saving pending |
-| GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox, which also reaches the Tlacuache's ledge); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls in src/sim/fragile.ts (one in the sandbox); moving blocks, solid and crushing, in src/sim/block.ts (one in the sandbox pocket past the fragile wall) |
+| GDD-WLD-05 | doing | pits and the ofrenda touch rule in src/sim/run.ts (3-tile pit and 3 placeholder ofrendas in the sandbox level); spikes in src/sim/hazards.ts (two in the sandbox); crumbling tiles in src/sim/crumble.ts (three in the sandbox); springs in src/sim/spring.ts (one in the sandbox); moving platforms in src/sim/platform.ts (one in the sandbox, which also reaches the Tlacuache's ledge); doors and keys in src/sim/door.ts (one of each in the sandbox); fragile walls in src/sim/fragile.ts (one in the sandbox); moving blocks, solid and crushing, in src/sim/block.ts (one in the sandbox pocket past the fragile wall); next (user, 2026-10-25): on foot the 2-tile wall cannot be climbed from the left, because the Alacrán's platform and the first piñata make one low ceiling up to it, so the sandbox route needs a level fix with a reachability test |
 | GDD-ENM-01 | doing | enemy contact is one hit, never more than a life; the 3-tile spawn rule is checked for every level by the level validator (GDD-TEC-04) |
 | GDD-ENM-02 | doing | the Alacrán, the Zopilote, the cactus buddy and the Tlacuache in src/sim/enemy.ts (one of each in the sandbox; the Tlacuache on a ledge in the top right corner); sounds and defeat animations pending; the cactus buddy's harmless-from-below rule has no level that exercises it (it needs a cactus with nothing beneath it), unit tests only |
 | GDD-BOS-01 | todo |  |
@@ -53,7 +53,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-AUD-01 | doing | audio unlock on first gesture is handled by the engine; Master and Effects volume on the settings screen (src/sim/settings.ts); music and its volume pending |
 | GDD-AUD-02 | doing | generated placeholders for the ofrenda marimba, jump, land, claw, stomp, hilo (climbing major scale), life lost and meow, triggered from the step diff in src/sim/sfx.ts (scripts/audio/effects.mjs); real audio pending (Open Question 9) |
 | GDD-ART-01 | doing | 1920x1080 canvas, the camera draws the 480x270 game pixels 4x; Poncho's sprite is the only art so far |
-| GDD-ART-02 | doing | the user's pixel drawing is the sprite, in the game (assets/sprites/poncho.png, scripts/art); the 12 x 20 body box next |
+| GDD-ART-02 | doing | the user's pixel drawing is the sprite, in the game (assets/sprites/poncho.png, scripts/art) |
 | GDD-ART-03 | todo |  |
 | GDD-ART-04 | doing | standing frame and four run frames in the game (src/ui/ponchoAnim.ts); jump, fall, skid, land and the rest pending |
 | GDD-ART-05 | todo |  |

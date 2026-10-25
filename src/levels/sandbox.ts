@@ -119,7 +119,7 @@ export const SANDBOX_ENEMIES: readonly Enemy[] = [
   { x: 104, y: 160 },
   // GDD-ENM-02: a Zopilote cruises above the middle of the level, at y = 64 from x = 216, so it flies 168 to 264. Poncho on the floor is
   // 144 px below it (his hurtbox centre is 16 px above his feet, GDD-MOV-06) and never spots it; on the Alacrán's platform he is 80 px
-  // below it, spotted only at the low end of its bob; the spring ledge (32 px below) and the moving platform (48 px) are well within reach.
+  // below it, the edge of its reach, so it spots him whenever it is at or below its line (half of every bob, and its first step); the spring ledge (32 px below) and the moving platform (48 px) are well within reach.
   { x: 216, y: 64, kind: 'zopilote' },
   // GDD-ENM-02: a cactus buddy on the right half of the top of the 2-tile wall (columns 10 and 11, top y = 192), at x = 184, so the left
   // 18 px of the top stay free to stand on and jump to the Alacrán's platform from.

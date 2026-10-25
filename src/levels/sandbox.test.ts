@@ -48,8 +48,16 @@ describe('GDD-ENM-02 the sandbox Zopilote', () => {
 
   it('spots him on the spring ledge, on the Alacrán platform, and in the moving platform route', () => {
     expect(spotted(standing(224, 7 * TILE))).toBe(true); // the spring ledge, columns 13 and 14 (top y = 112)
-    expect(spotted(standing(140, 10 * TILE))).toBe(true); // the Alacrán's platform, at its low bob only
+    expect(spotted(standing(140, 10 * TILE))).toBe(true); // the Alacrán's platform
     expect(spotted(standing(300, 8 * TILE))).toBe(true); // the moving platform (top y = 128)
+  });
+
+  it('spots him on the Alacrán platform whenever it is at or below its line: on its first step, 80 px above his hurtbox centre', () => {
+    const p = standing(140, 10 * TILE);
+    const s = stepEnemy(def, freshEnemies([def])[0]!, world, p);
+    expect(s.flight!.phase).toBe('telegraph');
+    // 1 px lower, out of reach at the cruise line, so the first step does not spot him: the 80 px reach is what decides it.
+    expect(stepEnemy(def, freshEnemies([def])[0]!, world, standing(140, 10 * TILE + 1)).flight!.phase).not.toBe('telegraph');
   });
 
   it('does not spot him on the Alacrán platform at the far left end, out of its sideways reach', () => {
