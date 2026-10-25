@@ -51,6 +51,8 @@ const FLOOR_Y = SANDBOX_SPAWN.y;
 /** How many ofrendas an `usedKey` string marks as used. */
 const countUsed = (key: string) => key.split('1').length - 1;
 const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
+/** Down, leaving out the keys held back since a pause (GDD-UI-02). */
+const downExcept = (keys: Phaser.Input.Keyboard.Key[], held: ReadonlySet<Phaser.Input.Keyboard.Key>) => keys.some((k) => k.isDown && !held.has(k));
 /** Steps per half of the invulnerability blink (0.1 s). */
 const BLINK_STEPS = 6;
 /** Height of the pale strip along Poncho's feet on the placeholder body, in px. */
@@ -280,6 +282,9 @@ export class PlayScene extends Phaser.Scene {
   /** Left and right are latched too: a tap of either ends the Siete vidas gastadas screen (GDD-LIFE-05). */
   private readonly leftLatch = new InputLatch();
   private readonly rightLatch = new InputLatch();
+  /** GDD-UI-02: the Left and Right keys down when the pause began, and the ones ignored until released since it ended. */
+  private keysAtPause = new Set<Phaser.Input.Keyboard.Key>();
+  private readonly heldKeys = new Set<Phaser.Input.Keyboard.Key>();
   private swings = 0;
   private spits = 0;
   private clawPainted: 'none' | 'windup' | 'swing' = 'none';
@@ -1167,7 +1172,7 @@ export class PlayScene extends Phaser.Scene {
     if (frame.quit) this.quitToTitle(input, frame.portrait);
     else {
       this.pauseState = frame.state;
-      if (!wasPaused && this.pauseState.paused) this.touch.notePause();
+      if (!wasPaused && this.pauseState.paused) this.notePause();
       if (wasPaused && !this.pauseState.paused) input = this.endPause();
     }
 
@@ -1219,16 +1224,24 @@ export class PlayScene extends Phaser.Scene {
     this.drawTitle();
   }
 
+  /** GDD-UI-02: the game pauses. The fingers and the Left and Right keys down now keep pressing after it. */
+  private notePause(): void {
+    this.touch.notePause();
+    this.keysAtPause = new Set([...this.keys.left, ...this.keys.right].filter((k) => k.isDown));
+  }
+
   /** What the keys and the touch controls press now. Keyboard and touch work together: either can move or jump (GDD-CTL-01, GDD-CTL-03). */
   private readInput(): PlayerInput {
     const touch = this.touch.read();
+    // GDD-UI-02: a Left or Right key held back since a pause counts as up until it is released.
+    for (const k of this.heldKeys) if (!k.isDown) this.heldKeys.delete(k);
+    const leftKey = effectiveHeld(downExcept(this.keys.left, this.heldKeys), this.leftLatch);
+    const rightKey = effectiveHeld(downExcept(this.keys.right, this.heldKeys), this.rightLatch);
     // Left and right also go in raw, before they cancel out in `move`: the Siete vidas gastadas screen counts a press of either (GDD-LIFE-05).
-    const left = effectiveHeld(down(this.keys.left), this.leftLatch) || touch.left === true;
-    const right = effectiveHeld(down(this.keys.right), this.rightLatch) || touch.right === true;
     return {
-      left,
-      right,
-      move: Math.max(-1, Math.min(1, (effectiveHeld(down(this.keys.right), this.rightLatch) ? 1 : 0) - (effectiveHeld(down(this.keys.left), this.leftLatch) ? 1 : 0) + touch.move)),
+      left: leftKey || touch.left === true,
+      right: rightKey || touch.right === true,
+      move: Math.max(-1, Math.min(1, (rightKey ? 1 : 0) - (leftKey ? 1 : 0) + touch.move)),
       jumpHeld: effectiveHeld(down(this.keys.jump), this.jumpLatch) || touch.jumpHeld,
       claw: effectiveHeld(down(this.keys.claw), this.clawLatch) || touch.claw === true,
       fuego: effectiveHeld(down(this.keys.fuego), this.fuegoLatch) || touch.fuego === true,
@@ -1236,11 +1249,16 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * GDD-UI-02: the level goes on after a resume or the title screen. A finger that went down meanwhile is no game press: the
-   * slide stick ignores it until it lifts, so the input is read again without it. Every button down counts as already held.
+   * GDD-UI-02: the level goes on after a resume or the title screen. A finger or a Left or Right key that went down meanwhile is
+   * no game press: it is ignored until it lifts, so the input is read again without it. Every button down counts as already held.
    */
   private endPause(): PlayerInput {
     this.touch.holdBack();
+    for (const k of [...this.keys.left, ...this.keys.right]) if (k.isDown && !this.keysAtPause.has(k)) this.heldKeys.add(k);
+    this.keysAtPause = new Set();
+    // A quick tap of Left or Right while paused is spent too. Jump, claw and Fuego taps are held by `resumeHeld` instead.
+    this.leftLatch.consume();
+    this.rightLatch.consume();
     const now = this.readInput();
     this.run = resumeHeld(this.run, now);
     return now;
@@ -1267,8 +1285,10 @@ export class PlayScene extends Phaser.Scene {
     this.leftLatch.consume();
     this.rightLatch.consume();
     this.touch.consume();
-    // The finger that picked Quit is held back too, and the fingers down at the pause are forgotten: on the title screen none was held before.
+    // The finger that picked Quit is held back too, and the fingers and keys down at the pause are forgotten: on the title screen
+    // none was held before.
     this.touch.holdBack();
+    this.keysAtPause = new Set();
   }
 
   /**

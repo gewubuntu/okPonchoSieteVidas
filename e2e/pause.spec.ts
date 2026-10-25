@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { boot, pixelsAt } from './helpers';
+import { boot, openGame, pixelsAt } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const ticks = (page: Page) => api(page, () => window.__PONCHO__!.ticks());
@@ -676,5 +676,155 @@ test('GDD-UI-02 in slide-stick mode, a finger held through quitting and the star
   const t = await ticks(page);
   await page.waitForFunction((t0) => window.__PONCHO__!.ticks() > t0 + 20, t);
   expect(await ponchoX(page)).toBe(x);
+  await touchAt(page, cdp, 'touchEnd', []);
+});
+
+/** Waits until `n` more simulation steps have run, so a step has seen what changed (L-022). */
+async function steps(page: Page, n: number): Promise<void> {
+  const t = await ticks(page);
+  await page.waitForFunction((t0) => window.__PONCHO__!.ticks() >= t0, t + n);
+}
+
+for (const key of ['ArrowRight', 'KeyD'] as const) {
+  test(`GDD-UI-02 ${key} pressed while paused and held through the resume does not run until pressed again`, async ({ page, isMobile }) => {
+    test.skip(isMobile, 'keyboard test');
+    await started(page);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+    await page.keyboard.down(key);
+    await page.waitForTimeout(100);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+    const x = await ponchoX(page);
+    await steps(page, 20);
+    expect(await ponchoX(page)).toBe(x);
+    await page.keyboard.up(key);
+    await steps(page, 2);
+    await page.keyboard.down(key);
+    await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 4, x);
+    await page.keyboard.up(key);
+  });
+}
+
+test('GDD-UI-02 a Right key held since before the pause runs on after the resume', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await started(page);
+  await page.keyboard.down('ArrowRight');
+  const x = await ponchoX(page);
+  await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 2, x);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  const atPause = await ponchoX(page);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+  await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 4, atPause);
+  await page.keyboard.up('ArrowRight');
+});
+
+test('GDD-UI-02 a Left held back since the pause does not cancel a new Right press', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await started(page);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  await page.keyboard.down('ArrowLeft');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+  await steps(page, 2);
+  const x = await ponchoX(page);
+  await page.keyboard.down('ArrowRight');
+  await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 4, x);
+  await page.keyboard.up('ArrowRight');
+  await page.keyboard.up('ArrowLeft');
+});
+
+test('GDD-UI-02 a Left tapped inside one task while paused moves nothing after the resume (L-006)', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await started(page);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowLeft', key: 'ArrowLeft', keyCode: 37, bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowLeft', key: 'ArrowLeft', keyCode: 37, bubbles: true }));
+  });
+  await frames(page);
+  const x = await ponchoX(page);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+  await steps(page, 20);
+  expect(await ponchoX(page)).toBe(x);
+});
+
+test('GDD-UI-02 the Right key that starts the level from the title screen does not run until pressed again', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await openGame(page);
+  const x = await ponchoX(page);
+  await page.keyboard.down('ArrowRight');
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
+  await steps(page, 20);
+  expect(await ponchoX(page)).toBe(x);
+  await page.keyboard.up('ArrowRight');
+  await steps(page, 2);
+  await page.keyboard.down('ArrowRight');
+  await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 4, x);
+  await page.keyboard.up('ArrowRight');
+});
+
+test('GDD-UI-02 the touch Right button held as the tap that resumes does not run until pressed again', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await started(page);
+  const cdp = await page.context().newCDPSession(page);
+  await tapButton(page, 'pause');
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'right')!;
+  const middle = { x: b.x + b.w / 2, y: b.y + b.h / 2, id: 1 };
+  const x = await ponchoX(page);
+  await touchAt(page, cdp, 'touchStart', [middle]);
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+  await steps(page, 20);
+  expect(await ponchoX(page)).toBe(x);
+  expect((await api(page, () => window.__PONCHO__!.touch())).pressed).not.toContain('right');
+  await touchAt(page, cdp, 'touchEnd', []);
+  await steps(page, 2);
+  await touchAt(page, cdp, 'touchStart', [middle]);
+  await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 4, x);
+  await touchAt(page, cdp, 'touchEnd', []);
+});
+
+test('GDD-UI-02 a Right key held through quitting and the start of the level does not run', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await started(page);
+  await page.keyboard.down('ArrowRight'); // running before the pause
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
+  const x = await ponchoX(page);
+  await page.keyboard.press('Enter'); // starts the level with Right still down
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
+  await steps(page, 20);
+  expect(await ponchoX(page)).toBe(x);
+  await page.keyboard.up('ArrowRight');
+});
+
+test('GDD-UI-02 a held-back finger lifted and put down again inside one frame steers: it is a new finger (L-006)', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await started(page);
+  const cdp = await page.context().newCDPSession(page);
+  await stickMode(page, cdp);
+  await tapButton(page, 'pause');
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  const x = await ponchoX(page);
+  await touchAt(page, cdp, 'touchStart', [{ ...resumeInStickZone, id: 1 }]); // resumes, held back
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+  await steps(page, 5);
+  expect(await ponchoX(page)).toBe(x);
+  // Lift and land again on the same pointer slot with no frame between, so the slot never reads as up.
+  const box = (await page.locator('canvas').boundingBox())!;
+  const k = box.width / 480;
+  const point = { id: 1, x: box.x + resumeInStickZone.x * k, y: box.y + resumeInStickZone.y * k };
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+  await Promise.all([cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }), cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] })]);
+  await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 4, x);
   await touchAt(page, cdp, 'touchEnd', []);
 });
