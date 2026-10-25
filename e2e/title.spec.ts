@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openGame, pixelsAt, red } from './helpers';
+import { openGame, pixelsAt } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const ticks = (page: Page) => api(page, () => window.__PONCHO__!.ticks());
@@ -24,10 +24,11 @@ async function tapCentre(page: Page, isMobile: boolean): Promise<void> {
   else await page.mouse.click(c.x, c.y);
 }
 const brightness = (c: { r: number; g: number; b: number }) => c.r + c.g + c.b;
-// A floor tile right of the spawn, clear of the touch buttons; the second life triangle on the HUD; and the title Poncho's body.
+// A floor tile right of the spawn, clear of the touch buttons; the second life triangle on the HUD; and a solid blue pixel of the title Poncho's
+// poncho (#3F66B1 in the user's drawing, GDD-ART-02): 13.25 px right of his x and 30.25 above his feet, which are at y = 168.
 const floorTile = { x: 120, y: 248 };
 const hudTriangle = { x: 26, y: 14 };
-const titlePoncho = { x: 240, y: 146 };
+const titlePoncho = { x: 240 + 13.25, y: 168 - 30.25 };
 
 test('GDD-UI-02 the game opens on the title screen with the level standing still', async ({ page, isMobile }) => {
   await openGame(page);
@@ -40,6 +41,7 @@ test('GDD-UI-02 the game opens on the title screen with the level standing still
     prompt: '',
     promptSize: 12,
     ponchoShown: true,
+    ponchoBottom: 168,
     menu: { shown: true, items: ['Start', 'Settings'], colors: ['#fff3dc', '#9ba3c4'], chosen: 'start', markerY: middle(0) },
   });
   expect(rows.map((r) => r.item)).toEqual(['start', 'settings']);
@@ -58,7 +60,7 @@ test('GDD-UI-02 the game opens on the title screen with the level standing still
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
 });
 
-test('GDD-UI-02 the veil dims the level and the HUD, and Poncho stands on it in red', async ({ page }) => {
+test('GDD-UI-02 the veil dims the level and the HUD, and Poncho stands on it in his own colours', async ({ page }) => {
   await openGame(page);
   await page.waitForTimeout(300);
   const [floorDim, hudDim, ponchoDim] = await pixelsAt(page, [floorTile, hudTriangle, titlePoncho]);
@@ -67,7 +69,7 @@ test('GDD-UI-02 the veil dims the level and the HUD, and Poncho stands on it in 
   const [floorLit, hudLit] = await pixelsAt(page, [floorTile, hudTriangle]);
   expect(brightness(floorDim!)).toBeLessThan(brightness(floorLit!) * 0.5);
   expect(brightness(hudDim!)).toBeLessThan(brightness(hudLit!) * 0.5);
-  expect(red(ponchoDim!)).toBeGreaterThan(80);
+  expect(Math.abs(ponchoDim!.r - 0x3f) <= 24 && Math.abs(ponchoDim!.g - 0x66) <= 24 && Math.abs(ponchoDim!.b - 0xb1) <= 24, JSON.stringify(ponchoDim)).toBe(true);
 });
 
 test('GDD-UI-02 each game key starts the level', async ({ page, isMobile }) => {

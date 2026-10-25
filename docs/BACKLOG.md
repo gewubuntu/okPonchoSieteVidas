@@ -53,9 +53,9 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-AUD-01 | doing | audio unlock on first gesture is handled by the engine; Master and Effects volume on the settings screen (src/sim/settings.ts); music and its volume pending |
 | GDD-AUD-02 | doing | generated placeholders for the ofrenda marimba, jump, land, claw, stomp, hilo (climbing major scale), life lost and meow, triggered from the step diff in src/sim/sfx.ts (scripts/audio/effects.mjs); real audio pending (Open Question 9) |
 | GDD-ART-01 | doing | 480x270 canvas scaled to fit; art not started; the 1920x1080 art resolution (4x4 art pixels per game pixel) is decided, the switch comes with Poncho's sprite |
-| GDD-ART-02 | todo |  |
+| GDD-ART-02 | doing | the user's pixel drawing is the sprite (scripts/art); putting it in the game; the 12 x 20 body box next |
 | GDD-ART-03 | todo |  |
-| GDD-ART-04 | todo |  |
+| GDD-ART-04 | doing | standing frame and four run frames drawn; putting them in the game |
 | GDD-ART-05 | todo |  |
 | GDD-ART-06 | todo |  |
 | GDD-ART-07 | todo |  |

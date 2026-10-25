@@ -3,6 +3,7 @@
 import Phaser from 'phaser';
 import { BASE_WIDTH } from '../config/tuning';
 import type { PlayerInput } from '../sim/movement';
+import { gamePoint } from './gamePoint';
 import { effectiveHeld, InputLatch } from './inputLatch';
 import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchButton, type TouchButtonId, type TouchMode } from './touchLayout';
 
@@ -75,7 +76,7 @@ export class TouchControls {
     scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       // A tap latched while the buttons are hidden is never read: `read()` returns nothing while hidden, and the latches are spent
       // each frame of the title and when it closes (`consume`, `holdBack`). No guard here (L-025).
-      const hit = pressedButtons(this.buttons, [{ x: p.x, y: p.y }]);
+      const hit = pressedButtons(this.buttons, [gamePoint(p)]);
       if (hit.has('jump')) this.jumpLatch.press();
       if (hit.has('claw')) this.clawLatch.press();
       if (hit.has('fuego')) this.fuegoLatch.press();
@@ -107,16 +108,18 @@ export class TouchControls {
     const keys = new Set(fingers.map(fingerKey));
     for (const k of this.heldBack) if (!keys.has(k)) this.heldBack.delete(k);
     const active = fingers.filter((f) => !this.heldBack.has(fingerKey(f)));
-    const pressed = pressedButtons(this.buttons, active);
+    // Pointer positions are canvas pixels; the buttons are laid out in game pixels (GDD-ART-01).
+    const points = active.map(gamePoint);
+    const pressed = pressedButtons(this.buttons, points);
     // A finger that went down on the mode switch flips the zone once. A finger that slid onto it from the stick, or
     // that stays on it, does not.
     const mode = this.buttons.filter((b) => b.id === 'mode');
-    const flip = fingers.find((f) => !this.flipped.has(f.id) && pressedButtons(mode, [{ x: f.downX, y: f.downY }]).size > 0);
+    const flip = fingers.find((f) => !this.flipped.has(f.id) && pressedButtons(mode, [gamePoint({ x: f.downX, y: f.downY })]).size > 0);
     if (flip) {
       this.flipped.add(flip.id);
       this.setMode(this.mode === 'stick' ? 'buttons' : 'stick');
     }
-    const stick = stickMove(this.buttons, active);
+    const stick = stickMove(this.buttons, points);
     if (pressed.size !== this.pressed.size || [...pressed].some((id) => !this.pressed.has(id)) || stick !== this.stick) {
       this.pressed = pressed;
       this.stick = stick;

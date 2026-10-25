@@ -11,9 +11,9 @@ export const SCALE = 2;
 /** The frame, in art pixels: 40 x 40 game pixels. */
 export const FRAME = 160;
 /** Room left of the drawing for the tail, in the drawing's pixels. */
-const TAIL_ROOM = 8;
+export const TAIL_ROOM = 8;
 /** The drawing's rows from here down are the legs; the poncho's fringe there stays with the body. */
-const LEG_TOP = 63;
+export const LEG_TOP = 63;
 /** The legs' columns: the near leg (lighter, drawn in front) and the far leg (darker). */
 const NEAR_LEG = [15, 30];
 const FAR_LEG = [31, 41];

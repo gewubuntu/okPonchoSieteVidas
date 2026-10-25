@@ -1,10 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot, pixelsAt, red } from './helpers';
+import { boot, pixelsAt } from './helpers';
 
 const FLOOR = 224; // the sandbox floor, and the level start is at x = 56
 const pose = (page: Page) => page.evaluate(() => ({ ...window.__PONCHO__!.bodyPose(), visible: window.__PONCHO__!.bodyVisible() }));
-/** The pale strip along the feet of the placeholder body. */
-const cream = (c: { r: number; g: number; b: number }) => c.r > 200 && c.g > 190 && c.b > 170;
+/**
+ * A pixel of his poncho, a solid blue #3F66B1 in the user's drawing (GDD-ART-02): the drawing's cell (25, 48) and its eight neighbours are blue.
+ * It is 0.75 px right of his x and 11.25 above his feet, low enough that turned upside down it stays clear of the phone's touch buttons (L-018).
+ */
+const blue = (c: { r: number; g: number; b: number }) => Math.abs(c.r - 0x3f) <= 24 && Math.abs(c.g - 0x66) <= 24 && Math.abs(c.b - 0xb1) <= 24;
 const step = (page: Page, n: number, input?: { move: number; jumpHeld: boolean }) =>
   page.evaluate(([k, i]) => window.__PONCHO__!.step(k, i), [n, input] as const);
 
@@ -63,7 +66,7 @@ test('GDD-MOV-05 he turns once and lands feet-first on the last step of the wait
   expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: FLOOR, grounded: true });
 });
 
-test('GDD-MOV-05 the drawn body really turns: the pale feet strip is up when he is upside down, down when upright', async ({ page }) => {
+test('GDD-MOV-05 the drawn body really turns: his poncho is where it should be upside down, and upright after', async ({ page }) => {
   await fallIntoPit(page);
   // A point of the body in its own frame (x to the right, y down from the middle), where it is on the screen now.
   const onScreen = async (lx: number, ly: number) => {
@@ -73,19 +76,19 @@ test('GDD-MOV-05 the drawn body really turns: the pale feet strip is up when he 
   };
 
   await step(page, 27 + 10); // wait 11: upside down, about 188 degrees
-  const [feet, upper] = await pixelsAt(page, [await onScreen(0, 5.5), await onScreen(0, -3)]);
-  expect(cream(feet!)).toBe(true); // the strip along the feet
-  expect(red(upper!)).toBeGreaterThan(90); // and the red body above it in his own frame
-  const [stripIfUpright] = await pixelsAt(page, [{ x: (await pose(page)).x, y: (await pose(page)).y - 1.5 }]); // where the strip would be if he had not turned
-  expect(cream(stripIfUpright!)).toBe(false); // the bottom of the picture is body now, not the strip
+  // The blue pixel is 0.75 right of the middle and 11.25 - 7 = 4.25 above it, in his own frame.
+  const [mark] = await pixelsAt(page, [await onScreen(0.75, -4.25)]);
+  expect(blue(mark!)).toBe(true); // it has turned with him
+  const p0 = await pose(page);
+  const [ifUpright] = await pixelsAt(page, [{ x: p0.x + 0.75, y: p0.y - 11.25 }]); // where it would be if he had not turned
+  expect(blue(ifUpright!)).toBe(false); // that is sky now
 
   await step(page, 10); // wait 1 left, then 1 more: landed, upright
   await step(page, 1);
   await step(page, 120); // out of the blink, fully opaque
   const p = await pose(page);
-  const [bottom, top] = await pixelsAt(page, [{ x: p.x, y: p.y - 1.5 }, { x: p.x, y: p.y - 12 }]);
-  expect(cream(bottom!)).toBe(true); // upright: the strip is at the feet
-  expect(red(top!)).toBeGreaterThan(90);
+  const [upright] = await pixelsAt(page, [{ x: p.x + 0.75, y: p.y - 11.25 }]);
+  expect(blue(upright!)).toBe(true);
 });
 
 test('GDD-LIFE-02 the flip lands at the latest ofrenda, not the level start', async ({ page }) => {
