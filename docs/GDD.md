@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.5.0
+Version: 0.5.1
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.5.1** (2026-10-25) GDD-WLD-02, GDD-ART-06, GDD-ART-02: World 1 stays in the Chihuahuan desert, and its scenery swaps the reference scene's saguaros for cacti that grow there (user, 2026-10-25); the species, prickly pear, cholla, barrel cactus, palm yucca, ocotillo and lechuguilla, are Proposed. Poncho is a he (user, 2026-10-25); Open Question 5 answered.
 - **0.5.0** (2026-10-25) GDD-ART-01, GDD-ART-02, GDD-ART-03, GDD-ART-04, GDD-MOV-06, GDD-WLD-02, GDD-WLD-03, GDD-TEC-03, GDD-TEC-07: the style guide. Decided by the user (2026-10-25): the art is drawn in code and approved from screenshots; it is drawn at 1920 x 1080, four times 480 x 270 on each side, so tiles are 64 x 64 and Poncho's frame 128 x 128 art pixels; the user's side-view sprite sheets (side, back, front and two walk cycles) become Poncho's sprite reference, winning over the illustration where they differ, and show the tail (long, white tip); each world has its own mood; World 1 blends the user's desert scene (blue and purple mountains, clouds, saguaros, prickly pears, agave, flowers, grass on the sand) with a warmer golden sky. Proposed: every rule keeps its numbers in game pixels (4 x 4 art pixels each), so no gameplay changes; the brim is about twice the body's width; a sprite palette sampled from the sprite sheets. New: GDD-ART-05 pixel rules (outline, light, shading, layers, hazard edges), GDD-ART-06 world moods, GDD-ART-07 UI look. Open Question 14 added (detail on phones). World 1 moves from the Chihuahuan to the Sonoran desert, where saguaros grow (Proposed, Open Question 3). Letterboxing now reads "integer factors where possible" again under its own Proposed bullet. Dependency review for this minor version (GDD-TEC-07): `npm outdated` showed vite 8.3.4 and oxlint-tsgolint 7.0.2004 behind, both upgraded (8.3.5, 7.0.2005), gate and playtests green; @types/node stays on 24 to match the Node 24 that CI runs (ADR 0002). Nothing is built yet: the game still draws placeholders at 480 x 270.
 - **0.4.47** (2026-10-25) GDD-UI-02: the title screen's heading names the 2026-10-25 title menu decision, and the volume bars' height (10 px, centred) is written down (found in review).
 - **0.4.46** (2026-10-25) GDD-UI-02, GDD-CTL-01, GDD-CTL-03, GDD-AUD-01, GDD-PRG-02, GDD-UI-03, GDD-MVP-02: a settings screen with Master and Effects volume (0 to 10, default 10), reached from a new "Settings" item in the pause menu (now Resume, Settings, Quit to title) and from a two-row title menu ("Start", "Settings") that replaces the title prompt; Space or Z picks there and Up or W chooses, so the jump keys no longer start the level by themselves, while claw, Fuego, Left, Right and a tap off the rows still do; the hidden touch buttons press nothing on the title screen. Sound effects play at Master times Effects. The settings are saved in the browser, the first slice of the save system. A language switch with English, Spanish and German comes next (user, 2026-10-25).
@@ -438,7 +439,7 @@ Status: Proposed. Names and themes are a starting point for the user to react to
 
 | # | World | Setting | Signature element |
 | --- | --- | --- | --- |
-| 1 | Desierto | Sonoran desert village (Sonora), adobe, saguaros, agave fields (was the Chihuahuan desert; saguaros grow only in the Sonoran, and the user's World 1 scene has them, GDD-ART-06) | Tutorial world; basic enemies; sand slopes |
+| 1 | Desierto | Chihuahuan desert village, adobe, prickly pears, cholla and barrel cacti, agave fields (Decided, user, 2026-10-25: the Chihuahuan desert, with no saguaros, which grow only in the Sonoran; GDD-ART-06) | Tutorial world; basic enemies; sand slopes |
 | 2 | Mercado | Rooftops, awnings and stalls of a busy market | Bouncy awnings, hanging papel picado |
 | 3 | Sierra | Sierra Madre cliffs and old mines | Moving carts, crumbling ledges |
 | 4 | Selva | Rain forest and ruins | Vines, water, glide-friendly updrafts |
@@ -655,7 +656,7 @@ The look:
 - **Glow:** the illustration has a golden rim light. It is reserved as the invulnerability effect (GDD-CMB-03, GDD-PWR-04).
 - **PB mark (Decided, user, 2026-10-19):** the small gold "PB" badge on the chest and the "PB" mark in the bottom-right corner of the reference stand for **Poncho on Base** (GDD-VIS-05). Keep the badge on the chest, as the front view shows it, and on the side view where the frame allows. The corner mark is a brand watermark and is not part of the character.
 - **Personality (Decided):** loves tacos and spicy food.
-- **Pronouns:** not stated. Text uses Poncho's name or "they" (Open Question 5).
+- **Pronouns (Decided, user, 2026-10-25):** he.
 
 ### GDD-ART-03 Palette
 
@@ -714,7 +715,7 @@ Status: Decided (a mood per world, darker towards Mictlán, user, 2026-10-25; Wo
 
 | # | World | Mood |
 | --- | --- | --- |
-| 1 | Desierto | **Decided (user, 2026-10-25): a blend.** The scenery of the user's desert scene (`assets/worlds/desierto/reference-scene.jpg`): blue and purple mountains far away, clouds, tall saguaros, prickly pears, agave and red and orange flowers in front, a strip of grass along the sandy path, red earth below. Under a warmer golden sky than in that scene, with a bright sun. |
+| 1 | Desierto | **Decided (user, 2026-10-25): a blend.** The scenery of the user's desert scene (`assets/worlds/desierto/reference-scene.jpg`): blue and purple mountains far away, clouds, the cacti and plants of the Chihuahuan desert in place of the scene's saguaros (user, 2026-10-25: keep the Chihuahuan desert and swap in cacti that grow there): prickly pears (nopal), cholla, barrel cactus (biznaga), with palm yucca and ocotillo as the tall shapes (the species are Proposed), agave (lechuguilla) and red and orange flowers in front, a strip of grass along the sandy path, red earth below. Under a warmer golden sky than in that scene, with a bright sun. |
 | 2 | Mercado | Early afternoon, still bright: pale blue sky, pink and terracotta walls in the first long shadows, papel picado strings in pink, gold, teal and blue. |
 | 3 | Sierra | Cool afternoon: grey-blue sky, green-grey peaks, ochre rock. |
 | 4 | Selva | Golden hour in the jungle: amber sky, deep greens, mossy ruins. |
@@ -832,9 +833,9 @@ Answer these to move items from Proposed to Decided. Until then the Proposed tex
 
 1. **Taco as shield (GDD-PWR-01, GDD-CMB-03):** Taco and Fuego absorb hits like Mario's mushroom and flower. This makes lives less scarce. Right balance, or should power-ups be rarer or not absorb hits?
 2. **Power-up set (section 6):** Taco, Chile (Fuego fireballs), Chile Fantasma (star), piñata blocks. Anything you want added, such as a different fireball style, a reserve slot, or other foods?
-3. **Seven worlds (GDD-WLD-02):** are the world themes and names right? Anything you want, or want avoided? World 1 moved from the Chihuahuan to the Sonoran desert (0.5.0), because the saguaros in the user's scene grow only there; the other way round would mean other cacti in the scene.
+3. **Seven worlds (GDD-WLD-02):** are the world themes and names right? Anything you want, or want avoided? (World 1 is answered: the Chihuahuan desert, user, 2026-10-25.)
 4. **Story (GDD-VIS-01):** is the curse-and-seven-lives story seed what you want, or a different premise?
-5. **Pronouns (GDD-ART-02):** is Poncho a he, she or they, for story and UI text? The draft avoids choosing.
+5. **Pronouns (GDD-ART-02):** answered: he (user, 2026-10-25).
 6. **Brand and chain scope (GDD-VIS-05):** the draft keeps the game free of wallets, tokens and on-chain features. Is that right? Should the game mention the Poncho on Base token or community anywhere (credits, links), and who owns the final brand rules? Note that app stores restrict crypto features, which affects distribution (question 11).
 7. **Combat (GDD-CMB-02):** keep both claw swipe and stomp, with fireballs on top? Partly answered (user, 2026-10-21): the claw swipe is a standard mechanic that Poncho always has, not a power-up. Stomp and fireballs alongside it are still open.
 8. **Difficulty (GDD-VIS-02):** is assist mode and a kid-friendly tone right, or do you want a harder game?
