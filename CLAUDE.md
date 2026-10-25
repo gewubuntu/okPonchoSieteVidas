@@ -15,7 +15,7 @@ commit refers to a stable GDD ID such as `GDD-MOV-02`.
   Only the user turns `Proposed` into `Decided`.
 - Tuning numbers live in the GDD and in one code file (`src/config/tuning.ts`, once it exists).
   Change both together, in the same commit.
-- Poncho's look is defined by the user's reference images (`GDD-ART-02`): the illustration and the side-view sprite sheets, which win for the sprite. Never invent visual
+- Poncho's look is defined by the user's reference images (`GDD-ART-02`): the pixel drawing `sprite-pixel.jpg` is the main one and wins over the side-view sprite sheets and the illustration. Never invent visual
   details those images might contradict.
 
 ## Work loop (every task)

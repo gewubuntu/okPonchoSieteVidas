@@ -67,7 +67,7 @@ export const WALL = { slideSpeed: 60, kickX: 130, kickY: 380, lockSteps: Math.ro
 /** GDD-MOV-06: body hitbox for ground and walls, hurtbox for enemies and hazards, sprite frame. */
 export const HITBOX = { width: 12, height: 14 } as const;
 export const HURTBOX = { width: 10, height: 12 } as const;
-export const SPRITE_FRAME = 32;
+export const SPRITE_FRAME = 40;
 
 /** GDD-WLD-05: a spike tile hurts only in its lower half, the full tile wide, so a graze over the points is safe. */
 export const SPIKE = { height: TILE / 2 } as const;

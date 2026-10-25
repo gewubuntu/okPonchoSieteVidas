@@ -2,6 +2,7 @@
 
 The user's reference images of Poncho. They are the source of truth for his look. Do not edit or overwrite them.
 
+- `sprite-pixel.jpg`: the main reference (user, 2026-10-25), the user's pixel drawing of Poncho standing side-on. The sprite is this drawing, pixel for pixel, with a tail added (`scripts/art/poncho-pixels.mjs`, `scripts/art/poncho.mjs`). It wins over the images below.
 - `reference.jpg`: the illustration (512 x 512, orange background), for his colours, face, taco and PB badge.
 - `sprite-side.jpg`, `sprite-back-front.jpg`, `sprite-walk-a.jpg`, `sprite-walk-b.jpg`: the sprite references (user, 2026-10-25): side views, back and front, and two four-frame walk cycles. Poncho is drawn side-on as in these, and where they and the illustration differ, they win for the sprite.
 

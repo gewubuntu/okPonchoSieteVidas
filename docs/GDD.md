@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.5.1
+Version: 0.5.2
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.5.2** (2026-10-25) GDD-ART-02, GDD-ART-01, GDD-ART-03, GDD-ART-05, GDD-MOV-06: the user's pixel drawing of Poncho (`sprite-pixel.jpg`) is the main sprite reference, with a tail added (user, 2026-10-25); the sprite keeps its pixels, each drawn as 2 x 2 art pixels, so Poncho's frame grows to 40 x 40 game pixels (160 x 160 art pixels, Proposed); its 13 colours are the sprite palette and its near-black is the outline colour. The body box grows to 12 x 20 when the sprite goes into the game (user, 2026-10-25: "in between", body and head but not the hat); until then it stays 12 x 14.
 - **0.5.1** (2026-10-25) GDD-WLD-02, GDD-ART-06, GDD-ART-02: World 1 stays in the Chihuahuan desert, and its scenery swaps the reference scene's saguaros for cacti that grow there (user, 2026-10-25); the species, prickly pear, cholla, barrel cactus, palm yucca, ocotillo and lechuguilla, are Proposed. Poncho is a he (user, 2026-10-25); Open Question 5 answered.
 - **0.5.0** (2026-10-25) GDD-ART-01, GDD-ART-02, GDD-ART-03, GDD-ART-04, GDD-MOV-06, GDD-WLD-02, GDD-WLD-03, GDD-TEC-03, GDD-TEC-07: the style guide. Decided by the user (2026-10-25): the art is drawn in code and approved from screenshots; it is drawn at 1920 x 1080, four times 480 x 270 on each side, so tiles are 64 x 64 and Poncho's frame 128 x 128 art pixels; the user's side-view sprite sheets (side, back, front and two walk cycles) become Poncho's sprite reference, winning over the illustration where they differ, and show the tail (long, white tip); each world has its own mood; World 1 blends the user's desert scene (blue and purple mountains, clouds, saguaros, prickly pears, agave, flowers, grass on the sand) with a warmer golden sky. Proposed: every rule keeps its numbers in game pixels (4 x 4 art pixels each), so no gameplay changes; the brim is about twice the body's width; a sprite palette sampled from the sprite sheets. New: GDD-ART-05 pixel rules (outline, light, shading, layers, hazard edges), GDD-ART-06 world moods, GDD-ART-07 UI look. Open Question 14 added (detail on phones). World 1 moves from the Chihuahuan to the Sonoran desert, where saguaros grow (Proposed, Open Question 3). Letterboxing now reads "integer factors where possible" again under its own Proposed bullet. Dependency review for this minor version (GDD-TEC-07): `npm outdated` showed vite 8.3.4 and oxlint-tsgolint 7.0.2004 behind, both upgraded (8.3.5, 7.0.2005), gate and playtests green; @types/node stays on 24 to match the Node 24 that CI runs (ADR 0002). Nothing is built yet: the game still draws placeholders at 480 x 270.
 - **0.4.47** (2026-10-25) GDD-UI-02: the title screen's heading names the 2026-10-25 title menu decision, and the volume bars' height (10 px, centred) is written down (found in review).
@@ -245,8 +246,8 @@ Status: Proposed
 Status: Proposed. Based on the reference images (GDD-ART-02); validate against the real sprite sheet.
 
 - Tile size: 16 px.
-- Sprite frame: 32 x 32 game pixels, drawn as 128 x 128 art pixels (GDD-ART-01). Poncho is a chibi cat about 2.5 heads tall with a very wide sombrero (the brim is about twice the width of the body, as in the sprite references, GDD-ART-02).
-- Body hitbox (ground and walls): 12 px wide, 14 px tall, centred at the feet. Fits through a 1-tile-high gap (checked by a test).
+- Sprite frame: 40 x 40 game pixels, drawn as 160 x 160 art pixels (GDD-ART-01), Proposed: Poncho is the user's drawing at 2 art pixels per pixel, about 36 game pixels tall with the hat, so a 32 x 32 frame is too small. The frame is only for drawing; the boxes below decide what he touches. Poncho is a chibi cat about 2.5 heads tall with a very wide sombrero (the brim is about twice the width of the body, as in the sprite references, GDD-ART-02).
+- Body hitbox (ground and walls): 12 px wide, 14 px tall, centred at the feet. Fits through a 1-tile-high gap (checked by a test). **Decided (user, 2026-10-25): it grows to 12 x 20** (the body and head, not the hat) when the sprite goes into the game, so he no longer fits a 1-tile gap; the hurtbox, the level limits of GDD-WLD-03 and the gaps in the sandbox level are re-measured in that change. Not built yet.
 - Hurtbox (enemies and hazards): 10 x 12 px, inside the body hitbox, so near-misses feel fair. It is centred in the body box: 1 px in from each side, 1 px above the feet and 1 px below the top (Proposed).
 - Level edges: the left and right edges of a level are solid walls, so Poncho cannot walk out. The sky above is open, so he can jump above the top row. Below the bottom row is open space, a pit (GDD-WLD-05).
 - The sombrero brim is visual only. The crown top is the head-bump point for piñatas (GDD-PWR-05).
@@ -627,7 +628,7 @@ Short, punchy and readable: jump, land, claw, stomp, hilo pickup (rising pitch c
 Status: Decided (pixel art, user, 2026-10-19; drawn in code, the 1920 x 1080 art resolution and a mood per world, user, 2026-10-25). The game units, outlines and palette rules are Proposed.
 
 - Pixel art with a hand-made feel. **Drawn in code (Decided, user, 2026-10-25):** every sprite and tile is a pixel grid in a script that writes the image files, as the placeholder sounds are made (GDD-AUD-02), and the user approves each one from screenshots before it goes in.
-- **Art resolution (Decided, user, 2026-10-25):** 1920 x 1080 (16:9), four times 480 x 270 on each side, so the sprites can hold the detail of the sprite references (GDD-ART-02). A tile is 64 x 64 art pixels and Poncho's frame 128 x 128.
+- **Art resolution (Decided, user, 2026-10-25):** 1920 x 1080 (16:9), four times 480 x 270 on each side, so the sprites can hold the detail of the sprite references (GDD-ART-02). A tile is 64 x 64 art pixels and Poncho's frame 160 x 160 (GDD-MOV-06), where each pixel of the user's drawing is 2 x 2 art pixels.
 - **Fitting the screen (Proposed, as before):** the picture is scaled to fit the screen by integer factors where possible and letterboxed on other aspect ratios.
 - **Game units (Proposed):** the rules keep their numbers. Every number in this document is in game pixels unless it says art pixels, and a game pixel is 4 x 4 art pixels, so the screen stays 480 x 270 game pixels, a tile 16 and Poncho's body box 12 x 14 (GDD-MOV-06). No speed, jump, gap or level changes with the art; only the drawing works in art pixels, and things are drawn at positions rounded to whole art pixels.
 - The illustration (`reference.jpg`) is smooth; the sprites follow the sprite references' shapes, proportions and colours (GDD-ART-02, GDD-ART-03) and the pixel rules (GDD-ART-05).
@@ -636,12 +637,13 @@ Status: Decided (pixel art, user, 2026-10-19; drawn in code, the 1920 x 1080 art
 
 ### GDD-ART-02 Poncho (character)
 
-Status: Decided (appearance from the user's reference image, 2026-10-19; the sprite references, user, 2026-10-25). Sprite-level details are Proposed.
+Status: Decided (appearance from the user's reference image, 2026-10-19; the sprite references and the main pixel reference, user, 2026-10-25). Sprite-level details are Proposed.
 
 References, all in `assets/characters/poncho/`:
 
 - `reference.jpg`: the illustration (512 x 512, orange background), the source for Poncho's colours, face, taco and PB badge.
-- **Sprite references (Decided, user, 2026-10-25):** `sprite-side.jpg` (two side views), `sprite-back-front.jpg` (back and front), `sprite-walk-a.jpg` and `sprite-walk-b.jpg` (walk cycles of four frames). Poncho is drawn side-on, as in these. Where they and the illustration differ, the sprite references win for the sprite (user, 2026-10-25: "side view as drawn").
+- **Main reference (Decided, user, 2026-10-25):** `sprite-pixel.jpg`, the user's pixel drawing of Poncho standing side-on, facing right (a 100 x 100 pixel grid, the figure 56 x 71 pixels). The sprite is this drawing, pixel for pixel, with a tail added behind him (user, 2026-10-25: "add a tail"); it wins over every other reference. It has a fringe along the poncho's hem, the furrowed brows of the illustration, a near-black outline, and the front paw held under the poncho.
+- **Sprite references (Decided, user, 2026-10-25):** `sprite-side.jpg` (two side views), `sprite-back-front.jpg` (back and front), `sprite-walk-a.jpg` and `sprite-walk-b.jpg` (walk cycles of four frames). Poncho is drawn side-on, as in these. Where they and the illustration differ, the sprite references win for the sprite (user, 2026-10-25: "side view as drawn"); the main reference wins over both, and these stay the guide for poses it does not show (the walk, the back, the front).
 
 The look:
 
@@ -662,7 +664,25 @@ The look:
 
 Status: Proposed. Approximate colours sampled from the JPEGs; the final palette is fixed when the pixel art is made.
 
-Poncho's sprite colours, sampled from `sprite-side.jpg` (the sprite references win, GDD-ART-02):
+Poncho's sprite colours are the 13 of the user's pixel drawing (`sprite-pixel.jpg`, the main reference, GDD-ART-02), read from its pixels; the sprite uses exactly these, the tail included (`scripts/art/poncho-pixels.mjs`):
+
+| Use | Colour |
+| --- | --- |
+| Outline | #070509 |
+| Poncho and brim blue | #3F66B1 |
+| Dark blue (shadow) | #2C3F7A |
+| Navy (deepest shadow) | #2D1E39 |
+| Red (crown, brim, poncho) | #D23F42 |
+| Crimson (darker red) | #823241 |
+| Fur | #F1A361 |
+| Fur shade | #C58D62 |
+| Dark fur | #B06948 |
+| Cream (muzzle, paws, tail tip) | #FBDAB7 |
+| Cream shade | #CD9A86 |
+| White (poncho marks, eye highlight) | #ECE3D9 |
+| Blush | #F2957D |
+
+Sampled earlier from `sprite-side.jpg` (for reference; the drawing wins):
 
 | Use | Approx. colour |
 | --- | --- |
@@ -701,7 +721,7 @@ The run cycle starts from the four-frame walk of the sprite references (`sprite-
 
 Status: Proposed
 
-- **Outline:** every character, enemy, item and pickup has a dark plum outline (#301830, as in the sprite references), never pure black, 2 art pixels thick on the outside (about as thick, for Poncho's size, as in the sprite references). Tiles and scenery have no outline, so what can be touched stands out.
+- **Outline:** every character, enemy, item and pickup has a near-black outline (#070509, as in the main reference, GDD-ART-02, which replaces the dark plum first proposed), 2 art pixels thick on the outside (one pixel of the user's drawing). Tiles and scenery have no outline, so what can be touched stands out.
 - **Light** comes from the upper left. Each material has three shades: base, a shadow on the lower right and a highlight on the upper left. No soft gradients, no blurred or blended edges, no anti-aliasing.
 - **Dither** (a checker of two colours) only in skies and far scenery, never on characters or pickups.
 - **Three layers:** far scenery (sky, mountains, clouds; low contrast, scrolls slower than the level), the play area (tiles, mid contrast) and characters and pickups (highest contrast, outlined).
