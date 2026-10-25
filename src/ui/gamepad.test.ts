@@ -75,6 +75,13 @@ describe('GDD-CTL-02 gamepad input', () => {
     expect(tie.left).toBe(false); // a tie is not larger
   });
 
+  it('the stick is a Left or Right press just past the dead zone', () => {
+    expect(read(pad({ x: 0.25 })).input().right).toBe(true);
+    expect(read(pad({ x: -0.25 })).input().left).toBe(true);
+    const edge = read(pad({ x: 0.2 })).input();
+    expect([edge.left, edge.right]).toEqual([false, false]);
+  });
+
   it('the D-pad and stick add up and cancel out', () => {
     const cancel = read(pad({ buttons: [LEFT], x: 1 })).input();
     expect([cancel.move, cancel.left, cancel.right]).toEqual([0, true, true]);
@@ -89,6 +96,12 @@ describe('GDD-CTL-02 gamepad input', () => {
     reader.poll([pad({ buttons: [SOUTH] }), pad({ buttons: [WEST] })]);
     const two = reader.input();
     expect([two.jumpHeld, two.claw]).toEqual([true, true]);
+  });
+
+  it('claw and Fuego from one pad count with another pad idle', () => {
+    const reader = new GamepadReader();
+    reader.poll([pad({ buttons: [WEST, EAST] }), pad()]);
+    expect([reader.input().claw, reader.input().fuego]).toEqual([true, true]);
   });
 
   it('only standard pads are read', () => {
@@ -145,6 +158,10 @@ describe('GDD-CTL-02 gamepad menu presses', () => {
     expect(reader.poll([pad({ x: 0.6 })])).toEqual(['menuRight']);
     centre();
     expect(reader.poll([pad({ x: 0.4 })])).toEqual([]);
+    centre();
+    expect(reader.poll([pad({ x: 0.5 })])).toEqual([]);
+    centre();
+    expect(reader.poll([pad({ y: -0.5 })])).toEqual([]);
     centre();
     expect(reader.poll([pad({ x: 0.6, y: 0.6 })])).toEqual([]);
     centre();
@@ -231,6 +248,19 @@ describe('GDD-CTL-02 GDD-UI-02 gamepad held through a pause', () => {
     const steer = reader.input();
     expect(steer.move).toBeCloseTo(0.5, 10);
     expect(steer.right).toBe(true);
+  });
+
+  it('a held-back stick is let go only inside its dead zone', () => {
+    const reader = new GamepadReader();
+    reader.poll([pad()]);
+    reader.notePause();
+    reader.poll([pad({ x: 0.6 })]);
+    reader.holdBack();
+    reader.poll([pad({ x: 0.3 })]);
+    expect(reader.input().move).toBe(0); // eased back, still outside the dead zone
+    reader.poll([pad({ x: 0.2 })]); // at the dead zone's edge: let go
+    reader.poll([pad({ x: 0.3 })]);
+    expect(reader.input().move).toBeCloseTo(0.125, 10);
   });
 
   it('the stick held since before the pause keeps steering', () => {
