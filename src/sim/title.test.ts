@@ -160,6 +160,8 @@ describe('GDD-UI-02 title menu', () => {
       expect(frame(OPEN, [leave]), JSON.stringify(leave)).toEqual({ ...TITLE, choice: 'settings' });
     }
     expect(frame(OPEN, ['menuDown', 'menuDown', 'pick'])).toEqual({ ...TITLE, choice: 'settings' });
+    // Opened by a tap on its row while Start was chosen, it still comes back with Settings chosen.
+    expect(frame(TITLE, [tap({ title: 'settings' }), 'key'])).toEqual({ ...TITLE, choice: 'settings' });
     // The start item was chosen before? Opening it needed Settings chosen.
     expect(frame(OPEN, ['key', 'pick'])).toMatchObject({ settings: 'master' }); // pick on Settings opens it again
   });

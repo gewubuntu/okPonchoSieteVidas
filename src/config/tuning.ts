@@ -109,7 +109,7 @@ export const TITLE_MENU = { width: 160, rowHeight: 28, top: 176 } as const;
  * from its left edge, "<" and ">" `arrowInset` inside its edges, and its bars (`barWidth` wide, `barGap` apart) ending
  * `barsInset` inside its right edge.
  */
-export const SETTINGS_MENU = { width: 260, rowHeight: 28, top: 96, titleY: 76, labelInset: 20, arrowInset: 8, barWidth: 5, barGap: 2, barsInset: 20 } as const;
+export const SETTINGS_MENU = { width: 260, rowHeight: 28, top: 96, titleY: 76, labelInset: 20, arrowInset: 8, barWidth: 5, barHeight: 10, barGap: 2, barsInset: 20 } as const;
 
 /** GDD-UI-02, GDD-AUD-01: a volume is a whole number of `steps` shares, and starts at `default`. */
 export const VOLUME = { steps: 10, default: 10 } as const;

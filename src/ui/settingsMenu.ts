@@ -21,9 +21,6 @@ export interface VolumeBar {
   readonly filled: boolean;
 }
 
-/** Bars are 10 px tall. */
-const BAR_HEIGHT = 10;
-
 /**
  * Three rows, "Master volume", "Effects volume" and "Back", centred, the first's top at SETTINGS_MENU.top and each next directly
  * below, growing like the pause menu's rows so none is under TOUCH.minCssPx tall on the player's screen.
@@ -45,9 +42,9 @@ export function settingsTapAt(rows: readonly SettingsMenuRow[], x: number, y: nu
 
 /** The volume's bars, left to right: `VOLUME.steps` of them, the last ending `barsInset` inside the row's right edge, vertically centred; the first `value` filled. */
 export function volumeBars(row: SettingsMenuRow, value: number): VolumeBar[] {
-  const { barWidth, barGap, barsInset } = SETTINGS_MENU;
+  const { barWidth, barHeight, barGap, barsInset } = SETTINGS_MENU;
   const span = VOLUME.steps * barWidth + (VOLUME.steps - 1) * barGap;
   const left = row.x + row.w - barsInset - span;
-  const y = row.y + (row.h - BAR_HEIGHT) / 2;
-  return Array.from({ length: VOLUME.steps }, (_, i) => ({ x: left + i * (barWidth + barGap), y, w: barWidth, h: BAR_HEIGHT, filled: i < value }));
+  const y = row.y + (row.h - barHeight) / 2;
+  return Array.from({ length: VOLUME.steps }, (_, i) => ({ x: left + i * (barWidth + barGap), y, w: barWidth, h: barHeight, filled: i < value }));
 }
