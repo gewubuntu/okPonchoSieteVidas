@@ -1,9 +1,10 @@
 // Poncho's sprite frames, facing right, feet on the bottom row (GDD-ART-01, GDD-ART-02, GDD-ART-04).
 // Every frame is the user's pixel drawing (poncho-pixels.mjs) with a tail added behind him. Each of its pixels is
-// drawn as 2 x 2 art pixels, so the figure keeps the user's pixels exactly. The run frames move the drawing's own
-// legs (sheared at the hip, lifted for a step) and bob the body, after the user's walk cycle (sprite-walk-a.jpg).
+// drawn as 2 x 2 art pixels, so the figure keeps the user's pixels exactly. The run frames put the legs of the
+// user's run cycle (poncho-run-legs.mjs) under it.
 import { and, ellipse, Grid, stroke } from './raster.mjs';
 import { COLOURS, ROWS } from './poncho-pixels.mjs';
+import { RUN_LEGS } from './poncho-run-legs.mjs';
 
 /** One of the drawing's pixels is this many art pixels across. */
 export const SCALE = 2;
@@ -11,8 +12,6 @@ export const SCALE = 2;
 export const FRAME = 160;
 /** Room left of the drawing for the tail, in the drawing's pixels. */
 const TAIL_ROOM = 8;
-/** Room above the drawing for the body's bob, in the drawing's pixels. */
-const HEADROOM = 2;
 /** The drawing's rows from here down are the legs; the poncho's fringe there stays with the body. */
 const LEG_TOP = 63;
 /** The legs' columns: the near leg (lighter, drawn in front) and the far leg (darker). */
@@ -45,41 +44,29 @@ function drawTail(g, sway, dy) {
 
 const isLeg = (x, y, [from, to]) => y >= LEG_TOP && x >= from && x <= to;
 
-/** Copies one leg, sheared so its top stays at the hip and its foot moves `dx` pixels, and raised `lift` pixels. */
-function drawLeg(g, [from, to], { dx = 0, lift = 0 }) {
-  const bottom = ROWS.length - 1;
-  for (let y = LEG_TOP; y <= bottom; y++) {
-    const shift = Math.round((dx * (y - LEG_TOP + 1)) / (bottom - LEG_TOP + 1));
-    for (let x = from; x <= to; x++) {
-      const ch = ROWS[y][x];
-      if (ch === '.') continue;
-      g.set(x + TAIL_ROOM + shift, y - lift + HEADROOM, COLOURS[ch]);
-    }
-  }
+/** Copies the drawing's own legs, for the standing frame. */
+function standingLegs() {
+  return ROWS.slice(LEG_TOP).map((row) => [...row].map((ch, x) => (isLeg(x, LEG_TOP, NEAR_LEG) || isLeg(x, LEG_TOP, FAR_LEG) ? ch : '.')).join(''));
 }
 
 /**
- * One frame in the drawing's pixels. `bob` raises the body (and the tail) by whole pixels; the legs are placed by
- * their foot offsets and lifts.
+ * One frame in the drawing's pixels: the tail, the legs (`legs`, rows from the drawing's row 63 down, each with a
+ * 1 px outline of their own), and the drawing's body above them, standing on the frame's bottom row.
  */
-function drawSmall({ near = {}, far = {}, bob = 0, sway = 0 } = {}) {
-  const w = ROWS[0].length + TAIL_ROOM, h = ROWS.length + HEADROOM;
+function drawSmall(legs, { sway = 0 } = {}) {
+  const w = ROWS[0].length + TAIL_ROOM, h = LEG_TOP + legs.length;
   const g = new Grid(w, h);
-  drawTail(g, sway, HEADROOM - bob);
-  drawLeg(g, FAR_LEG, far);
-  drawLeg(g, NEAR_LEG, near);
+  drawTail(g, sway, 0);
+  const legLayer = new Grid(w, h);
+  legs.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch !== '.') legLayer.set(x + TAIL_ROOM, LEG_TOP + y, COLOURS[ch]);
+  }));
+  legLayer.outline(OUTLINE, 1);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (legLayer.get(x, y)) g.set(x, y, legLayer.get(x, y));
   ROWS.forEach((row, y) => [...row].forEach((ch, x) => {
     if (ch === '.' || isLeg(x, y, NEAR_LEG) || isLeg(x, y, FAR_LEG)) return;
-    g.set(x + TAIL_ROOM, y - bob + HEADROOM, COLOURS[ch]);
+    g.set(x + TAIL_ROOM, y, COLOURS[ch]);
   }));
-  // Where the body was raised, close the gap above the legs with the poncho's underside line.
-  if (bob > 0) {
-    for (let x = 0; x < w; x++) {
-      for (let y = LEG_TOP - bob + HEADROOM; y < LEG_TOP + HEADROOM; y++) {
-        if (g.get(x, y) === null && g.get(x, y - 1) !== null && g.get(x, LEG_TOP + HEADROOM) !== null) g.set(x, y, OUTLINE);
-      }
-    }
-  }
   return g;
 }
 
@@ -96,20 +83,13 @@ function toFrame(small) {
   return g;
 }
 
-/** The standing frame. */
+/** The standing frame: the drawing as it is. */
 export function drawIdle() {
-  return toFrame(drawSmall());
+  return toFrame(drawSmall(standingLegs()));
 }
 
-/**
- * The run cycle, four frames like the user's walk cycle: a stride with the near leg back, the legs passing with the
- * body up, a stride with the near leg forward, the legs passing again.
- */
+/** The run cycle: the user's four run frames (their legs on the standing drawing's body), the tail tip swaying. */
 export function drawRun() {
-  return [
-    { near: { dx: -5 }, far: { dx: 5 }, bob: 0, sway: 0 },
-    { near: { dx: -1 }, far: { dx: 1, lift: 3 }, bob: 1, sway: 1 },
-    { near: { dx: 5 }, far: { dx: -5 }, bob: 0, sway: 0 },
-    { near: { dx: 1, lift: 3 }, far: { dx: -1 }, bob: 1, sway: -1 },
-  ].map((pose) => toFrame(drawSmall(pose)));
+  const sways = [0, 1, 0, -1];
+  return RUN_LEGS.map((legs, i) => toFrame(drawSmall(legs, { sway: sways[i] })));
 }
