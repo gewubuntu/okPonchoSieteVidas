@@ -307,8 +307,9 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** `CLAUDE.md` asks for an `overview.png` sheet of the approved screenshots in every visible PR, but the repository has no script for it. This session wrote a throwaway Playwright page in the scratchpad to compose the sheet, as earlier sessions must have done, each with its own layout.
 - **Root cause:** A required step of the PR rule was written as prose with no tool behind it.
 - **Rule:** Until there is a script, compose the sheet from the committed screenshots only (never from `shots/`), with each file name under its image, and look at it before committing.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-10-25, GDD-UI-02 settings):** the sheet was about to be built by hand again; `scripts/overview.mjs` now composes it from a `docs/screenshots/<slug>/` folder.
+- **Recurrence:** 2
+- **Promoted:** `scripts/overview.mjs`, named in the `CLAUDE.md` commands table and its Pull requests rule.
 
 ## L-032 Hiding the touch buttons hid only their drawing
 
@@ -357,3 +358,21 @@ Prefer an automated check over a prose rule.
 - **Recurrence 2 (2026-10-25, GDD-UI-02):** the pointer id in PR #46 (caught before merge by keying fingers with `downTime`), then the `Key` object in PR #47.
 - **Recurrence:** 2
 - **Promoted:** step 5 of the `harness-feature` skill (shared buttons).
+
+## L-037 A latched press stayed pending on a screen where no step runs
+
+- **Date:** 2026-10-25
+- **What went wrong:** On the settings screen opened from the title (GDD-UI-02), a quick Left or Right tap stayed latched, because latches are spent only by a simulation step and none runs on the title. When the screen closed, the still-pending latch made the held key look like a new press and started the level. The plan did not cover it; the implementer found it in a playtest.
+- **Root cause:** The latch rule (L-006) says "cleared by the step that uses it", and the plan added a screen that reads presses without stepping, so nothing was using and spending them.
+- **Rule:** Any screen that reads presses while no step runs (title, pause, settings, menus) spends the latches each frame it reads them (`consumeLatches()` in `PlayScene`), and its plan has a test of a quick tap there followed by leaving the screen.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-038 "Held through a screen" was planned on frame boundaries, not on presses within a frame
+
+- **Date:** 2026-10-25
+- **What went wrong:** GDD-UI-02 says a game button held through the title's settings screen is no new press after it. The plan compared the buttons down with the ones down on the frame before, so a Left going down in the same frame that the settings screen was left (or opened and left) still counted as new and started the level. It was found in review of the implementer's report, which named the case as "timing-sensitive by design".
+- **Root cause:** The plan stated the rule per frame, and the events within one frame are applied in order, so a screen can open and close between two frame boundaries.
+- **Rule:** When a rule depends on a screen being open, decide it on "open at any time in the frame", and plan a unit test where the screen opens or closes in the same frame as the press.
+- **Recurrence:** 1
+- **Promoted:** no
