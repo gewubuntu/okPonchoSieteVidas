@@ -7,7 +7,24 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/scripts/hooks/after-pr.mjs"],
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/scripts/hooks/after-pr.mjs"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/scripts/hooks/gate-pipe.mjs"
+            ],
             "timeout": 10
           }
         ]

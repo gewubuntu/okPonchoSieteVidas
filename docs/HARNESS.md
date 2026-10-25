@@ -14,7 +14,7 @@ project get better at itself over time.
 | `.claude/skills/*` | Repeatable procedures: `harness-feature`, `harness-gdd-update`, `harness-playtest`, `harness-retro` (all start with `harness-`, so typing `/harness` lists them). |
 | `.claude/agents/pr-reviewer.md` | The subagent that reviews every pull request in depth. |
 | `.claude/agents/implementer.md` | The subagent that builds a feature from the main session's plan. |
-| `.claude/settings.json` | Project hooks. After a PR is created, a hook tells Claude to run the reviewer. |
+| `.claude/settings.json` | Project hooks. After a PR is created, a hook tells Claude to run the reviewer. Before a shell command, `scripts/hooks/gate-pipe.mjs` denies one that commits after the gate with anything but `&&` between them (L-012). |
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
 | `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a visible change has no screenshots. |
 | `.github/pull_request_template.md` | The PR description every PR follows, including screenshots for visible changes. |

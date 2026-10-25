@@ -132,7 +132,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** I chained the commit after a pipeline that hides the gate's exit code, and read the result only after the commit had happened.
 - **Rule:** Run the gate on its own and check its exit code, then commit: `node scripts/check.mjs && git commit ...` with no pipe to `tail` (or `set -o pipefail`). If the output is needed, read it from a separate run.
 - **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-feature (Gate step). Second time (2026-10-25, GDD-ART-02): `node scripts/check.mjs 2>&1 | tail -1 && git commit` committed a lessons-format failure; the next commit fixed it. The rule stands: never pipe the gate.
+- **Promoted:** .claude/skills/harness-feature (Gate step), then, after the second time, `scripts/hooks/gate-pipe.mjs`: a PreToolUse hook that denies a shell command committing after the gate with anything but `&&` between them. Second time (2026-10-25, GDD-ART-02): `node scripts/check.mjs 2>&1 | tail -1 && git commit` committed a lessons-format failure; the next commit fixed it. The rule stands: never pipe the gate.
 
 ## L-013 Sentences the new feature made false were left in the GDD
 
