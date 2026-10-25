@@ -3,7 +3,7 @@
 import { BASE_WIDTH, SETTINGS_MENU, TOUCH, VOLUME } from '../config/tuning';
 import type { SettingsRow } from '../sim/settings';
 
-/** A row's rectangle in virtual pixels. */
+/** A row's rectangle in game pixels. */
 export interface SettingsMenuRow {
   readonly item: SettingsRow;
   readonly x: number;

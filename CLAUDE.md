@@ -15,8 +15,8 @@ commit refers to a stable GDD ID such as `GDD-MOV-02`.
   Only the user turns `Proposed` into `Decided`.
 - Tuning numbers live in the GDD and in one code file (`src/config/tuning.ts`, once it exists).
   Change both together, in the same commit.
-- Poncho's look is defined by the user's reference image (`GDD-ART-02`). Never invent visual
-  details that image might contradict.
+- Poncho's look is defined by the user's reference images (`GDD-ART-02`): the illustration and the side-view sprite sheets, which win for the sprite. Never invent visual
+  details those images might contradict.
 
 ## Work loop (every task)
 
@@ -71,7 +71,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - `src/scenes/` Phaser scenes: wiring only (input, rendering, audio)
 - `e2e/` Playwright playtests; `e2e/shots/` screenshot scenarios for visual review
 - `docs/screenshots/<slug>/` screenshots the user approved, embedded in PR descriptions
-- `assets/` art and audio. `assets/characters/poncho/reference.jpg` is Poncho's reference image
+- `assets/` art and audio. `assets/characters/poncho/` holds Poncho's reference images (`reference.jpg`, `sprite-*.jpg`); `assets/worlds/<world>/` the world references
 
 ## Conventions
 

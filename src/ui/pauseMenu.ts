@@ -4,7 +4,7 @@ import { BASE_WIDTH, PAUSE_MENU, TITLE_MENU, TOUCH } from '../config/tuning';
 import type { MenuItem } from '../sim/pause';
 import type { TitleItem } from '../sim/title';
 
-/** A row's rectangle in virtual pixels. */
+/** A row's rectangle in game pixels. */
 export interface MenuRow<Item extends string = MenuItem> {
   readonly item: Item;
   readonly x: number;
@@ -15,7 +15,7 @@ export interface MenuRow<Item extends string = MenuItem> {
 
 /**
  * Rows for `items`, centred, the first's top at `top` and each next directly below. A row is never under TOUCH.minCssPx tall on
- * the player's screen, so on a small screen they grow. `cssPerVirtualPx` is how big one virtual pixel is there.
+ * the player's screen, so on a small screen they grow. `cssPerVirtualPx` is how big one game pixel is there.
  */
 function stackRows<Item extends string>(items: readonly Item[], menu: { width: number; rowHeight: number; top: number }, cssPerVirtualPx: number): MenuRow<Item>[] {
   const h = Math.max(menu.rowHeight, Math.ceil(TOUCH.minCssPx / cssPerVirtualPx));

@@ -1,12 +1,12 @@
 // Every gameplay number lives here, each tagged with its GDD ID (GDD-TEC-05).
 // Change a number here and in docs/GDD.md in the same commit.
-// Units are virtual pixels and seconds. The vertical axis points down, so rising means negative velocity.
+// Units are game pixels (GDD-ART-01: 480 x 270 on screen) and seconds. The vertical axis points down, so rising means negative velocity.
 
 /** GDD-TEC-02: fixed simulation rate. */
 export const TICK_HZ = 60;
 export const STEP = 1 / TICK_HZ;
 
-/** GDD-ART-01: base resolution and tile grid. */
+/** GDD-ART-01: the screen in game pixels and the tile grid. */
 export const BASE_WIDTH = 480;
 export const BASE_HEIGHT = 270;
 export const TILE = 16;
@@ -83,7 +83,7 @@ export const RESPAWN = {
 /** GDD-WLD-05: an ofrenda checkpoint is one tile wide and two tiles tall, standing on the floor. Touching it activates it. */
 export const OFRENDA = { width: TILE, height: 2 * TILE } as const;
 
-/** GDD-CTL-03: touch buttons, in virtual pixels except `minCssPx`. */
+/** GDD-CTL-03: touch buttons, in game pixels except `minCssPx`. */
 export const TOUCH = {
   /** Left, right and jump button sizes (jump is larger), and the space around them. */
   size: 40,
@@ -98,14 +98,14 @@ export const TOUCH = {
   stickDeadZone: 0.2,
 } as const;
 
-/** GDD-UI-02: the pause menu's rows, in virtual pixels; each grows so it is never under TOUCH.minCssPx tall. */
+/** GDD-UI-02: the pause menu's rows, in game pixels; each grows so it is never under TOUCH.minCssPx tall. */
 export const PAUSE_MENU = { width: 160, rowHeight: 28, top: 136, textSize: 12 } as const;
 
-/** GDD-UI-02: the title menu's rows ("Start", "Settings"), in virtual pixels; each grows like the pause menu's. The text size is `PAUSE_MENU.textSize`. */
+/** GDD-UI-02: the title menu's rows ("Start", "Settings"), in game pixels; each grows like the pause menu's. The text size is `PAUSE_MENU.textSize`. */
 export const TITLE_MENU = { width: 160, rowHeight: 28, top: 176 } as const;
 
 /**
- * GDD-UI-02: the settings screen, in virtual pixels. Rows grow like the pause menu's. A volume row has its label `labelInset`
+ * GDD-UI-02: the settings screen, in game pixels. Rows grow like the pause menu's. A volume row has its label `labelInset`
  * from its left edge, "<" and ">" `arrowInset` inside its edges, and its bars (`barWidth` wide, `barGap` apart) ending
  * `barsInset` inside its right edge.
  */

@@ -34,3 +34,4 @@ Versions are locked by `package-lock.json`.
   is all this game uses. Do not write custom pipelines; use render nodes and filters if ever needed.
 - **Dependency policy** (GDD-TEC-07): stay on the latest stable releases and review them at every GDD minor version.
 - The cloud container runs Node 22. CI runs Node 24. Both must pass.
+- **@types/node stays on the major of the Node that CI runs** (24 today), not on the latest types (26 at the 0.5.0 review), since newer types describe APIs that Node 24 does not have. Upgrade it when CI moves to a newer Node.

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BASE_HEIGHT, BASE_WIDTH, TOUCH } from '../config/tuning';
 import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchButton } from './touchLayout';
 
-/** CSS px per virtual px on an 844 x 390 landscape phone: the 480 x 270 canvas is limited by the height, 390 / 270. */
+/** CSS px per game px on an 844 x 390 landscape phone: the 480 x 270 canvas is limited by the height, 390 / 270. */
 const PHONE = 390 / 270;
 const find = (buttons: TouchButton[], id: string) => buttons.find((b) => b.id === id)!;
 const centre = (b: TouchButton) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
