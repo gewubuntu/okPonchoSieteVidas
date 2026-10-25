@@ -828,3 +828,39 @@ test('GDD-UI-02 a held-back finger lifted and put down again inside one frame st
   await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 4, x);
   await touchAt(page, cdp, 'touchEnd', []);
 });
+
+test('GDD-UI-02 a Right held at the pause, released and pressed again while paused, does not run after the resume', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await started(page);
+  await page.keyboard.down('ArrowRight');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  await page.keyboard.up('ArrowRight');
+  await frames(page);
+  await page.keyboard.down('ArrowRight'); // a new press while the game stands still
+  await frames(page);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+  const x = await ponchoX(page);
+  await steps(page, 20);
+  expect(await ponchoX(page)).toBe(x);
+  await page.keyboard.up('ArrowRight');
+});
+
+test('GDD-UI-02 a held-back Right released and pressed again inside one task is a new press and runs (L-006)', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await started(page);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  await page.keyboard.down('ArrowRight');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+  await steps(page, 5);
+  const x = await ponchoX(page);
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowRight', key: 'ArrowRight', keyCode: 39, bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight', key: 'ArrowRight', keyCode: 39, bubbles: true }));
+  });
+  await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 4, x); // held after a fresh press: he runs
+  await page.keyboard.up('ArrowRight');
+});

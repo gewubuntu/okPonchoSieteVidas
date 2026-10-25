@@ -52,7 +52,7 @@ const FLOOR_Y = SANDBOX_SPAWN.y;
 const countUsed = (key: string) => key.split('1').length - 1;
 const down = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
 /** Down, leaving out the keys held back since a pause (GDD-UI-02). */
-const downExcept = (keys: Phaser.Input.Keyboard.Key[], held: ReadonlySet<Phaser.Input.Keyboard.Key>) => keys.some((k) => k.isDown && !held.has(k));
+const downExcept = (keys: Phaser.Input.Keyboard.Key[], held: ReadonlyMap<Phaser.Input.Keyboard.Key, number>) => keys.some((k) => k.isDown && !held.has(k));
 /** Steps per half of the invulnerability blink (0.1 s). */
 const BLINK_STEPS = 6;
 /** Height of the pale strip along Poncho's feet on the placeholder body, in px. */
@@ -282,9 +282,12 @@ export class PlayScene extends Phaser.Scene {
   /** Left and right are latched too: a tap of either ends the Siete vidas gastadas screen (GDD-LIFE-05). */
   private readonly leftLatch = new InputLatch();
   private readonly rightLatch = new InputLatch();
-  /** GDD-UI-02: the Left and Right keys down when the pause began, and the ones ignored until released since it ended. */
-  private keysAtPause = new Set<Phaser.Input.Keyboard.Key>();
-  private readonly heldKeys = new Set<Phaser.Input.Keyboard.Key>();
+  /**
+   * GDD-UI-02: the Left and Right keys down when the pause began, and the ones ignored until released since it ended, each with
+   * the `timeDown` of its press, so a key pressed again (while paused, or inside one frame) is a new press.
+   */
+  private keysAtPause = new Map<Phaser.Input.Keyboard.Key, number>();
+  private readonly heldKeys = new Map<Phaser.Input.Keyboard.Key, number>();
   private swings = 0;
   private spits = 0;
   private clawPainted: 'none' | 'windup' | 'swing' = 'none';
@@ -1227,14 +1230,14 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-UI-02: the game pauses. The fingers and the Left and Right keys down now keep pressing after it. */
   private notePause(): void {
     this.touch.notePause();
-    this.keysAtPause = new Set([...this.keys.left, ...this.keys.right].filter((k) => k.isDown));
+    this.keysAtPause = new Map([...this.keys.left, ...this.keys.right].filter((k) => k.isDown).map((k) => [k, k.timeDown]));
   }
 
   /** What the keys and the touch controls press now. Keyboard and touch work together: either can move or jump (GDD-CTL-01, GDD-CTL-03). */
   private readInput(): PlayerInput {
     const touch = this.touch.read();
     // GDD-UI-02: a Left or Right key held back since a pause counts as up until it is released.
-    for (const k of this.heldKeys) if (!k.isDown) this.heldKeys.delete(k);
+    for (const [k, t] of this.heldKeys) if (!k.isDown || k.timeDown !== t) this.heldKeys.delete(k);
     const leftKey = effectiveHeld(downExcept(this.keys.left, this.heldKeys), this.leftLatch);
     const rightKey = effectiveHeld(downExcept(this.keys.right, this.heldKeys), this.rightLatch);
     // Left and right also go in raw, before they cancel out in `move`: the Siete vidas gastadas screen counts a press of either (GDD-LIFE-05).
@@ -1254,8 +1257,8 @@ export class PlayScene extends Phaser.Scene {
    */
   private endPause(): PlayerInput {
     this.touch.holdBack();
-    for (const k of [...this.keys.left, ...this.keys.right]) if (k.isDown && !this.keysAtPause.has(k)) this.heldKeys.add(k);
-    this.keysAtPause = new Set();
+    for (const k of [...this.keys.left, ...this.keys.right]) if (k.isDown && this.keysAtPause.get(k) !== k.timeDown) this.heldKeys.set(k, k.timeDown);
+    this.keysAtPause = new Map();
     // A quick tap of Left or Right while paused is spent too. Jump, claw and Fuego taps are held by `resumeHeld` instead.
     this.leftLatch.consume();
     this.rightLatch.consume();
@@ -1288,7 +1291,7 @@ export class PlayScene extends Phaser.Scene {
     // The finger that picked Quit is held back too, and the fingers and keys down at the pause are forgotten: on the title screen
     // none was held before.
     this.touch.holdBack();
-    this.keysAtPause = new Set();
+    this.keysAtPause = new Map();
   }
 
   /**

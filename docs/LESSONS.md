@@ -347,3 +347,13 @@ Prefer an automated check over a prose rule.
 - **Recurrence 2 (2026-10-25, GDD-UI-02):** first in the review of PR #46, for the slide stick; then for the Left and Right keys and touch buttons.
 - **Recurrence:** 2
 - **Promoted:** step 5 of the `harness-feature` skill (shared buttons).
+
+## L-036 A held-back press was tracked by its key or pointer slot, not by the press
+
+- **Date:** 2026-10-25
+- **What went wrong:** The rule "a button pressed while paused does nothing until released" stored the Phaser `Key` object (and first, in PR #46, the pointer id). A key held at the pause and pressed again while paused counted as held since before the pause and ran; a key released and pressed again inside one frame stayed held back. Both were found in review.
+- **Root cause:** A press was identified by where it comes from, not by when it went down, so two presses of the same key or pointer slot looked like one.
+- **Rule:** Track a press by its source and its down time (`Key.timeDown`, `Pointer.downTime`), and test both a new press of a key held at the pause and a release and press inside one frame.
+- **Recurrence 2 (2026-10-25, GDD-UI-02):** the pointer id in PR #46 (caught before merge by keying fingers with `downTime`), then the `Key` object in PR #47.
+- **Recurrence:** 2
+- **Promoted:** step 5 of the `harness-feature` skill (shared buttons).
