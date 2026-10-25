@@ -1,9 +1,9 @@
 // Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
 // Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TITLE_MENU } from '../config/tuning';
+import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TITLE_MENU, VELADORA } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
-import { SANDBOX_LEVEL, SANDBOX_SPAWN } from '../levels/sandbox';
+import { levelFor } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
@@ -35,8 +35,10 @@ import { readSave, SAVE_KEY, saveText } from '../sim/save';
 import { DEFAULT_SETTINGS, sfxVolume, type Settings, type SettingsRow } from '../sim/settings';
 import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
+import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
+import { followCamera } from '../ui/camera';
 import { GamepadReader } from '../ui/gamepad';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
@@ -49,12 +51,14 @@ import { layoutPauseMenu, layoutTitleMenu, pauseMenuItemAt, titleMenuItemAt, typ
 import { layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
-// GDD-MOV-06: Poncho collides with the tile grid. The spawn stands on the floor, so its y is the floor level.
-const level: Level = SANDBOX_LEVEL;
+// GDD-UI-02: the level played, 1-1 or the sandbox by its address. GDD-MOV-06: Poncho collides with the tile grid. The spawn stands
+// on the floor, so its y is the floor level.
+const entry = levelFor(window.location.search);
+const level: Level = entry.level;
 /** GDD-AUD-02: the cache keys of every sound effect. */
 const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow'].map((n) => `sfx-${n}`);
 const world = level.world;
-const FLOOR_Y = SANDBOX_SPAWN.y;
+const FLOOR_Y = level.spawn.y;
 /** GDD-CTL-02: the pads the browser reports now. `getGamepads` can throw where a permissions policy forbids it. */
 const readGamepads = () => {
   try {
@@ -89,12 +93,31 @@ export interface PonchoDebug {
   activateOfrenda(id: string): void;
   /** Puts Poncho at (x, y), feet position, at rest and in the air. */
   teleport(x: number, y: number): void;
-  /** 'playing', 'respawning' while waiting after a lost life (GDD-LIFE-02), or 'gameover' on the Siete vidas gastadas screen (GDD-LIFE-05). */
+  /**
+   * 'playing', 'respawning' while waiting after a lost life (GDD-LIFE-02), 'gameover' on the Siete vidas gastadas screen (GDD-LIFE-05),
+   * or 'clear' on the level clear screen after the exit (GDD-WLD-03, GDD-UI-02).
+   */
   phase(): RunState['phase'];
   /** The step count (`ticks()`) when the phase last changed, so a playtest can time a phase in steps however fast the frames come. */
   phaseSince(): number;
   /** The Siete vidas gastadas screen as drawn: whether it is shown, its title and "Game over" lines, and whether its prompt line is (GDD-LIFE-05). */
   gameOverDrawn(): { shown: boolean; title: string; subtitle: string; prompt: boolean; promptText: string };
+  /**
+   * The level clear screen as drawn (GDD-UI-02): whether it is shown, its "Level clear!" line, its hilo line ("Hilos 31/50", read from
+   * the text drawn) and whether its prompt line is shown, with its text.
+   */
+  clearDrawn(): { shown: boolean; title: string; hilos: string; prompt: boolean; promptText: string };
+  /** The id of the level played, `1-1` or `sandbox` (GDD-UI-02). Read from the choice the scene made at load. */
+  level(): string;
+  /**
+   * The camera (GDD-UI-04): `scrollX`, the scroll the scene last passed to Phaser, and `viewX`, the level x Phaser draws at the
+   * screen's left edge (`cameras.main.getWorldPoint(0, 0).x`, from the matrix it renders with), both in game px. Not `worldView.x`:
+   * Phaser centres that rectangle on the camera as if its origin were the middle, which ours is not.
+   */
+  camera(): { scrollX: number; viewX: number };
+  /** Whether the veladora is painted in the level (GDD-LIFE-03), and whether the exit's arch is (GDD-WLD-03). Read from what was drawn. */
+  veladoraDrawn(): boolean;
+  exitDrawn(): boolean;
   /** Steps of invulnerability left after a respawn (GDD-LIFE-02). */
   invulnerable(): number;
   /** Whether Poncho's body is drawn, and how opaque (hidden while waiting to respawn, dim half of the blink). */
@@ -352,6 +375,18 @@ export class PlayScene extends Phaser.Scene {
   private gameOverTitle!: Phaser.GameObjects.Text;
   private gameOverSubtitle!: Phaser.GameObjects.Text;
   private gameOverPrompt!: Phaser.GameObjects.Text;
+  /** GDD-UI-02: the level clear screen: its title, hilo line and prompt line. */
+  private clearScreen!: Phaser.GameObjects.Container;
+  private clearTitle!: Phaser.GameObjects.Text;
+  private clearHilos!: Phaser.GameObjects.Text;
+  private clearPrompt!: Phaser.GameObjects.Text;
+  /** GDD-UI-04: where the camera stands, the level x at the screen's left edge. */
+  private scrollX = 0;
+  /** GDD-LIFE-03: the veladora's graphics, whether it was last drawn as used, and whether it is painted. GDD-WLD-03: whether the exit is. */
+  private veladoraGfx!: Phaser.GameObjects.Graphics;
+  private veladoraUsedDrawn = false;
+  private veladoraPainted = false;
+  private exitPainted = false;
   private readonly clawLatch = new InputLatch();
   /** Left and right are latched too: a tap of either ends the Siete vidas gastadas screen (GDD-LIFE-05). */
   private readonly leftLatch = new InputLatch();
@@ -413,6 +448,9 @@ export class PlayScene extends Phaser.Scene {
 
     this.ofrendaGfx = this.add.graphics().setDepth(2);
     this.drawOfrendas();
+    this.drawExit();
+    this.veladoraGfx = this.add.graphics().setDepth(2);
+    this.drawVeladora();
     this.drawSpikes();
     this.drawSprings();
     this.tacoGfx = this.add.graphics().setDepth(2);
@@ -453,6 +491,14 @@ export class PlayScene extends Phaser.Scene {
     this.gameOverSubtitle = this.add.text(BASE_WIDTH / 2, 168, 'Game over', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3dc' }).setOrigin(0.5);
     this.gameOverPrompt = this.add.text(BASE_WIDTH / 2, 186, 'Press any button to Retry', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
     this.gameOver = this.add.container(0, 0, [g, this.gameOverTitle, this.gameOverSubtitle, this.gameOverPrompt]).setScrollFactor(0).setDepth(9).setVisible(false);
+
+    // GDD-UI-02: the level clear screen, built like the game-over screen: over the level, under the HUD and the touch buttons.
+    // Hidden until the exit is reached.
+    const clearVeil = this.add.rectangle(0, 0, BASE_WIDTH, BASE_HEIGHT, 0x0d1020, 0.82).setOrigin(0);
+    this.clearTitle = this.add.text(BASE_WIDTH / 2, 112, 'Level clear!', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
+    this.clearHilos = this.add.text(BASE_WIDTH / 2, 136, '', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3dc' }).setOrigin(0.5);
+    this.clearPrompt = this.add.text(BASE_WIDTH / 2, 156, 'Press any button', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
+    this.clearScreen = this.add.container(0, 0, [clearVeil, this.clearTitle, this.clearHilos, this.clearPrompt]).setScrollFactor(0).setDepth(9).setVisible(false);
 
     // GDD-MOV-06, GDD-ART-04: the container sits at the middle of the body box; the frame stands on its feet (bottom row at the box's
     // bottom), scaled from art pixels to game pixels.
@@ -610,6 +656,11 @@ export class PlayScene extends Phaser.Scene {
         phase: () => this.run.phase,
         phaseSince: () => this.phaseSince,
         gameOverDrawn: () => ({ shown: this.gameOver.visible, title: this.gameOverTitle.text, subtitle: this.gameOverSubtitle.text, prompt: this.gameOverPrompt.visible, promptText: this.gameOverPrompt.text }),
+        clearDrawn: () => ({ shown: this.clearScreen.visible, title: this.clearTitle.text, hilos: this.clearHilos.text, prompt: this.clearPrompt.visible, promptText: this.clearPrompt.text }),
+        level: () => entry.id,
+        camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x }),
+        veladoraDrawn: () => this.veladoraPainted,
+        exitDrawn: () => this.exitPainted,
         invulnerable: () => this.run.invulnerable,
         bodyVisible: () => this.body.visible,
         bodyAlpha: () => this.body.alpha,
@@ -685,7 +736,10 @@ export class PlayScene extends Phaser.Scene {
           this.renderPlatforms(1);
           this.renderBlocks(1);
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
+          this.followBody();
+          this.drawVeladora();
           this.drawGameOver();
+          this.drawClear();
         },
         ofrendas: () => this.ofrendasDrawn,
         platforms: () => level.platforms.map((p) => platformAt(p, this.run.platformTick)),
@@ -1182,6 +1236,42 @@ export class PlayScene extends Phaser.Scene {
     this.ofrendasKey = this.usedKey();
   }
 
+  /**
+   * Placeholder exit art (GDD-WLD-03): a wooden arch over the exit box, two 3 px posts at its sides and a 4 px lintel across the top,
+   * with a marigold pennant on a 1 px pole above it. Drawn once; a level without an exit has none.
+   */
+  private drawExit(): void {
+    const exit = level.exit;
+    this.exitPainted = exit !== undefined;
+    if (!exit) return;
+    const g = this.add.graphics().setDepth(1);
+    const x = exit.x - EXIT.width / 2;
+    const y = exit.y - EXIT.height;
+    g.fillStyle(0x8b5a2b, 1).fillRect(x, y, 3, EXIT.height).fillRect(x + EXIT.width - 3, y, 3, EXIT.height).fillRect(x, y, EXIT.width, 4);
+    g.lineStyle(1, 0x4a2f14, 1).strokeRect(x + 0.5, y + 0.5, 2, EXIT.height - 1).strokeRect(x + EXIT.width - 2.5, y + 0.5, 2, EXIT.height - 1).strokeRect(x + 0.5, y + 0.5, EXIT.width - 1, 3);
+    g.fillStyle(0x4a2f14, 1).fillRect(exit.x - 0.5, y - 9, 1, 9);
+    g.fillStyle(0xf2a33a, 1).fillTriangle(exit.x + 0.5, y - 9, exit.x + 8.5, y - 6, exit.x + 0.5, y - 3);
+  }
+
+  /**
+   * Placeholder veladora art (GDD-LIFE-03): a red glass 8 px wide and 7 px tall at the bottom of its 12 x 12 box, a white candle top
+   * above it and a yellow flame on top. Not drawn once used, nor when the level has none. Redrawn when it is used or comes back.
+   */
+  private drawVeladora(): void {
+    const v = level.veladora;
+    this.veladoraGfx.clear();
+    this.veladoraUsedDrawn = v !== undefined && veladoraUsed(this.run.lives, v);
+    this.veladoraPainted = v !== undefined && !this.veladoraUsedDrawn;
+    if (!v || this.veladoraUsedDrawn) return;
+    const cx = v.col * TILE + TILE / 2;
+    const bottom = v.row * TILE + TILE / 2 + VELADORA.size / 2;
+    const g = this.veladoraGfx;
+    g.fillStyle(0xb8352a, 1).fillRect(cx - 4, bottom - 7, 8, 7);
+    g.lineStyle(1, 0x5e0f0a, 1).strokeRect(cx - 3.5, bottom - 6.5, 7, 6);
+    g.fillStyle(0xfff3dc, 1).fillRect(cx - 2, bottom - 10, 4, 3);
+    g.fillStyle(0xffd27a, 1).fillTriangle(cx - 1.5, bottom - 10, cx + 1.5, bottom - 10, cx, bottom - 12);
+  }
+
   /** GDD-AUD-02: a hilo note is the one sound played faster, `semitones` above its root. */
   private playSfx(name: 'ofrenda' | SfxName, semitones?: number): void {
     this.sfxLog.push(semitones === undefined ? name : `${name}:${semitones}`);
@@ -1246,6 +1336,20 @@ export class PlayScene extends Phaser.Scene {
     const shown = this.run.phase === 'gameover';
     this.gameOver.setVisible(shown);
     this.gameOverPrompt.setVisible(shown && this.run.wait >= GAME_OVER.lockoutSteps);
+  }
+
+  /** GDD-UI-02: the level clear screen is up while the run shows it, with the hilos collected; its prompt only once a press would be taken (after 1.0 s). */
+  private drawClear(): void {
+    const shown = this.run.phase === 'clear';
+    this.clearScreen.setVisible(shown);
+    if (shown) this.clearHilos.setText(`Hilos ${hilosCollected(this.run.hilosTaken)}/${level.hilos?.length ?? 0}`);
+    this.clearPrompt.setVisible(shown && this.run.wait >= GAME_OVER.lockoutSteps);
+  }
+
+  /** GDD-UI-04: the camera follows the body where it is drawn, and stands still while it is hidden. */
+  private followBody(): void {
+    this.scrollX = followCamera(this.scrollX, this.body.visible ? this.body.x : null, world.width * TILE);
+    this.cameras.main.setScroll(this.scrollX, 0);
   }
 
   /** One fixed simulation step with the given input. */
@@ -1337,7 +1441,7 @@ export class PlayScene extends Phaser.Scene {
     const frame = pauseFrame(this.pauseState, this.pauseEvents, this.settings);
     this.pauseEvents = [];
     this.settings = frame.settings;
-    if (frame.quit) this.quitToTitle(input, frame.portrait);
+    if (frame.quit) this.backToTitle(input, frame.portrait);
     else {
       this.pauseState = frame.state;
       if (!wasPaused && this.pauseState.paused) this.notePause();
@@ -1363,6 +1467,8 @@ export class PlayScene extends Phaser.Scene {
     const alpha = this.alpha;
     // A latched tap is spent once a step has used it; if the frame ran no step it waits for the next one.
     if (stepped) this.consumeLatches();
+    // GDD-UI-02: a press ended the level clear screen; the title comes back over a fresh run, with the draw calls below.
+    if (this.run.phase === 'done') this.backToTitle(input, this.pauseState.portrait);
     // Redraw when the lives change, and on every step while a triangle is cracking.
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.pulseDrawn !== null || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
     if (`${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}` !== this.doorsKey) this.drawDoorsAndKeys();
@@ -1385,9 +1491,12 @@ export class PlayScene extends Phaser.Scene {
 
     this.renderPlatforms(alpha);
     this.renderBlocks(alpha);
+    if (level.veladora && veladoraUsed(this.run.lives, level.veladora) !== this.veladoraUsedDrawn) this.drawVeladora();
     this.renderBody(alpha);
+    this.followBody();
     this.drawClaw();
     this.drawGameOver();
+    this.drawClear();
     this.drawPause();
     this.drawTitle();
     this.drawSettings();
@@ -1456,11 +1565,12 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * GDD-UI-02: Quit to title. A fresh run as when the game opens, behind the title screen waiting for a press. No step runs on
-   * the title, so every latched key press is spent here, or a quick tap that picked would stay latched and a new press would not be new.
-   * The buttons down now count as held on the title, so the one that picked does not start the level.
+   * GDD-UI-02: Quit to title, or the end of the level clear screen. A fresh run as when the game opens, behind the title screen
+   * waiting for a press. No step runs on the title, so every latched key press is spent here, or a quick tap that picked would stay
+   * latched and a new press would not be new. The buttons down now count as held on the title, so the one that picked (or that ended
+   * the clear screen) does not start the level.
    */
-  private quitToTitle(input: PlayerInput, portrait: boolean): void {
+  private backToTitle(input: PlayerInput, portrait: boolean): void {
     this.run = startRun(level);
     this.prevPlayer = this.run.player;
     this.anim = startAnim(this.run.player.x);

@@ -7,21 +7,24 @@ declare global {
   }
 }
 
-/** Opens the game on the title screen (GDD-UI-02), waits for the dev debug hook and returns the errors seen so far. */
-export async function openGame(page: Page): Promise<string[]> {
+/**
+ * Opens the game on the title screen (GDD-UI-02), waits for the dev debug hook and returns the errors seen so far. `path` is the
+ * address: the sandbox by default, which every playtest but those for 1-1 uses; `/` opens level 1-1.
+ */
+export async function openGame(page: Page, path = '/?level=sandbox'): Promise<string[]> {
   const errors: string[] = [];
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(m.text());
   });
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/');
+  await page.goto(path);
   await page.waitForFunction(() => window.__PONCHO__ !== undefined);
   return errors;
 }
 
-/** Opens the game and starts the level from the title screen with Enter, which is no game button, so nothing counts as held. */
-export async function boot(page: Page): Promise<string[]> {
-  const errors = await openGame(page);
+/** Opens the game (the sandbox, or the address given) and starts the level from the title screen with Enter, which is no game button, so nothing counts as held. */
+export async function boot(page: Page, path = '/?level=sandbox'): Promise<string[]> {
+  const errors = await openGame(page, path);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
   return errors;

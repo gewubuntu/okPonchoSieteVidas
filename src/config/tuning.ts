@@ -87,6 +87,15 @@ export const RESPAWN = {
 /** GDD-WLD-05: an ofrenda checkpoint is one tile wide and two tiles tall, standing on the floor. Touching it activates it. */
 export const OFRENDA = { width: TILE, height: 2 * TILE } as const;
 
+/** GDD-WLD-03: the level exit is one tile wide and three tiles tall (16 x 48 px), standing on the floor. Reaching it ends the level. */
+export const EXIT = { width: TILE, height: 3 * TILE } as const;
+
+/** GDD-LIFE-03: a veladora pickup is a 12 x 12 px square in the middle of its tile. */
+export const VELADORA = { size: 12 } as const;
+
+/** GDD-UI-04: the camera stands still while Poncho is inside a dead zone this many px wide, in the middle of the screen. */
+export const CAMERA = { deadZone: 32 } as const;
+
 /** GDD-CTL-03: touch buttons, in game pixels except `minCssPx`. */
 export const TOUCH = {
   /** Left, right and jump button sizes (jump is larger), and the space around them. */

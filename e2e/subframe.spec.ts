@@ -266,3 +266,14 @@ test('GDD-UI-02 Down, Down then Enter, each tapped inside one task, quit to the 
   await page.waitForTimeout(250);
   expect(await api(page, () => window.__PONCHO__!.titleDrawn().shown)).toBe(true);
 });
+
+test('GDD-UI-02 a claw tap inside one task ends the level clear screen', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await boot(page, '/');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() - window.__PONCHO__!.phaseSince() >= 60);
+  await tapKey(page, 'KeyX', 88, 1);
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
+});
