@@ -1,17 +1,18 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.4.47
+Version: 0.5.0
 
 This document is the anchor for every feature. Rules:
 
 - Each rule is a section `### GDD-XXX-NN` with a `Status:` line.
 - **Decided** = the user said so. **Proposed** = a recommendation that is not binding until the user confirms it. **Deprecated** = removed, kept so IDs are never reused.
 - Proposals are listed in [Open Questions](#open-questions) so they can be confirmed or changed.
-- Numbers use *virtual pixels* at the base resolution defined in GDD-ART-01, unless stated otherwise.
+- Numbers use *game pixels*, unless stated otherwise: the screen is 480 x 270 game pixels, and each game pixel is drawn as 4 x 4 art pixels at the 1920 x 1080 art resolution (GDD-ART-01).
 - Process for editing: `.claude/skills/harness-gdd-update/SKILL.md`.
 
 ## Changelog
 
+- **0.5.0** (2026-10-25) GDD-ART-01, GDD-ART-02, GDD-ART-03, GDD-ART-04, GDD-MOV-06, GDD-WLD-03, GDD-TEC-03: the style guide. Decided by the user (2026-10-25): the art is drawn in code and approved from screenshots; it is drawn at 1920 x 1080, four times 480 x 270 on each side, so tiles are 64 x 64 and Poncho's frame 128 x 128 art pixels; the user's side-view sprite sheets (side, back, front and two walk cycles) become Poncho's sprite reference, winning over the illustration where they differ, and show the tail (long, white tip); each world has its own mood; World 1 blends the user's desert scene (blue and purple mountains, clouds, saguaros, prickly pears, agave, flowers, grass on the sand) with a warmer golden sky. Proposed: every rule keeps its numbers in game pixels (4 x 4 art pixels each), so no gameplay changes; the brim is about twice the body's width; a sprite palette sampled from the sprite sheets. New: GDD-ART-05 pixel rules (outline, light, shading, layers, hazard edges), GDD-ART-06 world moods, GDD-ART-07 UI look. Open Question 14 added (detail on phones). Nothing is built yet: the game still draws placeholders at 480 x 270.
 - **0.4.47** (2026-10-25) GDD-UI-02: the title screen's heading names the 2026-10-25 title menu decision, and the volume bars' height (10 px, centred) is written down (found in review).
 - **0.4.46** (2026-10-25) GDD-UI-02, GDD-CTL-01, GDD-CTL-03, GDD-AUD-01, GDD-PRG-02, GDD-UI-03, GDD-MVP-02: a settings screen with Master and Effects volume (0 to 10, default 10), reached from a new "Settings" item in the pause menu (now Resume, Settings, Quit to title) and from a two-row title menu ("Start", "Settings") that replaces the title prompt; Space or Z picks there and Up or W chooses, so the jump keys no longer start the level by themselves, while claw, Fuego, Left, Right and a tap off the rows still do; the hidden touch buttons press nothing on the title screen. Sound effects play at Master times Effects. The settings are saved in the browser, the first slice of the save system. A language switch with English, Spanish and German comes next (user, 2026-10-25).
 - **0.4.45** (2026-10-25) GDD-UI-02, GDD-CTL-03: a Left or Right key or touch button pressed while paused and held through the resume no longer runs until it is released and pressed again, as the rule already said, and a quick tap of either while paused moves nothing; the same holds for the one that starts the level from the title screen. A finger that went down while paused presses no touch button, not only no slide stick (a gap found in the review of 0.4.44).
@@ -240,10 +241,10 @@ Status: Proposed
 
 ### GDD-MOV-06 Size, hitbox and tile
 
-Status: Proposed. Based on the reference image (GDD-ART-02); validate against the real sprite sheet.
+Status: Proposed. Based on the reference images (GDD-ART-02); validate against the real sprite sheet.
 
 - Tile size: 16 px.
-- Sprite frame: 32 x 32 px. Poncho is a chibi cat about 2.5 heads tall with a very wide sombrero (the brim is about 1.5 times the width of the body).
+- Sprite frame: 32 x 32 game pixels, drawn as 128 x 128 art pixels (GDD-ART-01). Poncho is a chibi cat about 2.5 heads tall with a very wide sombrero (the brim is about twice the width of the body, as in the sprite references, GDD-ART-02).
 - Body hitbox (ground and walls): 12 px wide, 14 px tall, centred at the feet. Fits through a 1-tile-high gap (checked by a test).
 - Hurtbox (enemies and hazards): 10 x 12 px, inside the body hitbox, so near-misses feel fair. It is centred in the body box: 1 px in from each side, 1 px above the feet and 1 px below the top (Proposed).
 - Level edges: the left and right edges of a level are solid walls, so Poncho cannot walk out. The sky above is open, so he can jump above the top row. Below the bottom row is open space, a pit (GDD-WLD-05).
@@ -449,7 +450,7 @@ Status: Proposed. Names and themes are a starting point for the user to react to
 
 Status: Proposed
 
-- Length: 3 to 6 screens wide at 480 px (GDD-ART-01). Mostly horizontal; vertical sections allowed. (The sandbox, a test level, is one screen wide and has no exit; the level validator, GDD-TEC-04, checks the length and the exit of every other level.)
+- Length: 3 to 6 screens wide at 480 game pixels (GDD-ART-01). Mostly horizontal; vertical sections allowed. (The sandbox, a test level, is one screen wide and has no exit; the level validator, GDD-TEC-04, checks the length and the exit of every other level.)
 - 3 ofrenda checkpoints at roughly 25%, 55% and 85% of the level, and an exit. (The sandbox test level puts the middle one at about 65% because 55% is in its pit; see GDD-WLD-05.)
 - 1 hidden secret per level (a room or a veladora).
 - Teaching order: new mechanic is introduced in a safe spot, then combined with a threat, then used in a test.
@@ -622,50 +623,114 @@ Short, punchy and readable: jump, land, claw, stomp, hilo pickup (rising pitch c
 
 ### GDD-ART-01 Style and resolution
 
-Status: Decided (pixel art, user, 2026-10-19). Resolution, tile size and palette rules are Proposed.
+Status: Decided (pixel art, user, 2026-10-19; drawn in code, the 1920 x 1080 art resolution and a mood per world, user, 2026-10-25). The game units, outlines and palette rules are Proposed.
 
-- Pixel art with a hand-made feel. Base resolution 480 x 270 (16:9) scaled by integer factors where possible, letterboxed on other aspect ratios.
-- The reference image is a smooth illustration. Sprites are redrawn by hand as pixel art that keeps its shapes, proportions and colours (GDD-ART-02, GDD-ART-03).
-- 16 px tile grid. Poncho sprite frame 32 x 32 px (GDD-MOV-06, GDD-ART-02).
-- Limited palette per world drawn from real Mexican craft colours.
+- Pixel art with a hand-made feel. **Drawn in code (Decided, user, 2026-10-25):** every sprite and tile is a pixel grid in a script that writes the image files, as the placeholder sounds are made (GDD-AUD-02), and the user approves each one from screenshots before it goes in.
+- **Art resolution (Decided, user, 2026-10-25):** 1920 x 1080 (16:9), four times 480 x 270 on each side, so the sprites can hold the detail of the sprite references (GDD-ART-02). A tile is 64 x 64 art pixels and Poncho's frame 128 x 128. The picture is scaled to fit the screen and letterboxed on other aspect ratios.
+- **Game units (Proposed):** the rules keep their numbers. Every number in this document is in game pixels, and a game pixel is 4 x 4 art pixels, so the screen stays 480 x 270 game pixels, a tile 16 and Poncho's body box 12 x 14 (GDD-MOV-06). No speed, jump, gap or level changes with the art; only the drawing works in art pixels, and things are drawn at positions rounded to whole art pixels.
+- The illustration (`reference.jpg`) is smooth; the sprites follow the sprite references' shapes, proportions and colours (GDD-ART-02, GDD-ART-03) and the pixel rules (GDD-ART-05).
+- A limited palette per world, drawn from real Mexican craft colours (GDD-ART-03), and a mood per world (GDD-ART-06).
+- **Not built yet:** the game still draws placeholder shapes at 480 x 270. The switch to 1920 x 1080 comes with the first real sprite, Poncho's.
 
 ### GDD-ART-02 Poncho (character)
 
-Status: Decided (appearance from the user's reference image, 2026-10-19). Sprite-level details are Proposed.
+Status: Decided (appearance from the user's reference image, 2026-10-19; the sprite references, user, 2026-10-25). Sprite-level details are Proposed.
 
-Reference: `assets/characters/poncho/reference.jpg` (512 x 512 illustration, orange background). Every sprite is derived from it.
+References, all in `assets/characters/poncho/`:
 
-- **Build:** chubby chibi cat standing upright on two legs, large head, big pointed ears with pink insides.
-- **Fur:** warm tan and ginger, cream muzzle, chest and paws, darker ginger tabby marks on the forehead.
-- **Face:** large dark brown eyes with white highlights, slightly furrowed brows (confident, cheeky), pink cheek blush, small pink nose, small smirk.
-- **Sombrero:** wide-brim, blue, with a red crown and red band, and a red and cream zigzag trim around the brim.
-- **Poncho:** blue with red and cream triangle patterns, a V-neck, a red border with cream triangles at the hem, and cream fringe along the bottom edge. A darker navy layer with fringe shows behind it (cape or back panel).
-- **Held item:** a taco with lettuce, tomato and meat in one hand. This becomes the Taco state (GDD-PWR-01).
+- `reference.jpg`: the illustration (512 x 512, orange background), the source for his colours, face, taco and PB badge.
+- **Sprite references (Decided, user, 2026-10-25):** `sprite-side.jpg` (two side views), `sprite-back-front.jpg` (back and front), `sprite-walk-a.jpg` and `sprite-walk-b.jpg` (walk cycles of four frames). Poncho is drawn side-on, as in these. Where they and the illustration differ, the sprite references win for the sprite (user, 2026-10-25: "side view as drawn").
+
+The look:
+
+- **Build:** chubby chibi cat standing upright on two legs, large round head, big pointed ears with pink insides. Below the poncho his ginger legs show, with cream paws.
+- **Fur:** warm tan and ginger, cream muzzle, chest and paws, darker ginger tabby marks on the forehead (illustration).
+- **Face:** large dark brown eyes with white highlights, pink cheek blush, small pink nose, small smirk, slightly furrowed brows (confident, cheeky; illustration). Side-on (sprite references): one big dark eye with a white highlight, a pink blush below it and a small smile on the cream muzzle. The front view shows his eyes shut in a happy smile.
+- **Sombrero:** wide brim, blue on top with a red rim and a zigzag trim; a tall, rounded red crown with a blue band. In the sprite references the ear nearer the viewer pokes up above the brim in front of the crown, and the brim tilts as he faces.
+- **Poncho:** blue, with a red V-shaped chevron at the neck and a red border at the hem, both dotted white, and small white triangles in the blue field. The illustration also has a cream fringe and a darker navy layer behind (cape or back panel); the sprite references show neither, so the sprite leaves them out (Proposed reading of "side view as drawn").
+- **Tail (from the sprite references):** long and ginger, curving up behind him, with a white tip.
+- **Back (from the sprite references):** the crown and brim cover the head and the ears poke up behind the crown; the back of the poncho has the same chevron and triangles.
+- **Held item:** a taco with lettuce, tomato and meat in one hand (illustration). This becomes the Taco state (GDD-PWR-01); the sprite references, in Base, hold nothing.
 - **Glow:** the illustration has a golden rim light. It is reserved as the invulnerability effect (GDD-CMB-03, GDD-PWR-04).
-- **PB mark (Decided, user, 2026-10-19):** the small gold "PB" badge on the chest and the "PB" mark in the bottom-right corner of the reference stand for **Poncho on Base** (GDD-VIS-05). Keep the badge on the chest as a few gold pixels where the frame allows. The corner mark is a brand watermark and is not part of the character. Tail and back are not shown and will be designed to match.
+- **PB mark (Decided, user, 2026-10-19):** the small gold "PB" badge on the chest and the "PB" mark in the bottom-right corner of the reference stand for **Poncho on Base** (GDD-VIS-05). Keep the badge on the chest, as the front view shows it, and on the side view where the frame allows. The corner mark is a brand watermark and is not part of the character.
 - **Personality (Decided):** loves tacos and spicy food.
 - **Pronouns:** not stated. Text uses Poncho's name or "they" (Open Question 5).
 
 ### GDD-ART-03 Palette
 
-Status: Proposed. Approximate colours sampled from the reference JPEG; the final palette is extracted when the pixel art is made.
+Status: Proposed. Approximate colours sampled from the JPEGs; the final palette is fixed when the pixel art is made.
+
+Poncho's sprite colours, sampled from `sprite-side.jpg` (the sprite references win, GDD-ART-02):
 
 | Use | Approx. colour |
 | --- | --- |
-| Sombrero and poncho blue | #44588A |
-| Poncho and sombrero red | #B94842 |
+| Outline (dark plum) | #301830 |
+| Poncho and brim blue | #1F4ACB |
+| Dark blue (brim edge, shadow) | #1A1C5A |
+| Crown and brim red | #E44536 |
+| Poncho chevron and hem red | #A83048 |
+| Fur | #F0BC6F |
+| Cream (muzzle, paws, tail tip, dots) | #F1F3E3 |
+| Eye | #342240 |
+
+From the illustration (`reference.jpg`):
+
+| Use | Approx. colour |
+| --- | --- |
+| Sombrero and poncho blue (illustration) | #44588A |
+| Poncho and sombrero red (illustration) | #B94842 |
 | Fur (light tan) | #ECD4A6 |
 | Taco shell | #CF9251 |
 | Dark cape layer | #382E47 |
 | Illustration background (marketing only) | #D2690D |
 
-World palettes (GDD-WLD-02) start from these and add talavera, serape and marigold tones. Poncho must stay readable against every world background: blue and red against warm desert tones needs a dark outline.
+- Each material gets three shades: base, shadow and highlight (GDD-ART-05). Poncho's palette is fixed across all worlds, at most 16 colours, the Taco and Fuego states included.
+- Each world adds its own palette of at most 24 colours for tiles, scenery and enemies (GDD-ART-06), starting from these and adding talavera, serape and marigold tones. Poncho must stay readable against every world background: his outline and his blue and red do that against the warm desert.
 
 ### GDD-ART-04 Poncho animation set
 
 Status: Proposed
 
 Idle (blink, glances at the taco in Taco state), run, skid, jump up, apex, fall, land, claw swipe, fireball spit (Fuego), hurt (sombrero tips off, taco bitten), respawn flip, eating a taco or chile, victory (taco in the air), wall cling (post-MVP), glide (post-MVP). Exact frame counts decided with the final sprite sheet.
+
+The run cycle starts from the four-frame walk of the sprite references (`sprite-walk-a.jpg`, `sprite-walk-b.jpg`), side-on, his tail swinging behind him.
+
+### GDD-ART-05 Pixel rules
+
+Status: Proposed
+
+- **Outline:** every character, enemy, item and pickup has a dark plum outline (#301830, as in the sprite references), never pure black, 2 art pixels thick on the outside (about as thick, for his size, as in the sprite references). Tiles and scenery have no outline, so what can be touched stands out.
+- **Light** comes from the upper left. Each material has three shades: base, a shadow on the lower right and a highlight on the upper left. No soft gradients, no blurred or blended edges, no anti-aliasing.
+- **Dither** (a checker of two colours) only in skies and far scenery, never on characters or pickups.
+- **Three layers:** far scenery (sky, mountains, clouds; low contrast, scrolls slower than the level), the play area (tiles, mid contrast) and characters and pickups (highest contrast, outlined).
+- **Hazards** have a pale edge or tip (cream on a spike's points, a scorpion's sting) so danger never rests on colour alone (GDD-UI-03).
+- **Silhouette first:** Poncho must be told apart by his shape alone, the wide brim and tall crown above a poncho and a tail.
+- Sprites are drawn facing right and flipped for left.
+
+### GDD-ART-06 World moods
+
+Status: Decided (a mood per world, darker towards Mictlán, user, 2026-10-25; World 1's blend, user, 2026-10-25). The other worlds' moods are Proposed.
+
+| # | World | Mood |
+| --- | --- | --- |
+| 1 | Desierto | **Decided (user, 2026-10-25): a blend.** The scenery of the user's desert scene (`assets/worlds/desierto/reference-scene.jpg`): blue and purple mountains far away, clouds, tall saguaros, prickly pears, agave and red and orange flowers in front, a strip of grass along the sandy path, red earth below. Under a warmer golden sky than in that scene, with a bright sun. |
+| 2 | Mercado | Bright morning: pale blue sky, pink and terracotta walls, papel picado strings in pink, gold, teal and blue. |
+| 3 | Sierra | Cool afternoon: grey-blue sky, green-grey peaks, ochre rock. |
+| 4 | Selva | Golden hour in the jungle: amber sky, deep greens, mossy ruins. |
+| 5 | Cenote | Underground: dark teal, shafts of light from above, turquoise water. |
+| 6 | Volcán | Dusk: red and black sky, a glowing orange crater. |
+| 7 | Mictlán | Night: deep purple, a pale moon, marigold paths and candle light. |
+
+Each world gets brighter or darker so the trip from World 1 to 7 goes from midday to night. The HUD and Poncho's palette stay the same in every world.
+
+### GDD-ART-07 UI look
+
+Status: Proposed
+
+- **Font:** a blocky pixel font drawn in code like the art (GDD-ART-01), cream text (#F1F3E3) with a dark plum outline, so it reads on any background. Gameplay text stays readable at the sizes GDD-UI-01 and GDD-UI-02 give.
+- **Serape band:** menus, the title screen and the pause screen are framed by a woven band in Poncho's blue, red and cream triangles.
+- **Lives triangles** (GDD-UI-01): filled in Poncho's red with a cream edge; a lost one is only the cream edge.
+- **Title:** "PONCHO" in large cream letters with a red shadow, "Siete Vidas" in gold, Poncho beside it.
 
 ---
 
@@ -690,7 +755,7 @@ Status: Proposed
 Status: Proposed
 
 - 60 fps on a mid-range phone from the last 4 years, 30 fps floor on low end with automatic quality fallback.
-- Initial download under 5 MB for the first level; later assets lazy-loaded.
+- Initial download under 5 MB for the first level; later assets lazy-loaded. The 1920 x 1080 art (GDD-ART-01) is drawn in code and saved as images: the first world's images must fit this budget too.
 - Works offline once loaded (service worker, PWA installable).
 - Handles device pixel ratio, safe areas, orientation change and tab suspension.
 
@@ -776,3 +841,4 @@ Answer these to move items from Proposed to Decided. Until then the Proposed tex
 11. **Distribution:** where will it be hosted (itch.io, own site, stores)? This drives PWA versus native packaging.
 12. **Taco pickups in Taco (GDD-PWR-02, GDD-PWR-06):** a taco lying on the floor is left where it is when Poncho is already Taco, but a walking taco released from a piñata is used up when he touches it. Should both behave the same?
 13. **Gap limits after World 1 (GDD-WLD-03, GDD-TEC-04):** only World 1 has one (3 tiles). The level validator fails a level in any other world until that world has a limit. Should the limit grow by world, up to the 5 tiles a running jump can cross?
+14. **Detail on phones (GDD-ART-01):** at 1920 x 1080, one art pixel is less than one screen pixel on most phones, so the finest detail blurs there. Fine as it is, or should the sprites keep their key details (eye, triangles) at least 2 art pixels wide?

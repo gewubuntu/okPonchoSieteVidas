@@ -376,3 +376,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** When a rule depends on a screen being open, decide it on "open at any time in the frame", and plan a unit test where the screen opens or closes in the same frame as the press.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-039 A style mock-up was drawn before asking for the user's own art references
+
+- **Date:** 2026-10-25
+- **What went wrong:** For the style guide (GDD-ART-01 to GDD-ART-07) I drew a full mock-up board from the one illustration in the repository: a front-facing Poncho, an orange sky. The user then shared side-view sprite sheets and a desert scene of their own, which changed the view, the proportions, the colours and the resolution (480 x 270 to 1920 x 1080). The first board was thrown away.
+- **Root cause:** The feature skill only asks whether the character reference blocks the work. It does not ask whether the user has further references (sprite sheets, scenes, moods) for the specific art about to be drawn.
+- **Rule:** Before drawing any new art (a sprite, a tileset, a scene, a UI look), ask the user whether they have reference images for it, and save any they share under `assets/` with a README before drawing.
+- **Recurrence:** 1
+- **Promoted:** no
