@@ -87,7 +87,11 @@ export class TouchControls {
   read(): PlayerInput {
     if (!this.enabled) return { move: 0, jumpHeld: false };
     const fingers = this.scene.input.manager.pointers.filter((p) => p.isDown);
-    const pressed = pressedButtons(this.buttons, fingers);
+    // GDD-UI-02: a finger held back since a pause presses nothing until it lifts.
+    const keys = new Set(fingers.map(fingerKey));
+    for (const k of this.heldBack) if (!keys.has(k)) this.heldBack.delete(k);
+    const active = fingers.filter((f) => !this.heldBack.has(fingerKey(f)));
+    const pressed = pressedButtons(this.buttons, active);
     // A finger that went down on the mode switch flips the zone once. A finger that slid onto it from the stick, or
     // that stays on it, does not.
     const live = new Set(fingers.map((f) => f.id));
@@ -100,9 +104,7 @@ export class TouchControls {
       this.flipped.add(flip.id);
       this.setMode(this.mode === 'stick' ? 'buttons' : 'stick');
     }
-    const keys = new Set(fingers.map(fingerKey));
-    for (const k of this.heldBack) if (!keys.has(k)) this.heldBack.delete(k);
-    const stick = stickMove(this.buttons, fingers.filter((f) => !this.heldBack.has(fingerKey(f))));
+    const stick = stickMove(this.buttons, active);
     if (pressed.size !== this.pressed.size || [...pressed].some((id) => !this.pressed.has(id)) || stick !== this.stick) {
       this.pressed = pressed;
       this.stick = stick;
@@ -117,18 +119,20 @@ export class TouchControls {
     return touchInput(effective, stick);
   }
 
-  /** GDD-UI-02: the game pauses. A finger down now, steering before the pause, keeps steering after it. */
+  /** GDD-UI-02: the game pauses. A finger down now, pressing or steering before the pause, keeps doing so after it. */
   notePause(): void {
     this.downAtPause = new Set(this.liveFingers().map(fingerKey));
   }
 
   /**
    * GDD-UI-02: the level goes on after a pause, or starts from the title screen. A finger that went down meanwhile (the tap that
-   * resumed, on the Resume row or anywhere) is no game press: the slide stick ignores it until it lifts.
+   * resumed, on a button, the Resume row or anywhere) is no game press: no button or stick reads it until it lifts, and the
+   * taps latched meanwhile are spent.
    */
   holdBack(): void {
     for (const f of this.liveFingers()) if (!this.downAtPause.has(fingerKey(f))) this.heldBack.add(fingerKey(f));
     this.downAtPause = new Set();
+    this.consume();
   }
 
   private liveFingers(): Phaser.Input.Pointer[] {

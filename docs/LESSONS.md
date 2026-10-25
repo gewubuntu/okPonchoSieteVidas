@@ -337,3 +337,23 @@ Prefer an automated check over a prose rule.
 - **Rule:** Give each mutant its own `test` command in the mutants file (it replaces the file's `test`), so `node scripts/mutate.mjs <file>` runs every mutant against its named test with no wrapper.
 - **Recurrence:** 2
 - **Promoted:** `scripts/mutate.mjs` (a mutant's own `test` field), and step 7 of the `harness-feature` skill.
+
+## L-035 An "already held" mark that only some readers honoured
+
+- **Date:** 2026-10-25
+- **What went wrong:** GDD-UI-02 says a button pressed while paused does nothing until it is released and pressed again. `resumeHeld` marked such buttons as held, but only the rules that read the mark obeyed it (jump, claw, Fuego, the Siete vidas gastadas screen). `move` read the keys and fingers directly, so a Left or Right key or button pressed while paused, or the slide-stick finger that resumed, made Poncho run.
+- **Root cause:** The rule was built as a flag on some readers of a button instead of at the input source, and no test played the rule through each reader of the button.
+- **Rule:** Apply a "does nothing until released" rule where the input is read (the key or finger itself), so every reader of that button sees it up, and test it for every source of the button (each key, each touch control) and every reader (move, jump, the screens that count presses).
+- **Recurrence 2 (2026-10-25, GDD-UI-02):** first in the review of PR #46, for the slide stick; then for the Left and Right keys and touch buttons.
+- **Recurrence:** 2
+- **Promoted:** step 5 of the `harness-feature` skill (shared buttons).
+
+## L-036 A held-back press was tracked by its key or pointer slot, not by the press
+
+- **Date:** 2026-10-25
+- **What went wrong:** The rule "a button pressed while paused does nothing until released" stored the Phaser `Key` object (and first, in PR #46, the pointer id). A key held at the pause and pressed again while paused counted as held since before the pause and ran; a key released and pressed again inside one frame stayed held back. Both were found in review.
+- **Root cause:** A press was identified by where it comes from, not by when it went down, so two presses of the same key or pointer slot looked like one.
+- **Rule:** Track a press by its source and its down time (`Key.timeDown`, `Pointer.downTime`), and test both a new press of a key held at the pause and a release and press inside one frame.
+- **Recurrence 2 (2026-10-25, GDD-UI-02):** the pointer id in PR #46 (caught before merge by keying fingers with `downTime`), then the `Key` object in PR #47.
+- **Recurrence:** 2
+- **Promoted:** step 5 of the `harness-feature` skill (shared buttons).
