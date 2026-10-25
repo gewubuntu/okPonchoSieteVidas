@@ -4,9 +4,9 @@ import { boot, pixelsAt } from './helpers';
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
 
-// The sandbox level has an Alacrán on the platform in row 10, columns 4 to 8 (x 64 to 144, top y = 160). It starts at x = 104
-// heading right and turns at x = 153 and x = 71 (the game runs a few steps before a test pauses it). The right turn is 16 px
-// further out than the platform's end alone (137) since the piñata at column 9, row 10 (x 144 to 160, same top) extends the ground it walks (GDD-MOV-06).
+// The sandbox level has an Alacrán on the platform in row 10, columns 4 to 7 (x 64 to 128, top y = 160). It starts at x = 104
+// heading right and turns at x = 137 and x = 71 (the game runs a few steps before a test pauses it). The piñata at column 8,
+// row 10 (x 128 to 144, same top) at the platform's right end extends the ground it walks to x = 144 (GDD-MOV-06).
 // Poncho reaches the platform from the top of the 2-tile wall.
 const start = async (page: Page) => {
   await boot(page);
@@ -25,10 +25,10 @@ test('GDD-ENM-02 the Alacrán patrols its platform, turns at both ends and is pa
   await start(page);
   const x0 = (await enemy(page)).x;
   expect(x0).toBeGreaterThanOrEqual(104);
-  expect(x0).toBeLessThan(153 - 10);
+  expect(x0).toBeLessThan(137 - 10);
   await step(page, 20);
   expect((await enemy(page)).x).toBe(x0 + 10); // 0.5 px a step, heading right
-  // Every step for two full round trips (328 steps each), so the turns at 71 and 153 are caught whatever the phase it started in.
+  // Every step for two full round trips (328 steps each), so the turns at 71 and 137 are caught whatever the phase it started in.
   const { min, max } = await page.evaluate(() => {
     let lo = Infinity;
     let hi = -Infinity;
@@ -42,7 +42,7 @@ test('GDD-ENM-02 the Alacrán patrols its platform, turns at both ends and is pa
   });
   expect(min).toBeGreaterThanOrEqual(71);
   expect(min).toBe(71);
-  expect(max).toBe(153);
+  expect(max).toBe(137);
   await frames(page);
   const [painted] = await scorpionsDrawn(page);
   expect(painted!.x).toBe((await enemy(page)).x);

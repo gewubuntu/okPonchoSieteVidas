@@ -3,11 +3,16 @@ import { boot } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 
-// The sandbox level has a piñata at tile column 9, row 10 (x 144 to 160, underside y = 176), 48 px above the floor.
+// The sandbox level has a piñata at tile column 8, row 10 (x 128 to 144, underside y = 176), 48 px above the floor and directly
+// above the door, so it can be bumped only once the door is open: the tests open it the game's way first (key at column 5).
+// Poncho then stands in the open door's column.
 const bumpIt = (page: Page) =>
   page.evaluate(() => {
     window.__PONCHO__!.pause(true);
-    window.__PONCHO__!.teleport(152, 224);
+    window.__PONCHO__!.teleport(60, 224);
+    window.__PONCHO__!.step(2);
+    window.__PONCHO__!.step(90, { move: 1, jumpHeld: false }); // takes the key at column 5 and opens the door at column 8
+    window.__PONCHO__!.teleport(136, 224);
     window.__PONCHO__!.step(2);
     window.__PONCHO__!.step(25, { move: 0, jumpHeld: true });
   });
@@ -16,7 +21,10 @@ const bumpIt = (page: Page) =>
 const bumpItAndStop = (page: Page) =>
   page.evaluate(() => {
     window.__PONCHO__!.pause(true);
-    window.__PONCHO__!.teleport(152, 224);
+    window.__PONCHO__!.teleport(60, 224);
+    window.__PONCHO__!.step(2);
+    window.__PONCHO__!.step(90, { move: 1, jumpHeld: false }); // takes the key at column 5 and opens the door at column 8
+    window.__PONCHO__!.teleport(136, 224);
     window.__PONCHO__!.step(2);
     for (let i = 0; i < 40 && window.__PONCHO__!.itemsDrawn().length === 0; i++) window.__PONCHO__!.step(1, { move: 0, jumpHeld: true });
   });

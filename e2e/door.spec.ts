@@ -4,7 +4,7 @@ import { boot } from './helpers';
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 
 // The sandbox level has a key on the floor at tile column 5 (x 80 to 96) and, further right, a door three tiles tall at
-// column 8 (x 128 to 144) that the platform above closes off. The first ofrenda stands between them at column 7.
+// column 8 (x 128 to 144) that the piñata above it closes off. The first ofrenda stands between them at column 7.
 const runRight = (page: Page, steps: number) => page.evaluate((n) => window.__PONCHO__!.step(n, { move: 1, jumpHeld: false }), steps);
 const start = async (page: Page, x: number) => {
   await boot(page);
@@ -50,4 +50,26 @@ test('GDD-WLD-05 losing a life puts the key back and shuts the door', async ({ p
   expect(await api(page, () => window.__PONCHO__!.doorsDrawn())).toEqual([false]);
   expect(await api(page, () => window.__PONCHO__!.keysDrawn())).toBe(1);
   expect(await api(page, () => window.__PONCHO__!.keysHeld())).toBe(0);
+});
+
+test('GDD-WLD-05 past the door, a short jump against the 2-tile wall lands him on its top', async ({ page }) => {
+  await start(page, 60);
+  await runRight(page, 90);
+  expect((await api(page, () => window.__PONCHO__!.state())).x).toBe(154);
+  expect(await api(page, () => window.__PONCHO__!.doorsDrawn())).toEqual([true]);
+  // Time in steps (L-042): six steps of jump held, then right held until he lands on the wall top (y = 192).
+  const reached = await page.evaluate(() => {
+    const g = window.__PONCHO__!;
+    g.step(6, { move: 1, jumpHeld: true });
+    for (let i = 0; i < 40; i++) {
+      g.step(1, { move: 1, jumpHeld: false });
+      const s = g.state();
+      if (s.grounded && s.y === 192) return { x: s.x, lives: g.lives() };
+    }
+    return null;
+  });
+  expect(reached).not.toBeNull();
+  expect(reached!.x).toBeGreaterThanOrEqual(160);
+  expect(reached!.x).toBeLessThanOrEqual(178);
+  expect(reached!.lives).toBe(7);
 });

@@ -29,7 +29,7 @@ export const SANDBOX_ROWS: readonly string[] = [
   '.............##...............',
   '..............................',
   '..............................',
-  '....#####.....................',
+  '....####......................',
   '......................##......',
   '..........##..........##......',
   '..........##..........##......',
@@ -79,13 +79,16 @@ export const SANDBOX_BLOCKS: readonly MovingBlock[] = [{ x0: 448, y0: 112, x1: 4
 export const SANDBOX_TACOS: readonly Taco[] = [{ col: 18, row: 13 }];
 
 /**
- * GDD-PWR-05: a piñata at tile column 9, row 10 (underside y = 176): 48 px above the floor, so a standing Poncho's head is
- * 16 px short of it and any jump bumps it (it was at row 11, 32 px up, until the body grew to 32 px, GDD-MOV-06: his head was
- * flush with it and a jump could not bump it). Row 9 above it is open, so the taco it releases has room. It stands beside the
- * end of the platform at columns 4 to 8 (same top, y = 160), and is clear of the touch buttons.
+ * GDD-PWR-05: a piñata at tile column 8, row 10 (x 128 to 144, underside y = 176), at the right end of the platform at columns 4 to 7
+ * (same top, y = 160) and directly above the door, which it closes off. It can only be bumped from below once the door is open. It is
+ * 48 px above the floor, so a standing Poncho's head is 16 px short of it and any jump bumps it (it was at row 11, 32 px up, until the
+ * body grew to 32 px, GDD-MOV-06: his head was flush with it and a jump could not bump it). Row 9 above it is open, so the taco it
+ * releases has room. It moved here from column 9 (user, 2026-10-25) so that column 9 is open to the sky and Poncho can hop from the
+ * floor onto the 2-tile wall: with the 32 px body, the platform and the piñata at column 9 made one ceiling he could not climb under.
+ * It is clear of the touch buttons.
  */
 export const SANDBOX_PINATAS: readonly Pinata[] = [
-  { col: 9, row: 10 },
+  { col: 8, row: 10 },
   // GDD-PWR-03: the second piñata hangs at tile column 23, row 7 (underside y = 128), 48 px above the top of the 3-tile wall at
   // columns 22 and 23 (y = 176), so Poncho standing on the wall (head 16 px short of it) bumps it with a jump. In Taco it releases a
   // chile. It moved up a tile from row 8 when the body grew to 32 px (GDD-MOV-06): his head was flush with the old one. It hangs
@@ -96,7 +99,7 @@ export const SANDBOX_PINATAS: readonly Pinata[] = [
 
 /**
  * GDD-WLD-05: a door three tiles tall (rows 11 to 13, 48 px) at tile column 8, between the first ofrenda and the piñata.
- * The platform above it (row 10, columns 4 to 8) closes the top, so the only way past is a key.
+ * The piñata above it (row 10, column 8) closes the top, so the only way past is a key.
  */
 export const SANDBOX_DOORS: readonly Door[] = [{ col: 8, row: 11, height: 3 }];
 
@@ -110,9 +113,9 @@ export const SANDBOX_KEYS: readonly Key[] = [{ col: 5, row: 13 }];
 export const SANDBOX_FRAGILES: readonly Fragile[] = [10, 11, 12, 13].map((row) => ({ col: 27, row }));
 
 /**
- * GDD-ENM-02: an Alacrán on the platform at row 10, columns 4 to 8 (top y = 160, x 64 to 144), starting in the middle and
- * heading right. It patrols that platform and on across the top of the piñata at column 9 (same top, x 144 to 160), and turns at
- * both ends, at x = 71 and x = 153. Poncho gets up there from the top of the 2-tile wall at
+ * GDD-ENM-02: an Alacrán on the platform at row 10, columns 4 to 7 (top y = 160, x 64 to 128), starting in the middle and
+ * heading right. It patrols that platform and on across the top of the piñata at column 8 (same top, x 128 to 144), and turns at
+ * both ends, at x = 71 and x = 137. Poncho gets up there from the top of the 2-tile wall at
  * columns 10 and 11 (32 px below it), clear of the first ofrenda's respawn (the platform is 64 px above it).
  */
 export const SANDBOX_ENEMIES: readonly Enemy[] = [
