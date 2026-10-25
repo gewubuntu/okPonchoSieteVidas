@@ -316,8 +316,9 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** On the title screen (GDD-UI-02) the touch buttons were hidden with `setVisible(false)`, but `read()` still acted on them: a finger held on the invisible mode switch flipped the slide stick and saved the choice. A tap and a turn upright in the same frame also started the level upright. The review found both with probes; the playtests used `page.touchscreen.tap`, which is shorter than a frame, and never put two events in one frame.
 - **Root cause:** The plan treated "hidden" as a drawing change and listed every input source for starting the level, but not the side effects those sources have on their own (the mode switch). Events were applied in order, but the rule was really about the state at the end of the frame.
 - **Rule:** When a screen hides controls, list what each hidden control does besides the press the screen reads, and test a held touch (CDP, several frames), not only a tap. When a rule reads several events from one frame, decide on the state at the end of the frame and test a pair of conflicting events in one frame.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-10-25, GDD-UI-02 pause menu, found by the review):** the Resume row was placed half inside the lower left quarter of the screen, which the slide stick reads, so in stick mode the tap that resumed also steered Poncho. The plan's unit test checked the rows against the stick's drawn track only, not the area it reads, and passed. Fixed by holding back from the stick any finger that went down while paused or on the title screen, until it lifts.
+- **Recurrence:** 2
+- **Promoted:** step 5 of the `harness-feature` skill: a new on-screen tap target is checked against the area each touch control reads, not only its drawn box.
 
 ## L-033 A visibility was set from state before that frame changed the state
 

@@ -1146,27 +1146,15 @@ export class PlayScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(dev.veladora)) this.setLives(collectVeladora(this.run.lives, `dev-${this.devVeladoras++}`));
     }
 
-    // Keyboard and touch work together: either can move or jump (GDD-CTL-01, GDD-CTL-03).
     this.touch.setFuego(this.run.power === 'fuego'); // the Fuego button is there only in the Fuego state (GDD-CTL-03)
-    const touch = this.touch.read();
-    // Left and right also go in raw, before they cancel out in `move`: the Siete vidas gastadas screen counts a press of either (GDD-LIFE-05).
-    const left = effectiveHeld(down(this.keys.left), this.leftLatch) || touch.left === true;
-    const right = effectiveHeld(down(this.keys.right), this.rightLatch) || touch.right === true;
-    const input: PlayerInput = {
-      left,
-      right,
-      move: Math.max(-1, Math.min(1, (effectiveHeld(down(this.keys.right), this.rightLatch) ? 1 : 0) - (effectiveHeld(down(this.keys.left), this.leftLatch) ? 1 : 0) + touch.move)),
-      jumpHeld: effectiveHeld(down(this.keys.jump), this.jumpLatch) || touch.jumpHeld,
-      claw: effectiveHeld(down(this.keys.claw), this.clawLatch) || touch.claw === true,
-      fuego: effectiveHeld(down(this.keys.fuego), this.fuegoLatch) || touch.fuego === true,
-    };
+    let input = this.readInput();
 
     // GDD-UI-02: the title screen. While it is up no step runs, and the pause events go to it: a tap starts the level, Escape,
     // P and losing focus do nothing. The button that started the level counts as already held, as after a resume.
     if (this.title.shown) {
       this.title = titleFrame(this.title, [...this.pauseEvents, ...this.titleEvents], buttonsDown(input));
       this.pauseEvents = [];
-      if (!this.title.shown) this.run = resumeHeld(this.run, input);
+      if (!this.title.shown) input = this.endPause();
     }
     this.titleEvents = [];
 
@@ -1179,7 +1167,8 @@ export class PlayScene extends Phaser.Scene {
     if (frame.quit) this.quitToTitle(input, frame.portrait);
     else {
       this.pauseState = frame.state;
-      if (wasPaused && !this.pauseState.paused) this.run = resumeHeld(this.run, input);
+      if (!wasPaused && this.pauseState.paused) this.touch.notePause();
+      if (wasPaused && !this.pauseState.paused) input = this.endPause();
     }
 
     let stepped = false;
@@ -1230,6 +1219,33 @@ export class PlayScene extends Phaser.Scene {
     this.drawTitle();
   }
 
+  /** What the keys and the touch controls press now. Keyboard and touch work together: either can move or jump (GDD-CTL-01, GDD-CTL-03). */
+  private readInput(): PlayerInput {
+    const touch = this.touch.read();
+    // Left and right also go in raw, before they cancel out in `move`: the Siete vidas gastadas screen counts a press of either (GDD-LIFE-05).
+    const left = effectiveHeld(down(this.keys.left), this.leftLatch) || touch.left === true;
+    const right = effectiveHeld(down(this.keys.right), this.rightLatch) || touch.right === true;
+    return {
+      left,
+      right,
+      move: Math.max(-1, Math.min(1, (effectiveHeld(down(this.keys.right), this.rightLatch) ? 1 : 0) - (effectiveHeld(down(this.keys.left), this.leftLatch) ? 1 : 0) + touch.move)),
+      jumpHeld: effectiveHeld(down(this.keys.jump), this.jumpLatch) || touch.jumpHeld,
+      claw: effectiveHeld(down(this.keys.claw), this.clawLatch) || touch.claw === true,
+      fuego: effectiveHeld(down(this.keys.fuego), this.fuegoLatch) || touch.fuego === true,
+    };
+  }
+
+  /**
+   * GDD-UI-02: the level goes on after a resume or the title screen. A finger that went down meanwhile is no game press: the
+   * slide stick ignores it until it lifts, so the input is read again without it. Every button down counts as already held.
+   */
+  private endPause(): PlayerInput {
+    this.touch.holdBack();
+    const now = this.readInput();
+    this.run = resumeHeld(this.run, now);
+    return now;
+  }
+
   /**
    * GDD-UI-02: Quit to title. A fresh run as when the game opens, behind the title screen waiting for a press. No step runs on
    * the title, so every latched key press is spent here, or a quick tap that picked would stay latched and a new press would not be new.
@@ -1251,6 +1267,8 @@ export class PlayScene extends Phaser.Scene {
     this.leftLatch.consume();
     this.rightLatch.consume();
     this.touch.consume();
+    // The finger that picked Quit is held back too, and the fingers down at the pause are forgotten: on the title screen none was held before.
+    this.touch.holdBack();
   }
 
   /**

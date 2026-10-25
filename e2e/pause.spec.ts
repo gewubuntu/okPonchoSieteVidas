@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { boot, pixelsAt } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
@@ -602,3 +602,79 @@ for (const [code, keyCode] of [['KeyX', 88], ['ArrowLeft', 37], ['ArrowRight', 3
     await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
   });
 }
+
+/** Real touch events through the browser, so a finger can stay down across frames (L-032). Virtual px in, CSS px out. */
+async function touchAt(page: Page, cdp: CDPSession, type: 'touchStart' | 'touchEnd', points: { x: number; y: number; id: number }[]): Promise<void> {
+  const box = (await page.locator('canvas').boundingBox())!;
+  const k = box.width / 480;
+  await cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchStart' ? points.map((p) => ({ id: p.id, x: box.x + p.x * k, y: box.y + p.y * k })) : [] });
+}
+/** Switches the left thumb zone to the slide stick with a tap on the mode switch. */
+async function stickMode(page: Page, cdp: CDPSession): Promise<void> {
+  const sw = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((b) => b.id === 'mode')!;
+  await touchAt(page, cdp, 'touchStart', [{ x: sw.x + sw.w / 2, y: sw.y + sw.h / 2, id: 9 }]);
+  await touchAt(page, cdp, 'touchEnd', []);
+  await page.waitForFunction(() => window.__PONCHO__!.touch().mode === 'stick');
+}
+// On the "R" of Resume, inside the lower left quarter the slide stick reads (x < 240, y >= 135), far right of the track's centre.
+const resumeInStickZone = { x: 224, y: 150 };
+const ponchoX = async (page: Page) => (await api(page, () => window.__PONCHO__!.state())).x;
+
+test('GDD-UI-02 in slide-stick mode, the finger that resumes on the Resume row does not steer until lifted', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await started(page);
+  const cdp = await page.context().newCDPSession(page);
+  await stickMode(page, cdp);
+  await tapButton(page, 'pause');
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  const x = await ponchoX(page);
+  await touchAt(page, cdp, 'touchStart', [{ ...resumeInStickZone, id: 1 }]);
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+  const t = await ticks(page);
+  await page.waitForFunction((t0) => window.__PONCHO__!.ticks() > t0 + 20, t);
+  expect(await ponchoX(page)).toBe(x); // held for 20 steps, and not one of them moved him
+  expect((await api(page, () => window.__PONCHO__!.touch())).stick).toBe(0);
+  await touchAt(page, cdp, 'touchEnd', []);
+  await frames(page);
+  // Lifted and put down again, the same place steers right.
+  await touchAt(page, cdp, 'touchStart', [{ ...resumeInStickZone, id: 1 }]);
+  await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 4, x);
+  await touchAt(page, cdp, 'touchEnd', []);
+});
+
+test('GDD-UI-02 in slide-stick mode, a finger steering since before the pause steers on after the resume', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await started(page);
+  const cdp = await page.context().newCDPSession(page);
+  await stickMode(page, cdp);
+  const x = await ponchoX(page);
+  await touchAt(page, cdp, 'touchStart', [{ x: 100, y: 240, id: 1 }]); // right of the track's centre
+  await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 2, x);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  const atPause = await ponchoX(page);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+  await page.waitForFunction((x0) => window.__PONCHO__!.state().x > x0 + 4, atPause);
+  await touchAt(page, cdp, 'touchEnd', []);
+});
+
+test('GDD-UI-02 in slide-stick mode, a finger held through quitting and the start of the level does not steer', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await started(page);
+  const cdp = await page.context().newCDPSession(page);
+  await stickMode(page, cdp);
+  await touchAt(page, cdp, 'touchStart', [{ x: 100, y: 240, id: 1 }]); // steering before the pause
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
+  const x = await ponchoX(page);
+  await page.keyboard.press('Enter'); // starts the level with the finger still down
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
+  const t = await ticks(page);
+  await page.waitForFunction((t0) => window.__PONCHO__!.ticks() > t0 + 20, t);
+  expect(await ponchoX(page)).toBe(x);
+  await touchAt(page, cdp, 'touchEnd', []);
+});

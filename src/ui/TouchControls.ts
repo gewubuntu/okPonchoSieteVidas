@@ -10,6 +10,9 @@ const IDLE_ALPHA = 0.35;
 const PRESSED_ALPHA = 0.75;
 const MODE_KEY = 'poncho.touchMode';
 
+/** A finger, told apart from a later one on the same pointer slot by when it went down. */
+const fingerKey = (p: { id: number; downTime: number }): string => `${p.id}:${p.downTime}`;
+
 /** The player's choice survives a reload; storage can be blocked, so it is only a convenience (GDD-CTL-03). */
 const loadMode = (): TouchMode => {
   try {
@@ -57,6 +60,9 @@ export class TouchControls {
   private hidden = false;
   /** Fingers that already flipped the mode, so one touch flips it once. */
   private readonly flipped = new Set<number>();
+  /** GDD-UI-02: the fingers down when the pause began, which keep steering after it, and the fingers the slide stick ignores until they lift. */
+  private downAtPause = new Set<string>();
+  private readonly heldBack = new Set<string>();
 
   constructor(private readonly scene: Phaser.Scene) {
     this.enabled = scene.sys.game.device.input.touch;
@@ -94,7 +100,9 @@ export class TouchControls {
       this.flipped.add(flip.id);
       this.setMode(this.mode === 'stick' ? 'buttons' : 'stick');
     }
-    const stick = stickMove(this.buttons, fingers);
+    const keys = new Set(fingers.map(fingerKey));
+    for (const k of this.heldBack) if (!keys.has(k)) this.heldBack.delete(k);
+    const stick = stickMove(this.buttons, fingers.filter((f) => !this.heldBack.has(fingerKey(f))));
     if (pressed.size !== this.pressed.size || [...pressed].some((id) => !this.pressed.has(id)) || stick !== this.stick) {
       this.pressed = pressed;
       this.stick = stick;
@@ -107,6 +115,24 @@ export class TouchControls {
     if (effectiveHeld(false, this.leftLatch)) effective.add('left');
     if (effectiveHeld(false, this.rightLatch)) effective.add('right');
     return touchInput(effective, stick);
+  }
+
+  /** GDD-UI-02: the game pauses. A finger down now, steering before the pause, keeps steering after it. */
+  notePause(): void {
+    this.downAtPause = new Set(this.liveFingers().map(fingerKey));
+  }
+
+  /**
+   * GDD-UI-02: the level goes on after a pause, or starts from the title screen. A finger that went down meanwhile (the tap that
+   * resumed, on the Resume row or anywhere) is no game press: the slide stick ignores it until it lifts.
+   */
+  holdBack(): void {
+    for (const f of this.liveFingers()) if (!this.downAtPause.has(fingerKey(f))) this.heldBack.add(fingerKey(f));
+    this.downAtPause = new Set();
+  }
+
+  private liveFingers(): Phaser.Input.Pointer[] {
+    return this.enabled ? this.scene.input.manager.pointers.filter((p) => p.isDown) : [];
   }
 
   /** A simulation step has used what was read: the taps latched since the last step are spent. */
