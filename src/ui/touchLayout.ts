@@ -8,7 +8,7 @@ export type TouchButtonId = 'left' | 'right' | 'jump' | 'claw' | 'fuego' | 'stic
 /** The left thumb zone is either two buttons or one slide stick (GDD-CTL-03, the player's choice). */
 export type TouchMode = 'buttons' | 'stick';
 
-/** A button's rectangle in virtual pixels. */
+/** A button's rectangle in game pixels. */
 export interface TouchButton {
   readonly id: TouchButtonId;
   readonly x: number;
@@ -19,7 +19,7 @@ export interface TouchButton {
 
 /**
  * Jump bottom-right with the claw button beside it (and the Fuego button above that, while in Fuego), the pause button top-right, and a mode switch above the left thumb zone, which holds either the left and right buttons or one
- * slide stick as wide as both. `cssPerVirtualPx` is how big one virtual pixel is on the player's screen: a button is
+ * slide stick as wide as both. `cssPerVirtualPx` is how big one game pixel is on the player's screen: a button is
  * never smaller than TOUCH.minCssPx there, so on a small screen it grows (GDD-CTL-03).
  */
 export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'buttons', fuego = false): TouchButton[] {

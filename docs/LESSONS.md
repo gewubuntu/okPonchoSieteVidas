@@ -385,3 +385,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** Before drawing any new art (a sprite, a tileset, a scene, a UI look), ask the user whether they have reference images for it, and save any they share under `assets/` with a README before drawing.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-040 Source files edited while the playtests ran
+
+- **Date:** 2026-10-25
+- **What went wrong:** During the 0.5.0 dependency review (GDD-TEC-07) I edited comments in `src/` while `npm run test:e2e` was running. The Vite dev server reloaded the page, and two playtests failed with "Execution context was destroyed". Both passed alone and in a full re-run, but it cost a second 8-minute run.
+- **Root cause:** The playtests run against the live dev server, which reloads on any change under `src/`, and nothing warns that the run is still going.
+- **Rule:** Finish every edit under `src/`, `index.html` and `e2e/` before starting `npm run test:e2e`, and make no edits there until it ends. A failure with "Execution context was destroyed" during a run with edits is a reload, so re-run the whole suite rather than counting it as a pass.
+- **Recurrence:** 1
+- **Promoted:** no
