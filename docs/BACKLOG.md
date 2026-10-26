@@ -60,7 +60,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-ART-03 | todo |  |
 | GDD-ART-04 | doing | standing frame and four run frames in the game (src/ui/ponchoAnim.ts); jump, fall, skid, land and the rest pending |
 | GDD-ART-05 | todo |  |
-| GDD-ART-06 | doing | World 1's backdrop (sky, sun, clouds, mountains with parallax, src/ui/backdrop.ts) and ground tiles (src/ui/groundTiles.ts), drawn by scripts/art/make-desert.mjs, approved 2026-10-26; the plants in front and the other worlds pending |
+| GDD-ART-06 | doing | World 1's backdrop (sky, sun, clouds, mountains with parallax, src/ui/backdrop.ts) and ground tiles (src/ui/groundTiles.ts), drawn by scripts/art/make-desert.mjs, approved 2026-10-26; the plants and the far plant strip in progress; the other worlds pending |
 | GDD-ART-07 | todo |  |
 | GDD-TEC-01 | done | scaffold on latest stable: Phaser 4, TS 7, Vite 8, Vitest 5, Playwright, Oxlint |
 | GDD-TEC-02 | done | src/sim/fixedStep.ts, sim has no Phaser imports |

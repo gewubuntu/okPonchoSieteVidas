@@ -9,8 +9,8 @@ type Colour = { r: number; g: number; b: number };
 const pale = (c: Colour) => c.r > 200 && c.g > 200 && c.b > 170; // the claw's cream, 255 243 220
 /** Whether two pixels are the same colour, give or take a little for the phone's scaling. */
 const same = (a: Colour, b: Colour) => Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b) < 30;
-/** The desert backdrop's colours that can show where a tile was taken away (GDD-ART-06): the mountains and the sky, within 12 per channel. */
-const BACKDROP = ['#8E6A96', '#A65B5B', '#4D5A9C', '#3A4580', '#E39A48', '#EDB15A', '#F4C66E', '#F9DA8E'];
+/** The desert backdrop's colours that can show where a tile was taken away (GDD-ART-06): the mountains, the far desert's sand and the sky, within 12 per channel. */
+const BACKDROP = ['#8E6A96', '#A65B5B', '#4D5A9C', '#3A4580', '#E8B87A', '#D19A5E', '#E39A48', '#EDB15A', '#F4C66E', '#F9DA8E'];
 const backdrop = (c: Colour) => BACKDROP.some((h) => [1, 3, 5].every((i, k) => Math.abs([c.r, c.g, c.b][k]! - parseInt(h.slice(i, i + 2), 16)) <= 12));
 const pink = (c: Colour) => c.r > 190 && c.g < 120 && c.b > 100; // the papel picado, 224 80 138
 

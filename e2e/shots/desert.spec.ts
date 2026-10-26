@@ -40,3 +40,17 @@ test('GDD-ART-06 desert: the sandbox', async ({ page, isMobile }, info) => {
   expect(await page.evaluate(() => window.__PONCHO__!.level())).toBe('sandbox');
   await shot(page, info, 'desert-sandbox');
 });
+
+test('GDD-ART-06 desert: the plants close up, a palm yucca beside Poncho on the floor', async ({ page, isMobile }, info) => {
+  await start(page, isMobile);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  // The palm yucca of 0-1 (kind 3) grows on the floor at column 36 (x 584); Poncho stands on the floor 36 px left of it.
+  const yucca = (await page.evaluate(() => window.__PONCHO__!.plants())).find((p) => p.kind === 3)!;
+  expect(yucca).toBeDefined();
+  await stand(page, yucca.x - 36, yucca.y - 1, yucca.x - 36 - 256);
+  const { viewX } = await page.evaluate(() => window.__PONCHO__!.camera());
+  expect(yucca.x - viewX).toBeGreaterThan(200); // in view, right of Poncho
+  expect(yucca.x - viewX).toBeLessThan(400);
+  expect(await page.evaluate((tx) => window.__PONCHO__!.groundFrame(tx, 14), Math.floor((yucca.x - 36) / 16))).not.toBeNull(); // he stands on the floor
+  await shot(page, info, 'desert-plants-close');
+});

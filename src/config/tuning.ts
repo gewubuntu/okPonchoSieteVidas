@@ -272,17 +272,30 @@ export const SFX = { landMinSpeed: 60, hiloWindowSteps: Math.round(0.75 * TICK_H
 export const TIPS = { fadeSteps: Math.round(0.2 * TICK_HZ), pulseSteps: Math.round(0.8 * TICK_HZ), growPx: 2, bobPx: 2, marginPx: 2, dashPx: 4, gapPx: 3, arrowPx: 6, arrowGapPx: 6, boxTop: 26, boxPad: 4, wrapPx: 280 } as const;
 
 /**
- * GDD-ART-06: World 1's backdrop. The clouds scroll at `cloudFactor` of the camera's scroll and the mountains at `mountainFactor`; the
- * sun's centre and size (game px, on the screen) and the rows the layers sit in (game px from the screen's top).
+ * GDD-ART-06: World 1's backdrop. The clouds scroll at `cloudFactor` of the camera's scroll, the mountains at `mountainFactor` and the far
+ * desert strip (the far plants) at `desertFactor`; the sun's centre and size (game px, on the screen) and the rows the layers sit in (game
+ * px from the screen's top; the far desert strip runs from `desertTop` to the floor's top at 224).
  */
-export const BACKDROP = { cloudFactor: 0.1, mountainFactor: 0.3, sunX: 104, sunY: 36, sunSize: 24, cloudTop: 16, cloudBottom: 88, mountainTop: 92 } as const;
+export const BACKDROP = { cloudFactor: 0.1, mountainFactor: 0.3, sunX: 104, sunY: 36, sunSize: 24, cloudTop: 16, cloudBottom: 88, mountainTop: 92, desertFactor: 0.5, desertTop: 180 } as const;
+
+/** GDD-ART-06: World 1's plants in the order of their kind (nopal, cholla, biznaga, palm yucca, ocotillo, agave, flowers), their size in game px. */
+export const PLANTS = [
+  { name: 'nopal', w: 16, h: 16 },
+  { name: 'cholla', w: 12, h: 20 },
+  { name: 'biznaga', w: 10, h: 10 },
+  { name: 'palmYucca', w: 14, h: 36 },
+  { name: 'ocotillo', w: 16, h: 40 },
+  { name: 'agave', w: 16, h: 12 },
+  { name: 'flowers', w: 12, h: 8 },
+] as const;
 
 /**
  * GDD-ART-06: how the backdrop is put together from `scripts/art/desert.mjs` (the numbers are checked against it in
  * `scripts/art/desert.test.mjs`). The sky's first three bands are drawn as flat colours, each ending `skyEnds` art px from the top (its
  * dither strip, `stripArt` px tall, is a small image over its last rows); the horizon band is the camera's background colour. The sun's
  * image reaches `sunHalf` game px from its centre. Each cloud is an image at `clouds` (game px in the cloud layer, with its size). The
- * mountains' ridge band is `mountainBandArt` art px tall, and below it the foot is drawn flat in `footColour`.
+ * mountains' ridge band is `mountainBandArt` art px tall, and below it the foot is drawn flat in `footColour`. The far desert strip is
+ * `desertBandArt` art px tall (game y `BACKDROP.desertTop` to 224).
  */
 export const BACKDROP_ART = {
   skyBands: [0xe39a48, 0xedb15a, 0xf4c66e, 0xf9da8e],
@@ -296,5 +309,6 @@ export const BACKDROP_ART = {
     { x: 402, y: 61 },
   ],
   mountainBandArt: 488,
+  desertBandArt: 176,
   footColour: 0x3a4580,
 } as const;

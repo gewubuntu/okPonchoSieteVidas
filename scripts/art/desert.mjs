@@ -1,8 +1,8 @@
-// World 1's backdrop and ground, drawn in code like Poncho's sprite (GDD-ART-01, GDD-ART-06): the sky with its sun, the clouds, the
-// far mountains and the ground tiles, in 20 colours and no outline (GDD-ART-05). The look follows the user's desert scene
+// World 1's backdrop, ground and plants, drawn in code like Poncho's sprite (GDD-ART-01, GDD-ART-06): the sky with its sun, the clouds,
+// the far mountains, the ground tiles, the seven plants and the far desert strip, in 24 colours and no outline (GDD-ART-05). The look follows the user's desert scene
 // (assets/worlds/desierto/reference-scene.jpg) with a warmer golden sky. Everything is drawn on a grid of game pixels, 4 x 4 art
 // pixels each, so the shapes are as chunky as the game; only the sky's dither is finer (2 art pixels, GDD-ART-05).
-import { Grid } from './raster.mjs';
+import { ellipse, Grid, or, stroke } from './raster.mjs';
 
 /** GDD-ART-06: the palette, grouped as the GDD lists it (sky from the top to the horizon). */
 export const PALETTE = {
@@ -13,6 +13,8 @@ export const PALETTE = {
   grass: ['#9CC24E', '#6FA03A', '#4E7A2C'],
   sand: ['#F4D29C', '#E8B87A', '#D19A5E'],
   earth: ['#A0472F', '#7A3326'],
+  // The plants' last four: flowers, fruit and ocotillo tips (red, orange), agave and yucca (blue-green), the cacti's shade (deep green).
+  plants: ['#D8473A', '#F08A3C', '#6F9C8E', '#2F5A3A'],
 };
 const [SKY_TOP, SKY_2, SKY_3, SKY_HORIZON] = PALETTE.sky;
 const [SUN_DISC, SUN_RING] = PALETTE.sun;
@@ -21,6 +23,9 @@ const [PURPLE, RUST, BLUE, SHADOW] = PALETTE.mountains;
 const [GRASS_LIGHT, GRASS_BASE, GRASS_DARK] = PALETTE.grass;
 const [SAND_LIGHT, SAND_BASE, SAND_DARK] = PALETTE.sand;
 const [EARTH_BASE, EARTH_DARK] = PALETTE.earth;
+const [RED, ORANGE, BLUEGREEN, DEEP] = PALETTE.plants;
+// Trunks and stems are the earth's two shades and the sand's darkest; spines and pale bits are the cloud's cream.
+const [TRUNK_MID, TRUNK_DARK, TRUNK_LIGHT, SPINE] = [EARTH_BASE, EARTH_DARK, SAND_DARK, CLOUD_TOP];
 
 /** Art pixels per game pixel (GDD-ART-01). */
 const S = 4;
@@ -329,4 +334,284 @@ export function drawGround() {
     for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) g.set(n * 64 + x, y, px.get(x, y));
   });
   return g;
+}
+
+// ---------------------------------------------------------------------------------------------------- plants
+
+/** The seven plants' sizes in game px, width and height, in the order of their kind (GDD-ART-06: nopal, cholla, biznaga, palm yucca, ocotillo, agave, flowers). */
+export const PLANT_SIZES = [[16, 16], [12, 20], [10, 10], [14, 36], [16, 40], [16, 12], [12, 8]];
+/** The frame every plant is drawn in, in game px: the tallest and widest, each plant bottom-aligned and centred in it. */
+export const PLANT_FRAME = { w: 16, h: 40 };
+
+/** A shape from tests on cell centres (`raster.mjs` shapes, in cell units) as a reader of cells `c` that says whether (x, y) is inside it. */
+const within = (c, test) => (x, y) => x >= 0 && y >= 0 && x < c.w && y < c.h && test(x + 0.5, y + 0.5);
+
+/**
+ * Paints the cells of a shape `base`, with `light` along its upper left edge and `dark` along its lower right (GDD-ART-05: light from the
+ * upper left); where both the lower and the right neighbour are outside, `deep` (the corner in shadow).
+ */
+function shade(c, test, base, light, dark, deep = dark) {
+  const has = within(c, test);
+  for (let y = 0; y < c.h; y++) {
+    for (let x = 0; x < c.w; x++) {
+      if (!has(x, y)) continue;
+      const lowerRight = !has(x + 1, y) || !has(x, y + 1);
+      c.set(x, y, !has(x + 1, y) && !has(x, y + 1) ? deep : lowerRight ? dark : !has(x - 1, y) || !has(x, y - 1) ? light : base);
+    }
+  }
+}
+
+/**
+ * A pointed leaf from a base of half-width `half` at (bx, by) to the tip (tx, ty), in two tones: `lit` on the side that faces the upper
+ * left and `shadow` on the side that faces the lower right.
+ */
+function leaf(c, bx, by, tx, ty, half, lit, shadow) {
+  const dx = tx - bx, dy = ty - by, len = Math.hypot(dx, dy);
+  let nx = -dy / len, ny = dx / len;
+  if (nx + ny < 0 || (nx + ny === 0 && nx < 0)) [nx, ny] = [-nx, -ny];
+  for (let y = 0; y < c.h; y++) {
+    for (let x = 0; x < c.w; x++) {
+      const px = x + 0.5 - bx, py = y + 0.5 - by;
+      const along = (px * dx + py * dy) / len;
+      const across = px * nx + py * ny;
+      if (along < -0.6 || along > len || Math.abs(across) > half * (1 - Math.max(0, along) / len) + 0.4) continue;
+      c.set(x, y, across > 0.2 ? shadow : lit);
+    }
+  }
+}
+
+/** The cells of a shape on cells `c` that have all four neighbours inside it too, for spines and spots that stay off the edge. */
+function interior(c, test, f) {
+  const has = within(c, test);
+  for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) if (has(x, y) && has(x - 1, y) && has(x + 1, y) && has(x, y - 1) && has(x, y + 1)) f(x, y);
+}
+
+/** The cells a quadratic curve from `p0` through the control point `p1` to `p2` passes, each a cell once, in order. */
+function curve(p0, p1, p2) {
+  const out = [];
+  for (let i = 0; i <= 80; i++) {
+    const t = i / 80, u = 1 - t;
+    const cell = [Math.floor(u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0]), Math.floor(u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1])];
+    if (!out.some(([x, y]) => x === cell[0] && y === cell[1])) out.push(cell);
+  }
+  return out;
+}
+
+/** The nopal (prickly pear), 16 x 16: round pads in a stack with pale spines and red fruit on their tops. */
+function drawNopal() {
+  const c = new Cells(16, 16);
+  const pads = [ellipse(11.6, 5.8, 3.6, 4.2), ellipse(4.4, 6, 3.5, 4.6), ellipse(8, 12, 6.2, 4.2)];
+  for (const pad of pads) {
+    shade(c, pad, GRASS_BASE, GRASS_LIGHT, GRASS_DARK, DEEP);
+    interior(c, pad, (x, y) => {
+      if (y % 3 === 1 && (x + (Math.floor(y / 3) % 2) * 2) % 4 === 0) c.set(x, y, SPINE);
+    });
+  }
+  // Fruit: red blocks on the pads' tops and sides.
+  for (const [x, y] of [[3, 1], [4, 1], [11, 1], [12, 1], [3, 12], [8, 7], [13, 8]]) c.set(x, y, RED);
+  for (const [x, y] of [[4, 2], [12, 2]]) c.set(x, y, ORANGE);
+  return c;
+}
+
+/** The cholla, 12 x 20: a short trunk with several knobbly branches at angles and pale spines. */
+function drawCholla() {
+  const c = new Cells(12, 20);
+  // Joints (centre x, centre y, radius x, radius y), the trunk first, then each branch outwards. Each joint is shaded on its own, so the
+  // branches read as knobbly segments.
+  const joints = [
+    [6, 17.5, 2.7, 2.5], [6, 14.9, 2.4, 2.3],
+    [3.7, 12.8, 2, 2.1], [2.2, 10.4, 1.9, 2], [1.6, 8, 1.5, 1.7],
+    [7, 12.4, 2.1, 2.2], [6.4, 9.6, 2.1, 2.2], [6.1, 6.8, 1.9, 2], [5.6, 4.2, 1.6, 1.9], [6.4, 2, 1.3, 1.6],
+    [9, 12.6, 1.9, 2], [10, 10, 1.8, 2], [10, 7.4, 1.5, 1.8], [8.8, 5.6, 1.3, 1.6],
+    [3.4, 16.8, 1.6, 1.7], [1.6, 15.6, 1.3, 1.4],
+  ];
+  for (const [x, y, rx, ry] of joints) {
+    const body = ellipse(x, y, rx, ry);
+    shade(c, body, GRASS_BASE, GRASS_LIGHT, GRASS_DARK, DEEP);
+  }
+  // Pale spines along the edges of the joints, spread out.
+  const all = or(...joints.map(([x, y, rx, ry]) => ellipse(x, y, rx, ry)));
+  const has = within(c, all);
+  for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) if (has(x, y) && (!has(x - 1, y) || !has(x + 1, y) || !has(x, y - 1)) && (x * 5 + y * 3) % 4 === 0) c.set(x, y, SPINE);
+  return c;
+}
+
+/** The biznaga (barrel cactus), 10 x 10: a ribbed ball with a crown of orange and red flowers. */
+function drawBiznaga() {
+  const c = new Cells(10, 10);
+  const body = ellipse(5, 6.7, 5, 3.6);
+  shade(c, body, GRASS_BASE, GRASS_LIGHT, GRASS_DARK, DEEP);
+  // Ribs: two darker lines down the ball with a pale spine on each every other row.
+  const has = within(c, body);
+  for (let y = 3; y < 10; y++) {
+    for (const x of [3, 6]) {
+      if (has(x, y) && has(x, y + 1)) c.set(x, y, y % 2 === 0 ? SPINE : GRASS_DARK);
+    }
+  }
+  // The crown: orange flowers round a red one.
+  for (const [x, y] of [[3, 2], [4, 2], [5, 2], [6, 2], [4, 1], [5, 1], [4, 0], [2, 3], [7, 3]]) c.set(x, y, ORANGE);
+  for (const [x, y] of [[5, 0], [4, 1], [5, 2]]) c.set(x, y, RED);
+  return c;
+}
+
+/** The palm yucca, 14 x 36: a brown trunk with a skirt of dead leaves under a spiky ball of blue-green leaves. */
+function drawPalmYucca() {
+  const c = new Cells(14, 36);
+  // The trunk, four cells wide, light on the left, with a flared foot and leaf scars.
+  const trunk = or((x, y) => x >= 5 && x < 9 && y >= 9, (x, y) => y >= 32 && x >= 4 && x < 10);
+  shade(c, trunk, TRUNK_MID, TRUNK_LIGHT, TRUNK_DARK, TRUNK_DARK);
+  for (let y = 17; y < 31; y += 3) {
+    c.set(6, y, TRUNK_DARK);
+    c.set(7, y + 1, TRUNK_DARK);
+    c.set(5, y + 1, TRUNK_MID);
+  }
+  // The skirt: dead leaves hanging from the crown.
+  for (const [pts, colour] of [[[[5, 11], [3.5, 12.5], [2.5, 15.5]], TRUNK_LIGHT], [[[8, 11], [10, 12.5], [11.5, 15.5]], TRUNK_MID]]) {
+    for (const [x, y] of curve(pts[0], pts[1], pts[2])) c.set(x, y, colour);
+  }
+  // The crown: leaves from one centre, the ones facing the upper left lit and the others in shade, round a ball.
+  const [cx, cy] = [7, 7.4];
+  const leaves = [[-90, 7], [-66, 6.8], [-114, 6.8], [-40, 6.2], [-140, 6.2], [-14, 6.6], [-166, 6.6], [20, 5.6], [160, 5.6], [46, 4.4], [134, 4.4]];
+  for (const [deg, len] of leaves) {
+    const a = (deg * Math.PI) / 180;
+    leaf(c, cx, cy, cx + Math.cos(a) * len, cy + Math.sin(a) * len, 1.2, BLUEGREEN, DEEP);
+  }
+  shade(c, ellipse(cx, cy + 0.4, 2.8, 2.6), BLUEGREEN, GRASS_LIGHT, DEEP, DEEP);
+  return c;
+}
+
+/** The ocotillo, 16 x 40: thin brown stems fanning up from one point, with a few green leaves and red tips. */
+function drawOcotillo() {
+  const c = new Cells(16, 40);
+  // [control point, tip] of each stem, all from the foot at (8, 39).
+  const stems = [
+    [[7, 26], [1, 8]],
+    [[6, 24], [4, 2]],
+    [[8, 22], [8, 0]],
+    [[10, 24], [12, 3]],
+    [[10, 27], [15, 10]],
+    [[6, 34], [2, 24]],
+    [[10, 34], [14, 25]],
+  ];
+  const foot = or(stroke([[8, 39.5], [8, 34]], 3), stroke([[8, 34], [7, 31]], 1.4));
+  shade(c, foot, TRUNK_MID, TRUNK_LIGHT, TRUNK_DARK, TRUNK_DARK);
+  stems.forEach(([ctrl, tip], i) => {
+    const cells = curve([8, 39], ctrl, tip);
+    cells.forEach(([x, y], n) => {
+      if (c.get(x, y) !== null) return;
+      c.set(x, y, n % 4 === 3 ? TRUNK_DARK : TRUNK_MID);
+      // A little green leaf beside the stem now and then, on alternating sides.
+      if (y < 30 && n % 6 === 4) c.set(x + (i + n) % 2 * 2 - 1, y, n % 12 === 4 ? GRASS_LIGHT : GRASS_BASE);
+    });
+    // The tip: three red cells along the stem's end, with an orange point.
+    const [tx, ty] = cells[cells.length - 1];
+    for (const [x, y] of cells.slice(-3)) c.set(x, y, RED);
+    c.set(tx, ty - 1, ORANGE);
+  });
+  return c;
+}
+
+/** The agave (lechuguilla), 16 x 12: a rosette of pointed blue-green leaves, light on the side facing the upper left, the front ones lower. */
+function drawAgave() {
+  const c = new Cells(16, 12);
+  // [tip x, tip y, half width of the base], the back leaves first.
+  const leaves = [[8, 0, 1.9], [4.4, 1.2, 1.8], [11.6, 1.2, 1.8], [1.4, 4.6, 1.6], [14.6, 4.6, 1.6], [6.2, 3, 1.8], [9.8, 3, 1.8], [0, 8.4, 1.6], [16, 8.4, 1.6], [3.4, 6.6, 1.9], [12.6, 6.6, 1.9], [7, 6.4, 1.6], [9, 6.4, 1.6]];
+  for (const [tx, ty, half] of leaves) leaf(c, 8, 11.6, tx, ty, half, BLUEGREEN, DEEP);
+  // Light along the upper left leaves' edges.
+  for (let y = 0; y < c.h; y++) for (let x = 0; x < 8; x++) if (c.get(x, y) === BLUEGREEN && c.get(x - 1, y - 1) === null && (x + y) % 2 === 0) c.set(x, y, GRASS_LIGHT);
+  return c;
+}
+
+/** The flower clump, 12 x 8: three red and orange flowers on green stems with grass blades at the foot. */
+function drawFlowers() {
+  const c = new Cells(12, 8);
+  // [stem column, head centre row, petal colour, centre colour]
+  const flowers = [[2, 2, RED, ORANGE], [6, 1, ORANGE, RED], [10, 3, RED, ORANGE]];
+  for (const [x, cy, petal, heart] of flowers) {
+    for (let y = cy + 2; y < 8; y++) c.set(x, y, y % 2 === 0 ? GRASS_BASE : GRASS_DARK);
+    for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0], [0, 1]]) c.set(x + dx, cy + dy, petal);
+    c.set(x, cy, heart);
+  }
+  for (const [x, y] of [[1, 6], [4, 5], [5, 6], [7, 5], [8, 6], [9, 5], [11, 6], [3, 7], [0, 7], [1, 7]]) c.set(x, y, GRASS_BASE);
+  for (const [x, y] of [[4, 6], [8, 7], [6, 7]]) c.set(x, y, GRASS_DARK);
+  return c;
+}
+
+/** The seven plants' cells in the order of their kind, each in its own size. */
+function plantCells() {
+  return [drawNopal(), drawCholla(), drawBiznaga(), drawPalmYucca(), drawOcotillo(), drawAgave(), drawFlowers()];
+}
+
+/**
+ * The plants' sheet, 448 x 160 art px: seven frames of 16 x 40 game px (64 x 160 art px), the plant of each kind in its frame
+ * bottom-aligned and centred (GDD-ART-06). Frame n is kind n.
+ */
+export function drawPlants() {
+  const g = new Grid(PLANT_FRAME.w * S * PLANT_SIZES.length, PLANT_FRAME.h * S);
+  plantCells().forEach((cells, n) => {
+    const frame = new Cells(PLANT_FRAME.w, PLANT_FRAME.h);
+    const [x0, y0] = [(PLANT_FRAME.w - cells.w) >> 1, PLANT_FRAME.h - cells.h];
+    for (let y = 0; y < cells.h; y++) for (let x = 0; x < cells.w; x++) frame.set(x0 + x, y0 + y, cells.get(x, y));
+    const px = frame.scaled();
+    for (let y = 0; y < px.height; y++) for (let x = 0; x < px.width; x++) g.set(n * PLANT_FRAME.w * S + x, y, px.get(x, y));
+  });
+  return g;
+}
+
+// ---------------------------------------------------------------------------------------------------- far desert
+
+/** The far desert strip's size in game px: the screen's width, from game y 180 (BACKDROP.desertTop) down to 224, the floor's top. */
+export const FAR_DESERT = { w: 480, h: 44 };
+
+/**
+ * The far plants' shapes: a height in cells for each column (0 is a gap), painted from the bottom up so that every column is solid from its
+ * top to its foot, and in two colours: `a` where the plant faces the upper left, `b` on the right-hand slopes. `top`, if given, is the
+ * colour of each column's top cell (the flowers and the ocotillo's tips).
+ */
+const FAR_SHAPES = {
+  nopal: { heights: [2, 4, 4, 3, 3, 5, 6, 5, 3, 2], a: GRASS_BASE, b: GRASS_DARK },
+  cholla: { heights: [3, 6, 5, 8, 9, 7, 6, 7, 4], a: GRASS_DARK, b: DEEP },
+  biznaga: { heights: [1, 3, 4, 4, 3, 1], a: GRASS_BASE, b: GRASS_DARK },
+  yucca: { heights: [3, 6, 5, 9, 5, 6, 3], a: BLUEGREEN, b: DEEP },
+  agave: { heights: [2, 4, 3, 5, 3, 5, 3, 4, 2], a: BLUEGREEN, b: DEEP },
+  ocotillo: { heights: [0, 5, 0, 8, 0, 10, 0, 7, 0, 5], a: TRUNK_MID, b: TRUNK_DARK, top: RED },
+  flowers: { heights: [0, 4, 0, 5, 0, 4], a: GRASS_BASE, b: GRASS_DARK, top: RED },
+  flowers2: { heights: [0, 5, 0, 4, 0, 5, 0, 4], a: GRASS_BASE, b: GRASS_DARK, top: ORANGE },
+};
+/** Which far plant stands where: [shape, left column, foot row] in cells of the strip, about 16 over its 480 columns, none near its sides. */
+const FAR_PLANTS = ['nopal', 'ocotillo', 'agave', 'cholla', 'flowers', 'biznaga', 'yucca', 'nopal', 'flowers2', 'agave', 'ocotillo', 'cholla', 'biznaga', 'yucca', 'nopal', 'flowers2'].map((name, i) => [
+  name,
+  Math.round(14 + i * 29.4 + (noise(i, 3) - 0.5) * 10),
+  (i % 3 === 0 ? 24 : 12) + Math.floor(noise(i, 5) * 8),
+]);
+
+/**
+ * The far desert strip, 1920 x 176 art px (game y 180 to 224; GDD-ART-06): sand in its two darker shades with a ragged top, so the
+ * mountains show above it, dotted with small flat plants 4 to 10 game px tall, and darker towards the floor. Every column is painted from
+ * its first pixel down to the bottom row, and the first painted row is the same at both sides, so it repeats without a seam.
+ */
+export function drawFarDesert() {
+  const { w, h } = FAR_DESERT;
+  const c = new Cells(w, h);
+  // The ragged top: the first sand row of each column, 7 to 10, the same at the two sides.
+  const edge = (x) => (x === 0 || x === w - 1 ? 8 : 8 + Math.floor(noise(x >> 3, 91) * 3) - (noise(x, 92) < 0.12 ? 1 : 0));
+  for (let x = 0; x < w; x++) {
+    for (let y = edge(x); y < h; y++) {
+      const flecked = y > edge(x) + 1 && noise(x, y + 40) < 0.06;
+      // The last rows go dark towards the floor, through a checker.
+      const dark = y >= h - 6 || (y >= h - 8 && (x + y) % 2 === 0);
+      c.set(x, y, dark || flecked ? SAND_DARK : SAND_BASE);
+    }
+  }
+  // The plants, standing on the sand.
+  for (const [name, x0, foot] of FAR_PLANTS) {
+    const { heights, a, b, top } = FAR_SHAPES[name];
+    heights.forEach((height, i) => {
+      for (let j = 0; j < height; j++) {
+        const shaded = (heights[i + 1] ?? 0) <= j;
+        c.set(x0 + i, foot - j, j === height - 1 && top ? top : shaded ? b : a);
+      }
+    });
+  }
+  return c.scaled();
 }

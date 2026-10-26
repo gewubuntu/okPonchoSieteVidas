@@ -2,13 +2,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { BACKDROP, BACKDROP_ART } from '../../src/config/tuning';
-import { CLOUD_BOXES, drawCloudImages, drawClouds, drawGround, drawMountains, drawMountainsFull, drawSky, drawSkyStrips, drawSun, FOOT_ROW, PALETTE, SKY_ENDS, STRIP, SUN as SUN_ART } from './desert.mjs';
+import { BACKDROP, BACKDROP_ART, PLANTS } from '../../src/config/tuning';
+import { CLOUD_BOXES, drawCloudImages, drawClouds, drawFarDesert, drawGround, drawMountains, drawMountainsFull, drawPlants, drawSky, drawSkyStrips, drawSun, FAR_DESERT, FOOT_ROW, PALETTE, PLANT_FRAME, PLANT_SIZES, SKY_ENDS, STRIP, SUN as SUN_ART } from './desert.mjs';
 import { buildDesert } from './make-desert.mjs';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'sprites', 'desierto');
 
-// GDD-ART-06: the 20 colours of World 1's backdrop and ground, in the GDD's order.
+// GDD-ART-06: the 24 colours of World 1's backdrop, ground and plants, in the GDD's order.
 const SKY = ['#E39A48', '#EDB15A', '#F4C66E', '#F9DA8E'];
 const SUN = { disc: '#FFF6D0', ring: '#FFD25A' };
 const CLOUD = { top: '#FFF4DC', under: '#E9B98A' };
@@ -16,7 +16,8 @@ const MOUNTAIN = { purple: '#8E6A96', rust: '#A65B5B', blue: '#4D5A9C', shadow: 
 const GRASS = { light: '#9CC24E', base: '#6FA03A', dark: '#4E7A2C' };
 const SAND = { light: '#F4D29C', base: '#E8B87A', dark: '#D19A5E' };
 const EARTH = { base: '#A0472F', dark: '#7A3326' };
-const ALL = [...SKY, SUN.disc, SUN.ring, CLOUD.top, CLOUD.under, ...Object.values(MOUNTAIN), ...Object.values(GRASS), ...Object.values(SAND), ...Object.values(EARTH)];
+const PLANT = { red: '#D8473A', orange: '#F08A3C', blueGreen: '#6F9C8E', deep: '#2F5A3A' };
+const ALL = [...SKY, SUN.disc, SUN.ring, CLOUD.top, CLOUD.under, ...Object.values(MOUNTAIN), ...Object.values(GRASS), ...Object.values(SAND), ...Object.values(EARTH), ...Object.values(PLANT)];
 
 const painted = (grid) => new Set(grid.cells.filter((c) => c !== null));
 const column = (grid, x) => Array.from({ length: grid.height }, (_, y) => grid.get(x, y));
@@ -27,7 +28,7 @@ const kind = (colour) => (Object.values(GRASS).includes(colour) ? 'grass' : Obje
 describe('GDD-ART-06 desert art', () => {
   it('GDD-ART-06 the committed PNGs are the ones the script makes', () => {
     const built = buildDesert();
-    expect(Object.keys(built).sort()).toEqual(['cloud-0.png', 'cloud-1.png', 'cloud-2.png', 'cloud-3.png', 'ground.png', 'mountains.png', 'sky-strips.png', 'sun.png']);
+    expect(Object.keys(built).sort()).toEqual(['cloud-0.png', 'cloud-1.png', 'cloud-2.png', 'cloud-3.png', 'far-desert.png', 'ground.png', 'mountains.png', 'plants.png', 'sky-strips.png', 'sun.png']);
     for (const [name, bytes] of Object.entries(built)) expect(bytes.equals(readFileSync(join(dir, name))), name).toBe(true);
   });
 
@@ -37,6 +38,8 @@ describe('GDD-ART-06 desert art', () => {
     expect(drawCloudImages().map((g) => [g.width, g.height])).toEqual(CLOUD_BOXES.map((b) => [b.w * 4, b.h * 4]));
     expect([drawMountains().width, drawMountains().height]).toEqual([1920, 488]);
     expect([drawGround().width, drawGround().height]).toEqual([256, 64]);
+    expect([drawPlants().width, drawPlants().height]).toEqual([448, 160]); // seven frames of 64 x 160
+    expect([drawFarDesert().width, drawFarDesert().height]).toEqual([1920, 176]);
     // The whole pictures the pieces make.
     expect([drawSky().width, drawSky().height]).toEqual([1920, 1080]);
     expect([drawClouds().width, drawClouds().height]).toEqual([1920, 352]);
@@ -57,6 +60,9 @@ describe('GDD-ART-06 desert art', () => {
     expect(hex(BACKDROP_ART.footColour)).toBe(PALETTE.mountains[3]);
     expect(BACKDROP.mountainTop + FOOT_ROW).toBe(214);
     expect(BACKDROP.cloudTop).toBe(16);
+    expect(BACKDROP_ART.desertBandArt).toBe(FAR_DESERT.h * 4);
+    expect(PLANT_SIZES).toEqual(PLANTS.map((p) => [p.w, p.h]));
+    expect([PLANT_FRAME.w, PLANT_FRAME.h]).toEqual([16, 40]);
   });
 
   it('GDD-ART-06 each dither strip is a checker of 2 px cells in the colours either side of its border', () => {
@@ -108,11 +114,11 @@ describe('GDD-ART-06 desert art', () => {
     expect(off).toEqual([]);
   });
 
-  it('GDD-ART-06 the palette is the 20 colours and every pixel is one of them', () => {
+  it('GDD-ART-06 the palette is the 24 colours and every pixel is one of them', () => {
     expect(Object.values(PALETTE).flat().sort()).toEqual([...ALL].sort());
-    expect(ALL).toHaveLength(20);
+    expect(ALL).toHaveLength(24);
     const used = new Set();
-    for (const grid of [drawSky(), drawSkyStrips(), drawSun(), ...drawCloudImages(), drawClouds(), drawMountains(), drawMountainsFull(), drawGround()]) for (const c of painted(grid)) used.add(c);
+    for (const grid of [drawSky(), drawSkyStrips(), drawSun(), ...drawCloudImages(), drawClouds(), drawMountains(), drawMountainsFull(), drawGround(), drawPlants(), drawFarDesert()]) for (const c of painted(grid)) used.add(c);
     for (const c of used) expect(ALL, c).toContain(c);
     expect(used.has('#070509')).toBe(false);
   });
@@ -239,5 +245,93 @@ describe('GDD-ART-06 desert art', () => {
       for (let y = 0; y < grid.height; y++) for (let x = 0; x < grid.width; x++) if (grid.get(x, y) !== grid.get(x - (x % 4), y - (y % 4))) off.push(`${x},${y}`);
       expect(off).toEqual([]);
     }
+  });
+
+  // The seven plants (GDD-ART-06), sizes in game px from the GDD: nopal 16 x 16, cholla 12 x 20, biznaga 10 x 10, palm yucca 14 x 36, ocotillo 16 x 40, agave 16 x 12, flowers 12 x 8.
+  const SIZES = [[16, 16], [12, 20], [10, 10], [14, 36], [16, 40], [16, 12], [12, 8]];
+  /** The painted pixels of plant frame `n` as { x, y, colour } in the frame (64 x 160 art px). */
+  const frameOf = (n) => {
+    const g = drawPlants();
+    const out = [];
+    for (let y = 0; y < 160; y++) for (let x = 0; x < 64; x++) if (g.get(n * 64 + x, y) !== null) out.push({ x, y, colour: g.get(n * 64 + x, y) });
+    return out;
+  };
+
+  it('GDD-ART-06 each plant fits its GDD size, in whole game pixels', () => {
+    SIZES.forEach(([w, h], n) => {
+      const px = frameOf(n);
+      expect(px.length, `plant ${n}`).toBeGreaterThan(0);
+      expect(Math.max(...px.map((p) => p.x)) - Math.min(...px.map((p) => p.x)) + 1, `plant ${n} width`).toBeLessThanOrEqual(w * 4);
+      expect(Math.min(...px.map((p) => p.y)), `plant ${n} top`).toBeGreaterThanOrEqual(160 - h * 4);
+    });
+    const g = drawPlants();
+    const off = [];
+    for (let y = 0; y < 160; y++) for (let x = 0; x < 448; x++) if (g.get(x, y) !== g.get(x - (x % 4), y - (y % 4))) off.push(`${x},${y}`);
+    expect(off).toEqual([]);
+  });
+
+  it('GDD-ART-06 each plant stands on the frame\'s bottom row', () => {
+    SIZES.forEach((_, n) => expect(frameOf(n).some((p) => p.y === 159), `plant ${n}`).toBe(true));
+  });
+
+  it('GDD-ART-06 each plant is as tall as its GDD height, or one game pixel under', () => {
+    SIZES.forEach(([, h], n) => expect(Math.min(...frameOf(n).map((p) => p.y)), `plant ${n}`).toBeLessThanOrEqual(160 - h * 4 + 4));
+  });
+
+  it('GDD-ART-06 each plant is centred in its frame, within 1 game pixel', () => {
+    SIZES.forEach((_, n) => {
+      const xs = frameOf(n).map((p) => p.x);
+      expect(Math.abs((Math.min(...xs) + Math.max(...xs) + 1) / 2 - 32), `plant ${n}`).toBeLessThanOrEqual(4);
+    });
+  });
+
+  it('GDD-ART-06 each plant uses at least 2 colours, and the new ones appear in the sheet', () => {
+    SIZES.forEach((_, n) => expect(new Set(frameOf(n).map((p) => p.colour)).size, `plant ${n}`).toBeGreaterThanOrEqual(2));
+    const used = painted(drawPlants());
+    for (const c of Object.values(PLANT)) expect(used.has(c), c).toBe(true);
+  });
+
+  it('GDD-ART-06 the plants carry the colours the GDD gives them', () => {
+    const colours = (n) => new Set(frameOf(n).map((p) => p.colour));
+    expect(colours(0).has('#D8473A'), 'nopal fruit').toBe(true);
+    expect(colours(2).has('#F08A3C'), 'biznaga flowers').toBe(true);
+    expect(colours(3).has('#6F9C8E') && colours(3).has('#7A3326'), 'palm yucca: blue-green leaves, brown trunk').toBe(true);
+    expect(colours(4).has('#D8473A') && colours(4).has('#A0472F'), 'ocotillo: red tips, brown stems').toBe(true);
+    expect(colours(5).has('#6F9C8E'), 'agave').toBe(true);
+    expect(colours(6).has('#D8473A') && colours(6).has('#F08A3C'), 'flowers: red and orange').toBe(true);
+    for (const n of [0, 1, 2]) expect(colours(n).has('#6FA03A') && colours(n).has('#9CC24E'), `cactus ${n} greens`).toBe(true);
+  });
+
+  it('GDD-ART-06 the far desert strip is painted from its ragged top down, and its bottom row is all sand or plant', () => {
+    const far = drawFarDesert();
+    expect(Array.from({ length: 1920 }, (_, x) => far.get(x, 175)).every((c) => c !== null)).toBe(true);
+    const first = (x) => column(far, x).findIndex((c) => c !== null);
+    const gaps = [];
+    for (let x = 0; x < 1920; x++) for (let y = first(x); y < 176; y++) if (far.get(x, y) === null) gaps.push(`${x},${y}`);
+    expect(gaps).toEqual([]);
+    // Ragged: the first painted row varies from column to column, and the top row is clear, so the mountains show above it.
+    expect(new Set(Array.from({ length: 1920 }, (_, x) => first(x))).size).toBeGreaterThanOrEqual(3);
+    expect(Array.from({ length: 1920 }, (_, x) => far.get(x, 0)).every((c) => c === null)).toBe(true);
+  });
+
+  it('GDD-ART-06 the far desert strip repeats without a seam', () => {
+    const far = drawFarDesert();
+    const first = (x) => column(far, x).findIndex((c) => c !== null);
+    expect(Math.abs(first(0) - first(1919))).toBeLessThanOrEqual(4);
+  });
+
+  it('GDD-ART-06 the far desert strip is sand with small plants in the plants\' colours', () => {
+    const far = drawFarDesert();
+    const used = painted(far);
+    expect(used.has('#E8B87A') && used.has('#D19A5E'), 'sand').toBe(true);
+    expect(['#D8473A', '#F08A3C', '#6FA03A', '#4E7A2C', '#2F5A3A', '#6F9C8E'].some((c) => used.has(c)), 'a plant colour').toBe(true);
+    expect(used.has('#D8473A') || used.has('#F08A3C'), 'red or orange flowers').toBe(true);
+  });
+
+  it('GDD-ART-06 the far desert strip is drawn in whole game pixels', () => {
+    const far = drawFarDesert();
+    const off = [];
+    for (let y = 0; y < 176; y++) for (let x = 0; x < 1920; x++) if (far.get(x, y) !== far.get(x - (x % 4), y - (y % 4))) off.push(`${x},${y}`);
+    expect(off).toEqual([]);
   });
 });

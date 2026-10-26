@@ -48,21 +48,21 @@ test('GDD-LIFE-02 a lost life keeps collected hilos', async ({ page }) => {
 
 test('GDD-WLD-04 a hilo is drawn in its colour and gone once collected', async ({ page }) => {
   await atFirst(page);
-  // The first hilo is red (185 72 66) and sits on the dark background (27 32 54) once gone. Its middle is plain colour, 2 px clear of
-  // the wraps; the touch buttons are not over it (L-018).
+  // The first hilo is red (185 72 66) and sits on the far desert's sand (the strip's checker of #E8B87A and #D19A5E, GDD-ART-06) once gone.
+  // Its middle is plain colour, 2 px clear of the wraps; the touch buttons are not over it (L-018).
   const spot = { x: 72, y: 216 };
   const buttons = (await api(page, () => window.__PONCHO__!.touch())).buttons;
   expect(buttons.some((b) => spot.x >= b.x && spot.x <= b.x + b.w && spot.y >= b.y && spot.y <= b.y + b.h)).toBe(false);
   await frames(page);
   const [before] = await pixelsAt(page, [spot]);
-  expect(near(before!, [185, 72, 66])).toBeLessThan(near(before!, [27, 32, 54]));
+  expect(near(before!, [185, 72, 66])).toBeLessThan(Math.min(near(before!, [232, 184, 122]), near(before!, [209, 154, 94])));
   expect(near(before!, [185, 72, 66])).toBeLessThan(40);
   await pastFirst(page);
   await page.evaluate(() => window.__PONCHO__!.teleport(300, 100)); // out of the way, so he is not drawn over the spot
   await page.evaluate(() => window.__PONCHO__!.step(1));
   await frames(page);
   const [after] = await pixelsAt(page, [spot]);
-  expect(near(after!, [27, 32, 54])).toBeLessThan(near(after!, [185, 72, 66]));
+  expect(Math.min(near(after!, [232, 184, 122]), near(after!, [209, 154, 94]))).toBeLessThan(near(after!, [185, 72, 66]));
 });
 
 test('GDD-UI-01 the counter is top-right, left of the pause button on touch', async ({ page, isMobile }) => {

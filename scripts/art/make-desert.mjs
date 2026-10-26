@@ -1,11 +1,12 @@
-// Writes World 1's backdrop and ground to assets/sprites/desierto/ (GDD-ART-06): sky-strips.png (three 1920 x 2 dither strips), sun.png,
+// Writes World 1's backdrop, ground and plants to assets/sprites/desierto/ (GDD-ART-06): sky-strips.png (three 1920 x 2 dither strips), sun.png,
 // cloud-0.png to cloud-3.png (one per cloud), mountains.png (the ridge band, 1920 x 488) and ground.png (four 64 x 64 frames: top tile
-// versions 0 and 1, earth tile versions 0 and 1). The flat sky bands and the mountains' foot are drawn flat by the game.
+// versions 0 and 1, earth tile versions 0 and 1), plants.png (seven frames of 64 x 160, one per plant kind) and far-desert.png (the far strip with
+// its small plants, 1920 x 176). The flat sky bands and the mountains' foot are drawn flat by the game.
 // The PNGs are committed, so only run this after changing the drawing (scripts/art/desert.test.mjs checks they match).
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { drawCloudImages, drawGround, drawMountains, drawSkyStrips, drawSun } from './desert.mjs';
+import { drawCloudImages, drawFarDesert, drawGround, drawMountains, drawPlants, drawSkyStrips, drawSun } from './desert.mjs';
 import { encodePng } from './png.mjs';
 
 const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'sprites', 'desierto');
@@ -21,6 +22,8 @@ export function buildDesert() {
     ...clouds,
     'mountains.png': png(drawMountains()),
     'ground.png': png(drawGround()),
+    'plants.png': png(drawPlants()),
+    'far-desert.png': png(drawFarDesert()),
   };
 }
 
