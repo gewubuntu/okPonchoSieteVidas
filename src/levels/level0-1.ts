@@ -1,4 +1,4 @@
-// World 1, level 1 (GDD-WLD-06): three screens, 90 x 17 tiles (1440 x 272 px), teaching running and jumping, gaps, walls, the
+// The tutorial 0-1, World 0 (GDD-WLD-06, GDD-WLD-01): three screens, 90 x 17 tiles (1440 x 272 px), teaching running and jumping, gaps, walls, the
 // Alacrán (stomp and claw), a piñata with a taco and spikes. `#` is solid, `.` is empty. The floor's top is row 14 (y = 224).
 // Gaps of 1, 2, 3 and 3 tiles (columns 16, 19 and 20, 53 to 55, 71 to 73), walls of 2, 3, 3 and 2 tiles, a raised platform
 // (row 10, columns 62 to 68) and a ledge for the veladora (row 7, columns 70 and 71). No glide and no wall cling yet.

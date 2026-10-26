@@ -1413,7 +1413,7 @@ export class PlayScene extends Phaser.Scene {
         const [x, y, bw, bh] = [highlight.x - grow, highlight.y - grow, highlight.w + 2 * grow, highlight.h + 2 * grow];
         this.tipGfx.lineStyle(1, 0xfff3dc, alpha);
         dashedRect(this.tipGfx, x, y, bw, bh);
-        const tipY = y - 6 - beat * TIPS.bobPx;
+        const tipY = y - TIPS.arrowGapPx - beat * TIPS.bobPx;
         this.tipGfx.fillStyle(0xfff3dc, alpha).fillTriangle(x + bw / 2 - TIPS.arrowPx / 2, tipY - TIPS.arrowPx, x + bw / 2 + TIPS.arrowPx / 2, tipY - TIPS.arrowPx, x + bw / 2, tipY);
       }
     }

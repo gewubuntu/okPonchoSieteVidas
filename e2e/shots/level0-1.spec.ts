@@ -1,6 +1,6 @@
 // Screenshots of level 0-1 for visual review (GDD-WLD-06). Run with `npm run shots`; images land in shots/ (not committed).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { boot, openGame } from '../helpers';
+import { openGame, start } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
   await page.waitForTimeout(250); // let the frame render
@@ -24,8 +24,8 @@ test('GDD-WLD-06 0-1: title over the level', async ({ page }, info) => {
   await shot(page, info, 'level0-1-title');
 });
 
-test('GDD-WLD-06 0-1: start, the alacran pen, the pinata and spikes, the platform and ledge, the exit, the clear screen', async ({ page }, info) => {
-  await boot(page, '/');
+test('GDD-WLD-06 0-1: start, the alacran pen, the pinata and spikes, the platform and ledge, the exit, the clear screen', async ({ page, isMobile }, info) => {
+  await start(page, isMobile); // the device's way (L-045)
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
   expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('playing');
   expect(await page.evaluate(() => window.__PONCHO__!.camera().viewX)).toBe(0);

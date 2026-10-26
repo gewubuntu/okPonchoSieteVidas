@@ -266,7 +266,7 @@ export const SFX = { landMinSpeed: 60, hiloWindowSteps: Math.round(0.75 * TICK_H
 /**
  * GDD-UI-05: tutorial tips. A tip fades in and out over `fadeSteps` (0.2 s); its highlight pulses every `pulseSteps` (0.8 s), growing
  * by up to `growPx` on each side while its arrow bobs `bobPx`, and stands `marginPx` outside its tiles with dashes of `dashPx` and
- * gaps of `gapPx` and an arrow `arrowPx` wide. The text box's top is `boxTop` from the screen's top, with `boxPad` of room round the
+ * gaps of `gapPx` and an arrow `arrowPx` wide with its tip `arrowGapPx` above the outline. The text box's top is `boxTop` from the screen's top, with `boxPad` of room round the
  * text, wrapped at `wrapPx`.
  */
-export const TIPS = { fadeSteps: Math.round(0.2 * TICK_HZ), pulseSteps: Math.round(0.8 * TICK_HZ), growPx: 2, bobPx: 2, marginPx: 2, dashPx: 4, gapPx: 3, arrowPx: 6, boxTop: 26, boxPad: 4, wrapPx: 280 } as const;
+export const TIPS = { fadeSteps: Math.round(0.2 * TICK_HZ), pulseSteps: Math.round(0.8 * TICK_HZ), growPx: 2, bobPx: 2, marginPx: 2, dashPx: 4, gapPx: 3, arrowPx: 6, arrowGapPx: 6, boxTop: 26, boxPad: 4, wrapPx: 280 } as const;
