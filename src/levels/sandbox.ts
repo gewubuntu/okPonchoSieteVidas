@@ -98,8 +98,9 @@ export const SANDBOX_PINATAS: readonly Pinata[] = [
 ];
 
 /**
- * GDD-WLD-05: a door three tiles tall (rows 11 to 13, 48 px) at tile column 8, between the first ofrenda and the piñata.
- * The piñata above it (row 10, column 8) closes the top, so the only way past is a key.
+ * GDD-WLD-05: a door three tiles tall (rows 11 to 13, 48 px) at tile column 8, just right of the first ofrenda, under the piñata.
+ * The piñata above it (row 10, column 8) closes the top, so on the floor the only way past is a key (with the wall cling on, a
+ * kick off the level's left edge reaches the Alacrán's platform, and from its end he drops down past the door).
  */
 export const SANDBOX_DOORS: readonly Door[] = [{ col: 8, row: 11, height: 3 }];
 
