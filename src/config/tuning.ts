@@ -87,6 +87,15 @@ export const RESPAWN = {
 /** GDD-WLD-05: an ofrenda checkpoint is one tile wide and two tiles tall, standing on the floor. Touching it activates it. */
 export const OFRENDA = { width: TILE, height: 2 * TILE } as const;
 
+/** GDD-WLD-03: the level exit is one tile wide and three tiles tall (16 x 48 px), standing on the floor. Reaching it ends the level. */
+export const EXIT = { width: TILE, height: 3 * TILE } as const;
+
+/** GDD-LIFE-03: a veladora pickup is a 12 x 12 px square in the middle of its tile. */
+export const VELADORA = { size: 12 } as const;
+
+/** GDD-UI-04: the camera stands still while Poncho is inside a dead zone this many px wide, in the middle of the screen. */
+export const CAMERA = { deadZone: 32 } as const;
+
 /** GDD-CTL-03: touch buttons, in game pixels except `minCssPx`. */
 export const TOUCH = {
   /** Left, right and jump button sizes (jump is larger), and the space around them. */
@@ -237,14 +246,14 @@ export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;
 
 /**
  * GDD-TEC-04: what the level validator checks. GDD-WLD-03: a level is 3 to 6 screens of BASE_WIDTH wide, has 3 ofrendas,
- * and its gaps never exceed `maxGapTiles` for its world (only World 1 has a limit so far). GDD-ENM-01: no enemy starts
+ * and its gaps never exceed `maxGapTiles` for its world (World 1 has a limit so far, and the tutorial 0-1, outside the seven worlds, follows it: GDD-WLD-01). GDD-ENM-01: no enemy starts
  * closer than 3 tiles to a respawn.
  */
 export const LEVEL_RULES = {
   minScreens: 3,
   maxScreens: 6,
   ofrendas: 3,
-  maxGapTiles: { 1: 3 } as Readonly<Record<number, number>>,
+  maxGapTiles: { 0: 3, 1: 3 } as Readonly<Record<number, number>>,
   enemyClearance: 3 * TILE,
 } as const;
 
@@ -253,3 +262,11 @@ export const LEVEL_RULES = {
  * previous one climb the major scale `hiloScale` (semitones above the root G5, up to the octave), where they stay.
  */
 export const SFX = { landMinSpeed: 60, hiloWindowSteps: Math.round(0.75 * TICK_HZ), hiloScale: [0, 2, 4, 5, 7, 9, 11, 12] } as const;
+
+/**
+ * GDD-UI-05: tutorial tips. A tip fades in and out over `fadeSteps` (0.2 s); its highlight pulses every `pulseSteps` (0.8 s), growing
+ * by up to `growPx` on each side while its arrow bobs `bobPx`, and stands `marginPx` outside its tiles with dashes of `dashPx` and
+ * gaps of `gapPx` and an arrow `arrowPx` wide with its tip `arrowGapPx` above the outline. The text box's top is `boxTop` from the screen's top, with `boxPad` of room round the
+ * text, wrapped at `wrapPx`.
+ */
+export const TIPS = { fadeSteps: Math.round(0.2 * TICK_HZ), pulseSteps: Math.round(0.8 * TICK_HZ), growPx: 2, bobPx: 2, marginPx: 2, dashPx: 4, gapPx: 3, arrowPx: 6, arrowGapPx: 6, boxTop: 26, boxPad: 4, wrapPx: 280 } as const;

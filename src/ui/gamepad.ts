@@ -38,6 +38,8 @@ interface PadNow {
   readonly south: boolean;
   readonly west: boolean;
   readonly east: boolean;
+  /** Any button down, or the stick pushed past its dead zone either way (GDD-UI-05: the device used last). */
+  readonly active: boolean;
 }
 
 /** What one pad pressed on the last poll, to tell a new press from a held one: up, down, left, right, south, start. */
@@ -79,7 +81,7 @@ export class GamepadReader {
         if (pressed[i] && !before?.[i]) events.push(event);
       });
       seen.set(index, pressed);
-      now.set(index, { dpadLeft: button(DPAD_LEFT), dpadRight: button(DPAD_RIGHT), x, y, south: button(SOUTH), west: button(WEST), east: button(EAST) });
+      now.set(index, { dpadLeft: button(DPAD_LEFT), dpadRight: button(DPAD_RIGHT), x, y, south: button(SOUTH), west: button(WEST), east: button(EAST), active: pad.buttons.some((b) => b.pressed) || Math.abs(x) > GAMEPAD.deadZone || Math.abs(y) > GAMEPAD.deadZone });
     });
     this.previous = seen; // a pad that is gone forgets its state
     this.now = now;
@@ -109,6 +111,11 @@ export class GamepadReader {
     }
     input.move = Math.max(-1, Math.min(1, move));
     return input;
+  }
+
+  /** GDD-UI-05: whether any pad has a button down or its stick pushed past the dead zone on the last poll. */
+  active(): boolean {
+    return [...this.now.values()].some((p) => p.active);
   }
 
   /** GDD-UI-02: the pause begins. What is down now keeps working after it. */

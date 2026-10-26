@@ -166,6 +166,8 @@ describe('GDD-AUD-02 sound triggers', () => {
       'ending the wait after the last life': stepRun({ ...lastLife, phase: 'respawning', wait: 1 }, idle, pit),
       'on the screen after the last life': stepRun({ ...lastLife, phase: 'gameover', wait: 5 }, idle, pit),
       'restarting from the screen': stepRun({ ...lastLife, phase: 'gameover', wait: 80 }, jump, pit),
+      'on the level clear screen': stepRun({ ...marked, phase: 'clear', wait: 5 }, idle, pit),
+      'ending the level clear screen': stepRun({ ...marked, phase: 'clear', wait: 80 }, jump, pit),
     };
     for (const [where, after] of Object.entries(steps)) expect(after.stomped, where).toBe(false);
   });

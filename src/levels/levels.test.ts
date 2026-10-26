@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEVELS } from './index';
+import { LEVELS, levelFor } from './index';
 import { SANDBOX_LEVEL } from './sandbox';
 import { gaps, validateLevel } from './validate';
 
@@ -22,5 +22,29 @@ describe('GDD-TEC-04 every level passes the validator', () => {
 describe('GDD-WLD-03 the sandbox pit', () => {
   it('is one gap, columns 14 to 16, 3 tiles wide (the spring slot in column 12 has a floor under it)', () => {
     expect(gaps(SANDBOX_LEVEL.world)).toEqual([{ col: 14, width: 3 }]);
+  });
+});
+
+describe('GDD-UI-02 which level', () => {
+  it('GDD-UI-02 which level: no level parameter gives 0-1', () => {
+    expect(levelFor('').id).toBe('0-1');
+  });
+
+  it('GDD-UI-02 which level: level=sandbox gives the sandbox', () => {
+    expect(levelFor('?level=sandbox').id).toBe('sandbox');
+    expect(levelFor('?x=1&level=sandbox').id).toBe('sandbox');
+  });
+
+  it('GDD-UI-02 which level: any other level gives 0-1', () => {
+    for (const search of ['?level=1-1', '?level=0-1', '?level=nope', '?level=']) expect(levelFor(search).id, search).toBe('0-1');
+  });
+});
+
+describe('GDD-TEC-04 level 0-1', () => {
+  it('GDD-TEC-04 0-1 is a tutorial level held to the exit rule', () => {
+    const entry = LEVELS.find((e) => e.id === '0-1')!;
+    expect(entry.test).toBe(false);
+    const { exit: _exit, ...withoutExit } = entry.level;
+    expect(validateLevel({ ...entry, level: withoutExit })).toContain('no exit');
   });
 });

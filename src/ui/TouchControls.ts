@@ -1,8 +1,9 @@
 // GDD-CTL-03: the on-screen buttons, drawn and read each frame. Layout and hit testing are pure and live in
 // touchLayout.ts; this file only talks to Phaser. Shown only on devices that report touch.
 import Phaser from 'phaser';
-import { BASE_WIDTH } from '../config/tuning';
+import { BASE_WIDTH, TIPS } from '../config/tuning';
 import type { PlayerInput } from '../sim/movement';
+import { dashedRect } from './dashed';
 import { gamePoint } from './gamePoint';
 import { effectiveHeld, InputLatch } from './inputLatch';
 import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchButton, type TouchButtonId, type TouchMode } from './touchLayout';
@@ -38,11 +39,16 @@ export interface TouchDebug {
   /** Whether the left thumb zone holds buttons or the slide stick, and the stick's last analog move (-1 to 1). */
   mode: TouchMode;
   stick: number;
+  /** GDD-UI-05: the button outlined by a tutorial tip, as drawn: 'move' for the left and right buttons or the stick, or null. */
+  highlighted: TouchButtonId | 'move' | null;
 }
 
 export class TouchControls {
   private readonly enabled: boolean;
   private readonly gfx: Phaser.GameObjects.Graphics;
+  /** GDD-UI-05: the dashed outline a tutorial tip draws round a button, just above the buttons, and what it is round. */
+  private readonly highlightGfx: Phaser.GameObjects.Graphics;
+  private highlighted: TouchButtonId | 'move' | null = null;
   private buttons: TouchButton[] = [];
   private pressed = new Set<TouchButtonId>();
   private drawnPressed: TouchButtonId[] = [];
@@ -68,6 +74,7 @@ export class TouchControls {
   constructor(private readonly scene: Phaser.Scene) {
     this.enabled = scene.sys.game.device.input.touch;
     this.gfx = scene.add.graphics().setScrollFactor(0).setDepth(10).setVisible(this.enabled);
+    this.highlightGfx = scene.add.graphics().setScrollFactor(0).setDepth(10.5).setVisible(this.enabled);
     if (!this.enabled) return;
     this.relayout();
     // Buttons keep their size on the player's screen, so lay them out again when the canvas is resized.
@@ -174,6 +181,27 @@ export class TouchControls {
   setHidden(hidden: boolean): void {
     this.hidden = hidden;
     this.gfx.setVisible(this.enabled && !hidden);
+    this.highlightGfx.setVisible(this.enabled && !hidden);
+  }
+
+  /**
+   * GDD-UI-05: outlines `button` with the tip's dashed line, `grow` (0 to 1) of the way to its widest, at `alpha`. 'move' is the left
+   * and right buttons together, or the slide stick's track. Nothing without touch, for null or while the tip is faded out.
+   */
+  highlight(button: TouchButtonId | 'move' | null, grow: number, alpha: number): void {
+    this.highlightGfx.clear();
+    this.highlighted = null;
+    if (!this.enabled || button === null || alpha <= 0) return;
+    const boxes = this.buttons.filter((b) => (button === 'move' ? b.id === 'left' || b.id === 'right' || b.id === 'stick' : b.id === button));
+    if (boxes.length === 0) return;
+    const grown = TIPS.marginPx + grow * TIPS.growPx;
+    const x0 = Math.min(...boxes.map((b) => b.x)) - grown;
+    const y0 = Math.min(...boxes.map((b) => b.y)) - grown;
+    const x1 = Math.max(...boxes.map((b) => b.x + b.w)) + grown;
+    const y1 = Math.max(...boxes.map((b) => b.y + b.h)) + grown;
+    this.highlightGfx.lineStyle(1, 0xfff3dc, alpha);
+    dashedRect(this.highlightGfx, x0, y0, x1 - x0, y1 - y0);
+    this.highlighted = button;
   }
 
   /** Whether a point (in game px) is on the pause button (GDD-UI-02). Always false without touch. */
@@ -182,7 +210,7 @@ export class TouchControls {
   }
 
   debug(): TouchDebug {
-    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick };
+    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick, highlighted: this.highlighted };
   }
 
   private setMode(mode: TouchMode): void {

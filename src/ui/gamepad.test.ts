@@ -324,3 +324,21 @@ describe('GDD-CTL-02 GDD-UI-02 gamepad held through a pause', () => {
     expect(reader.input()).toMatchObject({ move: 0, right: false });
   });
 });
+
+describe('GDD-UI-05 a pad in use', () => {
+  it('GDD-UI-05 a pad is in use on any button or a stick push past the dead zone, and not otherwise', () => {
+    expect(read(pad()).active()).toBe(false);
+    expect(read(null).active()).toBe(false);
+    expect(read(pad({ mapping: '', buttons: [SOUTH] })).active()).toBe(false); // not a standard pad
+    for (const button of [SOUTH, EAST, WEST, START, UP, DOWN, LEFT, RIGHT, 4, 6, 16]) expect(read(pad({ buttons: [button] })).active(), `button ${button}`).toBe(true);
+    expect(read(pad({ x: 0.2 })).active()).toBe(false);
+    expect(read(pad({ x: 0.21 })).active()).toBe(true);
+    expect(read(pad({ x: -0.5 })).active()).toBe(true);
+    expect(read(pad({ y: 0.2 })).active()).toBe(false);
+    expect(read(pad({ y: -0.21 })).active()).toBe(true);
+    // Let go, it is not in use any more.
+    const reader = read(pad({ buttons: [SOUTH] }));
+    reader.poll([pad()]);
+    expect(reader.active()).toBe(false);
+  });
+});
