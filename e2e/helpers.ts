@@ -9,7 +9,7 @@ declare global {
 
 /**
  * Opens the game on the title screen (GDD-UI-02), waits for the dev debug hook and returns the errors seen so far. `path` is the
- * address: the sandbox by default, which every playtest but those for 1-1 uses; `/` opens level 1-1.
+ * address: the sandbox by default, which every playtest but those for 0-1 uses; `/` opens level 0-1.
  */
 export async function openGame(page: Page, path = '/?level=sandbox'): Promise<string[]> {
   const errors: string[] = [];
@@ -69,3 +69,19 @@ export async function passGameOver(page: Page): Promise<void> {
 
 /** How red a pixel is: the fill is 185 red against 66 blue, the background 27 against 54. */
 export const red = (c: { r: number; g: number; b: number }) => c.r - c.b;
+
+/** Taps (touch) or clicks (mouse) a point given in game px. */
+export async function tapAt(page: Page, x: number, y: number, touch: boolean): Promise<void> {
+  const box = (await page.locator('canvas').boundingBox())!;
+  const k = box.width / 480;
+  if (touch) await page.touchscreen.tap(box.x + x * k, box.y + y * k);
+  else await page.mouse.click(box.x + x * k, box.y + y * k);
+}
+
+/** Starts the level the way the device does: Enter on a desktop, a tap off the menu rows on a phone. */
+export async function start(page: Page, isMobile: boolean, path = '/'): Promise<void> {
+  await openGame(page, path);
+  if (isMobile) await tapAt(page, 240, 60, true);
+  else await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
+}

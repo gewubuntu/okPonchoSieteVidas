@@ -26,8 +26,8 @@ describe('GDD-WLD-03 the sandbox pit', () => {
 });
 
 describe('GDD-UI-02 which level', () => {
-  it('GDD-UI-02 which level: no level parameter gives 1-1', () => {
-    expect(levelFor('').id).toBe('1-1');
+  it('GDD-UI-02 which level: no level parameter gives 0-1', () => {
+    expect(levelFor('').id).toBe('0-1');
   });
 
   it('GDD-UI-02 which level: level=sandbox gives the sandbox', () => {
@@ -35,14 +35,14 @@ describe('GDD-UI-02 which level', () => {
     expect(levelFor('?x=1&level=sandbox').id).toBe('sandbox');
   });
 
-  it('GDD-UI-02 which level: any other level gives 1-1', () => {
-    for (const search of ['?level=1-1', '?level=nope', '?level=']) expect(levelFor(search).id, search).toBe('1-1');
+  it('GDD-UI-02 which level: any other level gives 0-1', () => {
+    for (const search of ['?level=1-1', '?level=0-1', '?level=nope', '?level=']) expect(levelFor(search).id, search).toBe('0-1');
   });
 });
 
-describe('GDD-TEC-04 level 1-1', () => {
-  it('GDD-TEC-04 1-1 is a World 1 level with an exit', () => {
-    const entry = LEVELS.find((e) => e.id === '1-1')!;
+describe('GDD-TEC-04 level 0-1', () => {
+  it('GDD-TEC-04 0-1 is a tutorial level held to the exit rule', () => {
+    const entry = LEVELS.find((e) => e.id === '0-1')!;
     expect(entry.test).toBe(false);
     const { exit: _exit, ...withoutExit } = entry.level;
     expect(validateLevel({ ...entry, level: withoutExit })).toContain('no exit');

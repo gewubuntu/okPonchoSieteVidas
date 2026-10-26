@@ -1,13 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import { boot, openGame } from './helpers';
 
-// GDD-WLD-06: level 1-1, its camera (GDD-UI-04), its exit and the level clear screen (GDD-WLD-03, GDD-UI-02), and its veladora
-// (GDD-LIFE-03). These open the game at "/", which plays 1-1; every other playtest opens the sandbox. Things are timed in
+// GDD-WLD-06: level 0-1, its camera (GDD-UI-04), its exit and the level clear screen (GDD-WLD-03, GDD-UI-02), and its veladora
+// (GDD-LIFE-03). These open the game at "/", which plays 0-1; every other playtest opens the sandbox. Things are timed in
 // simulation steps (`phaseSince()`, `ticks()`), never by polling (L-042).
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page, n = 2) => page.evaluate((k) => new Promise((r) => { let i = 0; const tick = () => (++i >= k ? r(null) : requestAnimationFrame(tick)); requestAnimationFrame(tick); }), n);
 
-/** Plays 1-1 from the title and puts Poncho on the floor in front of the exit, which he reaches at once. */
+/** Plays 0-1 from the title and puts Poncho on the floor in front of the exit, which he reaches at once. */
 async function atExit(page: Page): Promise<void> {
   await boot(page, '/');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
@@ -19,15 +19,19 @@ async function atExit(page: Page): Promise<void> {
 const afterLockout = (page: Page) =>
   page.waitForFunction(() => window.__PONCHO__!.ticks() - window.__PONCHO__!.phaseSince() >= 60 && window.__PONCHO__!.clearDrawn().prompt);
 
-test('GDD-UI-02 the game opens on 1-1 and Start plays it', async ({ page }) => {
+test('GDD-UI-02 the game opens on 0-1 and Start plays it', async ({ page }) => {
   await openGame(page, '/');
-  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-1');
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('0-1');
   expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(true);
   expect((await api(page, () => window.__PONCHO__!.camera())).viewX).toBe(0);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
   expect((await api(page, () => window.__PONCHO__!.hilos())).total).toBe(50);
   expect((await api(page, () => window.__PONCHO__!.camera())).viewX).toBe(0);
+  // GDD-WLD-06: hilos are collected in play. Holding right from the start picks up the first ones, and the counter follows.
+  await page.keyboard.down('ArrowRight');
+  await page.waitForFunction(() => window.__PONCHO__!.hilos().taken >= 1 && window.__PONCHO__!.hudHilos().text === `${window.__PONCHO__!.hilos().taken}/50`);
+  await page.keyboard.up('ArrowRight');
 });
 
 test('GDD-UI-02 level=sandbox plays the sandbox', async ({ page }) => {

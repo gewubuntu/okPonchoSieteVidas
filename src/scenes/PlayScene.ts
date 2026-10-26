@@ -1,7 +1,7 @@
 // Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
 // Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TITLE_MENU, VELADORA } from '../config/tuning';
+import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_MENU, VELADORA } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { levelFor } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
@@ -39,6 +39,7 @@ import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
 import { followCamera } from '../ui/camera';
+import { dashedRect } from '../ui/dashed';
 import { GamepadReader } from '../ui/gamepad';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
@@ -49,9 +50,10 @@ import { gamePoint } from '../ui/gamePoint';
 import { startAnim, stepAnim, STAND, type PonchoAnim } from '../ui/ponchoAnim';
 import { layoutPauseMenu, layoutTitleMenu, pauseMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
 import { layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
+import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tipsDone as nextTipsDone, tipText, type Device, type TipFade } from '../ui/tips';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
-// GDD-UI-02: the level played, 1-1 or the sandbox by its address. GDD-MOV-06: Poncho collides with the tile grid. The spawn stands
+// GDD-UI-02: the level played, 0-1 or the sandbox by its address. GDD-MOV-06: Poncho collides with the tile grid. The spawn stands
 // on the floor, so its y is the floor level.
 const entry = levelFor(window.location.search);
 const level: Level = entry.level;
@@ -107,7 +109,7 @@ export interface PonchoDebug {
    * the text drawn) and whether its prompt line is shown, with its text.
    */
   clearDrawn(): { shown: boolean; title: string; hilos: string; prompt: boolean; promptText: string };
-  /** The id of the level played, `1-1` or `sandbox` (GDD-UI-02). Read from the choice the scene made at load. */
+  /** The id of the level played, `0-1` or `sandbox` (GDD-UI-02). Read from the choice the scene made at load. */
   level(): string;
   /**
    * The camera (GDD-UI-04): `scrollX`, the scroll the scene last passed to Phaser, and `viewX`, the level x Phaser draws at the
@@ -115,6 +117,16 @@ export interface PonchoDebug {
    * Phaser centres that rectangle on the camera as if its origin were the middle, which ours is not.
    */
   camera(): { scrollX: number; viewX: number };
+  /**
+   * The tutorial tip as drawn (GDD-UI-05): the index of the tip shown (null while none is, faded out included), its text, its opacity,
+   * the device its words name, the un-grown outline box in level px (null for none) and how many px the drawn outline has grown by on
+   * each side (0 to 2, with the pulse), the touch button outlined with it, and the text box on screen in game px. Read from what was drawn.
+   */
+  tip(): { index: number | null; text: string; alpha: number; device: Device; highlight: { x: number; y: number; w: number; h: number } | null; grow: number; button: string | null; box: { x: number; y: number; w: number; h: number } };
+  /** The tips whose thing is done, by tip (GDD-UI-05). */
+  tipsDone(): boolean[];
+  /** Whether the placeholder title, controls and dev lines at the top of the level start exist (the tutorial has none, GDD-UI-05). */
+  placeholderLines(): boolean;
   /** Whether the veladora is painted in the level (GDD-LIFE-03), and whether the exit's arch is (GDD-WLD-03). Read from what was drawn. */
   veladoraDrawn(): boolean;
   exitDrawn(): boolean;
@@ -380,6 +392,17 @@ export class PlayScene extends Phaser.Scene {
   private clearTitle!: Phaser.GameObjects.Text;
   private clearHilos!: Phaser.GameObjects.Text;
   private clearPrompt!: Phaser.GameObjects.Text;
+  /** GDD-UI-05: the device used last, the tip's fade, the tips whose thing is done, the steps for the highlight's pulse, and what was drawn. */
+  private device: Device = 'keyboard';
+  private tipFade: TipFade = NO_TIP;
+  private tipsDoneNow: boolean[] = (entry.tips ?? []).map(() => false);
+  private tipStep = 0;
+  private tipBox!: Phaser.GameObjects.Container;
+  private tipBg!: Phaser.GameObjects.Rectangle;
+  private tipText!: Phaser.GameObjects.Text;
+  private tipGfx!: Phaser.GameObjects.Graphics;
+  private tipPainted: ReturnType<PonchoDebug['tip']> = { index: null, text: '', alpha: 0, device: 'keyboard', highlight: null, grow: 0, button: null, box: { x: 0, y: 0, w: 0, h: 0 } };
+  private placeholderLines = false;
   /** GDD-UI-04: where the camera stands, the level x at the screen's left edge. */
   private scrollX = 0;
   /** GDD-LIFE-03: the veladora's graphics, whether it was last drawn as used, and whether it is painted. GDD-WLD-03: whether the exit is. */
@@ -431,16 +454,20 @@ export class PlayScene extends Phaser.Scene {
     // from the top left corner, world objects and fixed ones alike.
     this.cameras.main.setOrigin(0, 0).setZoom(ART_SCALE);
     this.drawTiles();
-    this.add
-      .text(BASE_WIDTH / 2, 28, 'PONCHO: Siete Vidas', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' })
-      .setOrigin(0.5);
-    this.add
-      .text(BASE_WIDTH / 2, 48, 'placeholder: arrows or A/D to run, space to jump', {
-        fontFamily: 'monospace',
-        fontSize: '8px',
-        color: '#9ba3c4',
-      })
-      .setOrigin(0.5);
+    // GDD-UI-05: the tips take the place of these placeholder lines in a level that has them.
+    this.placeholderLines = entry.tips === undefined;
+    if (this.placeholderLines) {
+      this.add
+        .text(BASE_WIDTH / 2, 28, 'PONCHO: Siete Vidas', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' })
+        .setOrigin(0.5);
+      this.add
+        .text(BASE_WIDTH / 2, 48, 'placeholder: arrows or A/D to run, space to jump', {
+          fontFamily: 'monospace',
+          fontSize: '8px',
+          color: '#9ba3c4',
+        })
+        .setOrigin(0.5);
+    }
 
     // GDD-UI-01: seven life triangles, top-left, above the camera so they stay put.
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(10);
@@ -499,6 +526,12 @@ export class PlayScene extends Phaser.Scene {
     this.clearHilos = this.add.text(BASE_WIDTH / 2, 136, '', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3dc' }).setOrigin(0.5);
     this.clearPrompt = this.add.text(BASE_WIDTH / 2, 156, 'Press any button', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
     this.clearScreen = this.add.container(0, 0, [clearVeil, this.clearTitle, this.clearHilos, this.clearPrompt]).setScrollFactor(0).setDepth(9).setVisible(false);
+
+    // GDD-UI-05: the tutorial tip's text box, top middle under the HUD, under the screens (depth 8), and its highlight in the level.
+    this.tipBg = this.add.rectangle(0, 0, 1, 1, 0x0d1020, 0.75).setOrigin(0);
+    this.tipText = this.add.text(BASE_WIDTH / 2, TIPS.boxTop + TIPS.boxPad, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff3dc', align: 'center', wordWrap: { width: TIPS.wrapPx } }).setOrigin(0.5, 0);
+    this.tipBox = this.add.container(0, 0, [this.tipBg, this.tipText]).setScrollFactor(0).setDepth(8).setVisible(false);
+    this.tipGfx = this.add.graphics().setDepth(6);
 
     // GDD-MOV-06, GDD-ART-04: the container sits at the middle of the body box; the frame stands on its feet (bottom row at the box's
     // bottom), scaled from art pixels to game pixels.
@@ -578,6 +611,7 @@ export class PlayScene extends Phaser.Scene {
     // The menu keys (Up or W, Down or S choose; Left or A, Right or D change a volume; Enter, Space or Z pick) are read the same
     // way (GDD-UI-02). The game reads Left, Right, Space and the rest as buttons too, from its own latches.
     const onPauseKey = (e: KeyboardEvent) => {
+      this.device = 'keyboard'; // GDD-UI-05: any key press, a repeat too
       if (e.repeat) return;
       // By keyCode, the key's label, as Phaser matches the other keys: on Dvorak or Colemak the P key still pauses.
       const code = e.keyCode;
@@ -594,6 +628,7 @@ export class PlayScene extends Phaser.Scene {
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       // The canvas is ART_SCALE times the game pixels the layouts are in (GDD-ART-01).
       const at = gamePoint(p);
+      if (p.wasTouch) this.device = 'touch'; // GDD-UI-05: a finger, not a mouse click
       if (this.touch.isPauseButton(at.x, at.y)) {
         this.pauseEvents.push('button');
         return;
@@ -611,6 +646,7 @@ export class PlayScene extends Phaser.Scene {
       if (document.visibilityState === 'hidden') onBlur();
     };
     const touchDevice = this.sys.game.device.input.touch;
+    this.device = initialDevice(touchDevice);
     let upright = false;
     const onResize = () => {
       const now = isPortrait(window.screen.orientation?.type, window.innerWidth, window.innerHeight, touchDevice);
@@ -659,6 +695,9 @@ export class PlayScene extends Phaser.Scene {
         clearDrawn: () => ({ shown: this.clearScreen.visible, title: this.clearTitle.text, hilos: this.clearHilos.text, prompt: this.clearPrompt.visible, promptText: this.clearPrompt.text }),
         level: () => entry.id,
         camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x }),
+        tip: () => this.tipPainted,
+        tipsDone: () => this.tipsDoneNow,
+        placeholderLines: () => this.placeholderLines,
         veladoraDrawn: () => this.veladoraPainted,
         exitDrawn: () => this.exitPainted,
         invulnerable: () => this.run.invulnerable,
@@ -740,6 +779,7 @@ export class PlayScene extends Phaser.Scene {
           this.drawVeladora();
           this.drawGameOver();
           this.drawClear();
+          this.drawTip();
         },
         ofrendas: () => this.ofrendasDrawn,
         platforms: () => level.platforms.map((p) => platformAt(p, this.run.platformTick)),
@@ -792,7 +832,7 @@ export class PlayScene extends Phaser.Scene {
       // key events land in the same frame (see docs/LESSONS.md L-006).
       this.devKeys = { lose: kb.addKey(K.L), ofrenda: kb.addKey(K.O), veladora: kb.addKey(K.V) };
       // Centred under the controls line, clear of the title and of the hilo counter in the top right (GDD-UI-01).
-      this.add.text(BASE_WIDTH / 2, 58, 'dev: L lose life, O ofrenda, V veladora', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
+      if (this.placeholderLines) this.add.text(BASE_WIDTH / 2, 58, 'dev: L lose life, O ofrenda, V veladora', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
     }
   }
 
@@ -1346,6 +1386,51 @@ export class PlayScene extends Phaser.Scene {
     this.clearPrompt.setVisible(shown && this.run.wait >= GAME_OVER.lockoutSteps);
   }
 
+  /**
+   * GDD-UI-05: the tutorial tip. A dark box with its text at the top middle of the screen, and its thing in the level outlined with a
+   * dashed line that grows and shrinks with a small arrow above it, all at the fade's opacity; the touch button it names is outlined
+   * too. Nothing is drawn at opacity 0.
+   */
+  private drawTip(): void {
+    const tip = this.tipFade.index !== null ? entry.tips?.[this.tipFade.index] : undefined;
+    const alpha = tip ? this.tipFade.alpha : 0;
+    const shown = tip !== undefined && alpha > 0;
+    this.tipBox.setVisible(shown).setAlpha(alpha);
+    this.tipGfx.clear();
+    let highlight: ReturnType<PonchoDebug['tip']>['highlight'] = null;
+    let drawnGrow = 0;
+    if (shown) {
+      const text = tipText(tip, this.device);
+      if (this.tipText.text !== text) this.tipText.setText(text);
+      const w = this.tipText.width;
+      const h = this.tipText.height;
+      this.tipBg.setPosition(BASE_WIDTH / 2 - w / 2 - TIPS.boxPad, TIPS.boxTop).setSize(w + 2 * TIPS.boxPad, h + 2 * TIPS.boxPad);
+      if (tip.highlight) {
+        highlight = highlightBox(tip.highlight);
+        const beat = pulse(this.tipStep);
+        const grow = beat * TIPS.growPx;
+        drawnGrow = grow;
+        const [x, y, bw, bh] = [highlight.x - grow, highlight.y - grow, highlight.w + 2 * grow, highlight.h + 2 * grow];
+        this.tipGfx.lineStyle(1, 0xfff3dc, alpha);
+        dashedRect(this.tipGfx, x, y, bw, bh);
+        const tipY = y - 6 - beat * TIPS.bobPx;
+        this.tipGfx.fillStyle(0xfff3dc, alpha).fillTriangle(x + bw / 2 - TIPS.arrowPx / 2, tipY - TIPS.arrowPx, x + bw / 2 + TIPS.arrowPx / 2, tipY - TIPS.arrowPx, x + bw / 2, tipY);
+      }
+    }
+    // GDD-UI-05: the touch button is outlined only while touch is the device used last.
+    this.touch.highlight(shown && this.device === 'touch' ? (tip.button ?? null) : null, pulse(this.tipStep), alpha);
+    this.tipPainted = {
+      index: shown ? this.tipFade.index : null,
+      text: shown ? this.tipText.text : '',
+      alpha,
+      device: this.device,
+      highlight,
+      grow: drawnGrow,
+      button: shown ? (tip.button ?? null) : null,
+      box: shown ? { x: this.tipBg.x, y: this.tipBg.y, w: this.tipBg.width, h: this.tipBg.height } : { x: 0, y: 0, w: 0, h: 0 },
+    };
+  }
+
   /** GDD-UI-04: the camera follows the body where it is drawn, and stands still while it is hidden. */
   private followBody(): void {
     this.scrollX = followCamera(this.scrollX, this.body.visible ? this.body.x : null, world.width * TILE);
@@ -1363,6 +1448,13 @@ export class PlayScene extends Phaser.Scene {
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
     this.ticks++;
     if (this.run.phase !== before.phase) this.phaseSince = this.ticks;
+    // GDD-UI-05: the tutorial tips follow Poncho by steps, so they stand still with the game.
+    const tips = entry.tips;
+    if (tips) {
+      this.tipsDoneNow = nextTipsDone(this.tipsDoneNow, tips, before, this.run, level);
+      this.tipFade = stepTipFade(this.tipFade, activeTip(tips, this.run.player.x, this.run.phase, this.tipsDoneNow));
+      this.tipStep++;
+    }
     this.anim = stepAnim(this.anim, this.run.player, this.run.phase === 'playing');
     if (before.claw.phase === 'idle' && this.run.claw.phase === 'windup') this.swings++;
     this.spits += this.run.fireballs.filter((f) => f.age === 0).length;
@@ -1416,6 +1508,7 @@ export class PlayScene extends Phaser.Scene {
     this.touch.setFuego(this.run.power === 'fuego'); // the Fuego button is there only in the Fuego state (GDD-CTL-03)
     // GDD-CTL-02: the gamepads, read once per frame (browsers report them only when asked, so they cannot be latched, GDD-CTL-04).
     this.pauseEvents.push(...this.pad.poll(readGamepads()));
+    if (this.pad.active()) this.device = 'pad'; // GDD-UI-05
     let input = this.readInput();
 
     const settingsBefore = this.settings;
@@ -1497,6 +1590,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawClaw();
     this.drawGameOver();
     this.drawClear();
+    this.drawTip();
     this.drawPause();
     this.drawTitle();
     this.drawSettings();
@@ -1576,6 +1670,9 @@ export class PlayScene extends Phaser.Scene {
     this.anim = startAnim(this.run.player.x);
     this.peak = 0;
     this.hiloCombo = NO_COMBO;
+    this.tipFade = NO_TIP;
+    this.tipsDoneNow = (entry.tips ?? []).map(() => false);
+    this.tipStep = 0;
     this.stepper.reset();
     // The HUD's crack and last-life pulse need no reset: `updateCracks` drops a crack on a triangle that is filled again and
     // `updatePulseStart` clears at any life count but one.
