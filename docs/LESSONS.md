@@ -431,3 +431,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** A change to the body box, the jump or other movement numbers re-checks every level's main route on foot. The sandbox's route from the spawn past the door and up the 2-tile wall is a test in `src/levels/sandbox.test.ts`; extend it as the route goes further, and add a route test for each new level.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-045 Screenshots reached their state by shortcuts no player takes, and the pictures misled
+
+- **Date:** 2026-10-26
+- **What went wrong:** For level 0-1 (then 1-1) the clear-screen shot teleported Poncho straight to the exit, so it read "Hilos 0/50", and the user asked whether hilos were still collected. Collection worked, but nothing tested it in the new level. Then the phone tip shots started the level with Enter, which made the keyboard the device used last: the phone pictures showed keyboard words ("X to claw it") beside outlined touch buttons, and that same slip hid a design hole: the touch outline did not depend on the device in use. Two occurrences in one task, so it is promoted at once.
+- **Root cause:** The shot scenarios were written for speed (teleport, `boot()` with Enter on every viewport), and the harness asked them only to assert the state they are named for (L-016), not to get there the way a player on that device would. A shortcut that skips play shows numbers and words that no player sees.
+- **Rule:** In a screenshot scenario, start the level the device's way (`start(page, isMobile)` in `e2e/helpers.ts`: a tap on a phone, Enter on a desktop), and reach a screen that shows a count (hilos, lives) after collecting some in play, so the picture shows a count a player could see. A new level gets a test that its pickups are collected in play.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-playtest (Screenshots for visual review)

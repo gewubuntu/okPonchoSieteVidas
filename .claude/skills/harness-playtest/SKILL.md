@@ -35,7 +35,7 @@ npm run shots
 ```
 
 - Writes PNGs to `shots/` (git-ignored) for a desktop (1280x720) and a landscape phone (844x390) viewport. File names end in `-desktop` or `-phone`.
-- Scenarios live in `e2e/shots/*.spec.ts`. Add or extend one for every visible change, and capture every state that matters (for the HUD: full, partial, empty). Reuse `boot()` from `e2e/helpers.ts` and drive state with the `window.__PONCHO__` hooks.
+- Scenarios live in `e2e/shots/*.spec.ts`. Add or extend one for every visible change, and capture every state that matters (for the HUD: full, partial, empty). Reuse `boot()` from `e2e/helpers.ts` and drive state with the `window.__PONCHO__` hooks. Start the level the device's way with `start(page, isMobile)` (a tap on a phone, Enter on a desktop), so the tips and touch outlines are the ones a player on that device sees, and before a screen that shows a count (hilos, lives) collect some in play rather than teleporting past them (L-045).
 - Always look at the images yourself first (Read the PNG), then show them to the user with `SendUserFile` and ask for approval. After approval copy the chosen images to `docs/screenshots/<slug>/` and embed them in the PR.
 - These are for people to judge; tests still assert on state, not pixels.
 
