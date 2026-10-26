@@ -3,8 +3,8 @@ import { boot } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 
-// The sandbox level has a fragile wall four tiles tall at tile column 27 (x 432 to 448), and a piñata at column 9, row 10
-// (x 144 to 160, y 160 to 176) that Poncho can reach with the claw from the top of the 2-tile wall at columns 10 and 11.
+// The sandbox level has a fragile wall four tiles tall at tile column 27 (x 432 to 448), and a piñata at column 8, row 10
+// (x 128 to 144, y 160 to 176) that Poncho can reach with the claw from the top of the 2-tile wall at columns 10 and 11.
 const start = async (page: Page, x: number, y = 224) => {
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);

@@ -48,7 +48,7 @@ describe('GDD-ENM-02 the sandbox Zopilote', () => {
 
   it('spots him on the spring ledge, on the Alacrán platform, and in the moving platform route', () => {
     expect(spotted(standing(224, 7 * TILE))).toBe(true); // the spring ledge, columns 13 and 14 (top y = 112)
-    expect(spotted(standing(140, 10 * TILE))).toBe(true); // the Alacrán's platform
+    expect(spotted(standing(140, 10 * TILE))).toBe(true); // the Alacrán's platform, at the piñata on its right end
     expect(spotted(standing(300, 8 * TILE))).toBe(true); // the moving platform (top y = 128)
   });
 
@@ -75,13 +75,13 @@ describe('GDD-ENM-02 the sandbox cactus buddy', () => {
   });
 });
 
-describe('GDD-ENM-02 the sandbox Alacrán and its platform (row 10, columns 4 to 8, then the piñata at column 9, top y = 160)', () => {
+describe('GDD-ENM-02 the sandbox Alacrán and its platform (row 10, columns 4 to 7, then the piñata at column 8, top y = 160)', () => {
   const alacran = SANDBOX_ENEMIES.find((e) => e.kind === undefined)!;
   const away = standing(24, 14 * TILE);
 
-  it('patrols from the platform\'s left end (x = 64) across the piñata\'s top to its right end (x = 160), turning 7 px short of each', () => {
+  it('patrols from the platform\'s left end (x = 64) across the piñata\'s top to its right end (x = 144), turning 7 px short of each', () => {
     expect(alacran.y).toBe(160);
-    expect(SANDBOX_PINATAS[0]).toEqual({ col: 9, row: 10 });
+    expect(SANDBOX_PINATAS[0]).toEqual({ col: 8, row: 10 });
     let s = freshEnemies([alacran])[0]!;
     let min = Infinity;
     let max = -Infinity;
@@ -91,7 +91,7 @@ describe('GDD-ENM-02 the sandbox Alacrán and its platform (row 10, columns 4 to
       max = Math.max(max, s.x);
     }
     expect(min).toBe(71);
-    expect(max).toBe(153);
+    expect(max).toBe(137);
   });
 });
 
@@ -249,14 +249,58 @@ describe('GDD-WLD-04 the sandbox hilos', () => {
   });
 });
 
-describe('GDD-PWR-05 the sandbox piñata at column 9', () => {
-  it('opens when Poncho stands under it and jumps: his 32 px head is 16 px short of its underside (y = 176) before the jump', () => {
+describe('GDD-PWR-05 the sandbox piñata at column 8, above the door', () => {
+  it('opens when Poncho stands under it in the open door\'s column and jumps: his 32 px head is 16 px short of its underside (y = 176) before the jump', () => {
     const L = SANDBOX_LEVEL;
-    let r: RunState = { ...startRun(L), player: standing(152, 14 * TILE) };
+    let r: RunState = { ...startRun(L), player: standing(136, 14 * TILE), doorsOpen: [true] };
+    expect(r.player.y - 32).toBe(192); // head 16 px under the underside, no touch
     expect(r.pinatasOpen[0]).toBe(false);
     for (let i = 0; i < 40 && !r.pinatasOpen[0]; i++) r = stepRun(r, { move: 0, jumpHeld: true }, L);
     expect(r.pinatasOpen[0]).toBe(true);
     expect(r.items).toHaveLength(1);
+  });
+
+  it('closes off the top of the door: the door (column 8, rows 11 to 13) ends right under it, and row 10 column 8 is not a level tile', () => {
+    expect(SANDBOX_DOORS[0]).toEqual({ col: 8, row: 11, height: 3 });
+    expect(SANDBOX_PINATAS[0]).toEqual({ col: 8, row: 10 });
+    expect(SANDBOX_ROWS[10]![8]).toBe('.');
+    expect(SANDBOX_ROWS[10]!.slice(4, 8)).toBe('####');
+    expect(SANDBOX_ROWS[10]![9]).toBe('.'); // column 9 is open to the sky
+  });
+
+  it('opens with a claw swipe from the left edge of the 2-tile wall\'s top, facing it', () => {
+    const L = SANDBOX_LEVEL;
+    let r: RunState = { ...startRun(L), player: standing(166, 12 * TILE) };
+    r = stepRun(r, { move: -1, jumpHeld: false }, L); // face left
+    expect(r.pinatasOpen[0]).toBe(false);
+    r = stepRun(r, { move: 0, jumpHeld: false, claw: true }, L);
+    for (let i = 0; i < 10 && !r.pinatasOpen[0]; i++) r = stepRun(r, { move: 0, jumpHeld: false }, L);
+    expect(r.pinatasOpen[0]).toBe(true);
+  });
+});
+
+describe('GDD-WLD-05 the sandbox route on foot past the door and up the 2-tile wall', () => {
+  it('from the spawn, holding right takes the key, opens the door and stops him against the wall; a short jump lands him on its top', () => {
+    const L = SANDBOX_LEVEL;
+    let r: RunState = startRun(L);
+    let landed = false;
+    for (let i = 0; i < 200 && !landed; i++) {
+      r = stepRun(r, { move: 1, jumpHeld: i >= 120 && i < 126 }, L);
+      expect(r.phase, `step ${i}`).toBe('playing');
+      expect(r.lives.lives, `step ${i}`).toBe(7);
+      if (i === 119) {
+        expect(r.player.grounded).toBe(true);
+        expect(r.player.y).toBe(224);
+        expect(r.player.x).toBe(154); // against the wall at x = 160, half width 6
+        expect(r.keysTaken[0]).toBe(true);
+        expect(r.doorsOpen[0]).toBe(true);
+      }
+      landed = i >= 120 && r.player.grounded && r.player.y === 192;
+    }
+    expect(landed).toBe(true);
+    expect(r.player.x).toBeGreaterThanOrEqual(160);
+    expect(r.player.x).toBeLessThanOrEqual(178); // short of the cactus buddy's box (x 178 to 190)
+    expect(r.pinatasOpen).toEqual([false, false]);
   });
 });
 
