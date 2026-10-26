@@ -55,12 +55,12 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-UI-05 | done | the twelve tips of 0-1 (src/levels/level0-1.ts), fading by stretch, worded for the device used last, a pulsing dashed outline in the level and on the named touch button while touch is in use (src/ui/tips.ts, src/ui/dashed.ts, PlayScene, TouchControls) |
 | GDD-AUD-01 | doing | audio unlock on first gesture is handled by the engine; Master and Effects volume on the settings screen (src/sim/settings.ts); music and its volume pending |
 | GDD-AUD-02 | doing | generated placeholders for the ofrenda marimba, jump, land, claw, stomp, hilo (climbing major scale), life lost and meow, triggered from the step diff in src/sim/sfx.ts (scripts/audio/effects.mjs); real audio pending (Open Question 9) |
-| GDD-ART-01 | doing | 1920x1080 canvas, the camera draws the 480x270 game pixels 4x; Poncho's sprite is the only art so far |
+| GDD-ART-01 | doing | 1920x1080 canvas, the camera draws the 480x270 game pixels 4x; Poncho's sprite and World 1's backdrop and ground tiles (GDD-ART-06) are drawn; the rest is placeholder |
 | GDD-ART-02 | doing | the user's pixel drawing is the sprite, in the game (assets/sprites/poncho.png, scripts/art) |
 | GDD-ART-03 | todo |  |
 | GDD-ART-04 | doing | standing frame and four run frames in the game (src/ui/ponchoAnim.ts); jump, fall, skid, land and the rest pending |
 | GDD-ART-05 | todo |  |
-| GDD-ART-06 | doing | World 1 backdrop and ground tiles in progress |
+| GDD-ART-06 | doing | World 1's backdrop (sky, sun, clouds, mountains with parallax, src/ui/backdrop.ts) and ground tiles (src/ui/groundTiles.ts), drawn by scripts/art/make-desert.mjs, approved 2026-10-26; the plants in front and the other worlds pending |
 | GDD-ART-07 | todo |  |
 | GDD-TEC-01 | done | scaffold on latest stable: Phaser 4, TS 7, Vite 8, Vitest 5, Playwright, Oxlint |
 | GDD-TEC-02 | done | src/sim/fixedStep.ts, sim has no Phaser imports |
