@@ -1,11 +1,20 @@
 // Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
-// Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
+// Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04), and the backdrop and the ground tiles are World 1's desert art
+// (GDD-ART-06); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_MENU, VELADORA } from '../config/tuning';
+import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_MENU, VELADORA } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { levelFor } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
+import skyStripsPng from '../../assets/sprites/desierto/sky-strips.png';
+import sunPng from '../../assets/sprites/desierto/sun.png';
+import cloud0Png from '../../assets/sprites/desierto/cloud-0.png';
+import cloud1Png from '../../assets/sprites/desierto/cloud-1.png';
+import cloud2Png from '../../assets/sprites/desierto/cloud-2.png';
+import cloud3Png from '../../assets/sprites/desierto/cloud-3.png';
+import mountainsPng from '../../assets/sprites/desierto/mountains.png';
+import groundPng from '../../assets/sprites/desierto/ground.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import jumpOgg from '../../assets/audio/sfx/jump.ogg';
@@ -38,9 +47,11 @@ import { hilosCollected } from '../sim/hilo';
 import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
+import { parallaxOffset } from '../ui/backdrop';
 import { followCamera } from '../ui/camera';
 import { dashedRect } from '../ui/dashed';
 import { GamepadReader } from '../ui/gamepad';
+import { groundFrame } from '../ui/groundTiles';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
 import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
@@ -117,6 +128,15 @@ export interface PonchoDebug {
    * Phaser centres that rectangle on the camera as if its origin were the middle, which ours is not.
    */
   camera(): { scrollX: number; viewX: number };
+  /**
+   * How far the backdrop's clouds and mountains are shifted (GDD-ART-06), in game px, read back from what was drawn: the clouds from
+   * where the first cloud's image stands against its place at the start, the mountains from the layer's `tilePositionX / ART_SCALE`.
+   */
+  backdrop(): { clouds: number; mountains: number };
+  /** Where the backdrop's fixed parts are drawn (GDD-ART-06), in game px on the screen, read from the drawn objects: the sun's centre, the top of the mountains' ridge band and of its flat foot. */
+  backdropLayout(): { sunX: number; sunY: number; mountainsY: number; footY: number };
+  /** The frame of the ground sheet drawn at tile (tx, ty), or null where no ground image is (GDD-ART-06). Read from the drawn image. */
+  groundFrame(tx: number, ty: number): number | null;
   /**
    * The tutorial tip as drawn (GDD-UI-05): the index of the tip shown (null while none is, faded out included), its text, its opacity,
    * the device its words name, the un-grown outline box in level px (null for none) and how many px the drawn outline has grown by on
@@ -405,6 +425,12 @@ export class PlayScene extends Phaser.Scene {
   private placeholderLines = false;
   /** GDD-UI-04: where the camera stands, the level x at the screen's left edge. */
   private scrollX = 0;
+  /** GDD-ART-06: each cloud's two images (it and its copy one screen to the left, so it wraps), the mountains' layer and the ground images by tile (`"tx,ty"`). */
+  private cloudImages: Phaser.GameObjects.Image[][] = [];
+  private mountains!: Phaser.GameObjects.TileSprite;
+  private sun!: Phaser.GameObjects.Image;
+  private mountainFoot!: Phaser.GameObjects.Rectangle;
+  private readonly groundImages = new Map<string, Phaser.GameObjects.Image>();
   /** GDD-LIFE-03: the veladora's graphics, whether it was last drawn as used, and whether it is painted. GDD-WLD-03: whether the exit is. */
   private veladoraGfx!: Phaser.GameObjects.Graphics;
   private veladoraUsedDrawn = false;
@@ -431,6 +457,13 @@ export class PlayScene extends Phaser.Scene {
   preload(): void {
     // GDD-ART-04: the standing frame and the four run frames, each SPRITE_FRAME game px wide (160 art px).
     this.load.spritesheet('poncho', ponchoPng, { frameWidth: SPRITE_FRAME * ART_SCALE, frameHeight: SPRITE_FRAME * ART_SCALE });
+    // GDD-ART-06: World 1's backdrop (the sky's three dither strips, the sun, a picture of each cloud, the mountains' ridge band) and the
+    // ground sheet, four frames of one tile (TILE * ART_SCALE) each.
+    this.load.spritesheet('sky-strips', skyStripsPng, { frameWidth: BASE_WIDTH * ART_SCALE, frameHeight: BACKDROP_ART.stripArt });
+    this.load.image('sun', sunPng);
+    [cloud0Png, cloud1Png, cloud2Png, cloud3Png].forEach((png, i) => this.load.image(`cloud-${i}`, png));
+    this.load.image('mountains', mountainsPng);
+    this.load.spritesheet('ground', groundPng, { frameWidth: TILE * ART_SCALE, frameHeight: TILE * ART_SCALE });
     // GDD-AUD-02: Ogg where it plays, MP3 elsewhere. Phaser picks the first format the browser supports.
     this.load.audio('sfx-ofrenda', [ofrendaOgg, ofrendaMp3]);
     this.load.audio('sfx-jump', [jumpOgg, jumpMp3]);
@@ -453,6 +486,7 @@ export class PlayScene extends Phaser.Scene {
     // GDD-ART-01: the canvas is ART_SCALE times larger than the game pixels everything is placed in, so the camera draws them zoomed in
     // from the top left corner, world objects and fixed ones alike.
     this.cameras.main.setOrigin(0, 0).setZoom(ART_SCALE);
+    this.drawBackdrop();
     this.drawTiles();
     // GDD-UI-05: the tips take the place of these placeholder lines in a level that has them.
     this.placeholderLines = entry.tips === undefined;
@@ -695,6 +729,12 @@ export class PlayScene extends Phaser.Scene {
         clearDrawn: () => ({ shown: this.clearScreen.visible, title: this.clearTitle.text, hilos: this.clearHilos.text, prompt: this.clearPrompt.visible, promptText: this.clearPrompt.text }),
         level: () => entry.id,
         camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x }),
+        backdrop: () => ({ clouds: (((BACKDROP_ART.clouds[0].x - this.cloudImages[0]![0]!.x) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH, mountains: this.mountains.tilePositionX / ART_SCALE }),
+        backdropLayout: () => ({ sunX: this.sun.x + BACKDROP_ART.sunHalf, sunY: this.sun.y + BACKDROP_ART.sunHalf, mountainsY: this.mountains.y, footY: this.mountainFoot.y }),
+        groundFrame: (tx, ty) => {
+          const image = this.groundImages.get(`${tx},${ty}`);
+          return image === undefined ? null : Number(image.frame.name);
+        },
         tip: () => this.tipPainted,
         tipsDone: () => this.tipsDoneNow,
         placeholderLines: () => this.placeholderLines,
@@ -836,14 +876,40 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-  /** Placeholder tile art: one blue square per solid tile with a darker edge. */
+  /**
+   * World 1's backdrop (GDD-ART-06), under everything (negative depths), drawn so that little of the screen is textured: the sky's
+   * first three bands as flat colours with the dither strips and the sun over them as small images (the horizon band is the camera's
+   * background), a small image for each cloud, the mountains' ridge band as one repeating layer and its foot as a flat colour. The sky
+   * is fixed to the screen; the clouds and the mountains each move by their share of the camera's scroll, in `followBody`.
+   */
+  private drawBackdrop(): void {
+    const art = 1 / ART_SCALE;
+    const { skyBands, skyEnds, stripArt } = BACKDROP_ART;
+    this.cameras.main.setBackgroundColor(skyBands[3]);
+    const bands = this.add.graphics().setScrollFactor(0).setDepth(-4);
+    let top = 0;
+    skyEnds.forEach((end, i) => {
+      // The band runs on to its end: the dither strip, drawn over its last rows, covers them.
+      bands.fillStyle(skyBands[i]!, 1).fillRect(0, top * art, BASE_WIDTH, (end - top) * art);
+      top = end;
+      this.add.image(0, (end - stripArt) * art, 'sky-strips', i).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3.5);
+    });
+    this.sun = this.add.image(BACKDROP.sunX - BACKDROP_ART.sunHalf, BACKDROP.sunY - BACKDROP_ART.sunHalf, 'sun').setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3);
+    this.cloudImages = BACKDROP_ART.clouds.map(({ x, y }, i) =>
+      [x, x - BASE_WIDTH].map((at) => this.add.image(at, y, `cloud-${i}`).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-2)),
+    );
+    this.mountains = this.add.tileSprite(0, BACKDROP.mountainTop, BASE_WIDTH * ART_SCALE, BACKDROP_ART.mountainBandArt, 'mountains').setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-1);
+    const foot = BACKDROP.mountainTop + BACKDROP_ART.mountainBandArt * art;
+    this.mountainFoot = this.add.rectangle(0, foot, BASE_WIDTH, BASE_HEIGHT - foot, BACKDROP_ART.footColour).setOrigin(0).setScrollFactor(0).setDepth(-1);
+  }
+
+  /** World 1's ground (GDD-ART-06): one image of the ground sheet per solid tile, a top tile or an earth tile, a version each. */
   private drawTiles(): void {
-    const g = this.add.graphics().setDepth(1);
-    g.fillStyle(0x44588a, 1).lineStyle(1, 0x35466f, 1);
     for (let ty = 0; ty < world.height; ty++) {
       for (let tx = 0; tx < world.width; tx++) {
         if (!world.solidTile(tx, ty)) continue;
-        g.fillRect(tx * TILE, ty * TILE, TILE, TILE).strokeRect(tx * TILE + 0.5, ty * TILE + 0.5, TILE - 1, TILE - 1);
+        const image = this.add.image(tx * TILE, ty * TILE, 'ground', groundFrame((x, y) => world.solidTile(x, y), tx, ty)).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1);
+        this.groundImages.set(`${tx},${ty}`, image);
       }
     }
   }
@@ -1435,6 +1501,14 @@ export class PlayScene extends Phaser.Scene {
   private followBody(): void {
     this.scrollX = followCamera(this.scrollX, this.body.visible ? this.body.x : null, world.width * TILE);
     this.cameras.main.setScroll(this.scrollX, 0);
+    // GDD-ART-06: the far layers move at a share of the scroll, in art pixels of their textures.
+    const cloudShift = parallaxOffset(this.scrollX, BACKDROP.cloudFactor);
+    BACKDROP_ART.clouds.forEach(({ x }, i) => {
+      const at = (((x - cloudShift) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH;
+      this.cloudImages[i]![0]!.x = at;
+      this.cloudImages[i]![1]!.x = at - BASE_WIDTH;
+    });
+    this.mountains.tilePositionX = parallaxOffset(this.scrollX, BACKDROP.mountainFactor) * ART_SCALE;
   }
 
   /** One fixed simulation step with the given input. */

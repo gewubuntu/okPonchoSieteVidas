@@ -51,9 +51,10 @@ test('GDD-UI-02 the HUD, and on touch the pause button, stay on top of the dim l
   await started(page);
   const spots = [floorTile, hudTriangle];
   if (isMobile) {
-    // In the left bar of the pause sign: the bars are about 0.12 of the button wide, either side of its centre.
+    // In the left bar of the pause sign: the bars are about 0.12 of the button wide, either side of its centre; and, in the button's
+    // box clear of the bars, the button's own shade over the backdrop (the box is see-through, so the backdrop's own dimming changes it).
     const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'pause')!;
-    spots.push({ x: b.x + b.w / 2 - b.w * 0.12, y: b.y + b.h / 2 });
+    spots.push({ x: b.x + b.w / 2 - b.w * 0.12, y: b.y + b.h / 2 }, { x: b.x + b.w * 0.2, y: b.y + b.h / 2 });
   }
   await frames(page);
   const lit = await pixelsAt(page, spots);
@@ -62,7 +63,11 @@ test('GDD-UI-02 the HUD, and on touch the pause button, stay on top of the dim l
   await frames(page);
   const dim = await pixelsAt(page, spots);
   expect(brightness(dim[0]!)).toBeLessThan(brightness(lit[0]!) / 2); // the level is dimmed
-  for (let i = 1; i < spots.length; i++) expect(brightness(dim[i]!), JSON.stringify(spots[i])).toBeGreaterThan(brightness(lit[i]!) * 0.9);
+  expect(brightness(dim[1]!), JSON.stringify(spots[1])).toBeGreaterThan(brightness(lit[1]!) * 0.9);
+  if (isMobile) {
+    // The bar stands out from the box beside it as much as before (more, as the dimmed backdrop is darker); under the dim layer it would stand out about a fifth as much.
+    expect(brightness(dim[2]!) - brightness(dim[3]!), JSON.stringify(spots[2])).toBeGreaterThan((brightness(lit[2]!) - brightness(lit[3]!)) * 0.9);
+  }
 });
 
 test('GDD-UI-02 P pauses and resumes too, and a click anywhere resumes', async ({ page, isMobile }) => {
@@ -95,16 +100,24 @@ test('GDD-UI-02 a pause key tapped inside one frame still pauses (L-006)', async
   await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
 });
 
-test('GDD-UI-02 every real press of P or Escape toggles the pause exactly once, and auto-repeat is no press (L-006)', async ({ page, isMobile }) => {
+// Phaser's Key 'down' event, which pause used before, fired a second time for some quick presses (measured: about one run in two of
+// 40 presses), toggling the pause straight back. Each press here must land. The 40 real presses are two tests of 20, each press taking
+// frames to land, so a test stays well inside its time where the frames are slow.
+for (const [first, last] of [[1, 20], [21, 40]] as const) {
+  test(`GDD-UI-02 every real press of P or Escape toggles the pause exactly once, presses ${first} to ${last} (L-006)`, async ({ page, isMobile }) => {
+    test.skip(isMobile, 'keyboard test');
+    await started(page);
+    for (let i = first; i <= last; i++) {
+      await page.keyboard.press(i % 3 === 0 ? 'Escape' : 'KeyP');
+      await page.waitForFunction((want) => window.__PONCHO__!.playerPause().paused === want, i % 2 === 1, { timeout: 2000 });
+    }
+    expect(await paused(page)).toBe(false);
+  });
+}
+
+test('GDD-UI-02 the key labelled P pauses on any layout, and auto-repeat is no press (L-006)', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await started(page);
-  // Phaser's Key 'down' event, which pause used before, fired a second time for some quick presses (measured: about one
-  // run in two of 40 presses), toggling the pause straight back. Each press here must land.
-  for (let i = 1; i <= 40; i++) {
-    await page.keyboard.press(i % 3 === 0 ? 'Escape' : 'KeyP');
-    await page.waitForFunction((want) => window.__PONCHO__!.playerPause().paused === want, i % 2 === 1, { timeout: 2000 });
-  }
-  expect(await paused(page)).toBe(false);
   // The key labelled P pauses on any layout: on Dvorak it sits where QWERTY has R (code KeyR, keyCode 80), and the key in
   // QWERTY's P position types L there (code KeyP, keyCode 76), which does not pause.
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyP', key: 'l', keyCode: 76, bubbles: true })));

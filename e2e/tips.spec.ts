@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot, openGame, start, tapAt } from './helpers';
+import { boot, openGame, start, stepUntil, tapAt } from './helpers';
 
 // GDD-UI-05: the tutorial tips of 0-1. These open the game at "/", which plays 0-1. Things are timed in simulation steps (L-042):
 // the game is paused with `pause(true)` and moved with `teleport` and `step`, except where the test is about real frames.
@@ -63,10 +63,13 @@ test('GDD-UI-05 the Alacrán tip goes for good once it is defeated', async ({ pa
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.pause(true));
   // Drop onto the first Alacrán from above until it is defeated (the stomp).
-  for (let i = 0; i < 40 && (await api(page, () => window.__PONCHO__!.enemies()[0]!.alive)); i++) {
-    if (i % 12 === 0) await page.evaluate(() => window.__PONCHO__!.teleport(window.__PONCHO__!.enemies()[0]!.x + 3, 200));
-    await page.evaluate(() => window.__PONCHO__!.step(1));
-  }
+  await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    for (let i = 0; i < 40 && d.enemies()[0]!.alive; i++) {
+      if (i % 12 === 0) d.teleport(d.enemies()[0]!.x + 3, 200);
+      d.step(1);
+    }
+  });
   expect(await api(page, () => window.__PONCHO__!.enemies()[0]!.alive)).toBe(false);
   await page.evaluate(() => window.__PONCHO__!.teleport(470, 224));
   await page.evaluate(() => window.__PONCHO__!.step(20));
@@ -74,7 +77,7 @@ test('GDD-UI-05 the Alacrán tip goes for good once it is defeated', async ({ pa
   expect((await api(page, () => window.__PONCHO__!.tipsDone()))[4]).toBe(true);
   // A lost life, in the first 3-tile gap: the Alacrán is alive again, and the tip stays gone.
   await page.evaluate(() => window.__PONCHO__!.teleport(872, 230));
-  for (let i = 0; i < 100 && (await api(page, () => window.__PONCHO__!.phase())) !== 'respawning'; i++) await page.evaluate(() => window.__PONCHO__!.step(1));
+  await stepUntil(page, { phase: 'respawning' }, 100);
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('respawning');
   await page.evaluate(() => window.__PONCHO__!.step(48));
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('playing');
@@ -107,20 +110,27 @@ test('GDD-UI-05 the Alacrán tip goes for good once it is defeated', async ({ pa
 test('GDD-UI-05 the tip fades while the game runs', async ({ page }) => {
   await boot(page, '/');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
-  // Real frames, nothing paused (L-021): from tip 1's stretch to tip 3's, on the floor between the two gaps.
-  await page.evaluate(() => window.__PONCHO__!.teleport(290, 224));
-  const seen = await page.evaluate(async () => {
-    const alphas = new Set<number>();
-    for (let i = 0; i < 60; i++) {
+  // Real frames, nothing paused (L-021): from tip 1's stretch to tip 3's, on the floor between the two gaps. The teleport and the
+  // sampling are one task, so the first frame sampled is the first after the teleport. Each sample is the steps run so far and the tip's
+  // opacity as drawn, so what is checked is how the picture follows the steps (a frame takes up to 5 of them), not how many frames come.
+  const samples = await page.evaluate(async () => {
+    const d = window.__PONCHO__!;
+    d.teleport(290, 224);
+    const seen: { ticks: number; alpha: number }[] = [];
+    for (let i = 0; i < 200 && seen.at(-1)?.alpha !== 1; i++) {
       await new Promise((r) => requestAnimationFrame(r));
-      const t = window.__PONCHO__!.tip();
-      if (t.index === 2) alphas.add(t.alpha);
+      const t = d.tip();
+      if (t.index === 2) seen.push({ ticks: d.ticks(), alpha: t.alpha });
     }
-    return [...alphas];
+    return seen;
   });
-  expect(seen.length).toBeGreaterThanOrEqual(3);
-  expect(Math.max(...seen)).toBe(1);
-  expect(Math.min(...seen)).toBeLessThan(1);
+  expect(samples.length).toBeGreaterThanOrEqual(3); // 12 steps of fade, at most 5 a frame
+  expect(samples[0]!.alpha).toBeLessThan(1);
+  expect(samples.at(-1)!.alpha).toBe(1);
+  // The fade is 1/12 a step from the step the tip became the one shown: every sample's opacity is the steps since then over 12, up to 1.
+  const began = samples[0]!.ticks - samples[0]!.alpha * 12;
+  for (const s of samples) expect(s.alpha, JSON.stringify(s)).toBeCloseTo(Math.min(1, (s.ticks - began) / 12), 6);
+  expect(new Set(samples.map((s) => s.alpha)).size).toBeGreaterThanOrEqual(3);
 });
 
 test('GDD-UI-05 the tutorial draws no placeholder lines and the sandbox does', async ({ page }) => {

@@ -25,15 +25,21 @@ test('GDD-CMB-03 spikes do not hurt while Poncho is invulnerable', async ({ page
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('playing');
 });
 
-test('GDD-WLD-05 a jump from the second ofrenda over the spikes onto the wall does not cost a life', async ({ page, isMobile }) => {
-  test.skip(isMobile, 'keyboard test');
+test('GDD-WLD-05 a jump from the second ofrenda over the spikes onto the wall does not cost a life', async ({ page }) => {
   await boot(page);
-  await page.evaluate(() => window.__PONCHO__!.teleport(312, 224)); // at the second ofrenda, 8 px from the spikes
-  await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
-  await page.keyboard.down('ArrowRight');
-  await page.keyboard.down('Space');
-  await page.waitForFunction(() => window.__PONCHO__!.state().x > 360);
-  await page.keyboard.up('Space');
-  await page.keyboard.up('ArrowRight');
-  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  // Stepped by hand with right and jump held (the keys' real presses are tested in subframe.spec.ts), so it does not depend on the frame rate.
+  const reached = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    d.pause(true);
+    d.teleport(312, 224); // at the second ofrenda, 8 px from the spikes
+    d.step(2);
+    let n = 0;
+    while (n < 120 && d.state().x <= 360) {
+      d.step(1, { move: 1, jumpHeld: true });
+      n++;
+    }
+    return { steps: n, x: d.state().x, lives: d.lives() };
+  });
+  expect(reached.x).toBeGreaterThan(360);
+  expect(reached.lives).toBe(7);
 });

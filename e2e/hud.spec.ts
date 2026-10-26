@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { boot, pixelsAt, red } from './helpers';
+import { boot, pixelsAt } from './helpers';
+
+type Colour = { r: number; g: number; b: number };
+/** How far two pixels are apart, summing the channels' differences. The level's backdrop is the desert sky (GDD-ART-06), so the HUD is told from it by this, not by a colour of its own. */
+const apart = (a: Colour, b: Colour) => Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
 
 test('GDD-UI-01 the HUD starts with seven filled triangles', async ({ page }) => {
   const errors = await boot(page);
@@ -89,27 +93,30 @@ test('GDD-LIFE-02 the HUD really draws the fade and the crack: red fill, then a 
     window.__PONCHO__!.pause(true);
     window.__PONCHO__!.loseLife(); // the seventh triangle (index 6) cracks; it spans x 86 to 96, y 8 to 17 in virtual px
   });
-  // A spot in the fill away from the crack, and a spot on the crack line (the middle of its second segment).
+  // A spot in the fill away from the crack, and a spot on the crack line (the middle of its second segment), and the sky in the same band
+  // just right of the lives, which is what the spot shows once the fill is gone.
   const fill = { x: 93, y: 15.5 };
   const crack = { x: 90.9, y: 12.3 };
+  const sky = { x: 108, y: 15.5 };
 
-  const [start] = await pixelsAt(page, [fill]);
-  expect(red(start!)).toBeGreaterThan(90); // step 0: the full red fill is drawn
+  const [start, sky0] = await pixelsAt(page, [fill, sky]);
+  expect(apart(start!, sky0!)).toBeGreaterThan(100); // step 0: the full red fill is drawn (185 72 66 against the sky's 227 154 72)
 
   await page.evaluate(() => window.__PONCHO__!.step(5));
   const [early, earlyCrack] = await pixelsAt(page, [fill, crack]);
   expect(earlyCrack!.g).toBeGreaterThan(150); // step 5: the pale crack line is drawn across the fill
-  expect(red(early!)).toBeLessThan(red(start!)); // and the fill has started to fade
+  expect(earlyCrack!.b).toBeGreaterThan(sky0!.b + 60); // and it is the pale cream (255 243 220), not the sky's gold
+  expect(apart(early!, sky0!)).toBeLessThan(apart(start!, sky0!)); // and the fill has started to fade
 
   await page.evaluate(() => window.__PONCHO__!.step(7));
   const [middle] = await pixelsAt(page, [fill]);
-  expect(red(middle!)).toBeLessThan(red(early!)); // step 12: about half faded, so it is between full and gone
-  expect(red(middle!)).toBeGreaterThan(20);
+  expect(apart(middle!, sky0!)).toBeLessThan(apart(early!, sky0!)); // step 12: about half faded, so it is between full and gone
+  expect(apart(middle!, sky0!)).toBeGreaterThan(20);
 
   await page.evaluate(() => window.__PONCHO__!.step(12));
   const [done, doneCrack] = await pixelsAt(page, [fill, crack]);
-  expect(red(done!)).toBeLessThan(20); // step 24: the fill is gone, only the outline of a lost life is left
-  expect(doneCrack!.g).toBeLessThan(120); // and the crack line is gone too
+  expect(apart(done!, sky0!)).toBeLessThan(20); // step 24: the fill is gone, only the outline of a lost life is left
+  expect(apart(doneCrack!, sky0!)).toBeLessThan(20); // and the crack line is gone too
 });
 
 test('GDD-LIFE-04 with one life left the last triangle pulses, drawn larger at the peak; not with two', async ({ page }) => {
@@ -121,11 +128,12 @@ test('GDD-LIFE-04 with one life left the last triangle pulses, drawn larger at t
   expect(await page.evaluate(() => window.__PONCHO__!.hudPulse())).toBeNull(); // two lives
   await page.evaluate(() => window.__PONCHO__!.loseLife());
   // The first triangle spans x 8 to 18, y 8 to 17; at 1.4x it reaches x 6 to 20, y 5.6 to 18.2. Count the pixels that are
-  // not background in a box around it, at the smallest and the largest point of a pulse.
+  // not sky in a box around it, at the smallest and the largest point of a pulse.
   const box = Array.from({ length: 16 * 18 }, (_, i) => ({ x: 4 + (i % 16), y: 4 + Math.floor(i / 16) }));
+  const [sky] = await pixelsAt(page, [{ x: 2, y: 12 }]); // the sky in this band, left of the lives
   const lit = async () => {
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
-    return (await pixelsAt(page, box)).filter((c) => c.r > 70).length;
+    return (await pixelsAt(page, box)).filter((c) => apart(c, sky!) > 40).length;
   };
   const scaleNow = () => page.evaluate(() => window.__PONCHO__!.hudPulse());
   let small = -1;

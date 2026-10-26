@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { boot, pixelsAt } from './helpers';
+import { boot, pixelsAt, stepUntil } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
@@ -49,11 +49,11 @@ test('GDD-MOV-08 sliding down the pit wall loses the life, and the respawn flip 
   await page.evaluate(() => window.__PONCHO__!.pause(true));
   // The pit is x 224 to 272; its left side is solid from y = 224 down, so flush against it his feet are at x = 230.
   await page.evaluate(() => window.__PONCHO__!.teleport(230, 232));
-  for (let i = 0; i < 300 && (await api(page, () => window.__PONCHO__!.phase())) === 'playing'; i++) await step(page, 1, toward);
+  await stepUntil(page, { phaseNot: 'playing' }, 300, toward);
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('respawning');
   expect(await api(page, () => window.__PONCHO__!.state().clinging)).toBe(true); // he was clinging when the life was lost
   // Nothing held, so the wait is not skipped (GDD-LIFE-02) and the flip plays.
-  for (let i = 0; i < 60 && !(await api(page, () => window.__PONCHO__!.bodyVisible())); i++) await step(page, 1, idle);
+  await stepUntil(page, { bodyVisible: true }, 60, idle);
   await frames(page);
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('respawning');
   expect(await api(page, () => window.__PONCHO__!.bodyVisible())).toBe(true);

@@ -67,7 +67,7 @@ test('GDD-PWR-03 only in Fuego: a press in Taco spits nothing', async ({ page })
 
 type Colour = { r: number; g: number; b: number };
 const orange = (c: Colour) => c.r > 200 && c.g > 60 && c.g < 140 && c.b < 90; // the fireball's ring, 232 96 45
-const gold = (c: Colour) => c.r > 200 && c.g > 150 && c.b < 110; // the key, 242 194 48
+const gold = (c: Colour) => Math.abs(c.r - 242) < 30 && Math.abs(c.g - 194) < 30 && Math.abs(c.b - 48) < 30; // the key, 242 194 48 (not the golden sky, 227 154 72)
 const red = (c: Colour) => c.r > 170 && c.g < 90 && c.b < 80; // the chile's red, 209 40 28
 /** A few points around a spot, so a pixel that lands on an edge of a small shape still finds it. */
 const around = (x: number, y: number) => [-1, 0, 1].flatMap((dx) => [-1, 0, 1].map((dy) => ({ x: x + dx, y: y + dy })));
