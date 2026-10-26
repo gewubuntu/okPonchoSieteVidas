@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot, pixelsAt } from './helpers';
+import { boot, pixelsAt, stepUntil } from './helpers';
 
 const FLOOR = 224; // the sandbox floor, and the level start is at x = 56
 const pose = (page: Page) => page.evaluate(() => ({ ...window.__PONCHO__!.bodyPose(), visible: window.__PONCHO__!.bodyVisible() }));
@@ -18,7 +18,7 @@ async function fallIntoPit(page: Page) {
     window.__PONCHO__!.pause(true);
     window.__PONCHO__!.teleport(248, 150); // above the pit
   });
-  for (let i = 0; i < 200 && (await page.evaluate(() => window.__PONCHO__!.phase())) !== 'respawning'; i++) await step(page, 1);
+  await stepUntil(page, { phase: 'respawning' }, 200);
   expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('respawning');
 }
 
@@ -100,7 +100,7 @@ test('GDD-LIFE-02 the flip lands at the latest ofrenda, not the level start', as
   await step(page, 2);
   expect(await page.evaluate(() => window.__PONCHO__!.checkpoint())).toMatchObject({ x: 312, y: FLOOR });
   await page.evaluate(() => window.__PONCHO__!.teleport(248, 150)); // ...then fall into the pit
-  for (let i = 0; i < 200 && (await page.evaluate(() => window.__PONCHO__!.phase())) !== 'respawning'; i++) await step(page, 1);
+  await stepUntil(page, { phase: 'respawning' }, 200);
   await step(page, 27 + 10); // in the middle of the flip
   const middle = await pose(page);
   expect(middle.visible).toBe(true);
@@ -119,12 +119,14 @@ test('GDD-LIFE-05 after the last life there is no flip until the screen is done,
   expect(await page.evaluate(() => window.__PONCHO__!.checkpoint())).toMatchObject({ x: 312 });
   for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife()); // ...but only one life is left
   await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
-  for (let i = 0; i < 200 && (await page.evaluate(() => window.__PONCHO__!.phase())) !== 'respawning'; i++) await step(page, 1);
+  await stepUntil(page, { phase: 'respawning' }, 200);
   expect(await page.evaluate(() => window.__PONCHO__!.lives())).toBe(0);
-  for (let i = 0; i < 47; i++) {
-    await step(page, 1); // through the whole wait, where a respawn would flip in
-    expect((await pose(page)).visible).toBe(false);
-  }
+  // Through the whole wait, where a respawn would flip in: his body is hidden after each of the 47 steps (read in the page, one round trip).
+  const shown = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    return Array.from({ length: 47 }, () => (d.step(1), d.bodyVisible()));
+  });
+  expect(shown).toEqual(Array.from({ length: 47 }, () => false));
   await step(page, 1);
   expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('gameover');
   await step(page, 60); // the screen's first second

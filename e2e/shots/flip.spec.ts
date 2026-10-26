@@ -1,7 +1,7 @@
 // Screenshots of the respawn flip for visual review. Run with `npm run shots`; images land in shots/.
 // The game is paused and stepped by an exact number of steps, so the pictures do not depend on timing.
 import { test, type Page, type TestInfo } from '@playwright/test';
-import { boot } from '../helpers';
+import { boot, stepUntil } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
   await page.waitForTimeout(150); // let the paused frame render
@@ -15,9 +15,7 @@ test('GDD-LIFE-02 and GDD-MOV-05 respawn flip: hidden, drops in, upside down, la
     window.__PONCHO__!.pause(true);
     window.__PONCHO__!.teleport(248, 150); // above the pit
   });
-  for (let i = 0; i < 200 && (await page.evaluate(() => window.__PONCHO__!.phase())) !== 'respawning'; i++) {
-    await page.evaluate(() => window.__PONCHO__!.step(1));
-  }
+  await stepUntil(page, { phase: 'respawning' }, 200);
   // 48 steps of the wait left now. Each pair is the picture name and how many steps to advance to reach it.
   let done = 0;
   for (const [name, at] of [

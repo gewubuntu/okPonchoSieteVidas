@@ -72,15 +72,16 @@ test('GDD-UI-02 the veil dims the level and the HUD, and Poncho stands on it in 
   expect(Math.abs(ponchoDim!.r - 0x3f) <= 24 && Math.abs(ponchoDim!.g - 0x66) <= 24 && Math.abs(ponchoDim!.b - 0xb1) <= 24, JSON.stringify(ponchoDim)).toBe(true);
 });
 
-test('GDD-UI-02 each game key starts the level', async ({ page, isMobile }) => {
-  test.skip(isMobile, 'keyboard test');
-  // Space and Z pick Start; the others are game buttons (claw, Fuego, Left, Right) whose new press starts it.
-  for (const key of ['Space', 'KeyZ', 'Enter', 'ArrowLeft', 'ArrowRight', 'KeyX', 'KeyC', 'KeyA', 'KeyD', 'KeyJ', 'KeyK']) {
+// Space and Z pick Start; the others are game buttons (claw, Fuego, Left, Right) whose new press starts it. One test a key, each opening
+// the game once, so a test stays well inside its time where the frames are slow.
+for (const key of ['Space', 'KeyZ', 'Enter', 'ArrowLeft', 'ArrowRight', 'KeyX', 'KeyC', 'KeyA', 'KeyD', 'KeyJ', 'KeyK']) {
+  test(`GDD-UI-02 the game key ${key} starts the level`, async ({ page, isMobile }) => {
+    test.skip(isMobile, 'keyboard test');
     await openGame(page);
     await page.keyboard.press(key);
     await titleHidden(page);
-  }
-});
+  });
+}
 
 test('GDD-UI-02 Up and W choose, they do not start the level', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');

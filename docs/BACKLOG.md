@@ -60,7 +60,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-ART-03 | todo |  |
 | GDD-ART-04 | doing | standing frame and four run frames in the game (src/ui/ponchoAnim.ts); jump, fall, skid, land and the rest pending |
 | GDD-ART-05 | todo |  |
-| GDD-ART-06 | todo |  |
+| GDD-ART-06 | doing | World 1 backdrop and ground tiles in progress |
 | GDD-ART-07 | todo |  |
 | GDD-TEC-01 | done | scaffold on latest stable: Phaser 4, TS 7, Vite 8, Vitest 5, Playwright, Oxlint |
 | GDD-TEC-02 | done | src/sim/fixedStep.ts, sim has no Phaser imports |

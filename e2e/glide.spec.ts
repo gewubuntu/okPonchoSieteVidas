@@ -89,12 +89,13 @@ test('GDD-MOV-07 holding the touch Jump button glides too', async ({ page, isMob
   test.skip(!isMobile, 'touch device only');
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
-  // The slow setup comes before he is dropped, so the finger is down within his fall however slow the frames are (L-042).
+  // The slow setup comes before he is dropped (L-042).
   const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'jump')!;
   const box = (await page.locator('canvas').boundingBox())!;
   const k = box.width / 480;
   const cdp = await page.context().newCDPSession(page);
-  await page.evaluate((p) => window.__PONCHO__!.teleport(p.x, p.y), DROP);
+  // From high above the level, so the fall lasts seconds and the finger, which takes a round trip to go down, is down well before he lands.
+  await page.evaluate((p) => window.__PONCHO__!.teleport(p.x, p.y), { x: DROP.x, y: -1500 });
   await fingers(cdp, 'touchStart', [{ x: box.x + (b.x + b.w / 2) * k, y: box.y + (b.y + b.h / 2) * k, id: 1 }]);
   await page.waitForFunction(() => window.__PONCHO__!.glideDrawn() && window.__PONCHO__!.state().vy === 70);
   await fingers(cdp, 'touchEnd', []);

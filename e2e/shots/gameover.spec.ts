@@ -1,6 +1,6 @@
 // Screenshots of the Siete vidas gastadas screen for visual review. Run with `npm run shots`; images land in shots/ (not committed).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { boot } from '../helpers';
+import { boot, stepUntil } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
   await page.waitForTimeout(150); // let the paused frame render
@@ -15,7 +15,7 @@ test('GDD-LIFE-05 gameover: the screen, its prompt, and the restart flip', async
   await page.evaluate(() => window.__PONCHO__!.pause(true));
   for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
   await page.evaluate(() => window.__PONCHO__!.teleport(248, 150)); // into the pit with the last life
-  for (let i = 0; i < 200 && (await phase(page)) !== 'gameover'; i++) await step(page, 1);
+  await stepUntil(page, { phase: 'gameover' }, 200);
   await step(page, 10);
   expect(await page.evaluate(() => window.__PONCHO__!.gameOverDrawn())).toMatchObject({ shown: true, prompt: false });
   await shot(page, info, 'gameover-screen');

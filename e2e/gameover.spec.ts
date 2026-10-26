@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot, pixelsAt } from './helpers';
+import { boot, pixelsAt, stepUntil } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
@@ -22,7 +22,7 @@ async function lastLife(page: Page): Promise<void> {
   await page.evaluate(() => window.__PONCHO__!.pause(true));
   for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
   await page.evaluate(() => window.__PONCHO__!.teleport(248, 150));
-  for (let i = 0; i < 200 && (await api(page, () => window.__PONCHO__!.phase())) !== 'respawning'; i++) await step(page, 1);
+  await stepUntil(page, { phase: 'respawning' }, 200);
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(0);
 }
 

@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import type { PonchoDebug } from '../src/scenes/PlayScene';
+import type { RunState } from '../src/sim/run';
 
 declare global {
   interface Window {
@@ -84,4 +85,28 @@ export async function start(page: Page, isMobile: boolean, path = '/'): Promise<
   if (isMobile) await tapAt(page, 240, 60, true);
   else await page.keyboard.press('Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
+}
+
+/** What `stepUntil` waits for, checked before each step: the phase reached, the phase left, or Poncho's body drawn. */
+export type StepGoal = { phase: RunState['phase'] } | { phaseNot: RunState['phase'] } | { bodyVisible: true };
+
+/**
+ * Steps the paused game one step at a time, in the page, until `goal` holds (checked before each step) or `max` steps have run, and
+ * returns how many it took. One round trip however slow the frames are (L-042): a loop of one `step(1)` call per step, each with a read
+ * of the state between, takes a round trip each and times out where the frames are slow. The caller checks the goal was reached.
+ */
+export function stepUntil(page: Page, goal: StepGoal, max: number, input: { move: number; jumpHeld: boolean } = { move: 0, jumpHeld: false }): Promise<number> {
+  return page.evaluate(
+    ({ goal: g, max: limit, input: held }) => {
+      const d = window.__PONCHO__!;
+      const reached = () => ('phase' in g ? d.phase() === g.phase : 'phaseNot' in g ? d.phase() !== g.phaseNot : d.bodyVisible());
+      let n = 0;
+      while (n < limit && !reached()) {
+        d.step(1, held);
+        n++;
+      }
+      return n;
+    },
+    { goal, max, input },
+  );
 }

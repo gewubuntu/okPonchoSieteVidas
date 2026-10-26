@@ -7,7 +7,11 @@ const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
 type Colour = { r: number; g: number; b: number };
 const pale = (c: Colour) => c.r > 200 && c.g > 200 && c.b > 170; // the claw's cream, 255 243 220
-const dark = (c: Colour) => c.r < 60 && c.g < 60 && c.b < 90; // the sandbox sky
+/** Whether two pixels are the same colour, give or take a little for the phone's scaling. */
+const same = (a: Colour, b: Colour) => Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b) < 30;
+/** The desert backdrop's colours that can show where a tile was taken away (GDD-ART-06): the mountains and the sky, within 12 per channel. */
+const BACKDROP = ['#8E6A96', '#A65B5B', '#4D5A9C', '#3A4580', '#E39A48', '#EDB15A', '#F4C66E', '#F9DA8E'];
+const backdrop = (c: Colour) => BACKDROP.some((h) => [1, 3, 5].every((i, k) => Math.abs([c.r, c.g, c.b][k]! - parseInt(h.slice(i, i + 2), 16)) <= 12));
 const pink = (c: Colour) => c.r > 190 && c.g < 120 && c.b > 100; // the papel picado, 224 80 138
 
 /** Poncho in the empty sky at (300, 100), so nothing else is drawn near him. */
@@ -57,9 +61,14 @@ for (const dir of [1, -1] as const) {
     // Behind him only the slashes' mirror positions that lie clear of his sprite, which is 32 px wide (GDD-ART-02): 17 and 23 px out.
     const behindMids = mids.slice(1).map((m) => ({ x: x - (m.x - x), y: m.y }));
     const front = await Promise.all(mids.map(async (m) => (await pixelsAt(page, around(m))).some(pale)));
-    const behind = await Promise.all(behindMids.map(async (m) => (await pixelsAt(page, around(m))).every(dark)));
+    const behind = await Promise.all(behindMids.map((m) => pixelsAt(page, around(m))));
     expect(front).toEqual([true, true, true]);
-    expect(behind).toEqual([true, true]);
+    // The swing over, the same spots show what is there without it (the sky; GDD-ART-06): nothing was drawn behind him.
+    await page.evaluate(() => window.__PONCHO__!.step(30));
+    await page.waitForFunction(() => window.__PONCHO__!.clawDrawn() === 'none');
+    await frames(page);
+    const without = await Promise.all(behindMids.map((m) => pixelsAt(page, around(m))));
+    expect(behind.map((spot, i) => spot.every((c, j) => same(c, without[i]![j]!)))).toEqual([true, true]);
   });
 }
 
@@ -81,8 +90,8 @@ test('GDD-WLD-05 a broken fragile tile disappears from the picture, and the othe
   await frames(page);
   const after = await pixelsAt(page, rows);
   expect(after.map(pink)).toEqual([true, true, false, false]); // the 32 px claw broke the bottom two tiles
-  expect(dark(after[2]!)).toBe(true);
-  expect(dark(after[3]!)).toBe(true);
+  expect(backdrop(after[2]!), JSON.stringify(after[2])).toBe(true); // where they were, the backdrop shows
+  expect(backdrop(after[3]!), JSON.stringify(after[3])).toBe(true);
 });
 
 test('GDD-CTL-03 the Claw button has its three claw marks drawn', async ({ page, isMobile }) => {

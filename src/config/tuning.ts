@@ -270,3 +270,31 @@ export const SFX = { landMinSpeed: 60, hiloWindowSteps: Math.round(0.75 * TICK_H
  * text, wrapped at `wrapPx`.
  */
 export const TIPS = { fadeSteps: Math.round(0.2 * TICK_HZ), pulseSteps: Math.round(0.8 * TICK_HZ), growPx: 2, bobPx: 2, marginPx: 2, dashPx: 4, gapPx: 3, arrowPx: 6, arrowGapPx: 6, boxTop: 26, boxPad: 4, wrapPx: 280 } as const;
+
+/**
+ * GDD-ART-06: World 1's backdrop. The clouds scroll at `cloudFactor` of the camera's scroll and the mountains at `mountainFactor`; the
+ * sun's centre and size (game px, on the screen) and the rows the layers sit in (game px from the screen's top).
+ */
+export const BACKDROP = { cloudFactor: 0.1, mountainFactor: 0.3, sunX: 104, sunY: 36, sunSize: 24, cloudTop: 16, cloudBottom: 88, mountainTop: 92 } as const;
+
+/**
+ * GDD-ART-06: how the backdrop is put together from `scripts/art/desert.mjs` (the numbers are checked against it in
+ * `scripts/art/desert.test.mjs`). The sky's first three bands are drawn as flat colours, each ending `skyEnds` art px from the top (its
+ * dither strip, `stripArt` px tall, is a small image over its last rows); the horizon band is the camera's background colour. The sun's
+ * image reaches `sunHalf` game px from its centre. Each cloud is an image at `clouds` (game px in the cloud layer, with its size). The
+ * mountains' ridge band is `mountainBandArt` art px tall, and below it the foot is drawn flat in `footColour`.
+ */
+export const BACKDROP_ART = {
+  skyBands: [0xe39a48, 0xedb15a, 0xf4c66e, 0xf9da8e],
+  skyEnds: [200, 340, 480],
+  stripArt: 2,
+  sunHalf: 19,
+  clouds: [
+    { x: 38, y: 55 },
+    { x: 140, y: 21 },
+    { x: 272, y: 17 },
+    { x: 402, y: 61 },
+  ],
+  mountainBandArt: 488,
+  footColour: 0x3a4580,
+} as const;
