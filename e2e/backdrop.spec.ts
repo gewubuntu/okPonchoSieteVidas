@@ -82,6 +82,9 @@ test('GDD-ART-06 sky and ground are drawn', async ({ page, isMobile }) => {
   expect(near(peak!, '#8E6A96'), `peak ${JSON.stringify(peak)}`).toBe(true);
   expect(near(clouds!, '#FFF4DC'), `cloud ${JSON.stringify(clouds)}`).toBe(true); // the small cloud's cream top, in front of the sky
 
+  // Where the fixed parts stand (GDD-ART-06): the sun's centre at (104, 36), the mountains from y = 92, their flat foot from y = 92 + 122 (art row 488).
+  expect(await page.evaluate(() => window.__PONCHO__!.backdropLayout())).toEqual({ sunX: 104, sunY: 36, mountainsY: 92, footY: 214 });
+
   // Ground: the grass strip along the floor's top (row 14 from y 224, grass 3 px deep) and the earth two rows down (row 16 from y 256).
   expect([0, 1]).toContain(await page.evaluate(() => window.__PONCHO__!.groundFrame(5, 14)));
   expect([2, 3]).toContain(await page.evaluate(() => window.__PONCHO__!.groundFrame(5, 15)));

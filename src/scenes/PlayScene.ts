@@ -133,6 +133,8 @@ export interface PonchoDebug {
    * where the first cloud's image stands against its place at the start, the mountains from the layer's `tilePositionX / ART_SCALE`.
    */
   backdrop(): { clouds: number; mountains: number };
+  /** Where the backdrop's fixed parts are drawn (GDD-ART-06), in game px on the screen, read from the drawn objects: the sun's centre, the top of the mountains' ridge band and of its flat foot. */
+  backdropLayout(): { sunX: number; sunY: number; mountainsY: number; footY: number };
   /** The frame of the ground sheet drawn at tile (tx, ty), or null where no ground image is (GDD-ART-06). Read from the drawn image. */
   groundFrame(tx: number, ty: number): number | null;
   /**
@@ -426,6 +428,8 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-ART-06: each cloud's two images (it and its copy one screen to the left, so it wraps), the mountains' layer and the ground images by tile (`"tx,ty"`). */
   private cloudImages: Phaser.GameObjects.Image[][] = [];
   private mountains!: Phaser.GameObjects.TileSprite;
+  private sun!: Phaser.GameObjects.Image;
+  private mountainFoot!: Phaser.GameObjects.Rectangle;
   private readonly groundImages = new Map<string, Phaser.GameObjects.Image>();
   /** GDD-LIFE-03: the veladora's graphics, whether it was last drawn as used, and whether it is painted. GDD-WLD-03: whether the exit is. */
   private veladoraGfx!: Phaser.GameObjects.Graphics;
@@ -726,6 +730,7 @@ export class PlayScene extends Phaser.Scene {
         level: () => entry.id,
         camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x }),
         backdrop: () => ({ clouds: (((BACKDROP_ART.clouds[0].x - this.cloudImages[0]![0]!.x) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH, mountains: this.mountains.tilePositionX / ART_SCALE }),
+        backdropLayout: () => ({ sunX: this.sun.x + BACKDROP_ART.sunHalf, sunY: this.sun.y + BACKDROP_ART.sunHalf, mountainsY: this.mountains.y, footY: this.mountainFoot.y }),
         groundFrame: (tx, ty) => {
           const image = this.groundImages.get(`${tx},${ty}`);
           return image === undefined ? null : Number(image.frame.name);
@@ -889,13 +894,13 @@ export class PlayScene extends Phaser.Scene {
       top = end;
       this.add.image(0, (end - stripArt) * art, 'sky-strips', i).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3.5);
     });
-    this.add.image(BACKDROP.sunX - BACKDROP_ART.sunHalf, BACKDROP.sunY - BACKDROP_ART.sunHalf, 'sun').setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3);
+    this.sun = this.add.image(BACKDROP.sunX - BACKDROP_ART.sunHalf, BACKDROP.sunY - BACKDROP_ART.sunHalf, 'sun').setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3);
     this.cloudImages = BACKDROP_ART.clouds.map(({ x, y }, i) =>
       [x, x - BASE_WIDTH].map((at) => this.add.image(at, y, `cloud-${i}`).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-2)),
     );
     this.mountains = this.add.tileSprite(0, BACKDROP.mountainTop, BASE_WIDTH * ART_SCALE, BACKDROP_ART.mountainBandArt, 'mountains').setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-1);
     const foot = BACKDROP.mountainTop + BACKDROP_ART.mountainBandArt * art;
-    this.add.rectangle(0, foot, BASE_WIDTH, BASE_HEIGHT - foot, BACKDROP_ART.footColour).setOrigin(0).setScrollFactor(0).setDepth(-1);
+    this.mountainFoot = this.add.rectangle(0, foot, BASE_WIDTH, BASE_HEIGHT - foot, BACKDROP_ART.footColour).setOrigin(0).setScrollFactor(0).setDepth(-1);
   }
 
   /** World 1's ground (GDD-ART-06): one image of the ground sheet per solid tile, a top tile or an earth tile, a version each. */

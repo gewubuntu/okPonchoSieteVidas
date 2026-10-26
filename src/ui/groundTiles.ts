@@ -6,7 +6,7 @@ export const EARTH_FRAME = 2;
 
 /**
  * The frame for the solid tile at (`tx`, `ty`): a top tile when no solid tile lies directly above it (or it is in the level's top
- * row), else an earth tile; the version is (7 x column + 3 x row) mod 2, so neighbours differ without a pattern.
+ * row), else an earth tile; the version is (7 x column + 3 x row) mod 2, which alternates like a checkerboard, so neighbours differ.
  */
 export function groundFrame(solid: (tx: number, ty: number) => boolean, tx: number, ty: number): number {
   const top = ty === 0 || !solid(tx, ty - 1);
