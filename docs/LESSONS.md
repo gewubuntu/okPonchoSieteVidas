@@ -422,3 +422,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** Before merging, check that the `pr-reviewer` has posted its review on the current head. If it is still running when the user says merge, say so and ask whether to wait; merge without it only when the user says so knowing that.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-044 A bigger body box broke a level route and no test noticed
+
+- **Date:** 2026-10-26
+- **What went wrong:** PR #52 grew the body box to 32 px. The Alacrán's platform and the piñata beside it then made one ceiling 48 px above the floor, and on foot Poncho could no longer climb the 2-tile wall from the left. No test or check failed; the dead end was found by looking at the level and was fixed a PR later (PR #53).
+- **Root cause:** The level validator (GDD-TEC-04) checks spacing (enemies near respawns), not reachability, and the sandbox tests only covered single spots (a jump at a piñata, the pit hilo), not the route from the spawn through the level.
+- **Rule:** A change to the body box, the jump or other movement numbers re-checks every level's main route on foot. The sandbox's route from the spawn past the door and up the 2-tile wall is a test in `src/levels/sandbox.test.ts`; extend it as the route goes further, and add a route test for each new level.
+- **Recurrence:** 1
+- **Promoted:** no

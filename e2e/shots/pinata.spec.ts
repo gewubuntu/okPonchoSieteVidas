@@ -12,7 +12,10 @@ test('GDD-PWR-05 piñata: closed above Poncho, the bump, and the taco walking aw
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
   await page.evaluate(() => {
     window.__PONCHO__!.pause(true);
-    window.__PONCHO__!.teleport(152, 224);
+    window.__PONCHO__!.teleport(60, 224);
+    window.__PONCHO__!.step(2);
+    window.__PONCHO__!.step(90, { move: 1, jumpHeld: false }); // takes the key at column 5 and opens the door at column 8
+    window.__PONCHO__!.teleport(136, 224);
     window.__PONCHO__!.step(2);
   });
   await shot(page, info, 'pinata-closed');
