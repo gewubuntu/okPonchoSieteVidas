@@ -90,7 +90,9 @@ export class TouchControls {
       if (hit.has('left')) this.leftLatch.press();
       if (hit.has('right')) this.rightLatch.press();
     });
+    // A scene removed for the next level is destroyed without a shutdown (GDD-UI-02), so both events unhook it.
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off(Phaser.Scale.Events.RESIZE, onResize));
+    scene.events.once(Phaser.Scenes.Events.DESTROY, () => scene.scale.off(Phaser.Scale.Events.RESIZE, onResize));
   }
 
   /** What the fingers on the screen press now, as the same input the keyboard gives. Nothing while the buttons are hidden. */

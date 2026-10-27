@@ -175,3 +175,24 @@ test('GDD-UI-02 a finger held on the touch Jump button from the clear screen int
   expect(await topOver(page, 60)).toBe(224);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 });
+
+test('GDD-UI-02 a gamepad button held from the clear screen into 1-1 does not jump', async ({ page }) => {
+  // GDD-CTL-02: a fake standard pad, as in e2e/gamepad.spec.ts; south (button 0) jumps.
+  await page.addInitScript(() => {
+    const pad = { id: 'fake', index: 0, connected: true, mapping: 'standard', timestamp: 0, buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })), axes: [0, 0, 0, 0] };
+    window.__pad = pad; // typed by e2e/gamepad.spec.ts
+    Object.defineProperty(navigator, 'getGamepads', { value: () => [pad], configurable: true });
+  });
+  const south = (down: boolean) =>
+    page.evaluate((d) => {
+      const b = window.__pad!.buttons[0]!;
+      b.pressed = d;
+      b.value = d ? 1 : 0;
+    }, down);
+  await atExit(page);
+  await afterLockout(page);
+  await south(true);
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1');
+  expect(await topOver(page, 60)).toBe(224);
+  await south(false);
+});
