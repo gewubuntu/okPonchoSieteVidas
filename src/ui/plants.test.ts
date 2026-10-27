@@ -98,6 +98,35 @@ describe('GDD-ART-06 plants', () => {
     expect(cols(level(14, [[27, 11]]), 14)).toEqual([0, 8, 9, 17, 18, 26, 35, 36]);
   });
 
+  // Column 26 grows a cholla (kind 1), 20 px = 2 tiles; column 36 a palm yucca (kind 3), 36 px = 3 tiles.
+  it('GDD-ART-06 a solid tile 2 rows above the cholla (20 px is 2 tiles) removes it, and one 3 rows above does not', () => {
+    expect(cols(level(14, [[26, 12]]), 14)).not.toContain(26);
+    expect(cols(level(14, [[26, 11]]), 14)).toContain(26);
+  });
+
+  it('GDD-ART-06 a solid tile 3 rows above the palm yucca (36 px is 3 tiles) removes it', () => {
+    expect(cols(level(14, [[36, 11]]), 14)).not.toContain(36);
+    expect(cols(level(14, [[36, 10]]), 14)).toContain(36);
+  });
+
+  // GDD-ART-06: a plant never pokes into a wall or a platform, and fragile walls, crumbling tiles, piñatas and doors are not level tiles.
+  it('GDD-ART-06 a fragile wall tile 2 rows above the ocotillo removes it', () => {
+    expect(cols(level(14, [], { fragiles: [{ col: 27, row: 12 }] }), 14)).not.toContain(27);
+  });
+
+  it('GDD-ART-06 a crumbling tile 2 rows above the ocotillo removes it', () => {
+    expect(cols(level(14, [], { crumbles: [{ col: 27, row: 12 }] }), 14)).not.toContain(27);
+  });
+
+  it('GDD-ART-06 a pinata 3 rows above the ocotillo removes it', () => {
+    expect(cols(level(14, [], { pinatas: [{ col: 27, row: 11 }] }), 14)).not.toContain(27);
+  });
+
+  it('GDD-ART-06 a door tile 3 rows above the ocotillo removes it', () => {
+    expect(cols(level(14, [], { doors: [{ col: 27, row: 10, height: 2 }] }), 14)).not.toContain(27);
+    expect(cols(level(14, [], { doors: [{ col: 27, row: 9, height: 2 }] }), 14)).toContain(27);
+  });
+
   it('GDD-ART-06 a solid tile 4 rows above a tall plant does not remove it', () => {
     expect(cols(level(14, [[27, 10]]), 14)).toEqual([0, 8, 9, 17, 18, 26, 27, 35, 36]);
   });

@@ -149,8 +149,8 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** The GDD, a code comment, an e2e comment and the PR description said only the spring ledge and the moving platform put Poncho in the Zopilote's reach. It also reached the Alacrán's platform (89 px below its line, inside the 80 px trigger at the low end of its bob). The reviewer found it by running the sandbox level.
 - **Root cause:** I reasoned about the geometry from the floor and two obvious places and never ran the real level through the sim. A statement about the level is a claim the sim can check.
 - **Rule:** When the GDD or a comment says where something can or cannot happen in the sandbox level (reach, spotting, clearance from a respawn), put a test over the real level data (`src/levels/sandbox.test.ts`) that runs the sim and states it, and mutate the level numbers to see it fail.
-- **Recurrence:** 1
-- **Promoted:** src/levels/sandbox.test.ts (the Zopilote's reach)
+- **Recurrence:** 2
+- **Promoted:** src/levels/sandbox.test.ts (the Zopilote's reach); .claude/skills/harness-feature (step 5: a placement rule is run over every real level before it goes into the GDD or a plan). Second time (2026-10-27, GDD-ART-06): I wrote the plants' kind rule as (7 x column + row) mod 7 into the GDD and the plan without running it; a coefficient equal to the modulus cancels, so it was just row mod 7 and every plant on a row was the same kind, and 0-1 got 5 plants and the sandbox none. The rule was rerun over both levels and the counts (12 and 4) went into the GDD and a test.
 
 ## L-015 An e2e test picked an enemy out by where it is, and a new enemy matched
 
@@ -440,13 +440,3 @@ Prefer an automated check over a prose rule.
 - **Rule:** In a screenshot scenario, start the level the device's way (`start(page, isMobile)` in `e2e/helpers.ts`: a tap on a phone, Enter on a desktop), and reach a screen that shows a count (hilos, lives) after collecting some in play, so the picture shows a count a player could see. A new level gets a test that its pickups are collected in play.
 - **Recurrence:** 2
 - **Promoted:** .claude/skills/harness-playtest (Screenshots for visual review)
-
-## L-046 A placement formula in the GDD was written without running it on the real levels
-
-- **Date:** 2026-10-27
-- **What went wrong:** For World 1's plants (GDD-ART-06) I wrote the rule "the kind is (7 x column + row) mod 7" into the GDD and the plan. Since 7 x column is a multiple of 7, that is just row mod 7: every plant on one floor row was the same kind, and with the candidate rule (mod 13) 0-1 got 5 plants and the sandbox none. The implementer built it as written and only flagged it in its report.
-- **Root cause:** I chose the numbers by feel and checked neither the arithmetic (a coefficient equal to the modulus cancels) nor the result on the real level data before handing the plan over.
-- **Rule:** A rule that places things by a formula (a hash, a modulus, a spacing) is run over every real level before it goes into the GDD or a plan: count what it places, list the kinds or variants it gives, and write those counts into the GDD text so a test pins them. No coefficient may share a factor with its modulus.
-- **Recurrence:** 1
-- **Promoted:** no
-
