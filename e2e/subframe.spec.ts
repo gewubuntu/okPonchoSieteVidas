@@ -278,5 +278,6 @@ test('GDD-UI-02 a claw tap inside one task ends the level clear screen', async (
   await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() - window.__PONCHO__!.phaseSince() >= 60);
   await tapKey(page, 'KeyX', 88, 1);
-  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
+  // GDD-UI-02: 0-1's clear screen leads on to 1-1 (GDD-WLD-07).
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.phase() === 'playing');
 });

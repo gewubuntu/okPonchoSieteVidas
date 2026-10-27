@@ -4,7 +4,7 @@
 import Phaser from 'phaser';
 import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, PLANTS, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_MENU, VELADORA } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
-import { levelFor } from '../levels';
+import { levelById, levelFor, type LevelEntry } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
 import skyStripsPng from '../../assets/sprites/desierto/sky-strips.png';
@@ -41,6 +41,7 @@ import { flipPose } from '../sim/respawnFlip';
 import { blockAt } from '../sim/block';
 import { platformAt } from '../sim/platform';
 import { buttonsDown, respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
+import type { TileGrid } from '../sim/tilemap';
 import { isPortrait, pauseFrame, PLAYING, resumeHeld, type MenuItem, type PauseEvent, type PauseState } from '../sim/pause';
 import { readSave, SAVE_KEY, saveText } from '../sim/save';
 import { DEFAULT_SETTINGS, sfxVolume, type Settings, type SettingsRow } from '../sim/settings';
@@ -67,14 +68,8 @@ import { layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } f
 import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tipsDone as nextTipsDone, tipText, type Device, type TipFade } from '../ui/tips';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
-// GDD-UI-02: the level played, 0-1 or the sandbox by its address. GDD-MOV-06: Poncho collides with the tile grid. The spawn stands
-// on the floor, so its y is the floor level.
-const entry = levelFor(window.location.search);
-const level: Level = entry.level;
 /** GDD-AUD-02: the cache keys of every sound effect. */
 const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow'].map((n) => `sfx-${n}`);
-const world = level.world;
-const FLOOR_Y = level.spawn.y;
 /** GDD-CTL-02: the pads the browser reports now. `getGamepads` can throw where a permissions policy forbids it. */
 const readGamepads = () => {
   try {
@@ -292,8 +287,14 @@ declare global {
 
 export class PlayScene extends Phaser.Scene {
   private readonly stepper = new FixedStepper();
-  private run: RunState = startRun(level);
-  private prevPlayer: PlayerState = this.run.player;
+  // GDD-UI-02: the level played, 0-1, 1-1 or the sandbox. GDD-MOV-06: Poncho collides with its tile grid. The spawn stands on the
+  // floor, so its y is the floor level.
+  private readonly entry: LevelEntry;
+  private readonly level: Level;
+  private readonly world: TileGrid;
+  private readonly floorY: number;
+  private run: RunState;
+  private prevPlayer: PlayerState;
   private ticks = 0;
   /** The step count when the run's phase last changed (`PonchoDebug.phaseSince`). */
   private phaseSince = 0;
@@ -392,7 +393,7 @@ export class PlayScene extends Phaser.Scene {
   private body!: Phaser.GameObjects.Container;
   private bodySprite!: Phaser.GameObjects.Image;
   /** GDD-ART-04: which frame shows, advanced by each simulation step. */
-  private anim: PonchoAnim = startAnim(this.run.player.x);
+  private anim: PonchoAnim;
   /** GDD-MOV-07: the poncho spread like a parachute over the body while gliding (placeholder). */
   private glideGfx!: Phaser.GameObjects.Graphics;
   /** GDD-MOV-08: claw marks on the wall side of the body while sliding down a wall (placeholder), and the side drawn. */
@@ -421,7 +422,7 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-UI-05: the device used last, the tip's fade, the tips whose thing is done, the steps for the highlight's pulse, and what was drawn. */
   private device: Device = 'keyboard';
   private tipFade: TipFade = NO_TIP;
-  private tipsDoneNow: boolean[] = (entry.tips ?? []).map(() => false);
+  private tipsDoneNow: boolean[];
   private tipStep = 0;
   private tipBox!: Phaser.GameObjects.Container;
   private tipBg!: Phaser.GameObjects.Rectangle;
@@ -454,12 +455,28 @@ export class PlayScene extends Phaser.Scene {
    */
   private keysAtPause = new Map<Phaser.Input.Keyboard.Key, number>();
   private readonly heldKeys = new Map<Phaser.Input.Keyboard.Key, number>();
+  /** GDD-UI-02: the keys (by keyCode) whose press this scene saw go down and not yet up. */
+  private readonly keysPressedHere = new Set<number>();
+  /** GDD-UI-02: in a level started by the press that ended the one before, the buttons down on the first frame count as already held. */
+  private holdAtStart: boolean;
   private swings = 0;
   private spits = 0;
   private clawPainted: 'none' | 'windup' | 'swing' = 'none';
 
-  constructor() {
-    super('play');
+  /** The level chosen by the address (`levelFor`) when the game opens; the next level, played at once, after a level clear screen. */
+  constructor(entry: LevelEntry = levelFor(window.location.search), direct = false) {
+    super(direct ? `play-${entry.id}` : 'play');
+    this.entry = entry;
+    this.level = entry.level;
+    this.world = entry.level.world;
+    this.floorY = entry.level.spawn.y;
+    // GDD-UI-02: started by the press that ended the level before it, it plays at once, with no title screen.
+    this.holdAtStart = direct;
+    if (direct) this.title = { ...TITLE, shown: false };
+    this.run = startRun(this.level);
+    this.prevPlayer = this.run.player;
+    this.anim = startAnim(this.run.player.x);
+    this.tipsDoneNow = (entry.tips ?? []).map(() => false);
   }
 
   preload(): void {
@@ -500,8 +517,8 @@ export class PlayScene extends Phaser.Scene {
     this.drawBackdrop();
     this.drawPlants();
     this.drawTiles();
-    // GDD-UI-05: the tips take the place of these placeholder lines in a level that has them.
-    this.placeholderLines = entry.tips === undefined;
+    // These placeholder lines are drawn in the sandbox only, a test level: the tutorial has tips in their place (GDD-UI-05).
+    this.placeholderLines = this.entry.test;
     if (this.placeholderLines) {
       this.add
         .text(BASE_WIDTH / 2, 28, 'PONCHO: Siete Vidas', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' })
@@ -669,6 +686,20 @@ export class PlayScene extends Phaser.Scene {
       if (code === K.ENTER || code === K.SPACE || code === K.Z) this.pauseEvents.push('pick');
     };
     window.addEventListener('keydown', onPauseKey);
+    // GDD-UI-02: a key held down since the level before (the press that ended its clear screen) shows here only as auto-repeats,
+    // which would press it. They are kept from Phaser, read first in the capture phase, so the key counts as up until it is
+    // released and pressed again, like a key held through a resume. Its default (scrolling the page) is stopped as Phaser does.
+    const onKeyDownFirst = (e: KeyboardEvent) => {
+      if (!e.repeat) this.keysPressedHere.add(e.keyCode);
+      else if (!this.keysPressedHere.has(e.keyCode)) {
+        this.device = 'keyboard'; // GDD-UI-05, as in onPauseKey, which this event does not reach
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    };
+    const onKeyUpFirst = (e: KeyboardEvent) => this.keysPressedHere.delete(e.keyCode);
+    window.addEventListener('keydown', onKeyDownFirst, { capture: true });
+    window.addEventListener('keyup', onKeyUpFirst, { capture: true });
     // A pointer is classified by where it went down on every menu at once, never by the state: an Escape and a tap in one frame apply
     // in order, and the state each reaches decides which menu reads the tap.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -705,6 +736,8 @@ export class PlayScene extends Phaser.Scene {
     window.addEventListener('resize', onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener('keydown', onPauseKey);
+      window.removeEventListener('keydown', onKeyDownFirst, { capture: true });
+      window.removeEventListener('keyup', onKeyUpFirst, { capture: true });
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('resize', onResize);
@@ -739,7 +772,7 @@ export class PlayScene extends Phaser.Scene {
         phaseSince: () => this.phaseSince,
         gameOverDrawn: () => ({ shown: this.gameOver.visible, title: this.gameOverTitle.text, subtitle: this.gameOverSubtitle.text, prompt: this.gameOverPrompt.visible, promptText: this.gameOverPrompt.text }),
         clearDrawn: () => ({ shown: this.clearScreen.visible, title: this.clearTitle.text, hilos: this.clearHilos.text, prompt: this.clearPrompt.visible, promptText: this.clearPrompt.text }),
-        level: () => entry.id,
+        level: () => this.entry.id,
         camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x }),
         backdrop: () => ({ clouds: (((BACKDROP_ART.clouds[0].x - this.cloudImages[0]![0]!.x) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH, mountains: this.mountains.tilePositionX / ART_SCALE, desert: this.desert.tilePositionX / ART_SCALE }),
         backdropLayout: () => ({ sunX: this.sun.x + BACKDROP_ART.sunHalf, sunY: this.sun.y + BACKDROP_ART.sunHalf, mountainsY: this.mountains.y, footY: this.mountainFoot.y, desertY: this.desert.y }),
@@ -835,13 +868,13 @@ export class PlayScene extends Phaser.Scene {
           this.drawTip();
         },
         ofrendas: () => this.ofrendasDrawn,
-        platforms: () => level.platforms.map((p) => platformAt(p, this.run.platformTick)),
-        blocks: () => (level.blocks ?? []).map((b) => blockAt(b, this.run.platformTick)),
-        crumbles: () => level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
+        platforms: () => this.level.platforms.map((p) => platformAt(p, this.run.platformTick)),
+        blocks: () => (this.level.blocks ?? []).map((b) => blockAt(b, this.run.platformTick)),
+        crumbles: () => this.level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
         checkpoint: () => this.run.checkpoint,
         power: () => this.run.power,
         tacosDrawn: () => this.tacosPainted,
-        hilos: () => ({ taken: hilosCollected(this.run.hilosTaken), total: level.hilos?.length ?? 0, drawn: this.hilosPainted }),
+        hilos: () => ({ taken: hilosCollected(this.run.hilosTaken), total: this.level.hilos?.length ?? 0, drawn: this.hilosPainted }),
         hudHilos: () => ({ text: this.hiloText.text, right: this.hiloText.x, top: this.hiloText.y, iconX: this.hiloIconX }),
         heldTacoVisible: () => this.heldGfx.visible,
         hudPowerIcon: () => this.hudPower !== 'base',
@@ -851,7 +884,7 @@ export class PlayScene extends Phaser.Scene {
         spits: () => this.spits,
         fireballAt: () => this.run.fireballs.map((f) => ({ x: f.x, y: f.y })),
         fireballsDrawn: () => this.fireballsPainted,
-        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? level.enemies[i]!.y, alive: e.alive, dir: e.dir, phase: e.flight?.phase ?? e.gait?.phase ?? 'walk' })),
+        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? this.level.enemies[i]!.y, alive: e.alive, dir: e.dir, phase: e.flight?.phase ?? e.gait?.phase ?? 'walk' })),
         enemiesDrawn: () => this.enemiesPainted,
         glideDrawn: () => this.glideGfx.visible,
         clingDrawn: () => (this.clingGfx.visible ? this.clingPainted : 0),
@@ -923,17 +956,17 @@ export class PlayScene extends Phaser.Scene {
    * behind the grass of the ground tile (depth 1) and in front of the backdrop; scenery only, behind everything else in the level.
    */
   private drawPlants(): void {
-    this.plantImages = plantSpots(level).map(({ kind, col, row }) =>
+    this.plantImages = plantSpots(this.level).map(({ kind, col, row }) =>
       this.add.image(col * TILE + TILE / 2, row * TILE + 1, 'plants', kind).setOrigin(0.5, 1).setScale(1 / ART_SCALE).setDepth(0.5),
     );
   }
 
   /** World 1's ground (GDD-ART-06): one image of the ground sheet per solid tile, a top tile or an earth tile, a version each. */
   private drawTiles(): void {
-    for (let ty = 0; ty < world.height; ty++) {
-      for (let tx = 0; tx < world.width; tx++) {
-        if (!world.solidTile(tx, ty)) continue;
-        const image = this.add.image(tx * TILE, ty * TILE, 'ground', groundFrame((x, y) => world.solidTile(x, y), tx, ty)).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1);
+    for (let ty = 0; ty < this.world.height; ty++) {
+      for (let tx = 0; tx < this.world.width; tx++) {
+        if (!this.world.solidTile(tx, ty)) continue;
+        const image = this.add.image(tx * TILE, ty * TILE, 'ground', groundFrame((x, y) => this.world.solidTile(x, y), tx, ty)).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1);
         this.groundImages.set(`${tx},${ty}`, image);
       }
     }
@@ -971,7 +1004,7 @@ export class PlayScene extends Phaser.Scene {
   private drawCrumbles(): void {
     this.crumblesKey = this.run.crumbles.map((c) => `${c.phase}${c.steps}`).join();
     this.crumbleGfx.clear();
-    level.crumbles.forEach((c, i) => {
+    this.level.crumbles.forEach((c, i) => {
       const state = this.run.crumbles[i]!;
       if (state.phase === 'gone') return;
       const warning = state.phase === 'warning';
@@ -991,7 +1024,7 @@ export class PlayScene extends Phaser.Scene {
    */
   private renderPlatforms(alpha: number): void {
     this.platformGfx.clear();
-    for (const p of level.platforms) {
+    for (const p of this.level.platforms) {
       const at = platformAt(p, Math.max(0, this.run.platformTick - 1 + alpha));
       this.platformGfx.fillStyle(0x3f8f8a, 1).fillRect(at.x, at.y, at.w, 8);
       this.platformGfx.fillStyle(0x2a5f5c, 1).fillRect(at.x, at.y + 5, at.w, 3);
@@ -1005,7 +1038,7 @@ export class PlayScene extends Phaser.Scene {
    */
   private renderBlocks(alpha: number): void {
     this.blockGfx.clear();
-    for (const b of level.blocks ?? []) {
+    for (const b of this.level.blocks ?? []) {
       const at = blockAt(b, Math.max(0, this.run.platformTick - 1 + alpha));
       this.blockGfx.fillStyle(0x8a8a8a, 1).fillRect(at.x, at.y, at.w, at.h);
       this.blockGfx.fillStyle(0xc4c4c4, 1).fillRect(at.x, at.y, at.w, 1);
@@ -1054,7 +1087,7 @@ export class PlayScene extends Phaser.Scene {
   private drawEnemies(): void {
     this.enemyGfx.clear();
     this.enemiesPainted = [];
-    level.enemies.forEach((def, i) => {
+    this.level.enemies.forEach((def, i) => {
       const e = this.run.enemies[i]!;
       if (!e.alive) return;
       const g = this.enemyGfx;
@@ -1156,7 +1189,7 @@ export class PlayScene extends Phaser.Scene {
     this.tacosKey = this.run.tacosTaken.join();
     this.tacoGfx.clear();
     this.tacosPainted = 0;
-    level.tacos.forEach((t, i) => {
+    this.level.tacos.forEach((t, i) => {
       if (this.run.tacosTaken[i]) return;
       this.tacosPainted++;
       this.paintTaco(this.tacoGfx, t.col * TILE + TILE / 2, t.row * TILE + TILE / 2 - 1, 12);
@@ -1168,7 +1201,7 @@ export class PlayScene extends Phaser.Scene {
     this.hilosKey = this.run.hilosTaken.join();
     this.hiloGfx.clear();
     this.hilosPainted = 0;
-    (level.hilos ?? []).forEach((h, i) => {
+    (this.level.hilos ?? []).forEach((h, i) => {
       if (this.run.hilosTaken[i]) return;
       this.hilosPainted++;
       this.paintHilo(this.hiloGfx, h.col * TILE + TILE / 2, h.row * TILE + TILE / 2, hiloColour(i));
@@ -1189,7 +1222,7 @@ export class PlayScene extends Phaser.Scene {
    */
   private drawHiloCounter(): void {
     const pause = this.touch.debug().buttons.find((b) => b.id === 'pause');
-    const text = hiloCounterText(hilosCollected(this.run.hilosTaken), level.hilos?.length ?? 0);
+    const text = hiloCounterText(hilosCollected(this.run.hilosTaken), this.level.hilos?.length ?? 0);
     const right = hiloCounterRight(pause);
     if (`${text}|${right}` === this.hiloHudKey) return;
     this.hiloHudKey = `${text}|${right}`;
@@ -1207,8 +1240,8 @@ export class PlayScene extends Phaser.Scene {
   private drawPinatas(): void {
     this.pinatasKey = this.run.pinatasOpen.join();
     this.pinataGfx.clear();
-    this.pinatasPainted = level.pinatas.map(() => false);
-    level.pinatas.forEach((p, i) => {
+    this.pinatasPainted = this.level.pinatas.map(() => false);
+    this.level.pinatas.forEach((p, i) => {
       const x = p.col * TILE;
       const y = p.row * TILE;
       const cx = x + TILE / 2;
@@ -1237,7 +1270,7 @@ export class PlayScene extends Phaser.Scene {
     this.fragilesKey = this.run.fragilesBroken.join();
     this.fragileGfx.clear();
     this.fragilesPainted = 0;
-    level.fragiles.forEach((f, i) => {
+    this.level.fragiles.forEach((f, i) => {
       if (this.run.fragilesBroken[i]) return;
       this.fragilesPainted++;
       const x = f.col * TILE;
@@ -1290,8 +1323,8 @@ export class PlayScene extends Phaser.Scene {
   private drawDoorsAndKeys(): void {
     this.doorsKey = `${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}`;
     this.doorGfx.clear();
-    this.doorsPaintedShut = level.doors.map(() => false);
-    level.doors.forEach((d, i) => {
+    this.doorsPaintedShut = this.level.doors.map(() => false);
+    this.level.doors.forEach((d, i) => {
       if (this.run.doorsOpen[i]) return;
       this.doorsPaintedShut[i] = true;
       const x = d.col * TILE;
@@ -1304,7 +1337,7 @@ export class PlayScene extends Phaser.Scene {
     });
     this.keyGfx.clear();
     this.keysPainted = 0;
-    level.keys.forEach((k, i) => {
+    this.level.keys.forEach((k, i) => {
       if (this.run.keysTaken[i]) return;
       this.keysPainted++;
       this.paintKey(this.keyGfx, k.col * TILE + TILE / 2, k.row * TILE + TILE / 2, 12);
@@ -1324,7 +1357,7 @@ export class PlayScene extends Phaser.Scene {
   /** Placeholder spring art (GDD-WLD-05): a red block with a pale zigzag coil and a bar on top, to read as springy and not as floor. */
   private drawSprings(): void {
     const g = this.add.graphics().setDepth(1);
-    for (const sp of level.springs) {
+    for (const sp of this.level.springs) {
       const x = sp.col * TILE;
       const y = sp.row * TILE;
       g.fillStyle(0xb8453a, 1).fillRect(x, y, TILE, TILE);
@@ -1337,7 +1370,7 @@ export class PlayScene extends Phaser.Scene {
   /** Placeholder spike art: two light points per tile with a dark outline, inside the lower half that hurts (GDD-WLD-05, GDD-UI-03 high-contrast hazards). */
   private drawSpikes(): void {
     const g = this.add.graphics().setDepth(2);
-    for (const s of level.spikes) {
+    for (const s of this.level.spikes) {
       const x = s.col * TILE;
       const bottom = (s.row + 1) * TILE;
       for (const px of [x, x + TILE / 2]) {
@@ -1353,8 +1386,8 @@ export class PlayScene extends Phaser.Scene {
    */
   private drawOfrendas(): void {
     this.ofrendaGfx.clear();
-    this.ofrendasDrawn = level.ofrendas.map((o) => ({ id: o.id, x: o.x, used: this.run.lives.used.has(`ofrenda:${o.id}`) }));
-    for (const o of level.ofrendas) {
+    this.ofrendasDrawn = this.level.ofrendas.map((o) => ({ id: o.id, x: o.x, used: this.run.lives.used.has(`ofrenda:${o.id}`) }));
+    for (const o of this.level.ofrendas) {
       const used = this.run.lives.used.has(`ofrenda:${o.id}`);
       const x = o.x - OFRENDA.width / 2;
       const y = o.y - OFRENDA.height;
@@ -1372,7 +1405,7 @@ export class PlayScene extends Phaser.Scene {
    * with a marigold pennant on a 1 px pole above it. Drawn once; a level without an exit has none.
    */
   private drawExit(): void {
-    const exit = level.exit;
+    const exit = this.level.exit;
     this.exitPainted = exit !== undefined;
     if (!exit) return;
     const g = this.add.graphics().setDepth(1);
@@ -1389,7 +1422,7 @@ export class PlayScene extends Phaser.Scene {
    * above it and a yellow flame on top. Not drawn once used, nor when the level has none. Redrawn when it is used or comes back.
    */
   private drawVeladora(): void {
-    const v = level.veladora;
+    const v = this.level.veladora;
     this.veladoraGfx.clear();
     this.veladoraUsedDrawn = v !== undefined && veladoraUsed(this.run.lives, v);
     this.veladoraPainted = v !== undefined && !this.veladoraUsedDrawn;
@@ -1414,7 +1447,7 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private usedKey(): string {
-    return level.ofrendas.map((o) => (this.run.lives.used.has(`ofrenda:${o.id}`) ? '1' : '0')).join('');
+    return this.level.ofrendas.map((o) => (this.run.lives.used.has(`ofrenda:${o.id}`) ? '1' : '0')).join('');
   }
 
   private setLives(lives: RunState['lives']): void {
@@ -1473,7 +1506,7 @@ export class PlayScene extends Phaser.Scene {
   private drawClear(): void {
     const shown = this.run.phase === 'clear';
     this.clearScreen.setVisible(shown);
-    if (shown) this.clearHilos.setText(`Hilos ${hilosCollected(this.run.hilosTaken)}/${level.hilos?.length ?? 0}`);
+    if (shown) this.clearHilos.setText(`Hilos ${hilosCollected(this.run.hilosTaken)}/${this.level.hilos?.length ?? 0}`);
     this.clearPrompt.setVisible(shown && this.run.wait >= GAME_OVER.lockoutSteps);
   }
 
@@ -1483,7 +1516,7 @@ export class PlayScene extends Phaser.Scene {
    * too. Nothing is drawn at opacity 0.
    */
   private drawTip(): void {
-    const tip = this.tipFade.index !== null ? entry.tips?.[this.tipFade.index] : undefined;
+    const tip = this.tipFade.index !== null ? this.entry.tips?.[this.tipFade.index] : undefined;
     const alpha = tip ? this.tipFade.alpha : 0;
     const shown = tip !== undefined && alpha > 0;
     this.tipBox.setVisible(shown).setAlpha(alpha);
@@ -1524,7 +1557,7 @@ export class PlayScene extends Phaser.Scene {
 
   /** GDD-UI-04: the camera follows the body where it is drawn, and stands still while it is hidden. */
   private followBody(): void {
-    this.scrollX = followCamera(this.scrollX, this.body.visible ? this.body.x : null, world.width * TILE);
+    this.scrollX = followCamera(this.scrollX, this.body.visible ? this.body.x : null, this.world.width * TILE);
     this.cameras.main.setScroll(this.scrollX, 0);
     // GDD-ART-06: the far layers move at a share of the scroll, in art pixels of their textures.
     const cloudShift = parallaxOffset(this.scrollX, BACKDROP.cloudFactor);
@@ -1540,7 +1573,7 @@ export class PlayScene extends Phaser.Scene {
   /** One fixed simulation step with the given input. */
   private simStep(input: PlayerInput): void {
     const before = this.run;
-    this.run = stepRun(before, input, level);
+    this.run = stepRun(before, input, this.level);
     const { sounds, combo } = stepSounds(before, this.run, this.hiloCombo);
     this.hiloCombo = combo;
     for (const sound of sounds) this.playSfx(sound.name, sound.semitones);
@@ -1549,9 +1582,9 @@ export class PlayScene extends Phaser.Scene {
     this.ticks++;
     if (this.run.phase !== before.phase) this.phaseSince = this.ticks;
     // GDD-UI-05: the tutorial tips follow Poncho by steps, so they stand still with the game.
-    const tips = entry.tips;
+    const tips = this.entry.tips;
     if (tips) {
-      this.tipsDoneNow = nextTipsDone(this.tipsDoneNow, tips, before, this.run, level);
+      this.tipsDoneNow = nextTipsDone(this.tipsDoneNow, tips, before, this.run, this.level);
       this.tipFade = stepTipFade(this.tipFade, activeTip(tips, this.run.player.x, this.run.phase, this.tipsDoneNow));
       this.tipStep++;
     }
@@ -1563,7 +1596,7 @@ export class PlayScene extends Phaser.Scene {
       if (this.peak > 0) this.lastPeak = this.peak;
       this.peak = 0;
     } else {
-      this.peak = Math.max(this.peak, FLOOR_Y - player.y);
+      this.peak = Math.max(this.peak, this.floorY - player.y);
     }
   }
 
@@ -1580,7 +1613,7 @@ export class PlayScene extends Phaser.Scene {
     } else if (this.run.phase === 'respawning') {
       // GDD-LIFE-02: hidden at first, then he drops in above the respawn point, turning once, and lands feet-first.
       const pose = flipPose(this.run.wait);
-      const at = respawnPoint(this.run, level);
+      const at = respawnPoint(this.run, this.level);
       this.body.setPosition(at.x, at.y - pose.dy - HITBOX.height / 2).setRotation(pose.angle).setVisible(pose.visible);
     } else {
       this.body.setPosition(lerp(this.prevPlayer.x, player.x), lerp(this.prevPlayer.y, player.y) - HITBOX.height / 2).setRotation(0).setVisible(true);
@@ -1610,6 +1643,10 @@ export class PlayScene extends Phaser.Scene {
     this.pauseEvents.push(...this.pad.poll(readGamepads()));
     if (this.pad.active()) this.device = 'pad'; // GDD-UI-05
     let input = this.readInput();
+    if (this.holdAtStart) {
+      this.holdAtStart = false;
+      input = this.endPause();
+    }
 
     const settingsBefore = this.settings;
 
@@ -1661,7 +1698,15 @@ export class PlayScene extends Phaser.Scene {
     // A latched tap is spent once a step has used it; if the frame ran no step it waits for the next one.
     if (stepped) this.consumeLatches();
     // GDD-UI-02: a press ended the level clear screen; the title comes back over a fresh run, with the draw calls below.
-    if (this.run.phase === 'done') this.backToTitle(input, this.pauseState.portrait);
+    // In a level with a next level (0-1, GDD-WLD-07) that press starts it instead, at once.
+    if (this.run.phase === 'done') {
+      const next = this.entry.next === undefined ? undefined : levelById(this.entry.next);
+      if (next) {
+        this.startNext(next);
+        return;
+      }
+      this.backToTitle(input, this.pauseState.portrait);
+    }
     // Redraw when the lives change, and on every step while a triangle is cracking.
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.pulseDrawn !== null || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
     if (`${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}` !== this.doorsKey) this.drawDoorsAndKeys();
@@ -1684,7 +1729,7 @@ export class PlayScene extends Phaser.Scene {
 
     this.renderPlatforms(alpha);
     this.renderBlocks(alpha);
-    if (level.veladora && veladoraUsed(this.run.lives, level.veladora) !== this.veladoraUsedDrawn) this.drawVeladora();
+    if (this.level.veladora && veladoraUsed(this.run.lives, this.level.veladora) !== this.veladoraUsedDrawn) this.drawVeladora();
     this.renderBody(alpha);
     this.followBody();
     this.drawClaw();
@@ -1759,19 +1804,30 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
+   * GDD-UI-02: the press that ended the level clear screen starts the next level (1-1 after 0-1, GDD-WLD-07) at once: a fresh run with
+   * seven lives (GDD-LIFE-05) in a scene of its own, which draws that level and takes the place of this one. Its first frame counts the
+   * buttons down as already held, so the press does not jump, claw or spit there.
+   */
+  private startNext(next: LevelEntry): void {
+    const scenes = this.game.scene;
+    scenes.remove(this.scene.key);
+    scenes.add(`play-${next.id}`, new PlayScene(next, true), true);
+  }
+
+  /**
    * GDD-UI-02: Quit to title, or the end of the level clear screen. A fresh run as when the game opens, behind the title screen
    * waiting for a press. No step runs on the title, so every latched key press is spent here, or a quick tap that picked would stay
    * latched and a new press would not be new. The buttons down now count as held on the title, so the one that picked (or that ended
    * the clear screen) does not start the level.
    */
   private backToTitle(input: PlayerInput, portrait: boolean): void {
-    this.run = startRun(level);
+    this.run = startRun(this.level);
     this.prevPlayer = this.run.player;
     this.anim = startAnim(this.run.player.x);
     this.peak = 0;
     this.hiloCombo = NO_COMBO;
     this.tipFade = NO_TIP;
-    this.tipsDoneNow = (entry.tips ?? []).map(() => false);
+    this.tipsDoneNow = (this.entry.tips ?? []).map(() => false);
     this.tipStep = 0;
     this.stepper.reset();
     // The HUD's crack and last-life pulse need no reset: `updateCracks` drops a crack on a triangle that is filled again and
