@@ -149,8 +149,8 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** The GDD, a code comment, an e2e comment and the PR description said only the spring ledge and the moving platform put Poncho in the Zopilote's reach. It also reached the Alacrán's platform (89 px below its line, inside the 80 px trigger at the low end of its bob). The reviewer found it by running the sandbox level.
 - **Root cause:** I reasoned about the geometry from the floor and two obvious places and never ran the real level through the sim. A statement about the level is a claim the sim can check.
 - **Rule:** When the GDD or a comment says where something can or cannot happen in the sandbox level (reach, spotting, clearance from a respawn), put a test over the real level data (`src/levels/sandbox.test.ts`) that runs the sim and states it, and mutate the level numbers to see it fail.
-- **Recurrence:** 1
-- **Promoted:** src/levels/sandbox.test.ts (the Zopilote's reach)
+- **Recurrence:** 2
+- **Promoted:** src/levels/sandbox.test.ts (the Zopilote's reach); .claude/skills/harness-feature (step 5: a placement rule is run over every real level before it goes into the GDD or a plan). Second time (2026-10-27, GDD-ART-06): I wrote the plants' kind rule as (7 x column + row) mod 7 into the GDD and the plan without running it; a coefficient equal to the modulus cancels, so it was just row mod 7 and every plant on a row was the same kind, and 0-1 got 5 plants and the sandbox none. The rule was rerun over both levels and the counts (12 and 4) went into the GDD and a test.
 
 ## L-015 An e2e test picked an enemy out by where it is, and a new enemy matched
 
