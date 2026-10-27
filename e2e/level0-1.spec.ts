@@ -1,9 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { boot, openGame } from './helpers';
 
-// GDD-WLD-06: level 0-1, its camera (GDD-UI-04), its exit and the level clear screen (GDD-WLD-03, GDD-UI-02), and its veladora
-// (GDD-LIFE-03). These open the game at "/", which plays 0-1; every other playtest opens the sandbox. Things are timed in
-// simulation steps (`phaseSince()`, `ticks()`), never by polling (L-042).
+// GDD-WLD-06: level 0-1, its camera (GDD-UI-04), its exit and the level clear screen (GDD-WLD-03, GDD-UI-02), its veladora
+// (GDD-LIFE-03), and the clear screen leading on to 1-1 (GDD-WLD-07). These open the game at "/", which plays 0-1; every other
+// playtest opens the sandbox or 1-1. Things are timed in simulation steps (`phaseSince()`, `ticks()`), never by polling (L-042).
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page, n = 2) => page.evaluate((k) => new Promise((r) => { let i = 0; const tick = () => (++i >= k ? r(null) : requestAnimationFrame(tick)); requestAnimationFrame(tick); }), n);
 
@@ -14,6 +14,10 @@ async function atExit(page: Page): Promise<void> {
   await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
   await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear');
 }
+
+/** Poncho's highest point (lowest y) over the next `n` frames. */
+const topOver = (page: Page, n: number) =>
+  page.evaluate((k) => new Promise<number>((r) => { let i = 0; let top = Infinity; const tick = () => { top = Math.min(top, window.__PONCHO__!.state().y); if (++i >= k) r(top); else requestAnimationFrame(tick); }; requestAnimationFrame(tick); }), n);
 
 /** Waits for the clear screen's first 1.0 s (60 steps) to be over, which is when it takes a press and shows its prompt. */
 const afterLockout = (page: Page) =>
@@ -91,7 +95,7 @@ test('GDD-WLD-03 reaching the exit shows the level clear screen', async ({ page 
   expect((await api(page, () => window.__PONCHO__!.clearDrawn())).prompt).toBe(true);
 });
 
-test('GDD-UI-02 the clear screen takes a press after 1.0 s and goes back to the title over a fresh run', async ({ page }) => {
+test('GDD-UI-02 the clear screen takes a press after 1.0 s and starts 1-1 at once, the press held', async ({ page }) => {
   await atExit(page);
   await page.keyboard.press('KeyX', { delay: 30 });
   expect(await api(page, () => window.__PONCHO__!.ticks() - window.__PONCHO__!.phaseSince())).toBeLessThan(50); // it was pressed in the first second
@@ -99,14 +103,36 @@ test('GDD-UI-02 the clear screen takes a press after 1.0 s and goes back to the 
   await afterLockout(page);
   expect((await api(page, () => window.__PONCHO__!.clearDrawn())).promptText).toBe('Press any button');
   await page.keyboard.down('KeyX');
-  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
-  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing' && !window.__PONCHO__!.clearDrawn().shown && window.__PONCHO__!.camera().viewX === 0);
+  // GDD-WLD-07: the next level, playing at once with no title screen, a fresh run of seven lives.
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.ticks() > 10);
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false);
+  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('playing');
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
-  expect((await api(page, () => window.__PONCHO__!.hilos())).taken).toBe(0);
-  // The claw press that left counts as held on the title; letting go of it is no press, so the title stays.
+  expect(await api(page, () => window.__PONCHO__!.hilos())).toMatchObject({ taken: 0, total: 50 });
+  expect((await api(page, () => window.__PONCHO__!.camera())).viewX).toBe(0);
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: 224 });
+  // The claw press that left counts as held: no swing, not even when it repeats; letting go is no press either.
+  await page.keyboard.down('KeyX'); // an auto-repeat keydown
+  await frames(page, 10);
   await page.keyboard.up('KeyX');
   await frames(page, 10);
-  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(true);
+  expect(await api(page, () => window.__PONCHO__!.swings())).toBe(0);
+  // A new press does swing.
+  await page.keyboard.press('KeyX', { delay: 60 });
+  await page.waitForFunction(() => window.__PONCHO__!.swings() === 1);
+});
+
+test('GDD-UI-02 a jump key held from the clear screen into 1-1 does not jump, even when it repeats', async ({ page }) => {
+  await atExit(page);
+  await afterLockout(page);
+  await page.keyboard.down('Space');
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.ticks() > 10);
+  await page.keyboard.down('Space'); // an auto-repeat keydown, the first this level sees
+  expect(await topOver(page, 60)).toBe(224);
+  await page.keyboard.up('Space');
+  await page.keyboard.down('Space');
+  await page.waitForFunction(() => window.__PONCHO__!.state().y < 200);
+  await page.keyboard.up('Space');
 });
 
 test('GDD-LIFE-03 the veladora on its ledge restores a life and stays used after a lost life', async ({ page }) => {
@@ -132,5 +158,41 @@ test('GDD-UI-02 a tap on the touch Jump button ends the clear screen', async ({ 
   const box = (await page.locator('canvas').boundingBox())!;
   const k = box.width / 480;
   await page.touchscreen.tap(box.x + (b.x + b.w / 2) * k, box.y + (b.y + b.h / 2) * k);
-  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.phase() === 'playing' && !window.__PONCHO__!.titleDrawn().shown);
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 56 });
+});
+
+test('GDD-UI-02 a finger held on the touch Jump button from the clear screen into 1-1 does not jump', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await atExit(page);
+  await afterLockout(page);
+  const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'jump')!;
+  const box = (await page.locator('canvas').boundingBox())!;
+  const k = box.width / 480;
+  const cdp: CDPSession = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, x: box.x + (b.x + b.w / 2) * k, y: box.y + (b.y + b.h / 2) * k }] });
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1');
+  expect(await topOver(page, 60)).toBe(224);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+});
+
+test('GDD-UI-02 a gamepad button held from the clear screen into 1-1 does not jump', async ({ page }) => {
+  // GDD-CTL-02: a fake standard pad, as in e2e/gamepad.spec.ts; south (button 0) jumps.
+  await page.addInitScript(() => {
+    const pad = { id: 'fake', index: 0, connected: true, mapping: 'standard', timestamp: 0, buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })), axes: [0, 0, 0, 0] };
+    window.__pad = pad; // typed by e2e/gamepad.spec.ts
+    Object.defineProperty(navigator, 'getGamepads', { value: () => [pad], configurable: true });
+  });
+  const south = (down: boolean) =>
+    page.evaluate((d) => {
+      const b = window.__pad!.buttons[0]!;
+      b.pressed = d;
+      b.value = d ? 1 : 0;
+    }, down);
+  await atExit(page);
+  await afterLockout(page);
+  await south(true);
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1');
+  expect(await topOver(page, 60)).toBe(224);
+  await south(false);
 });
