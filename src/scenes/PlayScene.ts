@@ -734,14 +734,17 @@ export class PlayScene extends Phaser.Scene {
     window.addEventListener('blur', onBlur);
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('resize', onResize);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    const removeListeners = () => {
       window.removeEventListener('keydown', onPauseKey);
       window.removeEventListener('keydown', onKeyDownFirst, { capture: true });
       window.removeEventListener('keyup', onKeyUpFirst, { capture: true });
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('resize', onResize);
-    });
+    };
+    // A scene removed for the next level (`startNext`) is destroyed without a shutdown, so both events clean up.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, removeListeners);
+    this.events.once(Phaser.Scenes.Events.DESTROY, removeListeners);
 
     // GDD-UI-02: the title screen, over everything: the level standing still under a veil like the game-over screen's, the
     // HUD included. The touch buttons are hidden while it is up.

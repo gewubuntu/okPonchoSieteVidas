@@ -42,7 +42,7 @@ const OFRENDAS: readonly Ofrenda[] = [45, 99, 153].map((col, i) => ({ id: `1-1-$
 /** GDD-WLD-05: two spikes after the first piñata (columns 39 and 40) and three under the raised platform (109 to 111). */
 const SPIKES: readonly Spike[] = [39, 40, 109, 110, 111].map((col) => ({ col, row: 13 }));
 
-/** GDD-PWR-05: two piñatas 48 px above the floor: at column 34 for the taco, and at column 74, which gives a chile in Taco. */
+/** GDD-PWR-05: two piñatas 48 px above the floor: at column 34 for the taco, and at column 75, beside the 2-tile wall, which gives a chile in Taco. */
 const PINATAS: readonly Pinata[] = [
   { col: 34, row: 10 },
   { col: 75, row: 10 },
