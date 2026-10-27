@@ -319,8 +319,9 @@ Prefer an automated check over a prose rule.
 - **Root cause:** The plan treated "hidden" as a drawing change and listed every input source for starting the level, but not the side effects those sources have on their own (the mode switch). Events were applied in order, but the rule was really about the state at the end of the frame.
 - **Rule:** When a screen hides controls, list what each hidden control does besides the press the screen reads, and test a held touch (CDP, several frames), not only a tap. When a rule reads several events from one frame, decide on the state at the end of the frame and test a pair of conflicting events in one frame.
 - **Recurrence 2 (2026-10-25, GDD-UI-02 pause menu, found by the review):** the Resume row was placed half inside the lower left quarter of the screen, which the slide stick reads, so in stick mode the tap that resumed also steered Poncho. The plan's unit test checked the rows against the stick's drawn track only, not the area it reads, and passed. Fixed by holding back from the stick any finger that went down while paused or on the title screen, until it lifts.
-- **Recurrence:** 2
-- **Promoted:** step 5 of the `harness-feature` skill: a new on-screen tap target is checked against the area each touch control reads, not only its drawn box.
+- **Recurrence 3 (2026-10-27, GDD-UI-02 the next level, found by my own mutation):** the test that the press ending 0-1's clear screen does not jump in 1-1 used `page.touchscreen.tap`, which lifts before 1-1's first frame, so it passed with the hold-back removed; a key test read Poncho's height once, after the jump had already landed. Fixed with a finger held through the change by CDP, and the highest point over 60 frames.
+- **Recurrence:** 3
+- **Promoted:** step 5 of the `harness-feature` skill: a new on-screen tap target is checked against the area each touch control reads, not only its drawn box; and the `harness-playtest` skill: a rule about a held button is tested with the button held across frames (CDP `touchStart`, a repeated `keyboard.down`), measured over the whole window.
 
 ## L-033 A visibility was set from state before that frame changed the state
 
@@ -393,8 +394,9 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** During the 0.5.0 dependency review (GDD-TEC-07) I edited comments in `src/` while `npm run test:e2e` was running. The Vite dev server reloaded the page, and two playtests failed with "Execution context was destroyed". Both passed alone and in a full re-run, but it cost a second 8-minute run.
 - **Root cause:** The playtests run against the live dev server, which reloads on any change under `src/`, and nothing warns that the run is still going.
 - **Rule:** Finish every edit under `src/`, `index.html` and `e2e/` before starting `npm run test:e2e`, and make no edits there until it ends. A failure with "Execution context was destroyed" during a run with edits is a reload, so re-run the whole suite rather than counting it as a pass.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-10-27, GDD-WLD-07):** I wrote the 1-1 screenshot scenario under `e2e/shots/` while `npm run test:e2e` was running. The shots project is not part of that run, so nothing broke, but the rule was broken again because nothing stopped it.
+- **Recurrence:** 2
+- **Promoted:** `playwright.config.ts` global teardown (`e2e/edit-guard.ts`): a playtest or shots run fails when a file under `src/`, `e2e/` or `index.html` changed while it ran
 
 ## L-041 A "pressed while paused" test used a button the pause menu also reads
 
@@ -440,3 +442,21 @@ Prefer an automated check over a prose rule.
 - **Rule:** In a screenshot scenario, start the level the device's way (`start(page, isMobile)` in `e2e/helpers.ts`: a tap on a phone, Enter on a desktop), and reach a screen that shows a count (hilos, lives) after collecting some in play, so the picture shows a count a player could see. A new level gets a test that its pickups are collected in play.
 - **Recurrence:** 2
 - **Promoted:** .claude/skills/harness-playtest (Screenshots for visual review)
+
+## L-047 A piñata was placed where its chile could not be reached
+
+- **Date:** 2026-10-27
+- **What went wrong:** The first 1-1 layout put the chile piñata 48 px above open floor, as the taco piñatas are. A chile does not walk (GDD-PWR-03), it rests on the piñata's top, 64 px above the floor, out of a jump's reach, so Fuego could not be had. A try with the piñata one tile lower failed too: under a 2-tile gap Poncho cannot rise, so he cannot bump it. The simulation found both before any test was written.
+- **Root cause:** The piñata was placed by the bump rule alone, as for a taco, without following where the item it releases ends up.
+- **Rule:** For every piñata in a level, say where each item it can release ends up and how Poncho reaches it from a standable spot, and test that route in the simulation (`src/levels/level1-1.test.ts` has one for the chile).
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-048 A test bot held jump through two jumps and stood still
+
+- **Date:** 2026-10-27
+- **What went wrong:** The 1-1 bot armed a new jump on the step its old one ran out, so jump was never released, no new press reached the simulation, and the bot stood against a block until the test timed out. The 0-1 bot has the same pattern and passes only because its layout never asks for a jump on that step.
+- **Root cause:** A press is an edge (GDD-MOV-02), and the bot modelled a press as "the button is down".
+- **Rule:** A test bot lets go of a button for at least one step before it presses it again.
+- **Recurrence:** 1
+- **Promoted:** no

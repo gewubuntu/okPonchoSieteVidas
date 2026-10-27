@@ -7,6 +7,8 @@ const executablePath = process.env['PLAYWRIGHT_CHROMIUM_PATH'] || (existsSync(pr
 
 export default defineConfig({
   testDir: 'e2e',
+  // L-040: fails the run if a file under src/ or e2e/, or index.html, changed while it ran.
+  globalSetup: './e2e/edit-guard.ts',
   fullyParallel: true,
   reporter: [['list']],
   use: {

@@ -15,6 +15,7 @@ npm run test:e2e
 
 - Playwright starts the Vite dev server on port 4173 itself (`playwright.config.ts`) and reuses one if it is already running.
 - The cloud environment ships Chromium. The config uses `/opt/pw-browsers/chromium` automatically, or `PLAYWRIGHT_CHROMIUM_PATH` if set. Never run `playwright install` in the cloud environment. On a normal machine or in CI run `npx playwright install chromium` first.
+- Make no edits under `src/`, `e2e/` or to `index.html` while it runs: the global teardown (`e2e/edit-guard.ts`) fails the run if any of them changed (L-040).
 - Not part of `node scripts/check.mjs` (it needs a browser). Run it before marking any visible or interactive backlog row `done`.
 
 ## Writing a scenario
@@ -24,7 +25,8 @@ npm run test:e2e
 3. Assert on game state through `window.__PONCHO__` (see `PonchoDebug` in `src/scenes/PlayScene.ts`). It only exists in the dev server, never in production builds. Extend that interface when a test needs more state.
 4. Fail on console errors (see `boot()` in `e2e/boot.spec.ts`).
 5. For anything visual, also take a screenshot into the scratchpad and look at it. Pixels are for people; tests assert on state.
-6. When a test does read pixels (`pixelsAt` in `e2e/helpers.ts`), pick points the phone's touch buttons do not cover: they sit on top of everything in the bottom corners, and `window.__PONCHO__.touch().buttons` says where (L-018). Read features at least 2 px across, from their middle (L-017).
+6. A rule about a button that is held (a press that must count as already held, a finger kept down through a screen change) is tested with the button held across frames: a finger by CDP `Input.dispatchTouchEvent` `touchStart`, a key with `keyboard.down` (a second `down` sends an auto-repeat), never only `page.touchscreen.tap`, which lifts within a frame. Measure the effect over the whole window (the highest point over 60 frames), not once at its end (L-032).
+7. When a test does read pixels (`pixelsAt` in `e2e/helpers.ts`), pick points the phone's touch buttons do not cover: they sit on top of everything in the bottom corners, and `window.__PONCHO__.touch().buttons` says where (L-018). Read features at least 2 px across, from their middle (L-017).
 
 - **Time in simulation steps, not real time (L-042).** The headless browser has no GPU and draws the 1920 x 1080 canvas at 20 to 30 frames a second, slower still under the parallel run, and the loop catches up at most 5 steps a frame, so real time and game time drift apart. Wait for a number of steps (`waitForFunction` on `ticks()` against a count read before), measure a phase with `phaseSince()`, never with `waitForTimeout` before reading a speed or position, and never by polling `ticks()` around an event. Do all slow setup (layout reads, a CDP session) before anything timed starts.
 
