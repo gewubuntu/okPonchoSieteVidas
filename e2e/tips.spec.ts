@@ -59,7 +59,7 @@ test('GDD-UI-05 the wall tip and its outline', async ({ page }) => {
 });
 
 test('GDD-UI-05 the Alacrán tip goes for good once it is defeated', async ({ page }) => {
-  await boot(page, '/');
+  await boot(page, '/?level=0-1'); // by its address, so quitting to the title brings 0-1 back, not 1-1 (GDD-UI-02)
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.pause(true));
   // Drop onto the first Alacrán from above until it is defeated (the stomp).

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEVELS, levelById, levelFor } from './index';
+import { LEVELS, levelById, startLevel } from './index';
 import { SANDBOX_LEVEL } from './sandbox';
 import { gaps, validateLevel } from './validate';
 
@@ -26,22 +26,24 @@ describe('GDD-WLD-03 the sandbox pit', () => {
 });
 
 describe('GDD-UI-02 which level', () => {
-  it('GDD-UI-02 which level: no level parameter gives 0-1', () => {
-    expect(levelFor('').id).toBe('0-1');
+  it('GDD-UI-02 which level: no address gives 0-1 before the tutorial has started and 1-1 after', () => {
+    expect(startLevel('', false).id).toBe('0-1');
+    expect(startLevel('', true).id).toBe('1-1');
   });
 
-  it('GDD-UI-02 which level: level=sandbox gives the sandbox', () => {
-    expect(levelFor('?level=sandbox').id).toBe('sandbox');
-    expect(levelFor('?x=1&level=sandbox').id).toBe('sandbox');
+  it('GDD-UI-02 which level: an address wins over the save', () => {
+    for (const played of [false, true]) expect(startLevel('?level=sandbox', played).id, `sandbox ${played}`).toBe('sandbox');
+    expect(startLevel('?level=1-1', false).id).toBe('1-1');
+    expect(startLevel('?level=0-1', true).id).toBe('0-1');
+    expect(startLevel('?x=1&level=1-1', false).id).toBe('1-1');
+    expect(startLevel('?x=1&level=sandbox', true).id).toBe('sandbox');
   });
 
-  it('GDD-UI-02 which level: level=1-1 gives 1-1', () => {
-    expect(levelFor('?level=1-1').id).toBe('1-1');
-    expect(levelFor('?x=1&level=1-1').id).toBe('1-1');
-  });
-
-  it('GDD-UI-02 which level: any other level gives 0-1', () => {
-    for (const search of ['?level=0-1', '?level=1-2', '?level=nope', '?level=']) expect(levelFor(search).id, search).toBe('0-1');
+  it('GDD-UI-02 which level: any other address gives the rule', () => {
+    for (const search of ['?level=nope', '?level=', '?level=1-2']) {
+      expect(startLevel(search, false).id, search).toBe('0-1');
+      expect(startLevel(search, true).id, search).toBe('1-1');
+    }
   });
 
   it('GDD-UI-02 the level after 0-1 is 1-1, and none comes after 1-1 or the sandbox', () => {

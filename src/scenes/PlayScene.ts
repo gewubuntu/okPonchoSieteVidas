@@ -4,7 +4,7 @@
 import Phaser from 'phaser';
 import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, PLANTS, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_MENU, VELADORA } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
-import { levelById, levelFor, type LevelEntry } from '../levels';
+import { levelById, startLevel, TUTORIAL_ID, type LevelEntry } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
 import skyStripsPng from '../../assets/sprites/desierto/sky-strips.png';
@@ -43,7 +43,7 @@ import { platformAt } from '../sim/platform';
 import { buttonsDown, respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
 import { isPortrait, pauseFrame, PLAYING, resumeHeld, type MenuItem, type PauseEvent, type PauseState } from '../sim/pause';
-import { readSave, SAVE_KEY, saveText } from '../sim/save';
+import { DEFAULT_SAVE, readSave, SAVE_KEY, saveText } from '../sim/save';
 import { DEFAULT_SETTINGS, sfxVolume, type Settings, type SettingsRow } from '../sim/settings';
 import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
@@ -193,7 +193,7 @@ export interface PonchoDebug {
   /**
    * The title screen as drawn (GDD-UI-02): whether it is shown (not while its settings screen covers it), its two title lines, its
    * prompt and size, whether Poncho is drawn on it and where his feet are (game px), and the title menu: whether it is shown (not upright), its
-   * two items' texts and colours, the item the ">" stands beside and the ">" 's y, both null while the menu is hidden.
+   * three items' texts and colours, the item the ">" stands beside and the ">" 's y, both null while the menu is hidden.
    */
   titleDrawn(): {
     shown: boolean;
@@ -224,6 +224,8 @@ export interface PonchoDebug {
   settingsMenu(): SettingsMenuRow[];
   /** The volumes in use now (GDD-UI-02, GDD-AUD-01). */
   settings(): Settings;
+  /** Whether the tutorial 0-1 has been started, in the browser's save or in this visit (GDD-UI-02, GDD-PRG-02). */
+  tutorialPlayed(): boolean;
   /** While paused, runs exactly `n` simulation steps, with no input unless given, so a frame can be reached without timing luck. */
   step(n: number, input?: PlayerInput): void;
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed (GDD-CTL-03). */
@@ -282,6 +284,28 @@ export interface PonchoDebug {
 declare global {
   interface Window {
     __PONCHO__?: PonchoDebug;
+  }
+}
+
+/** GDD-UI-02: how a scene is made. `entry` is the level it draws; `direct` skips the title (the next level, played at once); `title` replaces the opening title. */
+interface PlayOptions {
+  readonly entry?: LevelEntry;
+  readonly direct?: boolean;
+  readonly title?: TitleState;
+}
+
+/** Scenes made so far: the first is 'play', the others need keys of their own, since a removed scene's key is free only after the frame. */
+let scenesMade = 0;
+
+/** GDD-PRG-02: set once the tutorial starts in this visit, so it holds where the browser refuses storage. */
+let playedThisVisit = false;
+
+/** GDD-PRG-02: whether the saved game says the tutorial was started, when the game opens; false where the browser refuses storage. */
+function savedTutorialPlayed(): boolean {
+  try {
+    return readSave(window.localStorage.getItem(SAVE_KEY)).tutorialPlayed;
+  } catch {
+    return false;
   }
 }
 
@@ -357,6 +381,8 @@ export class PlayScene extends Phaser.Scene {
   private pauseRows: MenuRow[] = layoutPauseMenu(1);
   /** GDD-UI-02, GDD-AUD-01: the volumes, loaded from the browser's storage (GDD-PRG-02), and the settings screen. */
   private settings: Settings = DEFAULT_SETTINGS;
+  /** GDD-UI-02, GDD-PRG-02: whether 0-1 has been started, which decides what "Start" plays. Saved with the settings. */
+  private tutorialPlayed = false;
   private settingsScreen!: Phaser.GameObjects.Container;
   private settingsVeil!: Phaser.GameObjects.Rectangle;
   private settingsTitle!: Phaser.GameObjects.Text;
@@ -367,7 +393,7 @@ export class PlayScene extends Phaser.Scene {
   private settingsMarker!: Phaser.GameObjects.Text;
   private settingsRows: SettingsMenuRow[] = layoutSettingsMenu(1);
   private settingsPainted: ReturnType<PonchoDebug['settingsDrawn']> = { shown: false, title: '', prompt: '', from: null, rows: [], chosen: null };
-  /** GDD-UI-02: the title screen, and its menu's two item texts, the ">" in front of the chosen one, and the rows as last laid out. */
+  /** GDD-UI-02: the title screen, and its menu's three item texts, the ">" in front of the chosen one, and the rows as last laid out. */
   private title: TitleState = TITLE;
   private titleItems!: Record<TitleItem, Phaser.GameObjects.Text>;
   private titleMarker!: Phaser.GameObjects.Text;
@@ -463,9 +489,12 @@ export class PlayScene extends Phaser.Scene {
   private spits = 0;
   private clawPainted: 'none' | 'windup' | 'swing' = 'none';
 
-  /** The level chosen by the address (`levelFor`) when the game opens; the next level, played at once, after a level clear screen. */
-  constructor(entry: LevelEntry = levelFor(window.location.search), direct = false) {
-    super(direct ? `play-${entry.id}` : 'play');
+  /**
+   * Opens on the level "Start" plays (`startLevel`: the address, else the saved game). A scene made for another level is the next
+   * level, played at once after a level clear screen or a pick on the title, or the title over the level "Start" now plays.
+   */
+  constructor({ entry = startLevel(window.location.search, savedTutorialPlayed()), direct = false, title }: PlayOptions = {}) {
+    super(scenesMade++ === 0 ? 'play' : `play-${entry.id}-${scenesMade}`);
     this.entry = entry;
     this.level = entry.level;
     this.world = entry.level.world;
@@ -473,6 +502,7 @@ export class PlayScene extends Phaser.Scene {
     // GDD-UI-02: started by the press that ended the level before it, it plays at once, with no title screen.
     this.holdAtStart = direct;
     if (direct) this.title = { ...TITLE, shown: false };
+    else if (title) this.title = title;
     this.run = startRun(this.level);
     this.prevPlayer = this.run.player;
     this.anim = startAnim(this.run.player.x);
@@ -504,12 +534,16 @@ export class PlayScene extends Phaser.Scene {
   }
 
   create(): void {
-    // GDD-PRG-02: the saved settings; where the browser refuses storage the game plays with the defaults.
+    // GDD-PRG-02: the saved settings and whether the tutorial was started; where the browser refuses storage the game plays with
+    // the defaults, and the tutorial counts as started if it was in this visit.
+    let save = DEFAULT_SAVE;
     try {
-      this.settings = readSave(window.localStorage.getItem(SAVE_KEY));
+      save = readSave(window.localStorage.getItem(SAVE_KEY));
     } catch {
-      this.settings = DEFAULT_SETTINGS;
+      // storage refused
     }
+    this.settings = save.settings;
+    this.tutorialPlayed = save.tutorialPlayed || playedThisVisit;
     this.cameras.main.setBackgroundColor('#1b2036');
     // GDD-ART-01: the canvas is ART_SCALE times larger than the game pixels everything is placed in, so the camera draws them zoomed in
     // from the top left corner, world objects and fixed ones alike.
@@ -749,18 +783,22 @@ export class PlayScene extends Phaser.Scene {
     // GDD-UI-02: the title screen, over everything: the level standing still under a veil like the game-over screen's, the
     // HUD included. The touch buttons are hidden while it is up.
     const veil = this.add.rectangle(0, 0, BASE_WIDTH, BASE_HEIGHT, 0x0d1020, 0.82).setOrigin(0);
-    this.titleText = this.add.text(BASE_WIDTH / 2, 84, 'PONCHO', { fontFamily: 'monospace', fontSize: '32px', color: '#fff3dc' }).setOrigin(0.5);
-    this.titleSubtitle = this.add.text(BASE_WIDTH / 2, 112, 'Siete Vidas', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
+    this.titleText = this.add.text(BASE_WIDTH / 2, 68, 'PONCHO', { fontFamily: 'monospace', fontSize: '32px', color: '#fff3dc' }).setOrigin(0.5);
+    this.titleSubtitle = this.add.text(BASE_WIDTH / 2, 96, 'Siete Vidas', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
     // GDD-UI-02: his standing frame, feet 8 px above the title menu.
     this.titlePoncho = this.add.container(BASE_WIDTH / 2, TITLE_MENU.top - 8, [
       (this.titlePonchoSprite = this.add.image(0, 0, 'poncho', STAND).setOrigin(0.5, 1).setScale(1 / ART_SCALE)),
     ]);
     this.titlePromptText = this.add.text(BASE_WIDTH / 2, 190, '', { fontFamily: 'monospace', fontSize: '12px', color: '#9ba3c4' }).setOrigin(0.5);
     // The title menu, drawn like the pause menu; upright it gives way to the prompt.
-    this.titleItems = { start: this.add.text(0, 0, 'Start', menuStyle).setOrigin(0.5), settings: this.add.text(0, 0, 'Settings', menuStyle).setOrigin(0.5) };
+    this.titleItems = {
+      start: this.add.text(0, 0, 'Start', menuStyle).setOrigin(0.5),
+      tutorial: this.add.text(0, 0, 'Tutorial', menuStyle).setOrigin(0.5),
+      settings: this.add.text(0, 0, 'Settings', menuStyle).setOrigin(0.5),
+    };
     this.titleMarker = this.add.text(0, 0, '>', menuStyle).setOrigin(1, 0.5);
     this.titleScreen = this.add
-      .container(0, 0, [veil, this.titleText, this.titleSubtitle, this.titlePoncho, this.titlePromptText, this.titleItems.start, this.titleItems.settings, this.titleMarker])
+      .container(0, 0, [veil, this.titleText, this.titleSubtitle, this.titlePoncho, this.titlePromptText, this.titleItems.start, this.titleItems.tutorial, this.titleItems.settings, this.titleMarker])
       .setScrollFactor(0)
       .setDepth(11);
     this.drawTitle();
@@ -827,7 +865,7 @@ export class PlayScene extends Phaser.Scene {
         },
         pauseMenu: () => this.pauseRows,
         titleDrawn: () => {
-          const { start, settings } = this.titleItems;
+          const { start, tutorial, settings } = this.titleItems;
           const marked = this.titleMarker.visible;
           return {
             shown: this.titleScreen.visible,
@@ -839,8 +877,8 @@ export class PlayScene extends Phaser.Scene {
             ponchoBottom: this.titlePoncho.y + this.titlePonchoSprite.y,
             menu: {
               shown: this.titleScreen.visible && start.visible,
-              items: [start.text, settings.text],
-              colors: [start, settings].map((t) => colorOf(t)),
+              items: [start.text, tutorial.text, settings.text],
+              colors: [start, tutorial, settings].map((t) => colorOf(t)),
               chosen: marked ? this.title.choice : null,
               markerY: marked ? this.titleMarker.y : null,
             },
@@ -850,6 +888,7 @@ export class PlayScene extends Phaser.Scene {
         settingsDrawn: () => this.settingsPainted,
         settingsMenu: () => this.settingsRows,
         settings: () => this.settings,
+        tutorialPlayed: () => this.tutorialPlayed,
         step: (n, input = { move: 0, jumpHeld: false }) => {
           if (!this.paused) throw new Error('step() needs the game paused');
           for (let i = 0; i < n; i++) this.simStep(input);
@@ -1652,6 +1691,7 @@ export class PlayScene extends Phaser.Scene {
     }
 
     const settingsBefore = this.settings;
+    const settingsChanged = () => this.settings.master !== settingsBefore.master || this.settings.effects !== settingsBefore.effects;
 
     // GDD-UI-02: the title screen. While it is up no step runs, and the pause events go to it: the title menu, its settings screen,
     // a tap that starts the level; Escape, P and losing focus do nothing on the menu. The button that started the level counts as
@@ -1661,7 +1701,22 @@ export class PlayScene extends Phaser.Scene {
       this.title = frame.state;
       this.settings = frame.settings;
       this.pauseEvents = [];
-      if (!this.title.shown) input = this.endPause();
+      if (!this.title.shown) {
+        // GDD-UI-02: "Tutorial" plays 0-1; "Start" plays what the address or the save says. 0-1 counts as played the moment it
+        // starts (GDD-PRG-02). A level other than the one behind the title starts at once as a scene of its own, the press held.
+        const level = frame.start === 'tutorial' ? levelById(TUTORIAL_ID)! : startLevel(window.location.search, this.tutorialPlayed);
+        const marks = level.id === TUTORIAL_ID && !this.tutorialPlayed;
+        if (marks) {
+          this.tutorialPlayed = true;
+          playedThisVisit = true;
+        }
+        if (marks || settingsChanged()) this.saveSettings();
+        if (level.id !== this.entry.id) {
+          this.startNext(level);
+          return;
+        }
+        input = this.endPause();
+      }
       // No step runs while the title stays up, so the title frame is what uses the latched presses: they are spent, or a Left
       // tapped on the settings screen would stay pending and make the held Left look like a new press at the next frame.
       else this.consumeLatches();
@@ -1674,8 +1729,12 @@ export class PlayScene extends Phaser.Scene {
     const frame = pauseFrame(this.pauseState, this.pauseEvents, this.settings);
     this.pauseEvents = [];
     this.settings = frame.settings;
-    if (frame.quit) this.backToTitle(input, frame.portrait);
-    else {
+    if (frame.quit) {
+      if (this.backToTitle(input, frame.portrait)) {
+        if (settingsChanged()) this.saveSettings();
+        return;
+      }
+    } else {
       this.pauseState = frame.state;
       if (!wasPaused && this.pauseState.paused) this.notePause();
       if (wasPaused && !this.pauseState.paused) input = this.endPause();
@@ -1683,7 +1742,7 @@ export class PlayScene extends Phaser.Scene {
 
     // GDD-PRG-02: a change is saved at once. GDD-UI-02: it plays the jump sound at the new volume, so the player hears it; a volume
     // already at its end changes nothing, so nothing is saved or played.
-    if (this.settings.master !== settingsBefore.master || this.settings.effects !== settingsBefore.effects) {
+    if (settingsChanged()) {
       this.saveSettings();
       this.playSfx('jump');
     }
@@ -1708,7 +1767,7 @@ export class PlayScene extends Phaser.Scene {
         this.startNext(next);
         return;
       }
-      this.backToTitle(input, this.pauseState.portrait);
+      if (this.backToTitle(input, this.pauseState.portrait)) return;
     }
     // Redraw when the lives change, and on every step while a triangle is cracking.
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.pulseDrawn !== null || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
@@ -1744,10 +1803,10 @@ export class PlayScene extends Phaser.Scene {
     this.drawSettings();
   }
 
-  /** GDD-PRG-02: the settings go to the browser's storage. Where it is refused the game plays on with this visit's settings, silently. */
+  /** GDD-PRG-02: the settings and whether the tutorial was started go to the browser's storage. Where it is refused the game plays on with this visit's, silently. */
   private saveSettings(): void {
     try {
-      window.localStorage.setItem(SAVE_KEY, saveText(this.settings));
+      window.localStorage.setItem(SAVE_KEY, saveText({ settings: this.settings, tutorialPlayed: this.tutorialPlayed }));
     } catch {
       // storage refused: the settings last until the page closes
     }
@@ -1812,18 +1871,30 @@ export class PlayScene extends Phaser.Scene {
    * buttons down as already held, so the press does not jump, claw or spit there.
    */
   private startNext(next: LevelEntry): void {
+    this.replaceWith({ entry: next, direct: true });
+  }
+
+  /** This scene is removed and a fresh one, with its own key, takes its place and starts. */
+  private replaceWith(options: PlayOptions): void {
     const scenes = this.game.scene;
     scenes.remove(this.scene.key);
-    scenes.add(`play-${next.id}`, new PlayScene(next, true), true);
+    const scene = new PlayScene(options);
+    scenes.add(scene.sys.settings.key, scene, true);
   }
 
   /**
    * GDD-UI-02: Quit to title, or the end of the level clear screen. A fresh run as when the game opens, behind the title screen
    * waiting for a press. No step runs on the title, so every latched key press is spent here, or a quick tap that picked would stay
    * latched and a new press would not be new. The buttons down now count as held on the title, so the one that picked (or that ended
-   * the clear screen) does not start the level.
+   * the clear screen) does not start the level. When "Start" no longer plays this level (the tutorial has started, so it plays 1-1),
+   * a fresh scene of that level takes this one's place with the same title and this returns true: `update` must return at once.
    */
-  private backToTitle(input: PlayerInput, portrait: boolean): void {
+  private backToTitle(input: PlayerInput, portrait: boolean): boolean {
+    const startsWith = startLevel(window.location.search, this.tutorialPlayed);
+    if (startsWith.id !== this.entry.id) {
+      this.replaceWith({ entry: startsWith, title: titleAfterQuit(portrait, buttonsDown(input)) });
+      return true;
+    }
     this.run = startRun(this.level);
     this.prevPlayer = this.run.player;
     this.anim = startAnim(this.run.player.x);
@@ -1843,6 +1914,7 @@ export class PlayScene extends Phaser.Scene {
     this.touch.holdBack();
     this.pad.holdBack();
     this.keysAtPause = new Map();
+    return false;
   }
 
   /**

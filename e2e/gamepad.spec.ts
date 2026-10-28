@@ -147,6 +147,7 @@ test('GDD-CTL-02 GDD-UI-02 the settings screen by gamepad', async ({ page, isMob
   test.skip(isMobile, 'gamepad test');
   await withPad(page);
   await openGame(page);
+  await tap(page, DOWN); // Start, Tutorial, Settings: two Downs
   await tap(page, DOWN);
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().menu.chosen === 'settings');
   await tap(page, SOUTH);

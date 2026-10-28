@@ -168,11 +168,12 @@ test('GDD-PRG-02 the settings are kept after a reload', async ({ page }) => {
   await started(page);
   await openFromPause(page);
   for (const v of [9, 8, 7]) await change(page, 'ArrowLeft', 'master', v);
-  expect(await page.evaluate((k) => localStorage.getItem(k), SAVE_KEY)).toBe('{"version":1,"settings":{"master":7,"effects":10}}');
+  expect(await page.evaluate((k) => localStorage.getItem(k), SAVE_KEY)).toBe('{"version":1,"settings":{"master":7,"effects":10},"progress":{"tutorialPlayed":false}}');
   await page.reload();
   await page.waitForFunction(() => window.__PONCHO__ !== undefined);
   expect(await settings(page)).toEqual({ master: 7, effects: 10 });
   // The bars show it too: open the screen from the title.
+  await press(page, 'ArrowDown');
   await press(page, 'ArrowDown');
   await press(page, 'Enter');
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
@@ -272,6 +273,7 @@ test('GDD-UI-02 a finger pressed on the settings screen is held back after the r
 test('GDD-UI-02 Settings from the title: Down, Enter opens it, Left does not start the level, Back returns with Settings chosen', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await openGame(page);
+  await press(page, 'ArrowDown'); // Start, Tutorial, Settings: two Downs
   await press(page, 'ArrowDown');
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().menu.chosen === 'settings');
   await press(page, 'Enter');
@@ -368,6 +370,7 @@ test('GDD-UI-02 opened from the pause menu the settings screen dims the level an
 
 test('GDD-UI-02 opened from the title menu the settings screen covers the HUD too', async ({ page }) => {
   await openGame(page);
+  await press(page, 'ArrowDown');
   await press(page, 'ArrowDown');
   await press(page, 'Enter');
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);

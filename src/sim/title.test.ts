@@ -8,9 +8,12 @@ import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleState } from 
 const frame = (s: TitleState, events: readonly PauseEvent[], down = 0, settings: Settings = DEFAULT_SETTINGS) => titleFrame(s, events, down, settings).state;
 const tap = (t: Partial<Tap>): Tap => ({ ...TAP_OFF, ...t });
 const UPRIGHT = frame(TITLE, ['portrait']);
-/** The title with Settings chosen, and with the settings screen open on Master volume. */
-const CHOSEN = frame(TITLE, ['menuDown']);
-const OPEN = frame(TITLE, ['menuDown', 'pick']);
+/** The title with Tutorial chosen, with Settings chosen, and with the settings screen open on Master volume. */
+const TUTORIAL = frame(TITLE, ['menuDown']);
+const CHOSEN = frame(TITLE, ['menuDown', 'menuDown']);
+const OPEN = frame(TITLE, ['menuDown', 'menuDown', 'pick']);
+/** Whether and what a frame starts. */
+const startOf = (s: TitleState, events: readonly PauseEvent[], down = 0) => titleFrame(s, events, down).start;
 
 describe('GDD-UI-02 title screen', () => {
   it('opens shown, sideways, with no button held, on Start with the settings screen closed', () => {
@@ -84,33 +87,99 @@ describe('GDD-UI-02 title screen', () => {
   it('once started it stays gone', () => {
     const started = frame(TITLE, [TAP_OFF]);
     expect(frame(started, []).shown).toBe(false);
-    expect(titleFrame(started, ['portrait'], 0)).toEqual({ state: started, settings: DEFAULT_SETTINGS });
+    expect(titleFrame(started, ['portrait'], 0)).toEqual({ state: started, settings: DEFAULT_SETTINGS, start: null });
   });
 });
 
 describe('GDD-UI-02 title menu', () => {
-  it('the title opens with Start chosen; Down chooses Settings and Up Start, with no wrap-around', () => {
+  it('the title opens with Start chosen', () => {
     expect(TITLE.choice).toBe('start');
-    expect(frame(TITLE, ['menuUp']).choice).toBe('start');
-    expect(frame(TITLE, ['menuDown']).choice).toBe('settings');
+  });
+
+  it('GDD-UI-02 title: Down from Start chooses Tutorial, Down again Settings, and Down on Settings stays', () => {
+    expect(frame(TITLE, ['menuDown']).choice).toBe('tutorial');
     expect(frame(TITLE, ['menuDown', 'menuDown']).choice).toBe('settings');
-    expect(frame(TITLE, ['menuDown', 'menuUp']).choice).toBe('start');
-    expect(frame(CHOSEN, ['menuUp']).choice).toBe('start');
+    expect(frame(TITLE, ['menuDown', 'menuDown', 'menuDown']).choice).toBe('settings');
     expect(frame(CHOSEN, ['menuDown']).choice).toBe('settings');
-    expect(frame(CHOSEN, ['menuUp']).shown).toBe(true); // choosing starts nothing
-    expect(frame(CHOSEN, ['menuDown']).shown).toBe(true);
+    expect(frame(CHOSEN, ['menuDown']).shown).toBe(true); // choosing starts nothing
+  });
+
+  it('GDD-UI-02 title: Up from Settings chooses Tutorial, then Start, and Up on Start stays', () => {
+    expect(frame(CHOSEN, ['menuUp']).choice).toBe('tutorial');
+    expect(frame(CHOSEN, ['menuUp', 'menuUp']).choice).toBe('start');
+    expect(frame(CHOSEN, ['menuUp', 'menuUp', 'menuUp']).choice).toBe('start');
+    expect(frame(TITLE, ['menuUp']).choice).toBe('start');
+    expect(frame(TUTORIAL, ['menuUp']).choice).toBe('start');
+    expect(frame(TUTORIAL, ['menuUp']).shown).toBe(true);
+  });
+
+  it('GDD-UI-02 title: picking Tutorial starts with the tutorial', () => {
+    const r = titleFrame(TUTORIAL, ['pick'], 0);
+    expect(r.state.shown).toBe(false);
+    expect(r.start).toBe('tutorial');
+    expect(startOf(TITLE, ['menuDown', 'pick'])).toBe('tutorial');
+  });
+
+  it('GDD-UI-02 title: picking Start starts with Start', () => {
+    const r = titleFrame(TITLE, ['pick'], 0);
+    expect(r.state.shown).toBe(false);
+    expect(r.start).toBe('start');
+    expect(startOf(TUTORIAL, ['menuUp', 'pick'])).toBe('start');
+  });
+
+  it('GDD-UI-02 title: a tap on the Tutorial row starts with the tutorial, a tap off the rows with Start', () => {
+    expect(startOf(TITLE, [tap({ title: 'tutorial' })])).toBe('tutorial');
+    expect(startOf(CHOSEN, [tap({ title: 'tutorial' })])).toBe('tutorial');
+    expect(startOf(TITLE, [tap({ title: 'start' })])).toBe('start');
+    expect(startOf(TUTORIAL, [tap({ title: 'start' })])).toBe('start');
+    expect(startOf(TUTORIAL, [TAP_OFF])).toBe('start');
+    expect(startOf(TUTORIAL, ['button'])).toBe('start');
+    expect(startOf(TITLE, [tap({ pause: 'quit' })])).toBe('start');
+  });
+
+  it('GDD-UI-02 title: a new press of claw starts with Start, even with Tutorial chosen', () => {
+    expect(startOf(TUTORIAL, [], 8)).toBe('start');
+    for (const bit of [2, 4, 8, 16]) expect(startOf(TUTORIAL, [], bit), `bit ${bit}`).toBe('start');
+  });
+
+  it('GDD-UI-02 title: the last start event of a frame decides', () => {
+    expect(startOf(TITLE, [tap({ title: 'tutorial' }), 'start'])).toBe('start');
+    expect(startOf(TITLE, ['start', 'menuDown', 'pick'])).toBe('tutorial');
+    expect(startOf(TITLE, [tap({ title: 'tutorial' }), TAP_OFF])).toBe('start');
+    expect(startOf(TITLE, [TAP_OFF, tap({ title: 'tutorial' })])).toBe('tutorial');
+    // A new game-button press counts as Start only when no start event came in the frame.
+    expect(startOf(TITLE, [tap({ title: 'tutorial' })], 8)).toBe('tutorial');
+    expect(startOf(TUTORIAL, ['pick'], 8)).toBe('tutorial');
+    expect(startOf(TITLE, [], 8)).toBe('start');
+  });
+
+  it('GDD-UI-02 title: a tap upright starts with Start, even on the Tutorial row, once turned sideways', () => {
+    expect(startOf(UPRIGHT, [tap({ title: 'tutorial' }), 'landscape'])).toBe('start');
+    expect(startOf(UPRIGHT, [TAP_OFF, 'landscape'])).toBe('start');
+  });
+
+  it('GDD-UI-02 title: the title staying up gives no start', () => {
+    expect(titleFrame(TITLE, [], 0).start).toBeNull();
+    expect(titleFrame(TITLE, ['menuDown', 'menuUp', 'key', 'blur'], 0).start).toBeNull();
+    expect(titleFrame(TITLE, [], 1).start).toBeNull();
+    expect(titleFrame(CHOSEN, ['pick'], 0).start).toBeNull();
+    expect(titleFrame(UPRIGHT, [TAP_OFF], 0).start).toBeNull();
+    expect(titleFrame(TITLE, [tap({ title: 'tutorial' }), 'portrait'], 0).start).toBeNull();
+    // Once started it stays gone, with no start.
+    expect(titleFrame(frame(TITLE, ['pick']), ['pick'], 0).start).toBeNull();
   });
 
   it('Enter, Space or Z on Start starts the level', () => {
     expect(frame(TITLE, ['pick']).shown).toBe(false);
-    expect(frame(CHOSEN, ['menuUp', 'pick']).shown).toBe(false);
+    expect(frame(CHOSEN, ['menuUp', 'menuUp', 'pick']).shown).toBe(false);
   });
 
   it('picking Settings opens the settings screen on Master volume and does not start the level', () => {
     expect(OPEN).toMatchObject({ shown: true, choice: 'settings', settings: 'master' });
-    expect(frame(TITLE, ['menuDown', 'pick', 'menuDown', 'menuUp'])).toMatchObject({ shown: true, settings: 'master' });
+    expect(frame(TITLE, ['menuDown', 'menuDown', 'pick', 'menuDown', 'menuUp'])).toMatchObject({ shown: true, settings: 'master' });
     // A start press earlier in the frame does not start it either: the frame ends with the settings screen open.
-    expect(frame(TITLE, ['button', 'menuDown', 'pick'])).toMatchObject({ shown: true, settings: 'master' });
+    expect(frame(TITLE, ['button', 'menuDown', 'menuDown', 'pick'])).toMatchObject({ shown: true, settings: 'master' });
+    expect(titleFrame(TITLE, ['button', 'menuDown', 'menuDown', 'pick'], 0).start).toBeNull();
   });
 
   it('a tap on the Settings row opens settings; a tap on the Start row or off the rows starts', () => {
@@ -173,20 +242,20 @@ describe('GDD-UI-02 title menu', () => {
   });
 
   it("the volumes change on the title's settings screen", () => {
-    const r = titleFrame(TITLE, ['menuDown', 'pick', 'menuRight', 'menuLeft', 'menuLeft'], 0, { master: 10, effects: 10 });
+    const r = titleFrame(TITLE, ['menuDown', 'menuDown', 'pick', 'menuRight', 'menuLeft', 'menuLeft'], 0, { master: 10, effects: 10 });
     expect(r.settings).toEqual({ master: 8, effects: 10 }); // Right at 10 stays 10, then two Lefts
-    const s = titleFrame(TITLE, ['menuDown', 'pick', 'menuDown', 'menuLeft'], 0, { master: 9, effects: 10 });
+    const s = titleFrame(TITLE, ['menuDown', 'menuDown', 'pick', 'menuDown', 'menuLeft'], 0, { master: 9, effects: 10 });
     expect(s.settings).toEqual({ master: 9, effects: 9 });
     expect(s.state.settings).toBe('effects');
     const t = titleFrame(OPEN, [tap({ settings: { row: 'effects', side: 'left' } })], 0, { master: 3, effects: 4 });
     expect(t).toMatchObject({ settings: { master: 3, effects: 3 }, state: { settings: 'effects' } });
-    const u = titleFrame(TITLE, ['menuDown', 'pick', 'menuRight'], 0, { master: 9, effects: 10 });
+    const u = titleFrame(TITLE, ['menuDown', 'menuDown', 'pick', 'menuRight'], 0, { master: 9, effects: 10 });
     expect(u.settings).toEqual({ master: 10, effects: 10 });
   });
 
   it('upright, nothing is chosen or picked; sideways again the choice is kept', () => {
     expect(frame(UPRIGHT, ['menuDown']).choice).toBe('start');
-    expect(frame(UPRIGHT, ['menuDown', 'pick'])).toMatchObject({ choice: 'start', settings: null, shown: true });
+    expect(frame(UPRIGHT, ['menuDown', 'menuDown', 'pick'])).toMatchObject({ choice: 'start', settings: null, shown: true });
     expect(frame(CHOSEN, ['portrait'])).toMatchObject({ choice: 'settings', portrait: true });
     expect(frame(frame(CHOSEN, ['portrait']), ['menuUp']).choice).toBe('settings');
     expect(frame(CHOSEN, ['portrait', 'landscape']).choice).toBe('settings');
@@ -195,12 +264,12 @@ describe('GDD-UI-02 title menu', () => {
     // Upright, the settings screen takes nothing either.
     const screenUp = frame(OPEN, ['portrait']);
     expect(screenUp).toMatchObject({ settings: 'master', portrait: true });
-    expect(titleFrame(screenUp, ['menuDown', 'menuLeft', 'key'], 0, { master: 5, effects: 5 })).toEqual({ state: screenUp, settings: { master: 5, effects: 5 } });
+    expect(titleFrame(screenUp, ['menuDown', 'menuLeft', 'key'], 0, { master: 5, effects: 5 })).toEqual({ state: screenUp, settings: { master: 5, effects: 5 }, start: null });
     expect(frame(screenUp, ['landscape', 'menuDown'])).toMatchObject({ settings: 'effects', portrait: false });
   });
 
   it('a pick of Settings just before a turn upright opens it, hidden until sideways', () => {
-    expect(frame(TITLE, ['menuDown', 'pick', 'portrait'])).toMatchObject({ settings: 'master', portrait: true, shown: true });
+    expect(frame(TITLE, ['menuDown', 'menuDown', 'pick', 'portrait'])).toMatchObject({ settings: 'master', portrait: true, shown: true });
   });
 
   it('quitting to the title opens on Start with the settings screen closed', () => {
@@ -220,7 +289,7 @@ describe('GDD-UI-02 title screen after quitting from the pause menu', () => {
   });
 
   it('up, down, left, right and pick on Settings do not start the level', () => {
-    expect(frame(TITLE, ['menuUp', 'menuDown', 'menuLeft', 'menuRight', 'pick']).shown).toBe(true);
+    expect(frame(TITLE, ['menuUp', 'menuDown', 'menuDown', 'menuLeft', 'menuRight', 'pick']).shown).toBe(true);
   });
 
   it('after a quit the title waits for a new press: the button that picked counts as held', () => {
@@ -239,14 +308,15 @@ describe('GDD-CTL-02 the gamepad on the title screen', () => {
   it('start starts the level whichever row is chosen', () => {
     expect(titleFrame(TITLE, ['start'], 0).state.shown).toBe(false);
     expect(titleFrame(TITLE, ['menuDown', 'start'], 0).state.shown).toBe(false);
+    expect(titleFrame(TITLE, ['menuDown', 'start'], 0).start).toBe('start');
   });
 
   it("start on the title's settings screen leaves it and does not start", () => {
-    const one = titleFrame(TITLE, ['menuDown', 'pick', 'start'], 0).state;
+    const one = titleFrame(TITLE, ['menuDown', 'menuDown', 'pick', 'start'], 0).state;
     expect(one.shown).toBe(true);
     expect(one.settings).toBeNull();
     expect(one.choice).toBe('settings');
-    const opened = titleFrame(TITLE, ['menuDown', 'pick'], 0).state;
+    const opened = titleFrame(TITLE, ['menuDown', 'menuDown', 'pick'], 0).state;
     expect(opened.settings).toBe('master');
     const two = titleFrame(opened, ['start'], 0).state;
     expect(two.shown).toBe(true);

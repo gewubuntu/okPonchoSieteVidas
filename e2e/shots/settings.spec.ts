@@ -36,6 +36,7 @@ test('GDD-UI-02 the settings screen from the pause menu, after changes, and Back
 
 test('GDD-UI-02 the settings screen from the title menu', async ({ page }, info) => {
   await openGame(page);
+  await press(page, 'ArrowDown', 40); // Start, Tutorial, Settings: two Downs
   await press(page, 'ArrowDown', 40);
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().menu.chosen === 'settings');
   await press(page, 'Enter', 13);

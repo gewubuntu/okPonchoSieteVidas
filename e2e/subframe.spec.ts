@@ -67,11 +67,11 @@ test('GDD-UI-02 a Left, Right, claw or Fuego tap inside one task starts the leve
   }
 });
 
-test('GDD-UI-02 on the title, Down and Enter tapped inside one task open the settings screen, and a Left tap there lowers a volume and starts nothing', async ({ page, isMobile }) => {
+test('GDD-UI-02 on the title, two Downs and Enter tapped inside one task open the settings screen, and a Left tap there lowers a volume and starts nothing', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await openGame(page);
   await page.evaluate(() => {
-    for (const [code, keyCode] of [['ArrowDown', 40], ['Enter', 13], ['ArrowLeft', 37]] as const) {
+    for (const [code, keyCode] of [['ArrowDown', 40], ['ArrowDown', 40], ['Enter', 13], ['ArrowLeft', 37]] as const) {
       window.dispatchEvent(new KeyboardEvent('keydown', { code, keyCode, bubbles: true }));
       window.dispatchEvent(new KeyboardEvent('keyup', { code, keyCode, bubbles: true }));
     }

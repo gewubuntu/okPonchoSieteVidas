@@ -58,27 +58,41 @@ describe('GDD-UI-02 pause menu rows', () => {
 });
 
 describe('GDD-UI-02 title menu rows', () => {
-  it('two rows, Start and Settings, 160 by 28, centred, the first at 176, the second right below', () => {
+  it('GDD-UI-02 three rows, Start, Tutorial and Settings, 160 by 28, centred, the first at 160', () => {
     expect(layoutTitleMenu(2)).toEqual([
-      { item: 'start', x: 160, y: 176, w: 160, h: 28 },
-      { item: 'settings', x: 160, y: 204, w: 160, h: 28 },
+      { item: 'start', x: 160, y: 160, w: 160, h: 28 },
+      { item: 'tutorial', x: 160, y: 188, w: 160, h: 28 },
+      { item: 'settings', x: 160, y: 216, w: 160, h: 28 },
     ]);
   });
 
+  it('GDD-UI-02 on a landscape phone the three title rows grow to 34 px and end above the screen\'s bottom', () => {
+    const rows = layoutTitleMenu(390 / 270);
+    expect(rows.map((r) => [r.y, r.h])).toEqual([[160, 34], [194, 34], [228, 34]]);
+    const last = rows[2]!;
+    expect(last.y + last.h).toBe(262);
+    expect(last.y + last.h).toBeLessThanOrEqual(270);
+  });
+
   it('on a small screen the rows grow to 48 CSS px', () => {
-    expect(layoutTitleMenu(1).map((r) => [r.y, r.h])).toEqual([[176, 48], [224, 48]]);
-    expect(layoutTitleMenu(390 / 270).map((r) => [r.y, r.h])).toEqual([[176, 34], [210, 34]]);
+    expect(layoutTitleMenu(1).map((r) => [r.y, r.h])).toEqual([[160, 48], [208, 48], [256, 48]]);
   });
 
   it('a point picks the row it is on, edges as the touch buttons', () => {
     const rows = layoutTitleMenu(2);
-    expect(titleMenuItemAt(rows, 160, 176)).toBe('start');
-    expect(titleMenuItemAt(rows, 319, 203)).toBe('start');
-    expect(titleMenuItemAt(rows, 320, 190)).toBeNull();
-    expect(titleMenuItemAt(rows, 159, 190)).toBeNull();
-    expect(titleMenuItemAt(rows, 200, 175)).toBeNull();
-    expect(titleMenuItemAt(rows, 200, 204)).toBe('settings');
-    expect(titleMenuItemAt(rows, 200, 231)).toBe('settings');
-    expect(titleMenuItemAt(rows, 200, 232)).toBeNull();
+    expect(titleMenuItemAt(rows, 160, 160)).toBe('start');
+    expect(titleMenuItemAt(rows, 319, 187)).toBe('start');
+    expect(titleMenuItemAt(rows, 320, 170)).toBeNull();
+    expect(titleMenuItemAt(rows, 159, 170)).toBeNull();
+    expect(titleMenuItemAt(rows, 200, 159)).toBeNull();
+    expect(titleMenuItemAt(rows, 200, 188)).toBe('tutorial');
+    expect(titleMenuItemAt(rows, 200, 215)).toBe('tutorial');
+    expect(titleMenuItemAt(rows, 200, 216)).toBe('settings');
+    expect(titleMenuItemAt(rows, 200, 243)).toBe('settings');
+    expect(titleMenuItemAt(rows, 200, 244)).toBeNull();
+  });
+
+  it('titleMenuItemAt finds \'tutorial\' in its row', () => {
+    expect(titleMenuItemAt(layoutTitleMenu(390 / 270), 240, 210)).toBe('tutorial');
   });
 });
