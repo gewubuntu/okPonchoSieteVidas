@@ -43,8 +43,8 @@ import { platformAt } from '../sim/platform';
 import { buttonsDown, respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
 import { isPortrait, pauseFrame, PLAYING, resumeHeld, type MenuItem, type PauseEvent, type PauseState } from '../sim/pause';
-import { DEFAULT_SAVE, readSave, SAVE_KEY, saveText } from '../sim/save';
-import { DEFAULT_SETTINGS, sfxVolume, type Settings, type SettingsRow } from '../sim/settings';
+import { readSave, SAVE_KEY, saveText } from '../sim/save';
+import { browserLanguage, DEFAULT_SETTINGS, sfxVolume, type Language, type Settings, type SettingsRow } from '../sim/settings';
 import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
 import { veladoraUsed } from '../sim/veladora';
@@ -64,7 +64,8 @@ import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
 import { gamePoint } from '../ui/gamePoint';
 import { startAnim, stepAnim, STAND, type PonchoAnim } from '../ui/ponchoAnim';
 import { layoutPauseMenu, layoutTitleMenu, pauseMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
-import { layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
+import { languageValueX, layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
+import { LANGUAGE_NAMES, TEXT } from '../ui/text';
 import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tipsDone as nextTipsDone, tipText, type Device, type TipFade } from '../ui/tips';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
@@ -146,6 +147,8 @@ export interface PonchoDebug {
   tip(): { index: number | null; text: string; alpha: number; device: Device; highlight: { x: number; y: number; w: number; h: number } | null; grow: number; button: string | null; box: { x: number; y: number; w: number; h: number } };
   /** The tips whose thing is done, by tip (GDD-UI-05). */
   tipsDone(): boolean[];
+  /** The lines Phaser wraps `text` into with the tip text's style and wrap width (GDD-UI-05), so a playtest can check a tip fits its two lines. */
+  wrapTip(text: string): string[];
   /** Whether the placeholder title, controls and dev lines at the top of the level start exist (the tutorial has none, GDD-UI-05). */
   placeholderLines(): boolean;
   /** Whether the veladora is painted in the level (GDD-LIFE-03), and whether the exit's arch is (GDD-WLD-03). Read from what was drawn. */
@@ -177,7 +180,7 @@ export interface PonchoDebug {
   /** The player's pause (GDD-UI-02): whether the level is paused, whether because the phone is upright, and the chosen menu item. */
   playerPause(): PauseState;
   /**
-   * The pause screen as drawn: whether it is shown, its title and its prompt line ("Turn your device sideways" upright, empty
+   * The pause screen as drawn: whether it is shown, its title and its prompt line ("Turn your device sideways" upright, in the language in use, empty
    * otherwise), and the pause menu (GDD-UI-02): whether it is shown (not upright), its three items' texts and colours, the item the
    * ">" stands beside and the ">" 's y, both null while the menu is hidden.
    */
@@ -209,20 +212,21 @@ export interface PonchoDebug {
   titleMenu(): MenuRow<TitleItem>[];
   /**
    * The settings screen as drawn (GDD-UI-02): whether it is shown, its title and its prompt line ("Turn your device sideways"
-   * upright, empty otherwise), the menu it was opened from, its rows (the label, the bars drawn filled for a volume row, null for
-   * Back, and the colour) and the row the chosen look is on. The rows are empty and `chosen` null while it is hidden or upright.
+   * upright, empty otherwise), the menu it was opened from, its rows (the label, the bars drawn filled for a volume row, the language
+   * name for the Language row, null for Back, and the colour; for the Language row also the x of the name, in game px) and the row
+   * the chosen look is on. The rows are empty and `chosen` null while it is hidden or upright.
    */
   settingsDrawn(): {
     shown: boolean;
     title: string;
     prompt: string;
     from: 'pause' | 'title' | null;
-    rows: { item: SettingsRow; label: string; value: number | null; color: string }[];
+    rows: { item: SettingsRow; label: string; value: number | string | null; color: string; valueX?: number }[];
     chosen: SettingsRow | null;
   };
   /** The settings screen's rows as laid out now, in game px, for tapping them (GDD-UI-02). */
   settingsMenu(): SettingsMenuRow[];
-  /** The volumes in use now (GDD-UI-02, GDD-AUD-01). */
+  /** The volumes and the language in use now (GDD-UI-02, GDD-AUD-01). */
   settings(): Settings;
   /** Whether the tutorial 0-1 has been started, in the browser's save or in this visit (GDD-UI-02, GDD-PRG-02). */
   tutorialPlayed(): boolean;
@@ -300,7 +304,7 @@ let scenesMade = 0;
 /** GDD-PRG-02: set once the tutorial starts in this visit, so it holds where the browser refuses storage. */
 let playedThisVisit = false;
 
-/** GDD-UI-02, GDD-PRG-02: the volumes last set in this visit, so a new scene (the next level, a title over another level) keeps them where the browser refuses storage. */
+/** GDD-UI-02, GDD-PRG-02: the volumes and the language last set in this visit, so a new scene (the next level, a title over another level) keeps them where the browser refuses storage. */
 let settingsThisVisit: Settings | null = null;
 
 /** GDD-PRG-02: whether the saved game says the tutorial was started, when the game opens; false where the browser refuses storage. */
@@ -392,9 +396,12 @@ export class PlayScene extends Phaser.Scene {
   private settingsPrompt!: Phaser.GameObjects.Text;
   private settingsLabels!: Record<SettingsRow, Phaser.GameObjects.Text>;
   private settingsArrows!: Phaser.GameObjects.Text[];
+  private settingsLanguageValue!: Phaser.GameObjects.Text;
   private settingsBars!: Phaser.GameObjects.Graphics;
   private settingsMarker!: Phaser.GameObjects.Text;
   private settingsRows: SettingsMenuRow[] = layoutSettingsMenu(1);
+  /** GDD-UI-02: the language every text was last set in, so a change is seen and the texts are set again. */
+  private textLanguage: Language = DEFAULT_SETTINGS.language;
   private settingsPainted: ReturnType<PonchoDebug['settingsDrawn']> = { shown: false, title: '', prompt: '', from: null, rows: [], chosen: null };
   /** GDD-UI-02: the title screen, and its menu's three item texts, the ">" in front of the chosen one, and the rows as last laid out. */
   private title: TitleState = TITLE;
@@ -539,9 +546,11 @@ export class PlayScene extends Phaser.Scene {
   create(): void {
     // GDD-PRG-02: the saved settings and whether the tutorial was started; where the browser refuses storage the game plays with
     // the defaults, and the tutorial counts as started if it was in this visit.
-    let save = DEFAULT_SAVE;
+    // GDD-UI-02: a first visit, or a save with no language, takes the browser's.
+    const browser = browserLanguage(typeof navigator === 'undefined' ? [] : Array.isArray(navigator.languages) && navigator.languages.length > 0 ? navigator.languages : [navigator.language]);
+    let save = readSave(null, browser);
     try {
-      save = readSave(window.localStorage.getItem(SAVE_KEY));
+      save = readSave(window.localStorage.getItem(SAVE_KEY), browser);
     } catch {
       // storage refused
     }
@@ -694,14 +703,17 @@ export class PlayScene extends Phaser.Scene {
     this.settingsLabels = {
       master: this.add.text(0, 0, 'Master volume', menuStyle).setOrigin(0, 0.5),
       effects: this.add.text(0, 0, 'Effects volume', menuStyle).setOrigin(0, 0.5),
+      language: this.add.text(0, 0, 'Language', menuStyle).setOrigin(0, 0.5),
       back: this.add.text(0, 0, 'Back', menuStyle).setOrigin(0.5),
     };
-    // "<" and ">" for the two volume rows, left then right, row by row.
-    this.settingsArrows = ['<', '>', '<', '>'].map((c) => this.add.text(0, 0, c, menuStyle).setOrigin(0.5));
+    // "<" and ">" for the two volume rows and the language row, left then right, row by row.
+    this.settingsArrows = ['<', '>', '<', '>', '<', '>'].map((c) => this.add.text(0, 0, c, menuStyle).setOrigin(0.5));
+    // GDD-UI-02: the chosen language's own name, where a volume row's bars are.
+    this.settingsLanguageValue = this.add.text(0, 0, '', menuStyle).setOrigin(0.5);
     this.settingsBars = this.add.graphics();
     this.settingsMarker = this.add.text(0, 0, '>', menuStyle).setOrigin(1, 0.5);
     this.settingsScreen = this.add
-      .container(0, 0, [this.settingsVeil, this.settingsTitle, this.settingsPrompt, ...Object.values(this.settingsLabels), ...this.settingsArrows, this.settingsBars, this.settingsMarker])
+      .container(0, 0, [this.settingsVeil, this.settingsTitle, this.settingsPrompt, ...Object.values(this.settingsLabels), ...this.settingsArrows, this.settingsLanguageValue, this.settingsBars, this.settingsMarker])
       .setScrollFactor(0)
       .setDepth(9.5)
       .setVisible(false);
@@ -805,6 +817,7 @@ export class PlayScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(11);
     this.drawTitle();
+    this.applyLanguage();
 
     if (import.meta.env.DEV) {
       window.__PONCHO__ = {
@@ -827,6 +840,7 @@ export class PlayScene extends Phaser.Scene {
         plants: () => this.plantImages.map((image) => ({ kind: Number(image.frame.name), x: image.x, y: image.y, depth: image.depth })),
         tip: () => this.tipPainted,
         tipsDone: () => this.tipsDoneNow,
+        wrapTip: (text) => this.tipText.getWrappedText(text),
         placeholderLines: () => this.placeholderLines,
         veladoraDrawn: () => this.veladoraPainted,
         exitDrawn: () => this.exitPainted,
@@ -1569,7 +1583,7 @@ export class PlayScene extends Phaser.Scene {
     let highlight: ReturnType<PonchoDebug['tip']>['highlight'] = null;
     let drawnGrow = 0;
     if (shown) {
-      const text = tipText(tip, this.device);
+      const text = tipText(tip, this.device, this.settings.language);
       if (this.tipText.text !== text) this.tipText.setText(text);
       const w = this.tipText.width;
       const h = this.tipText.height;
@@ -1694,7 +1708,9 @@ export class PlayScene extends Phaser.Scene {
     }
 
     const settingsBefore = this.settings;
-    const settingsChanged = () => this.settings.master !== settingsBefore.master || this.settings.effects !== settingsBefore.effects;
+    const volumeChanged = () => this.settings.master !== settingsBefore.master || this.settings.effects !== settingsBefore.effects;
+    const languageChanged = () => this.settings.language !== settingsBefore.language;
+    const settingsChanged = () => volumeChanged() || languageChanged();
 
     // GDD-UI-02: the title screen. While it is up no step runs, and the pause events go to it: the title menu, its settings screen,
     // a tap that starts the level; Escape, P and losing focus do nothing on the menu. The button that started the level counts as
@@ -1743,12 +1759,10 @@ export class PlayScene extends Phaser.Scene {
       if (wasPaused && !this.pauseState.paused) input = this.endPause();
     }
 
-    // GDD-PRG-02: a change is saved at once. GDD-UI-02: it plays the jump sound at the new volume, so the player hears it; a volume
-    // already at its end changes nothing, so nothing is saved or played.
-    if (settingsChanged()) {
-      this.saveSettings();
-      this.playSfx('jump');
-    }
+    // GDD-PRG-02: a change is saved at once. GDD-UI-02: a volume change plays the jump sound at the new volume, so the player hears
+    // it, and a language change plays nothing; a setting already at its end changes nothing, so nothing is saved or played.
+    if (settingsChanged()) this.saveSettings();
+    if (volumeChanged()) this.playSfx('jump');
 
     let stepped = false;
     if (!this.paused && !this.pauseState.paused && !this.title.shown) {
@@ -1798,6 +1812,8 @@ export class PlayScene extends Phaser.Scene {
     this.renderBody(alpha);
     this.followBody();
     this.drawClaw();
+    // GDD-UI-02: from the frame of a language change every text is drawn in the new language.
+    if (this.settings.language !== this.textLanguage) this.applyLanguage();
     this.drawGameOver();
     this.drawClear();
     this.drawTip();
@@ -1814,6 +1830,32 @@ export class PlayScene extends Phaser.Scene {
     } catch {
       // storage refused: the settings last until the page closes
     }
+  }
+
+  /**
+   * GDD-UI-02: sets every text that switches with the Language row in the language in use (the table in `src/ui/text.ts`) and notes
+   * the language, so `update()` sets them again on the frame it changes. "Hilos", the language names and the sandbox's placeholder
+   * lines are the same in every language, and the tips and the upright prompts read the language where they are drawn.
+   */
+  private applyLanguage(): void {
+    const t = TEXT[this.settings.language];
+    this.titleItems.start.setText(t.start);
+    this.titleItems.tutorial.setText(t.tutorial);
+    this.titleItems.settings.setText(t.settings);
+    this.pauseTitle.setText(t.paused);
+    this.pauseItems.resume.setText(t.resume);
+    this.pauseItems.settings.setText(t.settings);
+    this.pauseItems.quit.setText(t.quit);
+    this.settingsTitle.setText(t.settings);
+    this.settingsLabels.master.setText(t.master);
+    this.settingsLabels.effects.setText(t.effects);
+    this.settingsLabels.language.setText(t.language);
+    this.settingsLabels.back.setText(t.back);
+    this.gameOverSubtitle.setText(t.gameOver);
+    this.gameOverPrompt.setText(t.retry);
+    this.clearTitle.setText(t.levelClear);
+    this.clearPrompt.setText(t.pressAny);
+    this.textLanguage = this.settings.language;
   }
 
   /** Spends every latched press (L-006): a step has used them, or no step will (the title screen, quitting to it). */
@@ -1930,7 +1972,7 @@ export class PlayScene extends Phaser.Scene {
     const settingsOpen = this.pauseState.settings !== null;
     this.pauseScreen.setVisible(this.pauseState.paused && !settingsOpen);
     const upright = this.pauseState.portrait;
-    const prompt = upright ? 'Turn your device sideways' : '';
+    const prompt = upright ? TEXT[this.settings.language].sideways : '';
     if (this.pausePrompt.text !== prompt) this.pausePrompt.setText(prompt);
     this.pauseRows = layoutPauseMenu(this.scale.displaySize.width / BASE_WIDTH);
     for (const row of this.pauseRows) {
@@ -1950,7 +1992,7 @@ export class PlayScene extends Phaser.Scene {
     this.titleScreen.setVisible(this.title.shown && this.title.settings === null);
     // The touch buttons come back on the frame the title goes, not one frame later.
     this.touch.setHidden(this.title.shown);
-    const prompt = titlePrompt(this.title.portrait);
+    const prompt = titlePrompt(this.title.portrait, TEXT[this.settings.language].sideways);
     if (this.titlePromptText.text !== prompt.text) this.titlePromptText.setText(prompt.text).setFontSize(prompt.size);
     const upright = this.title.portrait;
     this.titleRows = layoutTitleMenu(this.scale.displaySize.width / BASE_WIDTH);
@@ -1963,8 +2005,9 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * GDD-UI-02: the settings screen, open from the pause menu or the title menu. Sideways it shows the three rows, the chosen one
-   * pale and the others grey; a volume row has "<" and ">" and its bars, Back a ">" in front of it when chosen. Upright the rows
+   * GDD-UI-02: the settings screen, open from the pause menu or the title menu. Sideways it shows the four rows, the chosen one
+   * pale and the others grey; a volume row has "<" and ">" and its bars, the Language row "<" and ">" and the language's own name
+   * where the bars would be, Back a ">" in front of it when chosen. Upright the rows
    * are hidden and the prompt asks to turn the device sideways; the chosen row is kept. The rows follow the window.
    */
   private drawSettings(): void {
@@ -1975,13 +2018,14 @@ export class PlayScene extends Phaser.Scene {
     const upright = fromTitle ? this.title.portrait : this.pauseState.portrait;
     this.settingsScreen.setVisible(row !== null).setDepth(fromTitle ? 11 : 9.5);
     this.settingsVeil.setFillStyle(0x0d1020, fromTitle ? 0.82 : 0.75);
-    const prompt = row !== null && upright ? 'Turn your device sideways' : '';
+    const prompt = row !== null && upright ? TEXT[this.settings.language].sideways : '';
     if (this.settingsPrompt.text !== prompt) this.settingsPrompt.setText(prompt);
     this.settingsRows = layoutSettingsMenu(this.scale.displaySize.width / BASE_WIDTH);
     const painted: ReturnType<PonchoDebug['settingsDrawn']>['rows'] = [];
     const show = row !== null && !upright;
     this.settingsBars.clear();
     this.settingsMarker.setVisible(false);
+    this.settingsLanguageValue.setVisible(false);
     this.settingsArrows.forEach((a) => a.setVisible(false));
     let arrow = 0;
     for (const r of this.settingsRows) {
@@ -2000,6 +2044,12 @@ export class PlayScene extends Phaser.Scene {
       const right = this.settingsArrows[arrow++]!;
       left.setPosition(r.x + SETTINGS_MENU.arrowInset, r.y + r.h / 2).setColor(colour).setVisible(show);
       right.setPosition(r.x + r.w - SETTINGS_MENU.arrowInset, r.y + r.h / 2).setColor(colour).setVisible(show);
+      if (r.item === 'language') {
+        const name = LANGUAGE_NAMES[this.settings.language];
+        this.settingsLanguageValue.setText(name).setPosition(languageValueX(r), r.y + r.h / 2).setColor(colour).setVisible(show);
+        if (show) painted.push({ item: r.item, label: label.text, value: name, color: colour, valueX: this.settingsLanguageValue.x });
+        continue;
+      }
       if (!show) continue;
       const value = this.settings[r.item];
       for (const bar of volumeBars(r, value)) {

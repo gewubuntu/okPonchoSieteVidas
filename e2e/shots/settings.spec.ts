@@ -1,6 +1,6 @@
 // Screenshots of the settings screen for visual review. Run with `npm run shots`; images land in shots/ (not committed).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { boot, openGame } from '../helpers';
+import { boot, openGame, start } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
   await page.waitForTimeout(150);
@@ -29,8 +29,10 @@ test('GDD-UI-02 the settings screen from the pause menu, after changes, and Back
   await chosen(page, 'effects');
   await shot(page, info, 'settings-pause-changed');
   await press(page, 'ArrowDown', 40);
+  await chosen(page, 'language');
+  await press(page, 'ArrowDown', 40);
   await chosen(page, 'back');
-  expect(await page.evaluate(() => window.__PONCHO__!.settings())).toEqual({ master: 6, effects: 10 });
+  expect(await page.evaluate(() => window.__PONCHO__!.settings())).toEqual({ master: 6, effects: 10, language: 'en' });
   await shot(page, info, 'settings-pause-back');
 });
 
@@ -59,4 +61,54 @@ test('GDD-UI-02 the settings screen on an upright phone', async ({ page, isMobil
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().prompt === 'Turn your device sideways');
   expect((await page.evaluate(() => window.__PONCHO__!.settingsDrawn())).rows).toEqual([]);
   await shot(page, info, 'settings-portrait');
+});
+
+// GDD-UI-02 the Language row: the same screens in Español and Deutsch. The save is seeded so the shot starts in that language, as a
+// player's second visit does.
+const seed = (page: Page, language: string) =>
+  page.addInitScript(([key, text]) => localStorage.setItem(key!, text!), ['poncho-siete-vidas', `{"version":1,"settings":{"master":10,"effects":10,"language":"${language}"},"progress":{"tutorialPlayed":false}}`]);
+
+test('GDD-UI-02 the settings screen in Español and in Deutsch, with Language chosen', async ({ page }, info) => {
+  await openGame(page);
+  await press(page, 'ArrowDown', 40);
+  await press(page, 'ArrowDown', 40);
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().menu.chosen === 'settings');
+  await press(page, 'Enter', 13);
+  await chosen(page, 'master');
+  await press(page, 'ArrowDown', 40);
+  await press(page, 'ArrowDown', 40);
+  await chosen(page, 'language');
+  await press(page, 'ArrowRight', 39);
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().title === 'Ajustes');
+  expect(await page.evaluate(() => window.__PONCHO__!.settingsDrawn())).toMatchObject({ shown: true, from: 'title', chosen: 'language' });
+  await shot(page, info, 'language-1-settings-es');
+  await press(page, 'ArrowRight', 39);
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().title === 'Einstellungen');
+  expect(await page.evaluate(() => window.__PONCHO__!.settingsDrawn())).toMatchObject({ shown: true, from: 'title', chosen: 'language' });
+  await shot(page, info, 'language-2-settings-de');
+});
+
+test('GDD-UI-02 the title screen in Deutsch', async ({ page }, info) => {
+  await seed(page, 'de');
+  await openGame(page);
+  expect(await page.evaluate(() => window.__PONCHO__!.titleDrawn().menu.items)).toEqual(['Spielen', 'Tutorial', 'Einstellungen']);
+  await shot(page, info, 'language-3-title-de');
+});
+
+test('GDD-UI-02 the pause menu in Español', async ({ page }, info) => {
+  await seed(page, 'es');
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
+  await press(page, 'Escape', 27);
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
+  expect(await page.evaluate(() => window.__PONCHO__!.pauseDrawn())).toMatchObject({ title: 'Pausa', menu: { items: ['Continuar', 'Ajustes', 'Salir al título'] } });
+  await shot(page, info, 'language-4-pause-es');
+});
+
+test('GDD-UI-05 the first tip of 0-1 in Deutsch', async ({ page, isMobile }, info) => {
+  await seed(page, 'de');
+  await start(page, isMobile);
+  await page.waitForFunction(() => window.__PONCHO__!.tip().alpha === 1);
+  expect(await page.evaluate(() => window.__PONCHO__!.tip())).toMatchObject({ index: 0, text: isMobile ? 'Links oder rechts halten zum Laufen' : 'Pfeiltasten oder A/D zum Laufen' });
+  await shot(page, info, 'language-5-tip-de');
 });

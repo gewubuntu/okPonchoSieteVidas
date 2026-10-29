@@ -336,7 +336,7 @@ test('GDD-UI-02 the sandbox by its address: Start plays it and does not mark the
 });
 
 /** The saved game as parsed, or null where nothing is saved. */
-const savedGame = async (page: Page): Promise<{ settings: { master: number; effects: number }; progress: { tutorialPlayed: boolean } } | null> => {
+const savedGame = async (page: Page): Promise<{ settings: { master: number; effects: number; language: string }; progress: { tutorialPlayed: boolean } } | null> => {
   const text = await api(page, () => localStorage.getItem('poncho-siete-vidas'));
   return text === null ? null : JSON.parse(text);
 };
@@ -358,7 +358,7 @@ test('GDD-PRG-02 a volume changed after the tutorial started keeps the tutorial 
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
   await page.keyboard.press('ArrowLeft');
   await page.waitForFunction(() => window.__PONCHO__!.settings().master === 9);
-  expect(await savedGame(page)).toEqual({ version: 1, settings: { master: 9, effects: 10 }, progress: { tutorialPlayed: true } });
+  expect(await savedGame(page)).toEqual({ version: 1, settings: { master: 9, effects: 10, language: 'en' }, progress: { tutorialPlayed: true } });
 });
 
 test('GDD-PRG-02 where the browser refuses storage the tutorial still counts as started for this visit', async ({ page }) => {
@@ -429,7 +429,7 @@ test('GDD-PRG-02 a volume changed in the same frame as Tutorial is picked is sav
   // Settings opened, Left lowers Master, Escape comes back with Settings chosen, Up chooses Tutorial, Enter picks it.
   await keysInOneTask(page, [DOWN, DOWN, ENTER, LEFT, ESCAPE, UP, ENTER]);
   await page.waitForFunction(() => window.__PONCHO__!.level() === '0-1' && !window.__PONCHO__!.titleDrawn().shown);
-  expect((await savedGame(page))?.settings).toEqual({ master: 9, effects: 10 });
+  expect((await savedGame(page))?.settings).toEqual({ master: 9, effects: 10, language: 'en' });
 });
 
 test('GDD-PRG-02 a volume changed in the same frame as Quit to title is saved', async ({ page }) => {
@@ -438,5 +438,5 @@ test('GDD-PRG-02 a volume changed in the same frame as Quit to title is saved', 
   // Paused, Settings opened, Left lowers Master, Escape comes back to the pause menu with Settings chosen, Down chooses Quit, Enter picks it.
   await keysInOneTask(page, [ESCAPE, DOWN, ENTER, LEFT, ESCAPE, DOWN, ENTER]);
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.level() === '1-1');
-  expect((await savedGame(page))?.settings).toEqual({ master: 9, effects: 10 });
+  expect((await savedGame(page))?.settings).toEqual({ master: 9, effects: 10, language: 'en' });
 });

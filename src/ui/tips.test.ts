@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { collectVeladora, startWorld } from '../sim/lives';
 import { startRun, type RunState } from '../sim/run';
@@ -58,10 +59,10 @@ describe('GDD-UI-05 the fade', () => {
 describe('GDD-UI-05 the words and the highlight', () => {
   it('GDD-UI-05 the text names the device used last', () => {
     const jump = TIPS_0_1[1]!;
-    expect(tipText(jump, 'keyboard')).toBe('Space to jump. Hold it to jump higher');
-    expect(tipText(jump, 'touch')).toBe('Tap the jump button. Hold it to jump higher');
-    expect(tipText(jump, 'pad')).toBe('Bottom button to jump. Hold it to jump higher');
-    for (const d of ['keyboard', 'touch', 'pad'] as const) expect(tipText(TIPS_0_1[2]!, d)).toBe('Jump over the gaps');
+    expect(tipText(jump, 'keyboard', 'en')).toBe('Space to jump. Hold it to jump higher');
+    expect(tipText(jump, 'touch', 'en')).toBe('Tap the jump button. Hold it to jump higher');
+    expect(tipText(jump, 'pad', 'en')).toBe('Bottom button to jump. Hold it to jump higher');
+    for (const d of ['keyboard', 'touch', 'pad'] as const) expect(tipText(TIPS_0_1[2]!, d, 'en')).toBe('Jump over the gaps');
   });
 
   it('GDD-UI-05 the first device is touch on a touch device and the keyboard otherwise', () => {
@@ -109,5 +110,29 @@ describe('GDD-UI-05 a thing that is done', () => {
     expect(done[10]).toBe(true);
     expect(done.filter(Boolean)).toHaveLength(1);
     expect(tipsDone(none, TIPS_0_1, start, start, LEVEL_0_1)).toEqual(none);
+  });
+});
+
+describe('GDD-UI-05 tips in each language', () => {
+  it('tipText names the language and device', () => {
+    const run = TIPS_0_1[0]!;
+    expect(tipText(run, 'keyboard', 'es')).toBe('Flechas o A/D para correr');
+    expect(tipText(run, 'touch', 'de')).toBe('Links oder rechts halten zum Laufen');
+    expect(tipText(run, 'pad', 'en')).toBe('Stick or D-pad to run');
+  });
+
+  it('every tip text is quoted in GDD-UI-05', () => {
+    const gdd = readFileSync(new URL('../../docs/GDD.md', import.meta.url), 'utf8');
+    const start = gdd.indexOf('### GDD-UI-05');
+    const section = gdd.slice(start, gdd.indexOf('\n---', start));
+    expect(start).toBeGreaterThan(-1);
+    for (const [i, tip] of TIPS_0_1.entries()) {
+      for (const language of ['en', 'es', 'de'] as const) {
+        for (const device of ['keyboard', 'touch', 'pad'] as const) {
+          const text = tip.text[language][device];
+          expect(section.includes(`"${text}"`), `tip ${i + 1} ${language} ${device}: ${text}`).toBe(true);
+        }
+      }
+    }
   });
 });

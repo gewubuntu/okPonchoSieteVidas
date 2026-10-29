@@ -469,3 +469,21 @@ Prefer an automated check over a prose rule.
 - **Rule:** When a change makes a new scene take an old one's place, list every field of the old scene that outlives a level (settings, flags, device in use) and say where the new scene gets each, then test each with storage refused.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-050 A plan's list of on-screen texts was taken from the scene alone
+
+- **Date:** 2026-10-29
+- **What went wrong:** The language plan listed every translatable text by searching `src/scenes/PlayScene.ts` and the tips. The title's "Turn your device sideways" came from `titlePrompt` in `src/sim/title.ts`, a pure helper, and was missed; the implementer found it and changed the helper's signature.
+- **Root cause:** On-screen text was assumed to live in the scene, but pure helpers in `src/sim/` and `src/ui/` return text the scene draws.
+- **Rule:** To list the texts a change touches, search all of `src/` for quoted strings the scene draws (`grep -rn "'[A-Z][a-z]" src --include=*.ts`, tests excluded), not only the scene.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-051 Screen text lived in code apart from the GDD table it came from
+
+- **Date:** 2026-10-29
+- **What went wrong:** Nothing broke, but the GDD now holds 15 screen texts and 36 tip texts in three languages that the code repeats; a wording change in one place would leave the other stale with no test noticing.
+- **Root cause:** The anchor rule ties tuning numbers to the GDD by hand; texts had no such tie.
+- **Rule:** Texts quoted in the GDD are pinned by a test that reads `docs/GDD.md` (as `src/ui/text.test.ts` and the GDD-UI-05 tips test do), so the gate fails when they drift.
+- **Recurrence:** 1
+- **Promoted:** yes, to the tests `the GDD's table matches TEXT` and `every tip text is quoted in GDD-UI-05`

@@ -98,7 +98,10 @@ export function titleAfterQuit(portrait: boolean, down: number): TitleState {
   return { shown: true, portrait, buttonsHeld: down, choice: 'start', settings: null };
 }
 
-/** The prompt line: upright, it asks to turn the device sideways, set larger since the whole level is drawn small. Sideways it is empty. */
-export function titlePrompt(portrait: boolean): { text: string; size: number } {
-  return { text: portrait ? 'Turn your device sideways' : '', size: 12 };
+/**
+ * The prompt line: upright, it asks to turn the device sideways (`sideways`, in the language chosen, GDD-UI-02), set larger since the
+ * whole level is drawn small. Sideways it is empty.
+ */
+export function titlePrompt(portrait: boolean, sideways: string): { text: string; size: number } {
+  return { text: portrait ? sideways : '', size: 12 };
 }

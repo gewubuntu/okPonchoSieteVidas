@@ -1,7 +1,7 @@
 // GDD-UI-02: where the settings screen's rows are, which half of one a point is on, and where a volume's bars are. Pure data, no
 // Phaser, so it can be unit tested (L-010). The scene draws the texts and bars and feeds in where the pointer went down.
 import { BASE_WIDTH, SETTINGS_MENU, TOUCH, VOLUME } from '../config/tuning';
-import type { SettingsRow } from '../sim/settings';
+import { SETTINGS_ROWS, type SettingsRow } from '../sim/settings';
 
 /** A row's rectangle in game pixels. */
 export interface SettingsMenuRow {
@@ -22,13 +22,13 @@ export interface VolumeBar {
 }
 
 /**
- * Three rows, "Master volume", "Effects volume" and "Back", centred, the first's top at SETTINGS_MENU.top and each next directly
- * below, growing like the pause menu's rows so none is under TOUCH.minCssPx tall on the player's screen.
+ * Four rows, "Master volume", "Effects volume", "Language" and "Back", centred, the first's top at SETTINGS_MENU.top and each next
+ * directly below, growing like the pause menu's rows so none is under TOUCH.minCssPx tall on the player's screen.
  */
 export function layoutSettingsMenu(cssPerVirtualPx: number): SettingsMenuRow[] {
   const h = Math.max(SETTINGS_MENU.rowHeight, Math.ceil(TOUCH.minCssPx / cssPerVirtualPx));
   const x = (BASE_WIDTH - SETTINGS_MENU.width) / 2;
-  return (['master', 'effects', 'back'] as const).map((item, i) => ({ item, x, y: SETTINGS_MENU.top + i * h, w: SETTINGS_MENU.width, h }));
+  return SETTINGS_ROWS.map((item, i) => ({ item, x, y: SETTINGS_MENU.top + i * h, w: SETTINGS_MENU.width, h }));
 }
 
 /**
@@ -40,11 +40,17 @@ export function settingsTapAt(rows: readonly SettingsMenuRow[], x: number, y: nu
   return hit ? { row: hit.item, side: x < hit.x + hit.w / 2 ? 'left' : 'right' } : null;
 }
 
+/** The width of the bars of a volume row, from the left of the first to the right of the last. */
+const barsSpan = (): number => VOLUME.steps * SETTINGS_MENU.barWidth + (VOLUME.steps - 1) * SETTINGS_MENU.barGap;
+
 /** The volume's bars, left to right: `VOLUME.steps` of them, the last ending `barsInset` inside the row's right edge, vertically centred; the first `value` filled. */
 export function volumeBars(row: SettingsMenuRow, value: number): VolumeBar[] {
   const { barWidth, barHeight, barGap, barsInset } = SETTINGS_MENU;
-  const span = VOLUME.steps * barWidth + (VOLUME.steps - 1) * barGap;
+  const span = barsSpan();
   const left = row.x + row.w - barsInset - span;
   const y = row.y + (row.h - barHeight) / 2;
   return Array.from({ length: VOLUME.steps }, (_, i) => ({ x: left + i * (barWidth + barGap), y, w: barWidth, h: barHeight, filled: i < value }));
 }
+
+/** GDD-UI-02: the middle x of the language's name, where a volume row's bars are (the middle of their span). */
+export const languageValueX = (row: SettingsMenuRow): number => row.x + row.w - SETTINGS_MENU.barsInset - barsSpan() / 2;
