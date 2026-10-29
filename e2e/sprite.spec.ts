@@ -103,7 +103,7 @@ test('GDD-UI-02 the title screen shows the standing frame above the menu', async
   await page.waitForTimeout(300);
   const title = await api(page, () => window.__PONCHO__!.titleDrawn());
   expect(title.ponchoShown).toBe(true);
-  expect(title.ponchoBottom).toBe(168);
+  expect(title.ponchoBottom).toBe(152);
   const [poncho] = await pixelsAt(page, [{ x: 240 + BLUE_AT.right, y: title.ponchoBottom - BLUE_AT.above }]);
   expect(near(poncho!, BLUE), JSON.stringify(poncho)).toBe(true);
 });

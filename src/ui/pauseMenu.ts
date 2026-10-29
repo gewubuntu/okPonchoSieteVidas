@@ -1,4 +1,4 @@
-// GDD-UI-02: where the pause menu's three rows and the title menu's two rows are and which one a point is on. Pure data, no
+// GDD-UI-02: where the pause menu's three rows and the title menu's three rows are and which one a point is on. Pure data, no
 // Phaser, so it can be unit tested. The scene draws the texts and feeds in where the pointer went down.
 import { BASE_WIDTH, PAUSE_MENU, TITLE_MENU, TOUCH } from '../config/tuning';
 import type { MenuItem } from '../sim/pause';
@@ -26,8 +26,8 @@ function stackRows<Item extends string>(items: readonly Item[], menu: { width: n
 /** Three rows, "Resume", "Settings" and "Quit to title", the first's top at PAUSE_MENU.top. */
 export const layoutPauseMenu = (cssPerVirtualPx: number): MenuRow[] => stackRows(['resume', 'settings', 'quit'] as const, PAUSE_MENU, cssPerVirtualPx);
 
-/** Two rows, "Start" and "Settings", the first's top at TITLE_MENU.top. */
-export const layoutTitleMenu = (cssPerVirtualPx: number): MenuRow<TitleItem>[] => stackRows(['start', 'settings'] as const, TITLE_MENU, cssPerVirtualPx);
+/** Three rows, "Start", "Tutorial" and "Settings", the first's top at TITLE_MENU.top. */
+export const layoutTitleMenu = (cssPerVirtualPx: number): MenuRow<TitleItem>[] => stackRows(['start', 'tutorial', 'settings'] as const, TITLE_MENU, cssPerVirtualPx);
 
 /** The item whose row holds the point, or null. A row covers its left and top edge but not its right and bottom edge, like a touch button. */
 function itemAt<Item extends string>(rows: readonly MenuRow<Item>[], x: number, y: number): Item | null {

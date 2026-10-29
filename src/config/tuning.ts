@@ -122,8 +122,11 @@ export const GAMEPAD = {
 /** GDD-UI-02: the pause menu's rows, in game pixels; each grows so it is never under TOUCH.minCssPx tall. */
 export const PAUSE_MENU = { width: 160, rowHeight: 28, top: 136, textSize: 12 } as const;
 
-/** GDD-UI-02: the title menu's rows ("Start", "Settings"), in game pixels; each grows like the pause menu's. The text size is `PAUSE_MENU.textSize`. */
-export const TITLE_MENU = { width: 160, rowHeight: 28, top: 176 } as const;
+/**
+ * GDD-UI-02: the title menu's rows ("Start", "Tutorial", "Settings"), in game pixels; each grows like the pause menu's. The text
+ * size is `PAUSE_MENU.textSize`. The first row's top is 160 so the three rows end above the bottom of a landscape phone (34 px each).
+ */
+export const TITLE_MENU = { width: 160, rowHeight: 28, top: 160 } as const;
 
 /**
  * GDD-UI-02: the settings screen, in game pixels. Rows grow like the pause menu's. A volume row has its label `labelInset`

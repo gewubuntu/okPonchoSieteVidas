@@ -460,3 +460,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** A test bot lets go of a button for at least one step before it presses it again.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-049 A scene made to replace another forgot what the old one held
+
+- **Date:** 2026-10-29
+- **What went wrong:** For the Tutorial row (PR #58) Quit to title and a pick over another level began to replace the scene with a fresh one. Where the browser refuses storage, the fresh scene opened with the default volumes: a Master lowered to 8 came back as 10 (found by the review). The tutorial flag had a visit-level copy, the settings had none. The 0-1 to 1-1 change of PR #57 had the same hole, unnoticed.
+- **Root cause:** The plan listed the state the new feature added (the tutorial flag) and gave it a fallback, but not the state the old scene already carried in memory and read from storage only once (the settings). Replacing a scene drops every field.
+- **Rule:** When a change makes a new scene take an old one's place, list every field of the old scene that outlives a level (settings, flags, device in use) and say where the new scene gets each, then test each with storage refused.
+- **Recurrence:** 1
+- **Promoted:** no

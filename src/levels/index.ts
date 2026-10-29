@@ -18,10 +18,13 @@ export interface LevelEntry {
   readonly next?: string;
 }
 
+/** GDD-UI-02: the tutorial level's id. */
+export const TUTORIAL_ID = '0-1';
+
 const SANDBOX: LevelEntry = { id: 'sandbox', world: 1, test: true, level: SANDBOX_LEVEL };
 
 export const LEVELS: readonly LevelEntry[] = [
-  { id: '0-1', world: 0, test: false, level: LEVEL_0_1, tips: TIPS_0_1, next: '1-1' },
+  { id: TUTORIAL_ID, world: 0, test: false, level: LEVEL_0_1, tips: TIPS_0_1, next: '1-1' },
   { id: '1-1', world: 1, test: false, level: LEVEL_1_1 },
   SANDBOX,
 ];
@@ -29,8 +32,12 @@ export const LEVELS: readonly LevelEntry[] = [
 /** The level with this id, if there is one. */
 export const levelById = (id: string): LevelEntry | undefined => LEVELS.find((e) => e.id === id);
 
-/** GDD-UI-02: the level to play, from a URL query string (`location.search`): `level=sandbox` or `level=1-1` gives that level, anything else 0-1. */
-export function levelFor(search: string): LevelEntry {
+/**
+ * GDD-UI-02: what "Start" plays. An address (`location.search`) wins, whatever was played: `level=sandbox`, `level=1-1` or
+ * `level=0-1` gives that level. Anything else gives 1-1 once the tutorial has started (GDD-PRG-02), else the tutorial.
+ */
+export function startLevel(search: string, tutorialPlayed: boolean): LevelEntry {
   const id = new URLSearchParams(search).get('level');
-  return (id === 'sandbox' || id === '1-1' ? levelById(id) : undefined) ?? LEVELS[0]!;
+  const addressed = id === 'sandbox' || id === '1-1' || id === TUTORIAL_ID ? levelById(id) : undefined;
+  return addressed ?? levelById(tutorialPlayed ? '1-1' : TUTORIAL_ID)!;
 }
