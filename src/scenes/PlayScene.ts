@@ -300,6 +300,9 @@ let scenesMade = 0;
 /** GDD-PRG-02: set once the tutorial starts in this visit, so it holds where the browser refuses storage. */
 let playedThisVisit = false;
 
+/** GDD-UI-02, GDD-PRG-02: the volumes last set in this visit, so a new scene (the next level, a title over another level) keeps them where the browser refuses storage. */
+let settingsThisVisit: Settings | null = null;
+
 /** GDD-PRG-02: whether the saved game says the tutorial was started, when the game opens; false where the browser refuses storage. */
 function savedTutorialPlayed(): boolean {
   try {
@@ -542,7 +545,7 @@ export class PlayScene extends Phaser.Scene {
     } catch {
       // storage refused
     }
-    this.settings = save.settings;
+    this.settings = settingsThisVisit ?? save.settings;
     this.tutorialPlayed = save.tutorialPlayed || playedThisVisit;
     this.cameras.main.setBackgroundColor('#1b2036');
     // GDD-ART-01: the canvas is ART_SCALE times larger than the game pixels everything is placed in, so the camera draws them zoomed in
@@ -1805,6 +1808,7 @@ export class PlayScene extends Phaser.Scene {
 
   /** GDD-PRG-02: the settings and whether the tutorial was started go to the browser's storage. Where it is refused the game plays on with this visit's, silently. */
   private saveSettings(): void {
+    settingsThisVisit = this.settings;
     try {
       window.localStorage.setItem(SAVE_KEY, saveText({ settings: this.settings, tutorialPlayed: this.tutorialPlayed }));
     } catch {

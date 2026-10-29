@@ -6,6 +6,11 @@ const ticks = (page: Page) => api(page, () => window.__PONCHO__!.ticks());
 const titleHidden = (page: Page) => page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
 const titleShown = async (page: Page) => (await api(page, () => window.__PONCHO__!.titleDrawn())).shown;
 const started = (page: Page) => page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
+/** On the title, opens Settings (Down, Down, Enter), lowers Master twice to 8, and comes back with Start chosen. */
+async function lowerMasterToEight(page: Page): Promise<void> {
+  for (const key of ['ArrowDown', 'ArrowDown', 'Enter', 'ArrowLeft', 'ArrowLeft', 'Escape', 'ArrowUp', 'ArrowUp']) await page.keyboard.press(key);
+  await page.waitForFunction(() => window.__PONCHO__!.settings().master === 8 && window.__PONCHO__!.titleDrawn().menu.chosen === 'start');
+}
 /** Taps a touch button by its id, in the middle. */
 async function tapButton(page: Page, id: string): Promise<void> {
   const b = (await api(page, () => window.__PONCHO__!.touch())).buttons.find((x) => x.id === id)!;
@@ -363,6 +368,8 @@ test('GDD-PRG-02 where the browser refuses storage the tutorial still counts as 
   });
   await openGame(page, '/');
   expect(await level(page)).toBe('0-1');
+  // GDD-UI-02: Master lowered to 8 on the title's settings screen first, so the new scenes below must keep this visit's volumes.
+  await lowerMasterToEight(page);
   await page.keyboard.press('Enter');
   await titleHidden(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
@@ -374,10 +381,46 @@ test('GDD-PRG-02 where the browser refuses storage the tutorial still counts as 
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.level() === '1-1');
   expect(await api(page, () => window.__PONCHO__!.tutorialPlayed())).toBe(true); // the new scene knows, though nothing could be read
+  expect((await api(page, () => window.__PONCHO__!.settings())).master).toBe(8); // and keeps the volumes
   await page.keyboard.press('Enter');
   await titleHidden(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   expect(await level(page)).toBe('1-1');
+  expect((await api(page, () => window.__PONCHO__!.settings())).master).toBe(8);
+});
+
+test('GDD-UI-02 where the browser refuses storage, 0-1 leading on to 1-1 keeps the volumes of this visit', async ({ page }) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => { throw new Error('storage refused'); };
+    Storage.prototype.setItem = () => { throw new Error('storage refused'); };
+  });
+  await openGame(page, '/');
+  await lowerMasterToEight(page);
+  await page.keyboard.press('Enter');
+  await titleHidden(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear' && window.__PONCHO__!.clearDrawn().prompt);
+  await page.keyboard.press('KeyX', { delay: 30 });
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.ticks() > 5);
+  expect((await api(page, () => window.__PONCHO__!.settings())).master).toBe(8);
+});
+
+test('GDD-UI-02 with ?level=0-1, 1-1\'s clear screen brings back the title over 0-1, what Start plays', async ({ page }) => {
+  const errors = await openGame(page, '/?level=0-1');
+  await page.keyboard.press('Enter');
+  await titleHidden(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear' && window.__PONCHO__!.clearDrawn().prompt);
+  await page.keyboard.press('KeyX', { delay: 30 });
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.teleport(2780, 224));
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear' && window.__PONCHO__!.clearDrawn().prompt);
+  await page.keyboard.press('KeyX', { delay: 30 });
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '0-1' && window.__PONCHO__!.titleDrawn().shown);
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).menu.chosen).toBe('start');
+  expect(errors).toEqual([]);
 });
 
 test('GDD-PRG-02 a volume changed in the same frame as Tutorial is picked is saved', async ({ page }) => {
