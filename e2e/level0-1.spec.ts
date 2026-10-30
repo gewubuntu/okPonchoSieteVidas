@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { boot, openGame } from './helpers';
+import { boot, openGame, pixelsAt } from './helpers';
 
 // GDD-WLD-06: level 0-1, its camera (GDD-UI-04), its exit and the level clear screen (GDD-WLD-03, GDD-UI-02), its veladora
 // (GDD-LIFE-03), and the clear screen leading on to 1-1 (GDD-WLD-07). These open the game at "/", which plays 0-1; every other
@@ -83,16 +83,48 @@ test('GDD-WLD-03 reaching the exit shows the level clear screen', async ({ page 
   await boot(page, '/');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.pause(true));
+  // GDD-UI-02: 130 idle steps first, so the clear time is over 2 s and cannot be told from the steps the screen itself has been up.
+  await page.evaluate(() => window.__PONCHO__!.step(130));
   await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
   await page.evaluate(() => window.__PONCHO__!.step(1));
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
-  expect(await api(page, () => window.__PONCHO__!.clearDrawn())).toEqual({ shown: true, title: 'Level clear!', hilos: 'Hilos 0/50', prompt: false, promptText: 'Press any button' });
+  // The game opened at the title and no life was lost, so every step taken is on the clock: the clock is the clearing step's `ticks()`.
+  const clock = await api(page, () => window.__PONCHO__!.ticks());
+  expect(clock).toBeGreaterThan(130);
+  const seconds = Math.floor(clock / 60);
+  const time = `Time ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  expect(time).toBe('Time 0:02');
+  // Just up: the title shows, the hilo, time and medal lines have not appeared yet.
+  expect(await api(page, () => window.__PONCHO__!.clearDrawn())).toMatchObject({ shown: true, title: 'Level clear!', hilos: 'Hilos 0/50', time, medal: 'Bronze medal', medalColour: '#c7834a', lines: 0, prompt: false, promptText: 'Press any button' });
   expect(await api(page, () => window.__PONCHO__!.exitDrawn())).toBe(true);
   expect(await api(page, () => window.__PONCHO__!.bodyVisible())).toBe(true);
   await api(page, () => window.__PONCHO__!.step(59));
   expect((await api(page, () => window.__PONCHO__!.clearDrawn())).prompt).toBe(false);
   await api(page, () => window.__PONCHO__!.step(1));
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).prompt).toBe(true);
+  const drawn = await api(page, () => window.__PONCHO__!.clearDrawn());
+  expect(drawn.prompt).toBe(true);
+  // All three lines are up by 1.0 s, with the time unchanged by the steps the screen has been up.
+  expect(drawn).toMatchObject({ time, medal: 'Bronze medal', medalColour: '#c7834a', lines: 3 });
+  // GDD-UI-02: the disc is 6 px left of the text, and the pair is centred on the screen (the margins left and right are equal).
+  expect(drawn.textX - drawn.discX).toBe(11);
+  expect(drawn.medalWidth).toBeGreaterThan(40);
+  expect(Math.abs(drawn.discX - 5 - (480 - (drawn.textX + drawn.medalWidth)))).toBeLessThanOrEqual(0.5);
+  // The disc is drawn in the medal's colour, bronze #c7834a (read from a real screenshot, in the middle of the 10 px disc; L-017).
+  const [disc] = await pixelsAt(page, [{ x: drawn.discX, y: 150 }]);
+  expect(Math.abs(disc!.r - 0xc7)).toBeLessThanOrEqual(3);
+  expect(Math.abs(disc!.g - 0x83)).toBeLessThanOrEqual(3);
+  expect(Math.abs(disc!.b - 0x4a)).toBeLessThanOrEqual(3);
+});
+
+test('GDD-UI-02 the clear screen lines appear one by one', async ({ page }) => {
+  await atExit(page);
+  await afterLockout(page);
+  const reveal = await api(page, () => window.__PONCHO__!.clearReveal());
+  expect(reveal.length).toBeGreaterThan(0);
+  // Each frame's lines follow the steps the screen had been up: the hilo line from 15, the time line from 30, the medal line from 45.
+  for (const e of reveal) expect(e.lines, `wait ${e.wait}`).toBe(e.wait >= 45 ? 3 : e.wait >= 30 ? 2 : e.wait >= 15 ? 1 : 0);
+  // The log starts at the beginning of the screen.
+  expect(reveal.some((e) => e.wait < 15)).toBe(true);
 });
 
 test('GDD-UI-02 the clear screen takes a press after 1.0 s and starts 1-1 at once, the press held', async ({ page }) => {

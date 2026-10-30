@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderClaw, renderHilo, renderJump, renderLand, renderLifeLost, renderMeow, renderStomp } from './effects.mjs';
+import { renderClaw, renderHilo, renderJump, renderLand, renderLifeLost, renderMeow, renderStomp, renderTick } from './effects.mjs';
 import { SAMPLE_RATE, toWav } from './ofrenda.mjs';
 
 /** Measures a rendered sound. `level` is the energy of one frequency in a stretch (Goertzel), as an amplitude. */
@@ -35,6 +35,7 @@ const sounds = [
   ['hilo', renderHilo, 0.3],
   ['life lost', renderLifeLost, 0.85],
   ['meow', renderMeow, 0.5],
+  ['tick', renderTick, 0.06],
 ];
 
 for (const [name, render, seconds] of sounds) {
@@ -132,5 +133,22 @@ describe('GDD-AUD-02 meow sound', () => {
     expect(strongest(0, 0.05)).toBe(450);
     expect(strongest(0.12, 0.06)).toBe(700);
     expect(strongest(0.42, 0.05)).toBe(380);
+  });
+});
+
+describe('GDD-AUD-02 tick sound', () => {
+  const p = probe(renderTick());
+  it('is a short tone and not only a click', () => {
+    // L-011: the energy sits in a decaying tone after the first 2 ms, which fades by the end.
+    expect(p.rms(0.002, 0.02)).toBeGreaterThan(0.1);
+    expect(p.rms(0.002, 0.02)).toBeGreaterThan(3 * p.rms(0.05, 0.01));
+    // The peak is not only in the first 2 ms: the tone itself reaches half the full level (0.8) in the 2 to 8 ms stretch.
+    const tonePeak = Math.max(...Array.from(p.samples.slice(Math.floor(0.002 * SAMPLE_RATE), Math.floor(0.008 * SAMPLE_RATE)), Math.abs));
+    expect(tonePeak).toBeGreaterThan(0.4);
+  });
+  it('is high and wooden', () => {
+    const wood = Math.max(...[1600, 1800, 2000].map((hz) => p.level(hz, 0.002, 0.03)));
+    expect(wood).toBeGreaterThan(0.05);
+    expect(wood).toBeGreaterThan(p.level(400, 0.002, 0.03));
   });
 });

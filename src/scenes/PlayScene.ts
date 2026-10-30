@@ -2,7 +2,7 @@
 // Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04), and the backdrop and the ground tiles are World 1's desert art
 // (GDD-ART-06); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, OFRENDA, PAUSE_MENU, PLANTS, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_MENU, VELADORA } from '../config/tuning';
+import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, PLANTS, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_MENU, VELADORA } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { levelById, startLevel, TUTORIAL_ID, type LevelEntry } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
@@ -33,6 +33,8 @@ import lifeLostOgg from '../../assets/audio/sfx/life-lost.ogg';
 import lifeLostMp3 from '../../assets/audio/sfx/life-lost.mp3';
 import meowOgg from '../../assets/audio/sfx/meow.ogg';
 import meowMp3 from '../../assets/audio/sfx/meow.mp3';
+import tickOgg from '../../assets/audio/sfx/tick.ogg';
+import tickMp3 from '../../assets/audio/sfx/tick.mp3';
 import { activateOfrenda, collectVeladora, isOutOfLives, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { clawBox } from '../sim/claw';
@@ -47,6 +49,7 @@ import { readSave, SAVE_KEY, saveText } from '../sim/save';
 import { browserLanguage, DEFAULT_SETTINGS, sfxVolume, type Language, type Settings, type SettingsRow } from '../sim/settings';
 import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
+import { clearTime, medal, medalLabel, medalLine, revealedLines } from '../sim/results';
 import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
@@ -70,7 +73,7 @@ import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tip
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 /** GDD-AUD-02: the cache keys of every sound effect. */
-const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow'].map((n) => `sfx-${n}`);
+const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow', 'tick'].map((n) => `sfx-${n}`);
 /** GDD-CTL-02: the pads the browser reports now. `getGamepads` can throw where a permissions policy forbids it. */
 const readGamepads = () => {
   try {
@@ -116,9 +119,16 @@ export interface PonchoDebug {
   gameOverDrawn(): { shown: boolean; title: string; subtitle: string; prompt: boolean; promptText: string };
   /**
    * The level clear screen as drawn (GDD-UI-02): whether it is shown, its "Level clear!" line, its hilo line ("Hilos 31/50", read from
-   * the text drawn) and whether its prompt line is shown, with its text.
+   * the text drawn), its time line ("Time 2:14"), its medal line's text and the colour the text is drawn in ("#c7834a"), how many of
+   * the hilo, time and medal lines are visible (0 to 3, counted from the drawn objects), where the medal's disc has its middle and
+   * its text its left edge and how wide the text is (game px), and whether its prompt line is shown, with its text.
    */
-  clearDrawn(): { shown: boolean; title: string; hilos: string; prompt: boolean; promptText: string };
+  clearDrawn(): { shown: boolean; title: string; hilos: string; time: string; medal: string; medalColour: string; lines: number; discX: number; textX: number; medalWidth: number; prompt: boolean; promptText: string };
+  /**
+   * One entry for each frame the level clear screen was drawn since it last came up: the run's `wait` (steps it has been up) and how
+   * many of its lines were visible then (GDD-UI-02). Reset when a clear screen comes up.
+   */
+  clearReveal(): { wait: number; lines: number }[];
   /** The id of the level played, `0-1` or `sandbox` (GDD-UI-02). Read from the choice the scene made at load. */
   level(): string;
   /**
@@ -454,7 +464,14 @@ export class PlayScene extends Phaser.Scene {
   private clearScreen!: Phaser.GameObjects.Container;
   private clearTitle!: Phaser.GameObjects.Text;
   private clearHilos!: Phaser.GameObjects.Text;
+  private clearTime!: Phaser.GameObjects.Text;
+  /** The medal line: a disc and its text, in the medal's colour. */
+  private clearMedalDisc!: Phaser.GameObjects.Graphics;
+  private clearMedalText!: Phaser.GameObjects.Text;
+  private clearMedalDiscX = 0;
   private clearPrompt!: Phaser.GameObjects.Text;
+  /** What `clearReveal()` reports: the run's `wait` and the lines visible, one entry per frame the screen was drawn. */
+  private clearRevealLog: { wait: number; lines: number }[] = [];
   /** GDD-UI-05: the device used last, the tip's fade, the tips whose thing is done, the steps for the highlight's pulse, and what was drawn. */
   private device: Device = 'keyboard';
   private tipFade: TipFade = NO_TIP;
@@ -541,6 +558,7 @@ export class PlayScene extends Phaser.Scene {
     this.load.audio('sfx-hilo', [hiloOgg, hiloMp3]);
     this.load.audio('sfx-lifeLost', [lifeLostOgg, lifeLostMp3]);
     this.load.audio('sfx-meow', [meowOgg, meowMp3]);
+    this.load.audio('sfx-tick', [tickOgg, tickMp3]);
   }
 
   create(): void {
@@ -631,10 +649,14 @@ export class PlayScene extends Phaser.Scene {
     // GDD-UI-02: the level clear screen, built like the game-over screen: over the level, under the HUD and the touch buttons.
     // Hidden until the exit is reached.
     const clearVeil = this.add.rectangle(0, 0, BASE_WIDTH, BASE_HEIGHT, 0x0d1020, 0.82).setOrigin(0);
-    this.clearTitle = this.add.text(BASE_WIDTH / 2, 112, 'Level clear!', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
-    this.clearHilos = this.add.text(BASE_WIDTH / 2, 136, '', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3dc' }).setOrigin(0.5);
-    this.clearPrompt = this.add.text(BASE_WIDTH / 2, 156, 'Press any button', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
-    this.clearScreen = this.add.container(0, 0, [clearVeil, this.clearTitle, this.clearHilos, this.clearPrompt]).setScrollFactor(0).setDepth(9).setVisible(false);
+    this.clearTitle = this.add.text(BASE_WIDTH / 2, 92, 'Level clear!', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
+    this.clearHilos = this.add.text(BASE_WIDTH / 2, 116, '', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3dc' }).setOrigin(0.5);
+    this.clearTime = this.add.text(BASE_WIDTH / 2, 132, '', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3dc' }).setOrigin(0.5);
+    // The medal line: a disc and its text, placed by `drawClear` once the text's width is known (GDD-UI-02).
+    this.clearMedalDisc = this.add.graphics();
+    this.clearMedalText = this.add.text(BASE_WIDTH / 2, 150, '', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3dc' }).setOrigin(0, 0.5);
+    this.clearPrompt = this.add.text(BASE_WIDTH / 2, 172, 'Press any button', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
+    this.clearScreen = this.add.container(0, 0, [clearVeil, this.clearTitle, this.clearHilos, this.clearTime, this.clearMedalDisc, this.clearMedalText, this.clearPrompt]).setScrollFactor(0).setDepth(9).setVisible(false);
 
     // GDD-UI-05: the tutorial tip's text box, top middle under the HUD, under the screens (depth 8), and its highlight in the level.
     this.tipBg = this.add.rectangle(0, 0, 1, 1, 0x0d1020, 0.75).setOrigin(0);
@@ -828,7 +850,21 @@ export class PlayScene extends Phaser.Scene {
         phase: () => this.run.phase,
         phaseSince: () => this.phaseSince,
         gameOverDrawn: () => ({ shown: this.gameOver.visible, title: this.gameOverTitle.text, subtitle: this.gameOverSubtitle.text, prompt: this.gameOverPrompt.visible, promptText: this.gameOverPrompt.text }),
-        clearDrawn: () => ({ shown: this.clearScreen.visible, title: this.clearTitle.text, hilos: this.clearHilos.text, prompt: this.clearPrompt.visible, promptText: this.clearPrompt.text }),
+        clearDrawn: () => ({
+          shown: this.clearScreen.visible,
+          title: this.clearTitle.text,
+          hilos: this.clearHilos.text,
+          time: this.clearTime.text,
+          medal: this.clearMedalText.text,
+          medalColour: colorOf(this.clearMedalText),
+          lines: this.clearLinesVisible(),
+          discX: this.clearMedalDiscX,
+          textX: this.clearMedalText.x,
+          medalWidth: this.clearMedalText.width,
+          prompt: this.clearPrompt.visible,
+          promptText: this.clearPrompt.text,
+        }),
+        clearReveal: () => this.clearRevealLog,
         level: () => this.entry.id,
         camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x }),
         backdrop: () => ({ clouds: (((BACKDROP_ART.clouds[0].x - this.cloudImages[0]![0]!.x) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH, mountains: this.mountains.tilePositionX / ART_SCALE, desert: this.desert.tilePositionX / ART_SCALE }),
@@ -1561,12 +1597,33 @@ export class PlayScene extends Phaser.Scene {
     this.gameOverPrompt.setVisible(shown && this.run.wait >= GAME_OVER.lockoutSteps);
   }
 
-  /** GDD-UI-02: the level clear screen is up while the run shows it, with the hilos collected; its prompt only once a press would be taken (after 1.0 s). */
+  /**
+   * GDD-UI-02: the level clear screen is up while the run shows it. Its hilo line, time line and medal line (a disc and its text, in
+   * the medal's colour) appear as `revealedLines` says; its prompt only once a press would be taken (after 1.0 s).
+   */
   private drawClear(): void {
     const shown = this.run.phase === 'clear';
+    if (shown && !this.clearScreen.visible) this.clearRevealLog = [];
     this.clearScreen.setVisible(shown);
-    if (shown) this.clearHilos.setText(`Hilos ${hilosCollected(this.run.hilosTaken)}/${this.level.hilos?.length ?? 0}`);
+    if (shown) {
+      const lines = revealedLines(this.run);
+      const kind = medal(this.run, this.level);
+      const colour = `#${MEDAL.colours[kind].toString(16).padStart(6, '0')}`;
+      this.clearHilos.setText(`Hilos ${hilosCollected(this.run.hilosTaken)}/${this.level.hilos?.length ?? 0}`).setVisible(lines >= 1);
+      this.clearTime.setText(clearTime(this.run.clock)).setVisible(lines >= 2);
+      this.clearMedalText.setText(medalLabel(kind)).setColor(colour).setVisible(lines >= 3);
+      const place = medalLine(this.clearMedalText.width);
+      this.clearMedalDiscX = place.discX;
+      this.clearMedalText.setX(place.textX);
+      this.clearMedalDisc.clear().fillStyle(MEDAL.colours[kind], 1).fillCircle(place.discX, 150, MEDAL.discPx / 2).setVisible(lines >= 3);
+      this.clearRevealLog.push({ wait: this.run.wait, lines: this.clearLinesVisible() });
+    }
     this.clearPrompt.setVisible(shown && this.run.wait >= GAME_OVER.lockoutSteps);
+  }
+
+  /** How many of the clear screen's hilo, time and medal lines are visible, counted from the drawn objects (the medal line counts if its disc or its text is). */
+  private clearLinesVisible(): number {
+    return [this.clearHilos.visible, this.clearTime.visible, this.clearMedalText.visible || this.clearMedalDisc.visible].filter(Boolean).length;
   }
 
   /**

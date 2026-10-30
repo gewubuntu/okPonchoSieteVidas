@@ -1,4 +1,4 @@
-// GDD-AUD-02: the other sound effects (jump, land, claw, stomp, hilo pickup, life lost, meow), synthesised from code as
+// GDD-AUD-02: the other sound effects (jump, land, claw, stomp, hilo pickup, life lost, meow, tick), synthesised from code as
 // placeholders until real audio exists (Open Question 9). Each is a mono Float64Array in -0.8 to 0.8, under a second long,
 // deterministic (noise is seeded) and fading to silence at the end. `scripts/audio/make-sfx.mjs` encodes them.
 import { SAMPLE_RATE } from './ofrenda.mjs';
@@ -11,6 +11,8 @@ export const STOMP = { duration: 0.2, from: 520, to: 140, click: 0.01 };
 export const HILO = { duration: 0.3, hz: 783.99, tau: 0.12 };
 /** Ten plucks, E5 down by a whole tone each. */
 export const LIFE_LOST = { duration: 0.85, plucks: 10, spacing: 0.08, hz: 659.25, tau: 0.06 };
+/** A short wooden tick for the level clear screen's lines (GDD-AUD-02, GDD-UI-02): a high sine that dies fast, and a click. */
+export const TICK = { duration: 0.06, hz: 1800, tau: 0.01, click: 0.002 };
 export const MEOW = { duration: 0.5, start: 450, peak: 700, peakAt: 0.15, end: 380, attack: 0.03 };
 
 const TAU = 2 * Math.PI;
@@ -142,6 +144,19 @@ export function renderMeow() {
     let sample = 0;
     for (let n = 1; n <= 8; n++) sample += ((1 + 2 * Math.exp(-(((n * hz - 1200) / 400) ** 2))) / n) * Math.sin(n * phase);
     out[i] = Math.min(1, t / MEOW.attack) * (1 - t / MEOW.duration) * sample;
+  }
+  return finish(out, 0.01);
+}
+
+/** A short wooden tick: a fast-decaying sine around 1.8 kHz with a 2 ms noise click at the start. */
+export function renderTick() {
+  const out = buffer(TICK.duration);
+  const noise = noiseSource(31);
+  const click = Math.floor(TICK.click * SAMPLE_RATE);
+  for (let i = 0; i < out.length; i++) {
+    const t = i / SAMPLE_RATE;
+    out[i] = Math.exp(-t / TICK.tau) * Math.min(1, t / 0.0005) * Math.sin(TAU * TICK.hz * t);
+    if (i < click) out[i] += 0.6 * noise() * (1 - i / click);
   }
   return finish(out, 0.01);
 }

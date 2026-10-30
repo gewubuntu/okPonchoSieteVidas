@@ -48,9 +48,18 @@ test('GDD-WLD-06 0-1: start, the alacran pen, the pinata and spikes, the platfor
     expect(await page.evaluate(() => window.__PONCHO__!.hilos().taken)).toBe(before + 1);
   }
   await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
-  await page.evaluate(() => window.__PONCHO__!.step(61));
+  // GDD-UI-02: the screen's first moments, 0.25 s in: only the hilo line has appeared.
+  await page.evaluate(() => window.__PONCHO__!.step(16));
+  await page.waitForFunction(() => {
+    const reveal = window.__PONCHO__!.clearReveal();
+    return reveal.length > 0 && reveal[reveal.length - 1]!.lines === 1;
+  });
+  expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('clear');
+  expect(await page.evaluate(() => window.__PONCHO__!.clearDrawn())).toMatchObject({ hilos: 'Hilos 3/50', lines: 1, prompt: false });
+  await shot(page, info, 'level0-1-clear-reveal');
+  await page.evaluate(() => window.__PONCHO__!.step(45));
   await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().shown && window.__PONCHO__!.clearDrawn().prompt);
   expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('clear');
-  expect((await page.evaluate(() => window.__PONCHO__!.clearDrawn())).hilos).toBe('Hilos 3/50');
+  expect(await page.evaluate(() => window.__PONCHO__!.clearDrawn())).toMatchObject({ hilos: 'Hilos 3/50', lines: 3 });
   await shot(page, info, 'level0-1-clear');
 });

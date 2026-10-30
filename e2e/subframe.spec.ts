@@ -297,3 +297,59 @@ test('GDD-UI-02 a claw tap inside one task ends the level clear screen', async (
   // GDD-UI-02: 0-1's clear screen leads on to 1-1 (GDD-WLD-07).
   await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.phase() === 'playing');
 });
+
+/** Plays 0-1 from the title. */
+async function in01(page: Page): Promise<void> {
+  await boot(page, '/');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+}
+
+/** Brings up 0-1's clear screen by standing Poncho in front of the exit. */
+async function toClearScreen(page: Page): Promise<void> {
+  await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear');
+}
+
+/** After a tap on the clear screen: every line shows, before the medal line's own 0.75 s, and the screen is still up. */
+async function expectSkipped(page: Page, waitAtTap: number): Promise<void> {
+  // The tap came early enough for the timer not to have shown everything by itself.
+  expect(waitAtTap).toBeLessThan(30);
+  await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().lines === 3);
+  const reveal = await api(page, () => window.__PONCHO__!.clearReveal());
+  expect(reveal.find((e) => e.lines === 3)!.wait).toBeLessThan(45);
+  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
+}
+
+test('GDD-UI-02 a claw tap inside one task skips the clear screen\'s reveal (L-006)', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await in01(page);
+  await toClearScreen(page);
+  // Read how long the screen has been up in the same task as the tap: no step runs between them.
+  const waitAtTap = await page.evaluate(() => {
+    const wait = window.__PONCHO__!.ticks() - window.__PONCHO__!.phaseSince();
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', keyCode: 88, bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', keyCode: 88, bubbles: true }));
+    return wait;
+  });
+  await expectSkipped(page, waitAtTap);
+  // One tick for the skip, and one for each line that had already appeared by itself.
+  const linesBefore = [15, 30, 45].filter((w) => w <= waitAtTap).length;
+  expect((await api(page, () => window.__PONCHO__!.sfxPlayed())).filter((p) => p.key === 'sfx-tick')).toHaveLength(linesBefore + 1);
+});
+
+test('GDD-UI-02 a touch tap on the Jump button inside one frame skips the clear screen\'s reveal (L-006)', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await in01(page);
+  const jump = await buttonCentre(page, 'jump'); // the slow layout read, before the screen's clock starts (L-042)
+  await toClearScreen(page);
+  const waitAtTap = await page.evaluate(({ x, y }) => {
+    const wait = window.__PONCHO__!.ticks() - window.__PONCHO__!.phaseSince();
+    const target = document.querySelector('canvas')!;
+    const touch = new Touch({ identifier: 7, target, clientX: x, clientY: y, pageX: x, pageY: y, screenX: x, screenY: y });
+    const init = { bubbles: true, cancelable: true, touches: [touch], targetTouches: [touch], changedTouches: [touch] };
+    target.dispatchEvent(new TouchEvent('touchstart', init));
+    target.dispatchEvent(new TouchEvent('touchend', { ...init, touches: [], targetTouches: [] }));
+    return wait;
+  }, jump);
+  await expectSkipped(page, waitAtTap);
+});

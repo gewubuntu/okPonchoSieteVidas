@@ -4,9 +4,10 @@ import { SFX } from '../config/tuning';
 import { hilosCollected } from './hilo';
 import { isOutOfLives } from './lives';
 import { flipPose } from './respawnFlip';
+import { revealedLines } from './results';
 import type { RunState } from './run';
 
-export type SfxName = 'lifeLost' | 'meow' | 'jump' | 'land' | 'claw' | 'stomp' | 'hilo';
+export type SfxName = 'lifeLost' | 'meow' | 'jump' | 'land' | 'claw' | 'stomp' | 'hilo' | 'tick';
 
 export interface Sfx {
   readonly name: SfxName;
@@ -46,8 +47,8 @@ export const shown = (run: RunState): boolean =>
   run.phase === 'playing' || (run.phase === 'respawning' && !isOutOfLives(run.lives) && flipPose(run.wait).visible);
 
 /**
- * The sounds a step asks for, in the order lifeLost, meow, jump, land, claw, stomp, hilo, and the combo after it. Everything
- * but the meow is for a step that starts in play (GDD-AUD-02: sounds play only while Poncho is in play).
+ * The sounds a step asks for, in the order lifeLost, meow, jump, land, claw, stomp, hilo, tick, and the combo after it. Everything
+ * but the meow and the tick is for a step that starts in play (GDD-AUD-02: sounds play only while Poncho is in play).
  */
 export function stepSounds(before: RunState, after: RunState, combo: HiloCombo): { sounds: Sfx[]; combo: HiloCombo } {
   const playing = before.phase === 'playing';
@@ -64,5 +65,8 @@ export function stepSounds(before: RunState, after: RunState, combo: HiloCombo):
     if (after.stomped) sounds.push({ name: 'stomp' });
     if (note.semitones !== null) sounds.push({ name: 'hilo', semitones: note.semitones });
   }
+  // GDD-UI-02: a step of the clear screen that shows a new line ticks once, however many lines it shows (a skip shows several). The
+  // step that reaches the exit starts in play with `wait` 0, which shows no line, and the press that leaves comes after all three are up.
+  if (after.phase === 'clear' && revealedLines(after) > revealedLines(before)) sounds.push({ name: 'tick' });
   return { sounds, combo: note.combo };
 }
