@@ -79,7 +79,7 @@ test('GDD-UI-02 the settings screen in Español and in Deutsch, with Language ch
   await press(page, 'ArrowDown', 40);
   await chosen(page, 'language');
   await press(page, 'ArrowRight', 39);
-  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().title === 'Ajustes');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().title === 'Configuración');
   expect(await page.evaluate(() => window.__PONCHO__!.settingsDrawn())).toMatchObject({ shown: true, from: 'title', chosen: 'language' });
   await shot(page, info, 'language-1-settings-es');
   await press(page, 'ArrowRight', 39);
@@ -101,7 +101,7 @@ test('GDD-UI-02 the pause menu in Español', async ({ page }, info) => {
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
   await press(page, 'Escape', 27);
   await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
-  expect(await page.evaluate(() => window.__PONCHO__!.pauseDrawn())).toMatchObject({ title: 'Pausa', menu: { items: ['Continuar', 'Ajustes', 'Salir al título'] } });
+  expect(await page.evaluate(() => window.__PONCHO__!.pauseDrawn())).toMatchObject({ title: 'Pausa', menu: { items: ['Continuar', 'Configuración', 'Salir al título'] } });
   await shot(page, info, 'language-4-pause-es');
 });
 

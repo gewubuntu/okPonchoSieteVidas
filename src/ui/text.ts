@@ -42,7 +42,7 @@ export const TEXT: Record<Language, UiText> = {
   es: {
     start: 'Jugar',
     tutorial: 'Tutorial',
-    settings: 'Ajustes',
+    settings: 'Configuración',
     paused: 'Pausa',
     resume: 'Continuar',
     quit: 'Salir al título',

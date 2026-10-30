@@ -145,7 +145,7 @@ export const TIPS_0_1: readonly Tip[] = [
   {
     from: 42,
     to: 47,
-    text: same('Spikes hurt. With a taco, a hit costs only the taco', 'Los pinchos hacen daño. Con un taco, un golpe solo cuesta el taco', 'Stacheln tun weh. Mit einem Taco kostet ein Treffer nur den Taco'),
+    text: same('Spikes hurt. With a taco, a hit costs only the taco', 'Los picos hacen daño. Con un taco, un golpe solo cuesta el taco', 'Stacheln tun weh. Mit einem Taco kostet ein Treffer nur den Taco'),
     highlight: { col: 43, row: 13, w: 2, h: 1 },
   },
   {
