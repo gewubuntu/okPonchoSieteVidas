@@ -28,13 +28,29 @@ test('GDD-CTL-01 a real keyboard press of X and of J swings the claw', async ({ 
   await page.waitForFunction(() => window.__PONCHO__!.swings() === 2);
 });
 
+/**
+ * Waits for swing number `n` and then for its wind-up, swing and cooldown counted in steps, so the next tap is clear of the
+ * cooldown however slow the frames are (GDD-CMB-02: 2, 3 and 15 steps, and one more). Wall time is not enough on a slow runner (L-042).
+ */
+async function afterSwing(page: Page, n: number): Promise<void> {
+  await page.waitForFunction((k) => window.__PONCHO__!.swings() === k, n);
+  const t0 = await api(page, () => window.__PONCHO__!.ticks());
+  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t, t0 + 21);
+}
+
 test('L-006 a claw tap shorter than one frame still swings, every time', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
+  test.setTimeout(90_000); // ten taps, each waiting for its swing and cooldown in steps
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  await tapKey(page, 'KeyX', 88, 6);
-  expect(await api(page, () => window.__PONCHO__!.swings())).toBe(6);
-  await tapKey(page, 'KeyJ', 74, 4);
+  for (let i = 0; i < 6; i++) {
+    await tapKey(page, 'KeyX', 88, 1);
+    await afterSwing(page, i + 1);
+  }
+  for (let i = 0; i < 4; i++) {
+    await tapKey(page, 'KeyJ', 74, 1);
+    await afterSwing(page, 7 + i);
+  }
   expect(await api(page, () => window.__PONCHO__!.swings())).toBe(10);
 });
 
@@ -114,7 +130,7 @@ test('L-006 a touch tap on the Claw button shorter than one frame still swings',
   const claw = await buttonCentre(page, 'claw');
   for (let i = 0; i < 4; i++) {
     await tapTouch(page, claw);
-    await page.waitForTimeout(400);
+    await afterSwing(page, i + 1);
   }
   expect(await api(page, () => window.__PONCHO__!.swings())).toBe(4);
 });

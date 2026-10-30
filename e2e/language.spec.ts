@@ -64,7 +64,7 @@ test('GDD-UI-02 the Language row switches every settings text at once', async ({
   expect(await settingsDrawn(page)).toMatchObject({ title: 'Settings', chosen: 'language' });
   await change(page, 'ArrowRight', 'es');
   const es = await settingsDrawn(page);
-  expect(es.title).toBe('Ajustes');
+  expect(es.title).toBe('Configuración');
   expect(es.rows.map((r) => r.label)).toEqual(['Volumen general', 'Volumen de efectos', 'Idioma', 'Volver']);
   expect(es.rows[2]).toMatchObject({ item: 'language', value: 'Español' });
   // The name stands where a volume row's bars are: the middle of the 68 px span that ends 20 px inside a row at x 110 and 260 wide.
@@ -131,7 +131,7 @@ test('GDD-UI-02 the saved language is used on the next visit', async ({ page }) 
   await change(page, 'ArrowRight', 'es');
   await page.reload();
   await page.waitForFunction(() => window.__PONCHO__ !== undefined);
-  expect(await titleItems(page)).toEqual(['Jugar', 'Tutorial', 'Ajustes']);
+  expect(await titleItems(page)).toEqual(['Jugar', 'Tutorial', 'Configuración']);
 });
 
 // The first visit: the browser's languages decide (Playwright's `locale` sets navigator.languages), until something is saved.
@@ -146,7 +146,7 @@ test.describe('GDD-UI-02 the first visit takes the browser\'s language', () => {
     test('GDD-UI-02 a saved language wins over the browser\'s', async ({ page }) => {
       await page.addInitScript(([key, text]) => localStorage.setItem(key!, text!), [SAVE_KEY, '{"version":1,"settings":{"master":4,"effects":6,"language":"es"}}']);
       await openGame(page);
-      expect(await titleItems(page)).toEqual(['Jugar', 'Tutorial', 'Ajustes']);
+      expect(await titleItems(page)).toEqual(['Jugar', 'Tutorial', 'Configuración']);
       expect(await api(page, () => window.__PONCHO__!.settings())).toEqual({ master: 4, effects: 6, language: 'es' });
     });
   });
@@ -154,7 +154,7 @@ test.describe('GDD-UI-02 the first visit takes the browser\'s language', () => {
     test.use({ locale: 'es-MX' });
     test('GDD-UI-02 a Mexican Spanish browser opens in Español', async ({ page }) => {
       await openGame(page);
-      expect(await titleItems(page)).toEqual(['Jugar', 'Tutorial', 'Ajustes']);
+      expect(await titleItems(page)).toEqual(['Jugar', 'Tutorial', 'Configuración']);
     });
   });
   // GDD-UI-02: the browser's languages, in its order (navigator.languages), else its one language.
@@ -170,7 +170,7 @@ test.describe('GDD-UI-02 the first visit takes the browser\'s language', () => {
         Object.defineProperty(navigator, 'language', { value: 'es-ES', configurable: true });
       });
       await openGame(page);
-      expect(await titleItems(page)).toEqual(['Jugar', 'Tutorial', 'Ajustes']);
+      expect(await titleItems(page)).toEqual(['Jugar', 'Tutorial', 'Configuración']);
     });
   });
   test.describe('de-DE with storage refused', () => {
@@ -284,7 +284,7 @@ test('GDD-UI-02 the upright prompt in the chosen language', async ({ page, isMob
   await page.setViewportSize({ width: 844, height: 390 });
   await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.shown);
   await press(page, 'ArrowDown');
-  await press(page, 'Enter'); // Ajustes
+  await press(page, 'Enter'); // Configuración
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().prompt === 'Gira tu dispositivo de lado');
@@ -407,7 +407,7 @@ test('GDD-UI-02 the gamepad changes the language', async ({ page, isMobile }) =>
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'language');
   await padTap(page, RIGHT);
   await page.waitForFunction(() => window.__PONCHO__!.settings().language === 'es');
-  expect((await settingsDrawn(page)).title).toBe('Ajustes');
+  expect((await settingsDrawn(page)).title).toBe('Configuración');
 });
 
 // GDD-UI-02, GDD-PRG-02: where the browser refuses storage a new scene keeps this visit's language like the volumes (L-049).

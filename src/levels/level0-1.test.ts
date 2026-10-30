@@ -173,7 +173,7 @@ describe('GDD-UI-05 the tips of 0-1', () => {
       to: 38,
       text: {
         en: { keyboard: 'Jump on the Alacrán, or X to claw it', touch: 'Jump on the Alacrán, or tap the claw button', pad: 'Jump on the Alacrán, or left button to claw it' },
-        es: { keyboard: 'Salta sobre el Alacrán, o pulsa X para arañarlo', touch: 'Salta sobre el Alacrán, o toca el botón de zarpazo', pad: 'Salta sobre el Alacrán, o botón izquierdo para arañarlo' },
+        es: { keyboard: 'Salta sobre el Alacrán, o presiona X para arañarlo', touch: 'Salta sobre el Alacrán, o toca el botón de zarpazo', pad: 'Salta sobre el Alacrán, o botón izquierdo para arañarlo' },
         de: { keyboard: 'Spring auf den Alacrán oder kratz ihn mit X', touch: 'Spring auf den Alacrán oder tipp auf den Krallenknopf', pad: 'Spring auf den Alacrán oder kratz ihn mit der linken Taste' },
       },
       highlight: { col: 28, row: 12, w: 9, h: 2 },
@@ -190,7 +190,7 @@ describe('GDD-UI-05 the tips of 0-1', () => {
     {
       from: 42,
       to: 47,
-      text: same('Spikes hurt. With a taco, a hit costs only the taco', 'Los pinchos hacen daño. Con un taco, un golpe solo cuesta el taco', 'Stacheln tun weh. Mit einem Taco kostet ein Treffer nur den Taco'),
+      text: same('Spikes hurt. With a taco, a hit costs only the taco', 'Los picos hacen daño. Con un taco, un golpe solo cuesta el taco', 'Stacheln tun weh. Mit einem Taco kostet ein Treffer nur den Taco'),
       highlight: { col: 43, row: 13, w: 2, h: 1 },
     },
     {
@@ -199,7 +199,7 @@ describe('GDD-UI-05 the tips of 0-1', () => {
       text: same('Hilos are threads to collect. Find all 50!', 'Los hilos son para coleccionar. ¡Encuentra los 50!', 'Hilos sind Fäden zum Sammeln. Finde alle 50!'),
       highlight: { col: 49, row: 12, w: 1, h: 2 },
     },
-    { from: 53, to: 57, text: same('A running jump crosses 3 tiles', 'Un salto con carrerilla cruza 3 casillas', 'Ein Sprung mit Anlauf überquert 3 Felder'), highlight: { col: 53, row: 14, w: 3, h: 1 } },
+    { from: 53, to: 57, text: same('A running jump crosses 3 tiles', 'Un salto con impulso cruza 3 casillas', 'Ein Sprung mit Anlauf überquert 3 Felder'), highlight: { col: 53, row: 14, w: 3, h: 1 } },
     { from: 58, to: 61, text: same('A full jump climbs a wall 3 tiles high', 'Un salto completo sube un muro de 3 casillas', 'Ein voller Sprung erklimmt eine 3 Felder hohe Wand'), highlight: { col: 58, row: 11, w: 2, h: 3 } },
     {
       from: 62,
