@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.9.0
+Version: 0.8.4
 
 This document is the anchor for every feature. Rules:
 
@@ -12,7 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
-- **0.9.0** (2026-10-30) GDD-UI-02, GDD-PRG-03, GDD-AUD-02, GDD-MVP-02: the results screen, first part (user, 2026-10-30: it shows the clear time and the medal, its lines appear one by one with a tick, and it is left through a menu). The level clear screen gets a "Time 2:14" line, counted in simulation steps from the level start (the restart after the last life starts it again), and a medal line, Bronze, Silver or Gold by GDD-PRG-03's rule; the hilo, time and medal lines appear 0.25 s apart, each with a new placeholder tick sound, and a new press before the last one shows them all at once. The new texts get Spanish and German (Proposed) in the Language table. Medals move out of the later scope; the score stays there. The menu that leaves the screen comes in the next change. Open Question 10 partly answered.
+- **0.8.4** (2026-10-30) GDD-UI-02, GDD-PRG-03, GDD-AUD-02, GDD-MVP-02: the results screen, first part (user, 2026-10-30: it shows the clear time and the medal, its lines appear one by one with a tick, and it is left through a menu). The level clear screen gets a "Time 2:14" line, counted in simulation steps from the level start (the restart after the last life starts it again), and a medal line, Bronze, Silver or Gold by GDD-PRG-03's rule; the hilo, time and medal lines appear 0.25 s apart, each with a new placeholder tick sound, and a new press before the last one shows them all at once. The new texts get Spanish and German (Proposed) in the Language table. Medals move out of the later scope; the score stays there. The menu that leaves the screen comes in the next change. Open Question 10 partly answered. (Found in the review of PR #61: a patch, since no ID is added; GDD-PRG-03's status line says medals are kept.)
 - **0.8.3** (2026-10-30) GDD-UI-02, GDD-UI-05: Mexican Spanish wording (user, 2026-10-30, after the review of PR #59): "Presiona" for "Pulsa" in the two "Press any button" prompts and the Alacrán tip, "con impulso" for "con carrerilla" in the running-jump tip, "Configuración" for "Ajustes", and "Los picos" for "Los pinchos" in the spikes tip.
 - **0.8.2** (2026-10-29) GDD-UI-02, GDD-UI-03, GDD-UI-05, GDD-PRG-02, GDD-WLD-06: the language switch (user, 2026-10-29: the Language row next, every text on screen switching, a first visit in the browser's language). The settings screen gets a fourth row, "Language", between "Effects volume" and "Back", that switches English, Español and Deutsch with Left and Right or a tap on its halves; the menus, the screens, the prompts and the tutorial tips are drawn in the chosen language at once. A first visit, or a save without a language, uses the first of the browser's languages that is English, Spanish or German, else English. The language is saved with the volumes. The Spanish and German texts are Proposed.
 - **0.8.1** (2026-10-28) GDD-UI-02, GDD-PRG-02, GDD-WLD-06, GDD-WLD-07: the tutorial is played once, or picked from the menu (user, 2026-10-27: "0-1 should only be played once or getting selected in the menu"; 2026-10-28: it counts as played once it starts; a "Tutorial" row). The title menu gets a third row, "Tutorial", between "Start" and "Settings"; "Start" plays 0-1 until 0-1 has been started once and 1-1 from then on, and "Tutorial" always plays 0-1. The save keeps whether 0-1 has been started. The menu's first row moves up from 176 to 160 px so three rows fit on a phone. A new scene (the next level, a title over another level) keeps this visit's volumes where the browser refuses storage (found in the review of PR #58). Open Question 16 answered and removed.
@@ -603,7 +603,7 @@ Status: Proposed
 
 ### GDD-PRG-03 Score and medals
 
-Status: Proposed. Optional, can be cut.
+Status: Proposed. Medals are kept (user, 2026-10-30); the score is optional and can be cut.
 
 Score from hilos, enemies and time. Level medals: Bronze (clear), Silver (all hilos), Gold (all hilos and 4 or more lives left at the exit). Última Vida doubles hilo score (GDD-LIFE-04).
 

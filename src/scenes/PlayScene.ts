@@ -125,7 +125,7 @@ export interface PonchoDebug {
    */
   clearDrawn(): { shown: boolean; title: string; hilos: string; time: string; medal: string; medalColour: string; lines: number; discX: number; textX: number; medalWidth: number; prompt: boolean; promptText: string };
   /**
-   * One entry for each frame the level clear screen was drawn since it last came up: the run's `wait` (steps it has been up) and how
+   * One entry for each frame the level clear screen was drawn in its first 2 s (120 steps) since it last came up: the run's `wait` (steps it has been up) and how
    * many of its lines were visible then (GDD-UI-02). Reset when a clear screen comes up.
    */
   clearReveal(): { wait: number; lines: number }[];
@@ -1617,7 +1617,8 @@ export class PlayScene extends Phaser.Scene {
       this.clearMedalDiscX = place.discX;
       this.clearMedalText.setX(place.textX);
       this.clearMedalDisc.clear().fillStyle(MEDAL.colours[kind], 1).fillCircle(place.discX, 150, MEDAL.discPx / 2).setVisible(lines >= 3);
-      this.clearRevealLog.push({ wait: this.run.wait, lines: this.clearLinesVisible() });
+      // Only the screen's first 2 s, which the playtests read, so a screen left up for long does not grow the log.
+      if (this.run.wait <= 2 * GAME_OVER.lockoutSteps) this.clearRevealLog.push({ wait: this.run.wait, lines: this.clearLinesVisible() });
     }
     this.clearPrompt.setVisible(shown && this.run.wait >= GAME_OVER.lockoutSteps);
   }
