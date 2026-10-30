@@ -1,6 +1,7 @@
 // GDD-UI-05: tutorial tips, texts and highlights that pop up while Poncho is in a stretch of the level. Pure logic, no Phaser.
 import { TILE, TIPS } from '../config/tuning';
 import type { Level, RunState } from '../sim/run';
+import type { Language } from '../sim/settings';
 import { veladoraUsed } from '../sim/veladora';
 
 /** The device used last, which decides the words (GDD-UI-05). */
@@ -18,7 +19,8 @@ export interface Tip {
   /** The stretch of tile columns it shows in, both included. */
   readonly from: number;
   readonly to: number;
-  readonly text: { readonly keyboard: string; readonly touch: string; readonly pad: string };
+  /** The words in each language, by the device used last (GDD-UI-05, GDD-UI-02). */
+  readonly text: Readonly<Record<Language, { readonly keyboard: string; readonly touch: string; readonly pad: string }>>;
   /** The thing it teaches, outlined; null for none. */
   readonly highlight: TileRect | null;
   /** The touch button outlined with it. */
@@ -71,7 +73,7 @@ export function tipsDone(done: readonly boolean[], tips: readonly Tip[], before:
   });
 }
 
-export const tipText = (tip: Tip, device: Device): string => tip.text[device];
+export const tipText = (tip: Tip, device: Device, language: Language): string => tip.text[language][device];
 
 /** 0 to 1 and back to 0 every `TIPS.pulseSteps` steps, smoothly. */
 export const pulse = (steps: number): number => (1 - Math.cos((2 * Math.PI * steps) / TIPS.pulseSteps)) / 2;

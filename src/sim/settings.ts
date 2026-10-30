@@ -2,29 +2,51 @@
 import { VOLUME } from '../config/tuning';
 import type { PauseEvent } from './pause';
 
-/** The two volumes, each a whole number of shares from 0 to `VOLUME.steps` (GDD-UI-02, GDD-AUD-01). */
+/** The languages of the game, in the order the Language row goes through them (GDD-UI-02). */
+export type Language = 'en' | 'es' | 'de';
+export const LANGUAGES: readonly Language[] = ['en', 'es', 'de'];
+
+/** The two volumes, each a whole number of shares from 0 to `VOLUME.steps`, and the language (GDD-UI-02, GDD-AUD-01). */
 export interface Settings {
   readonly master: number;
   readonly effects: number;
+  readonly language: Language;
 }
 
-export const DEFAULT_SETTINGS: Settings = { master: VOLUME.default, effects: VOLUME.default };
+export const DEFAULT_SETTINGS: Settings = { master: VOLUME.default, effects: VOLUME.default, language: 'en' };
 
-export type SettingsRow = 'master' | 'effects' | 'back';
-export const SETTINGS_ROWS: readonly SettingsRow[] = ['master', 'effects', 'back'];
+export type SettingsRow = 'master' | 'effects' | 'language' | 'back';
+export const SETTINGS_ROWS: readonly SettingsRow[] = ['master', 'effects', 'language', 'back'];
 
 const clamp = (v: number): number => Math.max(0, Math.min(VOLUME.steps, v));
 
-/** One volume row moved by `delta` shares; any other row changes nothing. */
+/** One volume row moved by `delta` shares, or the language row by `delta` places (no wrap-around); Back changes nothing. */
 function nudge(settings: Settings, row: SettingsRow, delta: number): Settings {
   if (row === 'back') return settings;
+  if (row === 'language') {
+    const i = Math.max(0, Math.min(LANGUAGES.length - 1, LANGUAGES.indexOf(settings.language) + delta));
+    return { ...settings, language: LANGUAGES[i]! };
+  }
   return { ...settings, [row]: clamp(settings[row] + delta) };
 }
 
 /**
+ * GDD-UI-02, the first language: the first of the browser's languages whose main part (before any "-", in any case) is en, es or
+ * de decides; none gives English.
+ */
+export function browserLanguage(languages: readonly string[]): Language {
+  for (const tag of languages) {
+    const main = tag.split('-')[0]!.toLowerCase();
+    const found = LANGUAGES.find((l) => l === main);
+    if (found !== undefined) return found;
+  }
+  return 'en';
+}
+
+/**
  * One event on the open settings screen, which only the sideways screen takes (callers handle orientation). Up and Down choose
- * a row (no wrap-around), Left and Right move the chosen volume, Enter, Space or Z picks Back, Escape, P, the pause button
- * and the gamepad's start leave. A tap on a volume row chooses it and moves it by its half; a tap on Back leaves; any other tap does nothing.
+ * a row (no wrap-around), Left and Right move the chosen volume or the language, Enter, Space or Z picks Back, Escape, P, the pause button
+ * and the gamepad's start leave. A tap on a volume or the language row chooses it and moves it by its half; a tap on Back leaves; any other tap does nothing.
  * `'back'` when the event leaves the screen.
  */
 export function settingsEvent(row: SettingsRow, settings: Settings, event: PauseEvent): { row: SettingsRow; settings: Settings } | 'back' {

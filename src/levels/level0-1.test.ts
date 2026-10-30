@@ -131,25 +131,84 @@ describe('GDD-WLD-06 playing 0-1', () => {
   });
 });
 
-const same = (t: string) => ({ keyboard: t, touch: t, pad: t });
+const one = (t: string) => ({ keyboard: t, touch: t, pad: t });
+const same = (en: string, es: string, de: string) => ({ en: one(en), es: one(es), de: one(de) });
 const h = (i: number) => TIPS_0_1[i - 1]!.highlight!;
 const holdsX = (r: { col: number; w: number }, x: number) => x >= r.col * TILE && x <= (r.col + r.w) * TILE;
 
 describe('GDD-UI-05 the tips of 0-1', () => {
   // Stretch (tile columns), highlight (col, row, w, h in tiles), touch button, done when, and the words, from the GDD.
   const expected = [
-    { from: 0, to: 5, text: { keyboard: 'Arrows or A/D to run', touch: 'Hold left or right to run', pad: 'Stick or D-pad to run' }, highlight: null, button: 'move' },
-    { from: 6, to: 13, text: { keyboard: 'Space to jump. Hold it to jump higher', touch: 'Tap the jump button. Hold it to jump higher', pad: 'Bottom button to jump. Hold it to jump higher' }, highlight: { col: 11, row: 12, w: 2, h: 2 }, button: 'jump' },
-    { from: 14, to: 20, text: same('Jump over the gaps'), highlight: { col: 16, row: 14, w: 5, h: 1 } },
-    { from: 21, to: 25, text: same('Ofrendas are checkpoints. The first touch gives back a life'), highlight: { col: 23, row: 12, w: 1, h: 2 } },
-    { from: 26, to: 38, text: { keyboard: 'Jump on the Alacrán, or X to claw it', touch: 'Jump on the Alacrán, or tap the claw button', pad: 'Jump on the Alacrán, or left button to claw it' }, highlight: { col: 28, row: 12, w: 9, h: 2 }, button: 'claw', doneWhen: { enemy: 0 } },
-    { from: 39, to: 41, text: same('Jump into the piñata from below'), highlight: { col: 40, row: 10, w: 1, h: 1 }, doneWhen: { pinata: 0 } },
-    { from: 42, to: 47, text: same('Spikes hurt. With a taco, a hit costs only the taco'), highlight: { col: 43, row: 13, w: 2, h: 1 } },
-    { from: 48, to: 52, text: same('Hilos are threads to collect. Find all 50!'), highlight: { col: 49, row: 12, w: 1, h: 2 } },
-    { from: 53, to: 57, text: same('A running jump crosses 3 tiles'), highlight: { col: 53, row: 14, w: 3, h: 1 } },
-    { from: 58, to: 61, text: same('A full jump climbs a wall 3 tiles high'), highlight: { col: 58, row: 11, w: 2, h: 3 } },
-    { from: 62, to: 75, text: same('A veladora up there gives back a life'), highlight: { col: 70, row: 6, w: 1, h: 1 }, doneWhen: 'veladora' },
-    { from: 82, to: 89, text: same('Reach the arch to finish the level'), highlight: { col: 87, row: 11, w: 1, h: 3 } },
+    {
+      from: 0,
+      to: 5,
+      text: {
+        en: { keyboard: 'Arrows or A/D to run', touch: 'Hold left or right to run', pad: 'Stick or D-pad to run' },
+        es: { keyboard: 'Flechas o A/D para correr', touch: 'Mantén izquierda o derecha para correr', pad: 'Stick o cruceta para correr' },
+        de: { keyboard: 'Pfeiltasten oder A/D zum Laufen', touch: 'Links oder rechts halten zum Laufen', pad: 'Stick oder Steuerkreuz zum Laufen' },
+      },
+      highlight: null,
+      button: 'move',
+    },
+    {
+      from: 6,
+      to: 13,
+      text: {
+        en: { keyboard: 'Space to jump. Hold it to jump higher', touch: 'Tap the jump button. Hold it to jump higher', pad: 'Bottom button to jump. Hold it to jump higher' },
+        es: { keyboard: 'Espacio para saltar. Mantenlo para saltar más alto', touch: 'Toca el botón de salto. Mantenlo para saltar más alto', pad: 'Botón inferior para saltar. Mantenlo para saltar más alto' },
+        de: { keyboard: 'Leertaste zum Springen. Halten für höhere Sprünge', touch: 'Sprungknopf antippen. Halten für höhere Sprünge', pad: 'Untere Taste zum Springen. Halten für höhere Sprünge' },
+      },
+      highlight: { col: 11, row: 12, w: 2, h: 2 },
+      button: 'jump',
+    },
+    { from: 14, to: 20, text: same('Jump over the gaps', 'Salta los huecos', 'Spring über die Lücken'), highlight: { col: 16, row: 14, w: 5, h: 1 } },
+    {
+      from: 21,
+      to: 25,
+      text: same('Ofrendas are checkpoints. The first touch gives back a life', 'Las ofrendas son puntos de control. El primer toque devuelve una vida', 'Ofrendas sind Kontrollpunkte. Die erste Berührung gibt ein Leben zurück'),
+      highlight: { col: 23, row: 12, w: 1, h: 2 },
+    },
+    {
+      from: 26,
+      to: 38,
+      text: {
+        en: { keyboard: 'Jump on the Alacrán, or X to claw it', touch: 'Jump on the Alacrán, or tap the claw button', pad: 'Jump on the Alacrán, or left button to claw it' },
+        es: { keyboard: 'Salta sobre el Alacrán, o pulsa X para arañarlo', touch: 'Salta sobre el Alacrán, o toca el botón de zarpazo', pad: 'Salta sobre el Alacrán, o botón izquierdo para arañarlo' },
+        de: { keyboard: 'Spring auf den Alacrán oder kratz ihn mit X', touch: 'Spring auf den Alacrán oder tipp auf den Krallenknopf', pad: 'Spring auf den Alacrán oder kratz ihn mit der linken Taste' },
+      },
+      highlight: { col: 28, row: 12, w: 9, h: 2 },
+      button: 'claw',
+      doneWhen: { enemy: 0 },
+    },
+    {
+      from: 39,
+      to: 41,
+      text: same('Jump into the piñata from below', 'Salta contra la piñata desde abajo', 'Spring von unten gegen die Piñata'),
+      highlight: { col: 40, row: 10, w: 1, h: 1 },
+      doneWhen: { pinata: 0 },
+    },
+    {
+      from: 42,
+      to: 47,
+      text: same('Spikes hurt. With a taco, a hit costs only the taco', 'Los pinchos hacen daño. Con un taco, un golpe solo cuesta el taco', 'Stacheln tun weh. Mit einem Taco kostet ein Treffer nur den Taco'),
+      highlight: { col: 43, row: 13, w: 2, h: 1 },
+    },
+    {
+      from: 48,
+      to: 52,
+      text: same('Hilos are threads to collect. Find all 50!', 'Los hilos son para coleccionar. ¡Encuentra los 50!', 'Hilos sind Fäden zum Sammeln. Finde alle 50!'),
+      highlight: { col: 49, row: 12, w: 1, h: 2 },
+    },
+    { from: 53, to: 57, text: same('A running jump crosses 3 tiles', 'Un salto con carrerilla cruza 3 casillas', 'Ein Sprung mit Anlauf überquert 3 Felder'), highlight: { col: 53, row: 14, w: 3, h: 1 } },
+    { from: 58, to: 61, text: same('A full jump climbs a wall 3 tiles high', 'Un salto completo sube un muro de 3 casillas', 'Ein voller Sprung erklimmt eine 3 Felder hohe Wand'), highlight: { col: 58, row: 11, w: 2, h: 3 } },
+    {
+      from: 62,
+      to: 75,
+      text: same('A veladora up there gives back a life', 'Una veladora ahí arriba devuelve una vida', 'Eine Veladora dort oben gibt ein Leben zurück'),
+      highlight: { col: 70, row: 6, w: 1, h: 1 },
+      doneWhen: 'veladora',
+    },
+    { from: 82, to: 89, text: same('Reach the arch to finish the level', 'Llega al arco para terminar el nivel', 'Erreiche den Bogen, um das Level zu beenden'), highlight: { col: 87, row: 11, w: 1, h: 3 } },
   ];
 
   it('GDD-UI-05 0-1 has the twelve tips of the GDD in order', () => {
