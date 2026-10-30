@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MEDAL, RESULTS } from '../config/tuning';
 import { loseLife, startWorld } from './lives';
 import type { PlayerInput } from './movement';
-import { clearTime, medal, medalLabel, medalLine, revealedLines } from './results';
+import { clearTime, medal, medalLine, revealedLines } from './results';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { parseTiles } from './tilemap';
 
@@ -26,18 +26,20 @@ const runWith = (level: Level, taken: number, lives: number): RunState => {
 
 describe('GDD-UI-02 clear time', () => {
   it('GDD-UI-02 clear time is minutes and whole seconds, rounded down', () => {
-    expect(clearTime(0)).toBe('Time 0:00');
-    expect(clearTime(59)).toBe('Time 0:00');
-    expect(clearTime(60)).toBe('Time 0:01');
-    expect(clearTime(7 * 60)).toBe('Time 0:07');
-    expect(clearTime(134 * 60 + 59)).toBe('Time 2:14');
-    expect(clearTime(725 * 60)).toBe('Time 12:05');
+    expect(clearTime(0, 'Time')).toBe('Time 0:00');
+    expect(clearTime(59, 'Time')).toBe('Time 0:00');
+    expect(clearTime(60, 'Time')).toBe('Time 0:01');
+    expect(clearTime(7 * 60, 'Time')).toBe('Time 0:07');
+    expect(clearTime(134 * 60 + 59, 'Time')).toBe('Time 2:14');
+    expect(clearTime(725 * 60, 'Time')).toBe('Time 12:05');
+    // The word is the language's (GDD-UI-02 Language).
+    expect(clearTime(134 * 60, 'Zeit')).toBe('Zeit 2:14');
   });
 
   it('GDD-UI-02 clear time stops at 99:59', () => {
-    expect(clearTime(5999 * 60)).toBe('Time 99:59');
-    expect(clearTime(6000 * 60)).toBe('Time 99:59');
-    expect(clearTime(10_000 * 60)).toBe('Time 99:59');
+    expect(clearTime(5999 * 60, 'Time')).toBe('Time 99:59');
+    expect(clearTime(6000 * 60, 'Time')).toBe('Time 99:59');
+    expect(clearTime(10_000 * 60, 'Time')).toBe('Time 99:59');
   });
 });
 
@@ -106,11 +108,6 @@ describe('GDD-PRG-03 medals', () => {
     expect(medal(without, level)).toBe('silver');
   });
 
-  it('GDD-PRG-03 medal labels', () => {
-    expect(medalLabel('bronze')).toBe('Bronze medal');
-    expect(medalLabel('silver')).toBe('Silver medal');
-    expect(medalLabel('gold')).toBe('Gold medal');
-  });
 });
 
 /** A run on the clear screen, `wait` steps into it. */

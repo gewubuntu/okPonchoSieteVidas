@@ -49,7 +49,7 @@ import { readSave, SAVE_KEY, saveText } from '../sim/save';
 import { browserLanguage, DEFAULT_SETTINGS, sfxVolume, type Language, type Settings, type SettingsRow } from '../sim/settings';
 import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
-import { clearTime, medal, medalLabel, medalLine, revealedLines } from '../sim/results';
+import { clearTime, medal, medalLine, revealedLines } from '../sim/results';
 import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
@@ -1607,11 +1607,12 @@ export class PlayScene extends Phaser.Scene {
     this.clearScreen.setVisible(shown);
     if (shown) {
       const lines = revealedLines(this.run);
+      const t = TEXT[this.settings.language];
       const kind = medal(this.run, this.level);
       const colour = `#${MEDAL.colours[kind].toString(16).padStart(6, '0')}`;
       this.clearHilos.setText(`Hilos ${hilosCollected(this.run.hilosTaken)}/${this.level.hilos?.length ?? 0}`).setVisible(lines >= 1);
-      this.clearTime.setText(clearTime(this.run.clock)).setVisible(lines >= 2);
-      this.clearMedalText.setText(medalLabel(kind)).setColor(colour).setVisible(lines >= 3);
+      this.clearTime.setText(clearTime(this.run.clock, t.time)).setVisible(lines >= 2);
+      this.clearMedalText.setText(t[kind]).setColor(colour).setVisible(lines >= 3);
       const place = medalLine(this.clearMedalText.width);
       this.clearMedalDiscX = place.discX;
       this.clearMedalText.setX(place.textX);

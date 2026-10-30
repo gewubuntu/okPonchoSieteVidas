@@ -657,7 +657,7 @@ Boot, title, world map, level, pause, results, settings. Fully operable by touch
   | Press any button to Retry | Presiona cualquier botón para reintentar | Drücke eine Taste für einen neuen Versuch |
   | Level clear! | ¡Nivel superado! | Level geschafft! |
   | Press any button | Presiona cualquier botón | Drücke eine Taste |
-  | Time 2:14 | Tiempo 2:14 | Zeit 2:14 |
+  | Time | Tiempo | Zeit |
   | Bronze medal | Medalla de bronce | Bronzemedaille |
   | Silver medal | Medalla de plata | Silbermedaille |
   | Gold medal | Medalla de oro | Goldmedaille |

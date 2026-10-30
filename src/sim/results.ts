@@ -9,10 +9,10 @@ export type Medal = 'bronze' | 'silver' | 'gold';
 /** The longest time shown, 99:59, in whole seconds. */
 const MAX_SECONDS = 99 * 60 + 59;
 
-/** GDD-UI-02: the clear time as "Time 2:14", from the steps counted: minutes and whole seconds, rounded down, 99:59 at most. */
-export function clearTime(steps: number): string {
+/** GDD-UI-02: the clear time as "Time 2:14", `word` in the language in use, from the steps counted: minutes and whole seconds, rounded down, 99:59 at most. */
+export function clearTime(steps: number, word: string): string {
   const seconds = Math.min(MAX_SECONDS, Math.floor(steps / TICK_HZ));
-  return `Time ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return `${word} ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 /** GDD-PRG-03: gold for every hilo and `goldLives` lives or more left at the exit, silver for every hilo, bronze otherwise. */
@@ -21,8 +21,6 @@ export function medal(run: RunState, level: Level): Medal {
   if (all && run.lives.lives >= MEDAL.goldLives) return 'gold';
   return all ? 'silver' : 'bronze';
 }
-
-export const medalLabel = (m: Medal): string => ({ bronze: 'Bronze medal', silver: 'Silver medal', gold: 'Gold medal' })[m];
 
 /** GDD-UI-02: how many of the hilo, time and medal lines are shown, 0 to 3. A press that skipped the reveal shows all three. */
 export function revealedLines(run: RunState): number {
