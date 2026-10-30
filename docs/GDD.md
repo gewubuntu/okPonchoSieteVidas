@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.8.2
+Version: 0.8.3
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.8.3** (2026-10-30) GDD-UI-02, GDD-UI-05: Mexican Spanish wording (user, 2026-10-30, after the review of PR #59): "Presiona" for "Pulsa" in the two "Press any button" prompts and the Alacrán tip, and "con impulso" for "con carrerilla" in the running-jump tip.
 - **0.8.2** (2026-10-29) GDD-UI-02, GDD-UI-03, GDD-UI-05, GDD-PRG-02, GDD-WLD-06: the language switch (user, 2026-10-29: the Language row next, every text on screen switching, a first visit in the browser's language). The settings screen gets a fourth row, "Language", between "Effects volume" and "Back", that switches English, Español and Deutsch with Left and Right or a tap on its halves; the menus, the screens, the prompts and the tutorial tips are drawn in the chosen language at once. A first visit, or a save without a language, uses the first of the browser's languages that is English, Spanish or German, else English. The language is saved with the volumes. The Spanish and German texts are Proposed.
 - **0.8.1** (2026-10-28) GDD-UI-02, GDD-PRG-02, GDD-WLD-06, GDD-WLD-07: the tutorial is played once, or picked from the menu (user, 2026-10-27: "0-1 should only be played once or getting selected in the menu"; 2026-10-28: it counts as played once it starts; a "Tutorial" row). The title menu gets a third row, "Tutorial", between "Start" and "Settings"; "Start" plays 0-1 until 0-1 has been started once and 1-1 from then on, and "Tutorial" always plays 0-1. The save keeps whether 0-1 has been started. The menu's first row moves up from 176 to 160 px so three rows fit on a phone. A new scene (the next level, a title over another level) keeps this visit's volumes where the browser refuses storage (found in the review of PR #58). Open Question 16 answered and removed.
 - **0.8.0** (2026-10-27) GDD-WLD-07, GDD-UI-02, GDD-WLD-06, GDD-TEC-04, GDD-LIFE-03, GDD-LIFE-05, GDD-ENM-02, GDD-UI-04, GDD-UI-05, GDD-ART-06, GDD-TEC-07: the first level of World 1, 1-1 (user, 2026-10-27: five to six screens; it brings in the Zopilote, the cactus buddy and a piñata with a chile; a press on 0-1's level clear screen starts it). New GDD-WLD-07 holds its layout, six screens long. GDD-UI-02: `?level=1-1` opens it, 0-1's clear screen leads on to it at once with seven lives, the button that pressed held, and 1-1's own clear screen brings back the title over 1-1. The placeholder lines at the top of the level start are drawn in the sandbox only. Open Question 16 added and partly answered (user, 2026-10-27: 0-1 is played once, or when picked from a menu, in the next change). Dependency review for this minor version (GDD-TEC-07): `npm outdated` showed oxlint 1.89.0 behind, upgraded to 1.90.0, gate and playtests green; @types/node stays on 24 to match the Node 24 that CI runs (ADR 0002).
@@ -649,9 +650,9 @@ Boot, title, world map, level, pause, results, settings. Fully operable by touch
   | Language | Idioma | Sprache |
   | Back | Volver | Zurück |
   | Game over | Fin del juego | Spiel vorbei |
-  | Press any button to Retry | Pulsa cualquier botón para reintentar | Drücke eine Taste für einen neuen Versuch |
+  | Press any button to Retry | Presiona cualquier botón para reintentar | Drücke eine Taste für einen neuen Versuch |
   | Level clear! | ¡Nivel superado! | Level geschafft! |
-  | Press any button | Pulsa cualquier botón | Drücke eine Taste |
+  | Press any button | Presiona cualquier botón | Drücke eine Taste |
 
   The tutorial's tips are listed in each language in GDD-UI-05.
 - **The first language:** a first visit, or a save with no language or one that is not `en`, `es` or `de`, uses the browser's languages (`navigator.languages`, else `navigator.language`), in the browser's order: the first one whose main part (before any `-`, in any case) is `en`, `es` or `de` decides, so `fr-FR, de-AT` gives Deutsch; none gives English. Until something is saved the browser's language is followed, so a new one counts at the next visit; once the game saves (a setting changed, or the tutorial started), the save holds the language in use, and that one is used from then on.
@@ -708,11 +709,11 @@ Status: Proposed (user, 2026-10-26: texts and highlights pop up while Poncho is 
   2. "Espacio para saltar. Mantenlo para saltar más alto" / "Toca el botón de salto. Mantenlo para saltar más alto" / "Botón inferior para saltar. Mantenlo para saltar más alto"; "Leertaste zum Springen. Halten für höhere Sprünge" / "Sprungknopf antippen. Halten für höhere Sprünge" / "Untere Taste zum Springen. Halten für höhere Sprünge".
   3. "Salta los huecos"; "Spring über die Lücken".
   4. "Las ofrendas son puntos de control. El primer toque devuelve una vida"; "Ofrendas sind Kontrollpunkte. Die erste Berührung gibt ein Leben zurück".
-  5. "Salta sobre el Alacrán, o pulsa X para arañarlo" / "Salta sobre el Alacrán, o toca el botón de zarpazo" / "Salta sobre el Alacrán, o botón izquierdo para arañarlo"; "Spring auf den Alacrán oder kratz ihn mit X" / "Spring auf den Alacrán oder tipp auf den Krallenknopf" / "Spring auf den Alacrán oder kratz ihn mit der linken Taste".
+  5. "Salta sobre el Alacrán, o presiona X para arañarlo" / "Salta sobre el Alacrán, o toca el botón de zarpazo" / "Salta sobre el Alacrán, o botón izquierdo para arañarlo"; "Spring auf den Alacrán oder kratz ihn mit X" / "Spring auf den Alacrán oder tipp auf den Krallenknopf" / "Spring auf den Alacrán oder kratz ihn mit der linken Taste".
   6. "Salta contra la piñata desde abajo"; "Spring von unten gegen die Piñata".
   7. "Los pinchos hacen daño. Con un taco, un golpe solo cuesta el taco"; "Stacheln tun weh. Mit einem Taco kostet ein Treffer nur den Taco".
   8. "Los hilos son para coleccionar. ¡Encuentra los 50!"; "Hilos sind Fäden zum Sammeln. Finde alle 50!".
-  9. "Un salto con carrerilla cruza 3 casillas"; "Ein Sprung mit Anlauf überquert 3 Felder".
+  9. "Un salto con impulso cruza 3 casillas"; "Ein Sprung mit Anlauf überquert 3 Felder".
   10. "Un salto completo sube un muro de 3 casillas"; "Ein voller Sprung erklimmt eine 3 Felder hohe Wand".
   11. "Una veladora ahí arriba devuelve una vida"; "Eine Veladora dort oben gibt ein Leben zurück".
   12. "Llega al arco para terminar el nivel"; "Erreiche den Bogen, um das Level zu beenden".

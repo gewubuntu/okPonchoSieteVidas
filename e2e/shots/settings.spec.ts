@@ -1,6 +1,6 @@
 // Screenshots of the settings screen for visual review. Run with `npm run shots`; images land in shots/ (not committed).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { boot, openGame, start } from '../helpers';
+import { boot, openGame, start, stepUntil } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
   await page.waitForTimeout(150);
@@ -111,4 +111,29 @@ test('GDD-UI-05 the first tip of 0-1 in Deutsch', async ({ page, isMobile }, inf
   await page.waitForFunction(() => window.__PONCHO__!.tip().alpha === 1);
   expect(await page.evaluate(() => window.__PONCHO__!.tip())).toMatchObject({ index: 0, text: isMobile ? 'Links oder rechts halten zum Laufen' : 'Pfeiltasten oder A/D zum Laufen' });
   await shot(page, info, 'language-5-tip-de');
+});
+
+test('GDD-UI-02 the Siete vidas gastadas screen in Español, with its prompt', async ({ page }, info) => {
+  await seed(page, 'es');
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  await page.evaluate(() => window.__PONCHO__!.pause(true));
+  for (let i = 0; i < 6; i++) await page.evaluate(() => window.__PONCHO__!.loseLife());
+  await page.evaluate(() => window.__PONCHO__!.teleport(248, 150)); // into the pit with the last life
+  await stepUntil(page, { phase: 'gameover' }, 200);
+  await page.evaluate(() => window.__PONCHO__!.step(70, { move: 0, jumpHeld: false }));
+  expect(await page.evaluate(() => window.__PONCHO__!.gameOverDrawn())).toMatchObject({ shown: true, subtitle: 'Fin del juego', prompt: true, promptText: 'Presiona cualquier botón para reintentar' });
+  await shot(page, info, 'language-6-gameover-es');
+});
+
+test('GDD-UI-05 the running jump tip of 0-1 in Español', async ({ page, isMobile }, info) => {
+  await seed(page, 'es');
+  await start(page, isMobile);
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+  const y = await page.evaluate(() => window.__PONCHO__!.state().y);
+  await page.evaluate((fy) => window.__PONCHO__!.teleport(56 * 16 + 8, fy), y); // column 56, on the floor past the 3-tile gap (columns 53 to 55)
+  await page.waitForFunction(() => window.__PONCHO__!.tip().index === 8 && window.__PONCHO__!.tip().alpha === 1);
+  await page.evaluate(() => window.__PONCHO__!.pause(true));
+  expect(await page.evaluate(() => window.__PONCHO__!.tip().text)).toBe('Un salto con impulso cruza 3 casillas');
+  await shot(page, info, 'language-7-tip-es');
 });

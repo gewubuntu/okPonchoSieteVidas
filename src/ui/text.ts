@@ -52,9 +52,9 @@ export const TEXT: Record<Language, UiText> = {
     language: 'Idioma',
     back: 'Volver',
     gameOver: 'Fin del juego',
-    retry: 'Pulsa cualquier botón para reintentar',
+    retry: 'Presiona cualquier botón para reintentar',
     levelClear: '¡Nivel superado!',
-    pressAny: 'Pulsa cualquier botón',
+    pressAny: 'Presiona cualquier botón',
   },
   de: {
     start: 'Spielen',

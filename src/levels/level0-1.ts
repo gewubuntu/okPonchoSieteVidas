@@ -128,7 +128,7 @@ export const TIPS_0_1: readonly Tip[] = [
     to: 38,
     text: {
       en: { keyboard: 'Jump on the Alacrán, or X to claw it', touch: 'Jump on the Alacrán, or tap the claw button', pad: 'Jump on the Alacrán, or left button to claw it' },
-      es: { keyboard: 'Salta sobre el Alacrán, o pulsa X para arañarlo', touch: 'Salta sobre el Alacrán, o toca el botón de zarpazo', pad: 'Salta sobre el Alacrán, o botón izquierdo para arañarlo' },
+      es: { keyboard: 'Salta sobre el Alacrán, o presiona X para arañarlo', touch: 'Salta sobre el Alacrán, o toca el botón de zarpazo', pad: 'Salta sobre el Alacrán, o botón izquierdo para arañarlo' },
       de: { keyboard: 'Spring auf den Alacrán oder kratz ihn mit X', touch: 'Spring auf den Alacrán oder tipp auf den Krallenknopf', pad: 'Spring auf den Alacrán oder kratz ihn mit der linken Taste' },
     },
     highlight: { col: 28, row: 12, w: 9, h: 2 },
@@ -157,7 +157,7 @@ export const TIPS_0_1: readonly Tip[] = [
   {
     from: 53,
     to: 57,
-    text: same('A running jump crosses 3 tiles', 'Un salto con carrerilla cruza 3 casillas', 'Ein Sprung mit Anlauf überquert 3 Felder'),
+    text: same('A running jump crosses 3 tiles', 'Un salto con impulso cruza 3 casillas', 'Ein Sprung mit Anlauf überquert 3 Felder'),
     highlight: { col: 53, row: 14, w: 3, h: 1 },
   },
   {
