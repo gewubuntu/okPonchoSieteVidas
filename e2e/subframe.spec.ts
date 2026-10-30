@@ -112,9 +112,13 @@ test('L-006 a touch tap on the Claw button shorter than one frame still swings',
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
   const claw = await buttonCentre(page, 'claw');
+  // Each tap waits for its swing and for the cooldown counted in steps, not in wall time: a slow runner's frames make 400 ms
+  // shorter than the swing and its cooldown, and a tap then is rightly ignored (L-042).
   for (let i = 0; i < 4; i++) {
     await tapTouch(page, claw);
-    await page.waitForTimeout(400);
+    await page.waitForFunction((n) => window.__PONCHO__!.swings() === n, i + 1);
+    const t0 = await api(page, () => window.__PONCHO__!.ticks());
+    await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t, t0 + 21); // GDD-CMB-02: 2 wind-up, 3 swing and 15 cooldown steps, and one more
   }
   expect(await api(page, () => window.__PONCHO__!.swings())).toBe(4);
 });
