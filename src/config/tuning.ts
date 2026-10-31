@@ -185,8 +185,8 @@ export const HIT = { invulnerableSteps: Math.round(2.0 * TICK_HZ), knockback: 80
 /** GDD-PWR-02: a taco is a square this many px wide (a pickup sits centred in its tile); one released from a piñata walks at `walkSpeed` px/s. */
 export const TACO = { size: 12, walkSpeed: 40 } as const;
 
-/** GDD-WLD-04: a hilo pickup is an 8 x 8 px square in the middle of its tile. */
-export const HILO = { size: 8 } as const;
+/** GDD-WLD-04: a hilo pickup is an 8 x 8 px square in the middle of its tile. A hilo saved in an earlier run is drawn at `savedAlpha` (35 %) opacity. */
+export const HILO = { size: 8, savedAlpha: 0.35 } as const;
 
 /** GDD-WLD-05: a key pickup is a square this many px wide, centred in its tile. A door touches Poncho from the side within `doorReachPx`. */
 export const KEY = { size: 12, doorReachPx: 1 } as const;

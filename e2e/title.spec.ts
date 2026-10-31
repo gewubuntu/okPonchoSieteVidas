@@ -358,7 +358,7 @@ test('GDD-PRG-02 a volume changed after the tutorial started keeps the tutorial 
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
   await page.keyboard.press('ArrowLeft');
   await page.waitForFunction(() => window.__PONCHO__!.settings().master === 9);
-  expect(await savedGame(page)).toEqual({ version: 1, settings: { master: 9, effects: 10, language: 'en' }, progress: { tutorialPlayed: true } });
+  expect(await savedGame(page)).toEqual({ version: 1, settings: { master: 9, effects: 10, language: 'en' }, progress: { tutorialPlayed: true }, levels: {} });
 });
 
 test('GDD-PRG-02 where the browser refuses storage the tutorial still counts as started for this visit', async ({ page }) => {

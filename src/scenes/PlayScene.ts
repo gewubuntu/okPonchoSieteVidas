@@ -4,7 +4,7 @@
 import Phaser from 'phaser';
 import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, PLANTS, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_MENU, VELADORA } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
-import { levelById, startLevel, TUTORIAL_ID, type LevelEntry } from '../levels';
+import { levelById, SAVED_LEVELS, startLevel, TUTORIAL_ID, type LevelEntry } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
 import skyStripsPng from '../../assets/sprites/desierto/sky-strips.png';
@@ -45,11 +45,11 @@ import { platformAt } from '../sim/platform';
 import { buttonsDown, respawnPoint, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
 import { isPortrait, pauseFrame, PLAYING, resumeHeld, type MenuItem, type PauseEvent, type PauseState } from '../sim/pause';
-import { readSave, SAVE_KEY, saveText } from '../sim/save';
+import { mergeLevels, readSave, recordClear, SAVE_KEY, saveText, type LevelProgress } from '../sim/save';
 import { browserLanguage, DEFAULT_SETTINGS, sfxVolume, type Language, type Settings, type SettingsRow } from '../sim/settings';
 import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
-import { clearTime, medal, medalLine, openResults, resultsFrame, resultsShown, revealedLines, type ResultsItem, type ResultsMenu } from '../sim/results';
+import { bestTimeSuffix, clearTime, medal, medalLine, medalSuffix, openResults, resultsFrame, resultsShown, revealedLines, type ResultsItem, type ResultsMenu } from '../sim/results';
 import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
@@ -270,8 +270,13 @@ export interface PonchoDebug {
   /** The power-up state (GDD-PWR-01), and the taco pickups the scene painted in the level (GDD-PWR-02). */
   power(): Power;
   tacosDrawn(): number;
-  /** GDD-WLD-04: the hilos collected and the level's total, read from the run, and the pickups the scene painted in the level. */
-  hilos(): { taken: number; total: number; drawn: number };
+  /**
+   * GDD-WLD-04: the hilos collected (saved ones included) and the level's total, read from the run, and the pickups the scene painted
+   * in the level: `drawn` at full strength, `faded` the ones saved in an earlier run (GDD-PRG-02), at `HILO.savedAlpha`.
+   */
+  hilos(): { taken: number; total: number; drawn: number; faded: number };
+  /** GDD-PRG-02: the progress the scene holds for the levels, as saved at each level clear (and read when the scene was made). */
+  progress(): Record<string, LevelProgress>;
   /** GDD-UI-01: the hilo counter as drawn: its text, the right edge and top of the text, and the middle x of the skein icon. */
   hudHilos(): { text: string; right: number; top: number; iconX: number };
   /** Whether the taco in Poncho's hand and the power-up icon on the HUD are drawn. Read from what was drawn. */
@@ -332,6 +337,9 @@ let playedThisVisit = false;
 /** GDD-UI-02, GDD-PRG-02: the volumes and the language last set in this visit, so a new scene (the next level, a title over another level) keeps them where the browser refuses storage. */
 let settingsThisVisit: Settings | null = null;
 
+/** GDD-PRG-02: the progress saved in this visit, so a new scene (Retry, the next level, a title over another level) has it where the browser refuses storage. */
+let progressThisVisit: Readonly<Record<string, LevelProgress>> = {};
+
 /** GDD-PRG-02: whether the saved game says the tutorial was started, when the game opens; false where the browser refuses storage. */
 function savedTutorialPlayed(): boolean {
   try {
@@ -369,8 +377,11 @@ export class PlayScene extends Phaser.Scene {
   private heldGfx!: Phaser.GameObjects.Graphics;
   private tacosKey = '';
   private hiloGfx!: Phaser.GameObjects.Graphics;
+  /** GDD-WLD-04, GDD-PRG-02: the hilos saved in an earlier run, painted at `HILO.savedAlpha`. */
+  private hiloFadedGfx!: Phaser.GameObjects.Graphics;
   private hilosKey = '';
   private hilosPainted = 0;
+  private hilosFaded = 0;
   /** GDD-UI-01: the hilo counter's text and the graphics behind its skein icon, and the text and right edge it was last drawn with. */
   private hiloText!: Phaser.GameObjects.Text;
   private hiloIcon!: Phaser.GameObjects.Graphics;
@@ -423,6 +434,9 @@ export class PlayScene extends Phaser.Scene {
   private settings: Settings = DEFAULT_SETTINGS;
   /** GDD-UI-02, GDD-PRG-02: whether 0-1 has been started, which decides what "Start" plays. Saved with the settings. */
   private tutorialPlayed = false;
+  /** GDD-PRG-02: the saved progress per level (read when the scene was made, with this visit's), and the level's entry as it was before this run's clear (undefined until the clear, and for a level never cleared). */
+  private progress: Record<string, LevelProgress> = {};
+  private bestBefore: LevelProgress | undefined;
   private settingsScreen!: Phaser.GameObjects.Container;
   private settingsVeil!: Phaser.GameObjects.Rectangle;
   private settingsTitle!: Phaser.GameObjects.Text;
@@ -588,14 +602,17 @@ export class PlayScene extends Phaser.Scene {
     // the defaults, and the tutorial counts as started if it was in this visit.
     // GDD-UI-02: a first visit, or a save with no language, takes the browser's.
     const browser = browserLanguage(typeof navigator === 'undefined' ? [] : Array.isArray(navigator.languages) && navigator.languages.length > 0 ? navigator.languages : [navigator.language]);
-    let save = readSave(null, browser);
+    let save = readSave(null, browser, SAVED_LEVELS);
     try {
-      save = readSave(window.localStorage.getItem(SAVE_KEY), browser);
+      save = readSave(window.localStorage.getItem(SAVE_KEY), browser, SAVED_LEVELS);
     } catch {
       // storage refused
     }
     this.settings = settingsThisVisit ?? save.settings;
     this.tutorialPlayed = save.tutorialPlayed || playedThisVisit;
+    // GDD-PRG-02, GDD-WLD-04: the hilos saved in an earlier run count from the start. The sandbox has no saved progress.
+    this.progress = mergeLevels(save.levels, progressThisVisit);
+    this.run = startRun(this.level, this.progress[this.entry.id]?.hilos);
     this.cameras.main.setBackgroundColor('#1b2036');
     // GDD-ART-01: the canvas is ART_SCALE times larger than the game pixels everything is placed in, so the camera draws them zoomed in
     // from the top left corner, world objects and fixed ones alike.
@@ -632,6 +649,7 @@ export class PlayScene extends Phaser.Scene {
     this.tacoGfx = this.add.graphics().setDepth(2);
     this.drawTacos();
     this.hiloGfx = this.add.graphics().setDepth(2);
+    this.hiloFadedGfx = this.add.graphics().setDepth(2).setAlpha(HILO.savedAlpha);
     this.drawHilos();
     this.heldGfx = this.add.graphics().setDepth(4);
     this.fireballGfx = this.add.graphics().setDepth(4);
@@ -1009,7 +1027,8 @@ export class PlayScene extends Phaser.Scene {
         checkpoint: () => this.run.checkpoint,
         power: () => this.run.power,
         tacosDrawn: () => this.tacosPainted,
-        hilos: () => ({ taken: hilosCollected(this.run.hilosTaken), total: this.level.hilos?.length ?? 0, drawn: this.hilosPainted }),
+        hilos: () => ({ taken: hilosCollected(this.run.hilosTaken), total: this.level.hilos?.length ?? 0, drawn: this.hilosPainted, faded: this.hilosFaded }),
+        progress: () => this.progress,
         hudHilos: () => ({ text: this.hiloText.text, right: this.hiloText.x, top: this.hiloText.y, iconX: this.hiloIconX }),
         heldTacoVisible: () => this.heldGfx.visible,
         hudPowerIcon: () => this.hudPower !== 'base',
@@ -1331,16 +1350,28 @@ export class PlayScene extends Phaser.Scene {
     });
   }
 
-  /** The hilos not yet collected (GDD-WLD-04), each in the next serape colour. Redrawn when one is collected. */
+  /**
+   * The hilos not yet collected (GDD-WLD-04), each in the next serape colour, and the ones saved in an earlier run (GDD-PRG-02) faded.
+   * One collected in this run is not drawn. Redrawn when one is collected.
+   */
   private drawHilos(): void {
-    this.hilosKey = this.run.hilosTaken.join();
+    this.hilosKey = this.hilosState();
     this.hiloGfx.clear();
+    this.hiloFadedGfx.clear();
     this.hilosPainted = 0;
+    this.hilosFaded = 0;
     (this.level.hilos ?? []).forEach((h, i) => {
-      if (this.run.hilosTaken[i]) return;
-      this.hilosPainted++;
-      this.paintHilo(this.hiloGfx, h.col * TILE + TILE / 2, h.row * TILE + TILE / 2, hiloColour(i));
+      const saved = this.run.hilosSaved[i];
+      if (this.run.hilosTaken[i] && !saved) return;
+      if (saved) this.hilosFaded++;
+      else this.hilosPainted++;
+      this.paintHilo(saved ? this.hiloFadedGfx : this.hiloGfx, h.col * TILE + TILE / 2, h.row * TILE + TILE / 2, hiloColour(i));
     });
+  }
+
+  /** What `drawHilos` paints from: the flags collected and saved. */
+  private hilosState(): string {
+    return `${this.run.hilosTaken.join()}|${this.run.hilosSaved.join()}`;
   }
 
   /** Placeholder skein (GDD-WLD-04): a round coil of thread, two dark wraps across it and a short loose end. The middle stays plain colour. */
@@ -1653,8 +1684,11 @@ export class PlayScene extends Phaser.Scene {
       const kind = medal(this.run, this.level);
       const colour = `#${MEDAL.colours[kind].toString(16).padStart(6, '0')}`;
       this.clearHilos.setText(`Hilos ${hilosCollected(this.run.hilosTaken)}/${this.level.hilos?.length ?? 0}`).setVisible(lines >= 1);
-      this.clearTime.setText(clearTime(this.run.clock, t.time)).setVisible(lines >= 2);
-      this.clearMedalText.setText(t[kind]).setColor(colour).setVisible(lines >= 3);
+      // GDD-UI-02: the best time before this run, or "New best!"; the medal line adds "New best!" for a better medal. Nothing for a first clear and the sandbox.
+      const timeMore = bestTimeSuffix(this.run.clock, this.bestBefore?.bestSteps ?? null, t);
+      const medalMore = medalSuffix(kind, this.bestBefore?.medal ?? null, t.newBest);
+      this.clearTime.setText(clearTime(this.run.clock, t.time) + (timeMore ? `  ${timeMore}` : '')).setVisible(lines >= 2);
+      this.clearMedalText.setText(t[kind] + (medalMore ? `  ${medalMore}` : '')).setColor(colour).setVisible(lines >= 3);
       const place = medalLine(this.clearMedalText.width);
       this.clearMedalDiscX = place.discX;
       this.clearMedalText.setX(place.textX);
@@ -1751,7 +1785,10 @@ export class PlayScene extends Phaser.Scene {
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
     this.ticks++;
     if (this.run.phase !== before.phase) this.phaseSince = this.ticks;
-    if (this.run.phase === 'clear' && before.phase !== 'clear') this.results = openResults(this.hasNext());
+    if (this.run.phase === 'clear' && before.phase !== 'clear') {
+      this.results = openResults(this.hasNext());
+      this.saveClear();
+    }
     // GDD-UI-05: the tutorial tips follow Poncho by steps, so they stand still with the game.
     const tips = this.entry.tips;
     if (tips) {
@@ -1841,7 +1878,7 @@ export class PlayScene extends Phaser.Scene {
           this.tutorialPlayed = true;
           playedThisVisit = true;
         }
-        if (marks || settingsChanged()) this.saveSettings();
+        if (marks || settingsChanged()) this.writeSave();
         if (level.id !== this.entry.id) {
           this.startNext(level);
           return;
@@ -1870,13 +1907,13 @@ export class PlayScene extends Phaser.Scene {
     this.settings = frame.settings;
     if (pick === 'next' || pick === 'retry') {
       // The next level, or this one again, as a fresh scene at once with the press held (GDD-UI-02).
-      if (settingsChanged()) this.saveSettings();
+      if (settingsChanged()) this.writeSave();
       this.startNext(pick === 'next' ? this.nextLevel()! : this.entry);
       return;
     }
     if (frame.quit || pick === 'quit') {
       if (this.backToTitle(input, frame.portrait)) {
-        if (settingsChanged()) this.saveSettings();
+        if (settingsChanged()) this.writeSave();
         return;
       }
     } else {
@@ -1887,7 +1924,7 @@ export class PlayScene extends Phaser.Scene {
 
     // GDD-PRG-02: a change is saved at once. GDD-UI-02: a volume change plays the jump sound at the new volume, so the player hears
     // it, and a language change plays nothing; a setting already at its end changes nothing, so nothing is saved or played.
-    if (settingsChanged()) this.saveSettings();
+    if (settingsChanged()) this.writeSave();
     if (volumeChanged()) this.playSfx('jump');
 
     let stepped = false;
@@ -1906,7 +1943,7 @@ export class PlayScene extends Phaser.Scene {
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.pulseDrawn !== null || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
     if (`${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}` !== this.doorsKey) this.drawDoorsAndKeys();
     if (this.run.tacosTaken.join() !== this.tacosKey) this.drawTacos();
-    if (this.run.hilosTaken.join() !== this.hilosKey) this.drawHilos();
+    if (this.hilosState() !== this.hilosKey) this.drawHilos();
     this.drawHiloCounter();
     if (this.run.pinatasOpen.join() !== this.pinatasKey) this.drawPinatas();
     if (this.run.fragilesBroken.join() !== this.fragilesKey) this.drawFragiles();
@@ -1938,11 +1975,25 @@ export class PlayScene extends Phaser.Scene {
     this.drawSettings();
   }
 
-  /** GDD-PRG-02: the settings and whether the tutorial was started go to the browser's storage. Where it is refused the game plays on with this visit's, silently. */
-  private saveSettings(): void {
+  /**
+   * GDD-PRG-02: on the step Poncho reaches the exit of a level whose progress is saved, the run's hilos, medal and time join the
+   * saved ones. `bestBefore` is the level's entry from before, which the clear screen compares with (GDD-UI-02). The sandbox, a test
+   * level, is never saved (GDD-PRG-02): it has no exit so it never clears, and `readSave` drops any id outside `SAVED_LEVELS`.
+   */
+  private saveClear(): void {
+    const id = this.entry.id;
+    this.bestBefore = this.progress[id];
+    const now = recordClear(this.bestBefore, this.run, this.level);
+    this.progress = { ...this.progress, [id]: now };
+    progressThisVisit = { ...progressThisVisit, [id]: now };
+    this.writeSave();
+  }
+
+  /** GDD-PRG-02: the settings, whether the tutorial was started and the progress go to the browser's storage. Where it is refused the game plays on with this visit's, silently. */
+  private writeSave(): void {
     settingsThisVisit = this.settings;
     try {
-      window.localStorage.setItem(SAVE_KEY, saveText({ settings: this.settings, tutorialPlayed: this.tutorialPlayed }));
+      window.localStorage.setItem(SAVE_KEY, saveText({ settings: this.settings, tutorialPlayed: this.tutorialPlayed, levels: this.progress }));
     } catch {
       // storage refused: the settings last until the page closes
     }
@@ -2069,7 +2120,7 @@ export class PlayScene extends Phaser.Scene {
       this.replaceWith({ entry: startsWith, title: titleAfterQuit(portrait, buttonsDown(input)) });
       return true;
     }
-    this.run = startRun(this.level);
+    this.run = startRun(this.level, this.progress[this.entry.id]?.hilos);
     this.prevPlayer = this.run.player;
     this.anim = startAnim(this.run.player.x);
     this.peak = 0;

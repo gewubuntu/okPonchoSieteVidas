@@ -11,11 +11,35 @@ export type Medal = 'bronze' | 'silver' | 'gold';
 /** The longest time shown, 99:59, in whole seconds. */
 const MAX_SECONDS = 99 * 60 + 59;
 
-/** GDD-UI-02: the clear time as "Time 2:14", `word` in the language in use, from the steps counted: minutes and whole seconds, rounded down, 99:59 at most. */
-export function clearTime(steps: number, word: string): string {
+/** GDD-UI-02: the clear time's m:ss, rounded down, 99:59 at most. */
+function minutes(steps: number): string {
   const seconds = Math.min(MAX_SECONDS, Math.floor(steps / TICK_HZ));
-  return `${word} ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
+
+/** GDD-UI-02: the clear time as "Time 2:14", `word` in the language in use, from the steps counted: minutes and whole seconds, rounded down, 99:59 at most. */
+export const clearTime = (steps: number, word: string): string => `${word} ${minutes(steps)}`;
+
+/**
+ * GDD-UI-02: what the time line adds after the time: nothing for a level cleared the first time (`bestBefore` null), the new-best
+ * mark when this run is shorter than the saved best, else the saved best as "Best 1:58" (an equal time is no new best).
+ */
+export function bestTimeSuffix(steps: number, bestBefore: number | null, words: { best: string; newBest: string }): string {
+  if (bestBefore === null) return '';
+  return steps < bestBefore ? words.newBest : `${words.best} ${minutes(bestBefore)}`;
+}
+
+/** The medals from worst to best. */
+const MEDAL_ORDER: readonly Medal[] = ['bronze', 'silver', 'gold'];
+
+/** How good a medal is: none (null) is -1, below bronze. */
+const rank = (m: Medal | null): number => (m === null ? -1 : MEDAL_ORDER.indexOf(m));
+
+/** GDD-PRG-02: the better of two medals; none (null) is worse than any. */
+export const betterMedal = (a: Medal | null, b: Medal | null): Medal | null => (rank(b) > rank(a) ? b : a);
+
+/** GDD-UI-02: what the medal line adds: the new-best mark when `m` is better than a saved medal, else nothing (a first clear has none). */
+export const medalSuffix = (m: Medal, before: Medal | null, newBest: string): string => (before !== null && rank(m) > rank(before) ? newBest : '');
 
 /** GDD-PRG-03: gold for every hilo and `goldLives` lives or more left at the exit, silver for every hilo, bronze otherwise. */
 export function medal(run: RunState, level: Level): Medal {

@@ -298,13 +298,14 @@ test('GDD-UI-02 Retry starts 0-1 again fresh', async ({ page }) => {
   await page.keyboard.press('ArrowDown');
   await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'retry');
   await page.keyboard.press('Enter', { delay: 30 });
-  // A fresh scene of 0-1, playing at once, no title: seven lives, every hilo back, Poncho at the start.
+  // A fresh scene of 0-1, playing at once, no title: seven lives, every hilo not saved yet back (the ones the clear saved are faded,
+  // GDD-PRG-02), Poncho at the start.
   await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2);
   expect(await api(page, () => window.__PONCHO__!.level())).toBe('0-1');
   expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false);
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
-  expect(await api(page, () => window.__PONCHO__!.hilos())).toMatchObject({ taken: 0, total: 50 });
-  expect((await api(page, () => window.__PONCHO__!.hudHilos())).text).toBe('0/50');
+  expect(await api(page, () => window.__PONCHO__!.hilos())).toMatchObject({ taken, total: 50, faded: taken, drawn: 50 - taken });
+  expect((await api(page, () => window.__PONCHO__!.hudHilos())).text).toBe(`${taken}/50`);
   expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: 224 });
   expect((await api(page, () => window.__PONCHO__!.camera())).viewX).toBe(0);
   // The clock starts again at 0:00: reach the exit within 60 steps and the time line says so.
@@ -313,7 +314,8 @@ test('GDD-UI-02 Retry starts 0-1 again fresh', async ({ page }) => {
   await page.evaluate(() => window.__PONCHO__!.step(1));
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
   expect(await api(page, () => window.__PONCHO__!.ticks())).toBeLessThan(60);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).time).toBe('Time 0:00');
+  // The first run took over 2 s and was saved (GDD-PRG-02), so this one, under 1 s, is a new best (GDD-UI-02).
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).time).toBe('Time 0:00  New best!');
 });
 
 test('GDD-UI-02 Quit to title from the results menu', async ({ page }) => {

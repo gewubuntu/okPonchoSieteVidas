@@ -22,6 +22,9 @@ export interface UiText {
   readonly retryLevel: string;
   /** The clear time's word, as in "Time 2:14". */
   readonly time: string;
+  /** GDD-UI-02: the best time's word, as in "Best 1:58", and the mark of a new best. */
+  readonly best: string;
+  readonly newBest: string;
   /** The medal lines, by `Medal` (GDD-PRG-03). */
   readonly bronze: string;
   readonly silver: string;
@@ -48,6 +51,8 @@ export const TEXT: Record<Language, UiText> = {
     next: 'Next level',
     retryLevel: 'Retry',
     time: 'Time',
+    best: 'Best',
+    newBest: 'New best!',
     bronze: 'Bronze medal',
     silver: 'Silver medal',
     gold: 'Gold medal',
@@ -70,6 +75,8 @@ export const TEXT: Record<Language, UiText> = {
     next: 'Siguiente nivel',
     retryLevel: 'Reintentar',
     time: 'Tiempo',
+    best: 'Récord',
+    newBest: '¡Nuevo récord!',
     bronze: 'Medalla de bronce',
     silver: 'Medalla de plata',
     gold: 'Medalla de oro',
@@ -92,6 +99,8 @@ export const TEXT: Record<Language, UiText> = {
     next: 'Nächstes Level',
     retryLevel: 'Nochmal',
     time: 'Zeit',
+    best: 'Bestzeit',
+    newBest: 'Neuer Rekord!',
     bronze: 'Bronzemedaille',
     silver: 'Silbermedaille',
     gold: 'Goldmedaille',

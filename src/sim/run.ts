@@ -91,8 +91,13 @@ export interface RunState {
   readonly platformTick: number;
   /** GDD-PWR-01: the power-up state. A life lost always brings Poncho back in Base. */
   readonly power: Power;
-  /** One flag per `Level.hilos` entry: collected? Never reset: not by a lost life, nor by the restart after the last life (GDD-WLD-04, GDD-LIFE-02, GDD-LIFE-05). */
+  /**
+   * One flag per `Level.hilos` entry: collected? It starts as `hilosSaved` (a hilo saved in an earlier run counts as collected from the
+   * start, GDD-WLD-04, GDD-PRG-02) and is never reset: not by a lost life, nor by the restart after the last life (GDD-LIFE-02, GDD-LIFE-05).
+   */
   readonly hilosTaken: readonly boolean[];
+  /** One flag per `Level.hilos` entry: saved in an earlier run (GDD-PRG-02)? Drawn faded and never collected again; fixed for the run. */
+  readonly hilosSaved: readonly boolean[];
   /** One flag per `Level.tacos` entry, in the same order: has it been picked up? They all come back on respawn. */
   readonly tacosTaken: readonly boolean[];
   /** One flag per `Level.pinatas` entry, in the same order: has it been opened? They all close again on respawn. */
@@ -128,8 +133,10 @@ export interface RunState {
   readonly revealAll: boolean;
 }
 
-export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: freshHilos(level.hilos ?? []), tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false };
+/** `savedHilos` are the hilos saved in earlier runs (GDD-PRG-02), one flag per `Level.hilos` entry; left out means none. */
+export function startRun(level: Level, savedHilos?: readonly boolean[]): RunState {
+  const hilosSaved = savedHilos ?? freshHilos(level.hilos ?? []);
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -226,6 +233,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
       power: 'base',
       // GDD-WLD-04, GDD-LIFE-02: collected hilos stay collected.
       hilosTaken: run.hilosTaken,
+      hilosSaved: run.hilosSaved,
       tacosTaken: freshTacos(level.tacos),
       pinatasOpen: freshPinatas(level.pinatas),
       items: [],

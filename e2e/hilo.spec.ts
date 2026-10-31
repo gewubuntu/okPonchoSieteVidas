@@ -28,10 +28,10 @@ const pastFirst = (page: Page) =>
 
 test('GDD-WLD-04 walking into a hilo collects it: it leaves the level and the counter goes up', async ({ page }) => {
   await atFirst(page);
-  expect(await api(page, () => window.__PONCHO__!.hilos())).toEqual({ taken: 0, total: 20, drawn: 20 });
+  expect(await api(page, () => window.__PONCHO__!.hilos())).toEqual({ taken: 0, total: 20, drawn: 20, faded: 0 });
   expect((await api(page, () => window.__PONCHO__!.hudHilos())).text).toBe('0/20');
   await pastFirst(page);
-  expect(await api(page, () => window.__PONCHO__!.hilos())).toEqual({ taken: 1, total: 20, drawn: 19 });
+  expect(await api(page, () => window.__PONCHO__!.hilos())).toEqual({ taken: 1, total: 20, drawn: 19, faded: 0 });
   expect((await api(page, () => window.__PONCHO__!.hudHilos())).text).toBe('1/20');
 });
 
@@ -42,7 +42,7 @@ test('GDD-LIFE-02 a lost life keeps collected hilos', async ({ page }) => {
   await page.evaluate(() => window.__PONCHO__!.step(140));
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('playing');
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(6);
-  expect(await api(page, () => window.__PONCHO__!.hilos())).toEqual({ taken: 1, total: 20, drawn: 19 });
+  expect(await api(page, () => window.__PONCHO__!.hilos())).toEqual({ taken: 1, total: 20, drawn: 19, faded: 0 });
   expect((await api(page, () => window.__PONCHO__!.hudHilos())).text).toBe('1/20');
 });
 

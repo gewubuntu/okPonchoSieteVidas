@@ -1,17 +1,30 @@
-// GDD-PRG-02: the save (the settings and whether the tutorial has been started), the first slice of the autosave. Pure: the scene reads and writes the browser's local storage.
+// GDD-PRG-02: the save (the settings, whether the tutorial has been started and the progress per level). Pure: the scene reads and writes the browser's local storage.
 import { VOLUME } from '../config/tuning';
+import { betterMedal, medal, type Medal } from './results';
+import type { Level, RunState } from './run';
 import { DEFAULT_SETTINGS, LANGUAGES, type Language, type Settings } from './settings';
 
 /** The local storage key of the save. */
 export const SAVE_KEY = 'poncho-siete-vidas';
 
-/** GDD-PRG-02: everything the save holds: the settings, and whether the tutorial 0-1 has been started (GDD-UI-02). */
+/** GDD-PRG-02: what the save keeps of one level: the hilos saved (one flag per hilo, in the level's order), the best medal and best time (steps), and whether it was cleared. */
+export interface LevelProgress {
+  readonly hilos: readonly boolean[];
+  readonly medal: Medal | null;
+  readonly bestSteps: number | null;
+  readonly cleared: boolean;
+}
+
+/** GDD-PRG-02: everything the save holds: the settings, whether the tutorial 0-1 has been started (GDD-UI-02) and the progress per level id. */
 export interface SaveData {
   readonly settings: Settings;
   readonly tutorialPlayed: boolean;
+  readonly levels: Readonly<Record<string, LevelProgress>>;
 }
 
-export const DEFAULT_SAVE: SaveData = { settings: DEFAULT_SETTINGS, tutorialPlayed: false };
+export const DEFAULT_SAVE: SaveData = { settings: DEFAULT_SETTINGS, tutorialPlayed: false, levels: {} };
+
+const MEDALS: readonly Medal[] = ['bronze', 'silver', 'gold'];
 
 /** A saved volume: a whole number from 0 to `VOLUME.steps`, else the default alone. */
 const volume = (value: unknown, fallback: number): number =>
@@ -20,12 +33,26 @@ const volume = (value: unknown, fallback: number): number =>
 /** A saved language: exactly `en`, `es` or `de`, else the fallback (the browser's, GDD-UI-02) alone. */
 const language = (value: unknown, fallback: Language): Language => LANGUAGES.find((l) => l === value) ?? fallback;
 
+/** One saved level, or undefined when it is not an object. A part that does not read as the GDD says reads as none. */
+function levelProgress(value: unknown, hiloCount: number): LevelProgress | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const { hilos, medal: m, bestSteps, cleared } = value as { hilos?: unknown; medal?: unknown; bestSteps?: unknown; cleared?: unknown };
+  const flags = typeof hilos === 'string' && hilos.length === hiloCount && /^[01]*$/.test(hilos) ? Array.from(hilos, (c) => c === '1') : Array<boolean>(hiloCount).fill(false);
+  return {
+    hilos: flags,
+    medal: MEDALS.find((name) => name === m) ?? null,
+    bestSteps: typeof bestSteps === 'number' && Number.isInteger(bestSteps) && bestSteps > 0 ? bestSteps : null,
+    cleared: cleared === true,
+  };
+}
+
 /**
  * GDD-PRG-02: the save in a saved text, or the defaults with `fallback` as the language (GDD-UI-02, the first language). Never
- * throws. Only `progress.tutorialPlayed` being exactly true reads as played.
+ * throws. Only `progress.tutorialPlayed` being exactly true reads as played. `hiloCounts` is the hilo count of each level that is saved
+ * (the real levels, by id): the entries of `levels` for any other id are dropped.
  */
-export function readSave(raw: string | null, fallback: Language = 'en'): SaveData {
-  const defaults: SaveData = { settings: { ...DEFAULT_SETTINGS, language: fallback }, tutorialPlayed: false };
+export function readSave(raw: string | null, fallback: Language = 'en', hiloCounts: Readonly<Record<string, number>> = {}): SaveData {
+  const defaults: SaveData = { settings: { ...DEFAULT_SETTINGS, language: fallback }, tutorialPlayed: false, levels: {} };
   if (raw === null) return defaults;
   let data: unknown;
   try {
@@ -34,13 +61,21 @@ export function readSave(raw: string | null, fallback: Language = 'en'): SaveDat
     return defaults;
   }
   if (typeof data !== 'object' || data === null) return defaults;
-  const { version, settings, progress } = data as { version?: unknown; settings?: unknown; progress?: unknown };
+  const { version, settings, progress, levels } = data as { version?: unknown; settings?: unknown; progress?: unknown; levels?: unknown };
   if (version !== 1 || typeof settings !== 'object' || settings === null) return defaults;
   const saved = settings as { master?: unknown; effects?: unknown; language?: unknown };
   const tutorialPlayed = typeof progress === 'object' && progress !== null && (progress as { tutorialPlayed?: unknown }).tutorialPlayed === true;
+  // An array, like any non-object, has no level id among its keys: the counts drop them.
+  const table = typeof levels === 'object' && levels !== null ? new Map<string, unknown>(Object.entries(levels)) : new Map<string, unknown>();
+  const read: Record<string, LevelProgress> = {};
+  for (const [id, count] of Object.entries(hiloCounts)) {
+    const one = levelProgress(table.get(id), count);
+    if (one) read[id] = one;
+  }
   return {
     settings: { master: volume(saved.master, DEFAULT_SETTINGS.master), effects: volume(saved.effects, DEFAULT_SETTINGS.effects), language: language(saved.language, fallback) },
     tutorialPlayed,
+    levels: read,
   };
 }
 
@@ -50,4 +85,30 @@ export const saveText = (data: SaveData): string =>
     version: 1,
     settings: { master: data.settings.master, effects: data.settings.effects, language: data.settings.language },
     progress: { tutorialPlayed: data.tutorialPlayed },
+    levels: Object.fromEntries(
+      Object.entries(data.levels).map(([id, p]) => [id, { hilos: p.hilos.map((h) => (h ? '1' : '0')).join(''), medal: p.medal, bestSteps: p.bestSteps, cleared: p.cleared }]),
+    ),
   });
+
+/** GDD-PRG-02: the progress after a level clear: the run's hilos added to the saved ones, the better medal, the shorter time, cleared. */
+export const recordClear = (saved: LevelProgress | undefined, run: RunState, level: Level): LevelProgress => ({
+  hilos: run.hilosTaken.map((taken, i) => taken || (saved?.hilos[i] ?? false)),
+  medal: betterMedal(saved?.medal ?? null, medal(run, level)),
+  bestSteps: Math.min(saved?.bestSteps ?? run.clock, run.clock),
+  cleared: true,
+});
+
+/** GDD-PRG-02: two records of one level as one: every hilo of either, the better medal, the shorter time, cleared if either is. */
+export const mergeProgress = (a: LevelProgress, b: LevelProgress): LevelProgress => ({
+  hilos: a.hilos.map((h, i) => h || (b.hilos[i] ?? false)),
+  medal: betterMedal(a.medal, b.medal),
+  bestSteps: a.bestSteps === null ? b.bestSteps : b.bestSteps === null ? a.bestSteps : Math.min(a.bestSteps, b.bestSteps),
+  cleared: a.cleared || b.cleared,
+});
+
+/** GDD-PRG-02: the progress of every level in `a` or `b`, a level in both merged (`mergeProgress`). */
+export function mergeLevels(a: Readonly<Record<string, LevelProgress>>, b: Readonly<Record<string, LevelProgress>>): Record<string, LevelProgress> {
+  const merged: Record<string, LevelProgress> = { ...a };
+  for (const [id, p] of Object.entries(b)) merged[id] = a[id] ? mergeProgress(a[id], p) : p;
+  return merged;
+}
