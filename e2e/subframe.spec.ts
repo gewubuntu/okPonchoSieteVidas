@@ -269,6 +269,20 @@ test('GDD-UI-02 a Space tapped inside one task picks Quit to title and does not 
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
 });
 
+test('GDD-UI-02 an Enter tap inside one task picks Continue (L-006)', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await page.addInitScript(
+    ([key, text]) => localStorage.setItem(key!, text!),
+    ['poncho-siete-vidas', JSON.stringify({ version: 1, settings: { master: 10, effects: 10, language: 'en' }, progress: { tutorialPlayed: false }, levels: {}, run: { level: '0-1', checkpoint: 1, lives: 4, used: ['ofrenda:0-1-1', 'ofrenda:0-1-2'], hilos: '0'.repeat(50), clock: 900 } })],
+  );
+  await openGame(page, '/');
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).menu.chosen).toBe('continue');
+  await tapKey(page, 'Enter', 13, 1);
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.phase() === 'playing');
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(4);
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 792, y: 224 });
+});
+
 test('GDD-UI-02 Down, Down then Enter, each tapped inside one task, quit to the title screen', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await boot(page);

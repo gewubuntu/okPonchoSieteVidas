@@ -3,6 +3,8 @@
 import type { Language } from '../sim/settings';
 
 export interface UiText {
+  /** GDD-PRG-02: the title menu's row that resumes the saved run. */
+  readonly continue: string;
   readonly start: string;
   readonly tutorial: string;
   readonly settings: string;
@@ -34,6 +36,7 @@ export interface UiText {
 /** GDD-UI-02: the table of texts. The Spanish and German are Proposed. */
 export const TEXT: Record<Language, UiText> = {
   en: {
+    continue: 'Continue',
     start: 'Start',
     tutorial: 'Tutorial',
     settings: 'Settings',
@@ -58,6 +61,7 @@ export const TEXT: Record<Language, UiText> = {
     gold: 'Gold medal',
   },
   es: {
+    continue: 'Continuar',
     start: 'Jugar',
     tutorial: 'Tutorial',
     settings: 'Configuración',
@@ -82,6 +86,7 @@ export const TEXT: Record<Language, UiText> = {
     gold: 'Medalla de oro',
   },
   de: {
+    continue: 'Weiter',
     start: 'Spielen',
     tutorial: 'Tutorial',
     settings: 'Einstellungen',

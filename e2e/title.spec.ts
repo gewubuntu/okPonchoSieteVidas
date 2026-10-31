@@ -30,27 +30,38 @@ async function tapCentre(page: Page, isMobile: boolean): Promise<void> {
 }
 const brightness = (c: { r: number; g: number; b: number }) => c.r + c.g + c.b;
 // A floor tile right of the spawn, clear of the touch buttons; the second life triangle on the HUD; and a solid blue pixel of the title Poncho's
-// poncho (#3F66B1 in the user's drawing, GDD-ART-02): 13.25 px right of his x and 30.25 above his feet, which are at y = 152.
+// poncho (#3F66B1 in the user's drawing, GDD-ART-02): 13.25 px right of his x and 30.25 above his feet, which are at y = 104 (GDD-UI-02).
 const floorTile = { x: 120, y: 248 };
 const hudTriangle = { x: 26, y: 14 };
-const titlePoncho = { x: 240 + 13.25, y: 152 - 30.25 };
+/** The left edge of the wider of the two title lines in game px, measured in the page with the fonts of the texts (32 px "PONCHO", 16 px "Siete Vidas"). */
+const lineLeft = (page: Page) =>
+  page.evaluate(() => {
+    const c = document.createElement('canvas').getContext('2d')!;
+    c.font = '32px monospace';
+    const big = c.measureText('PONCHO').width;
+    c.font = '16px monospace';
+    return 240 - Math.max(big, c.measureText('Siete Vidas').width) / 2;
+  });
 
 test('GDD-UI-02 the game opens on the title screen with the level standing still', async ({ page, isMobile }) => {
   await openGame(page);
   const rows = await api(page, () => window.__PONCHO__!.titleMenu());
   const middle = (i: number) => rows[i]!.y + rows[i]!.h / 2;
-  expect(await api(page, () => window.__PONCHO__!.titleDrawn())).toEqual({
+  const { ponchoRight, ...drawn } = await api(page, () => window.__PONCHO__!.titleDrawn());
+  expect(drawn).toEqual({
     shown: true,
     title: 'PONCHO',
     subtitle: 'Siete Vidas',
     prompt: '',
     promptSize: 12,
     ponchoShown: true,
-    ponchoBottom: 152,
+    ponchoBottom: 104,
     menu: { shown: true, items: ['Start', 'Tutorial', 'Settings'], colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'], chosen: 'start', markerY: middle(0) },
   });
+  // GDD-UI-02: Poncho stands left of the two lines, his right edge 8 px from the wider one's left edge.
+  expect(Math.abs(ponchoRight - (await lineLeft(page) - 8))).toBeLessThan(1);
   expect(rows.map((r) => r.item)).toEqual(['start', 'tutorial', 'settings']);
-  expect(rows[0]).toMatchObject({ x: 160, y: 160, w: 160 });
+  expect(rows[0]).toMatchObject({ x: 160, y: 112, w: 160 });
   expect(await ticks(page)).toBe(0);
   await page.waitForTimeout(300);
   expect(await ticks(page)).toBe(0);
@@ -68,6 +79,8 @@ test('GDD-UI-02 the game opens on the title screen with the level standing still
 test('GDD-UI-02 the veil dims the level and the HUD, and Poncho stands on it in his own colours', async ({ page }) => {
   await openGame(page);
   await page.waitForTimeout(300);
+  const { ponchoRight } = await api(page, () => window.__PONCHO__!.titleDrawn());
+  const titlePoncho = { x: ponchoRight - 20 + 13.25, y: 104 - 30.25 }; // his frame is 40 px wide
   const [floorDim, hudDim, ponchoDim] = await pixelsAt(page, [floorTile, hudTriangle, titlePoncho]);
   await page.keyboard.press('Enter');
   await started(page);
@@ -358,7 +371,7 @@ test('GDD-PRG-02 a volume changed after the tutorial started keeps the tutorial 
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
   await page.keyboard.press('ArrowLeft');
   await page.waitForFunction(() => window.__PONCHO__!.settings().master === 9);
-  expect(await savedGame(page)).toEqual({ version: 1, settings: { master: 9, effects: 10, language: 'en' }, progress: { tutorialPlayed: true }, levels: {} });
+  expect(await savedGame(page)).toEqual({ version: 1, settings: { master: 9, effects: 10, language: 'en' }, progress: { tutorialPlayed: true }, levels: {}, run: null });
 });
 
 test('GDD-PRG-02 where the browser refuses storage the tutorial still counts as started for this visit', async ({ page }) => {

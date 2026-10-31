@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { TITLE_PONCHO } from '../config/tuning';
 import { TAP_OFF, type PauseEvent, type Tap } from './pause';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
-import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleState } from './title';
+import { TITLE, titleAfterQuit, titleFrame, titleOpen, titlePonchoX, titlePrompt, type TitleState } from './title';
 
 // Bits of `buttonsDown` (src/sim/run.ts): jump 1, left 2, right 4, claw 8, Fuego 16.
 /** One frame, the state only. */
@@ -17,7 +18,7 @@ const startOf = (s: TitleState, events: readonly PauseEvent[], down = 0) => titl
 
 describe('GDD-UI-02 title screen', () => {
   it('opens shown, sideways, with no button held, on Start with the settings screen closed', () => {
-    expect(TITLE).toEqual({ shown: true, portrait: false, buttonsHeld: 0, choice: 'start', settings: null });
+    expect(TITLE).toEqual({ shown: true, portrait: false, buttonsHeld: 0, choice: 'start', settings: null, hasContinue: false });
   });
 
   it('Enter, Space or Z on Start starts the level', () => {
@@ -50,7 +51,7 @@ describe('GDD-UI-02 title screen', () => {
   });
 
   it('upright, nothing starts', () => {
-    expect(UPRIGHT).toEqual({ shown: true, portrait: true, buttonsHeld: 0, choice: 'start', settings: null });
+    expect(UPRIGHT).toEqual({ shown: true, portrait: true, buttonsHeld: 0, choice: 'start', settings: null, hasContinue: false });
     expect(frame(UPRIGHT, [TAP_OFF]).shown).toBe(true);
     expect(frame(UPRIGHT, ['pick']).shown).toBe(true);
     expect(frame(UPRIGHT, ['button']).shown).toBe(true);
@@ -273,8 +274,8 @@ describe('GDD-UI-02 title menu', () => {
   });
 
   it('quitting to the title opens on Start with the settings screen closed', () => {
-    expect(titleAfterQuit(false, 2)).toEqual({ shown: true, portrait: false, buttonsHeld: 2, choice: 'start', settings: null });
-    expect(titleAfterQuit(true, 0)).toEqual({ shown: true, portrait: true, buttonsHeld: 0, choice: 'start', settings: null });
+    expect(titleAfterQuit(false, 2, false)).toEqual({ shown: true, portrait: false, buttonsHeld: 2, choice: 'start', settings: null, hasContinue: false });
+    expect(titleAfterQuit(true, 0, false)).toEqual({ shown: true, portrait: true, buttonsHeld: 0, choice: 'start', settings: null, hasContinue: false });
   });
 
   it('the title prompt is empty sideways and asks to turn upright', () => {
@@ -294,13 +295,13 @@ describe('GDD-UI-02 title screen after quitting from the pause menu', () => {
   });
 
   it('after a quit the title waits for a new press: the button that picked counts as held', () => {
-    const quit = titleAfterQuit(false, 2);
+    const quit = titleAfterQuit(false, 2, false);
     expect(frame(quit, [], 2).shown).toBe(true);
     expect(frame(frame(quit, [], 0), [], 2).shown).toBe(false);
   });
 
   it('after a quit upright, nothing starts until sideways', () => {
-    const quit = titleAfterQuit(true, 0);
+    const quit = titleAfterQuit(true, 0, false);
     expect(frame(quit, [TAP_OFF]).shown).toBe(true);
   });
 });
@@ -335,5 +336,94 @@ describe('GDD-CTL-02 the gamepad on the title screen', () => {
 
   it('Escape still does nothing on the title', () => {
     expect(titleFrame(TITLE, ['key'], 0).state.shown).toBe(true);
+  });
+});
+
+describe('GDD-UI-02 Continue', () => {
+  const WITH = titleOpen(true);
+  const DOWN1 = frame(WITH, ['menuDown']);
+  const DOWN3 = frame(WITH, ['menuDown', 'menuDown', 'menuDown']);
+
+  it('GDD-UI-02 Continue: with a saved run the title opens on Continue, without one on Start', () => {
+    expect(WITH).toEqual({ shown: true, portrait: false, buttonsHeld: 0, choice: 'continue', settings: null, hasContinue: true });
+    expect(titleOpen(false)).toEqual(TITLE);
+    expect(titleAfterQuit(false, 2, true)).toEqual({ ...WITH, buttonsHeld: 2 });
+    expect(titleAfterQuit(true, 0, true)).toEqual({ ...WITH, portrait: true });
+  });
+
+  it('GDD-UI-02 Continue: Up from Continue stays, Down goes Start, Tutorial, Settings and stays there', () => {
+    expect(frame(WITH, ['menuUp']).choice).toBe('continue');
+    expect(frame(WITH, ['menuDown']).choice).toBe('start');
+    expect(frame(WITH, ['menuDown', 'menuDown']).choice).toBe('tutorial');
+    expect(DOWN3.choice).toBe('settings');
+    expect(frame(DOWN3, ['menuDown']).choice).toBe('settings');
+    expect(frame(DOWN3, ['menuUp']).choice).toBe('tutorial');
+    expect(frame(DOWN3, ['menuUp', 'menuUp', 'menuUp']).choice).toBe('continue');
+    expect(frame(DOWN3, ['menuUp', 'menuUp', 'menuUp', 'menuUp']).choice).toBe('continue');
+    expect(frame(DOWN1, ['menuUp']).choice).toBe('continue');
+    expect(frame(WITH, ['menuDown']).shown).toBe(true); // choosing starts nothing
+  });
+
+  it('GDD-UI-02 Continue: without a saved run Up from Start stays and Continue cannot be chosen', () => {
+    expect(frame(TITLE, ['menuUp']).choice).toBe('start');
+    expect(frame(TITLE, ['menuUp', 'menuUp', 'menuUp']).choice).toBe('start');
+    expect(frame(TUTORIAL, ['menuUp', 'menuUp', 'menuUp']).choice).toBe('start');
+    expect(frame(CHOSEN, ['menuUp', 'menuUp', 'menuUp', 'menuUp']).choice).toBe('start');
+  });
+
+  it('GDD-UI-02 Continue: picking Continue starts with Continue', () => {
+    const r = titleFrame(WITH, ['pick'], 0);
+    expect(r.state.shown).toBe(false);
+    expect(r.start).toBe('continue');
+    // Start and Tutorial still start what they start, with a saved run.
+    expect(startOf(WITH, ['menuDown', 'pick'])).toBe('start');
+    expect(startOf(WITH, ['menuDown', 'menuDown', 'pick'])).toBe('tutorial');
+    expect(startOf(WITH, ['menuDown', 'menuUp', 'pick'])).toBe('continue');
+  });
+
+  it('GDD-UI-02 Continue: a tap on the Continue row starts with Continue, a tap on the Start row with Start', () => {
+    expect(startOf(WITH, [tap({ title: 'continue' })])).toBe('continue');
+    expect(startOf(DOWN3, [tap({ title: 'continue' })])).toBe('continue');
+    expect(startOf(WITH, [tap({ title: 'start' })])).toBe('start');
+    expect(startOf(WITH, [tap({ title: 'tutorial' })])).toBe('tutorial');
+    expect(frame(WITH, [tap({ title: 'settings' })])).toMatchObject({ shown: true, settings: 'master' });
+  });
+
+  it('GDD-UI-02 Continue: claw, Fuego, Left, Right and an off-row tap start with Start, whichever row is chosen', () => {
+    for (const bit of [2, 4, 8, 16]) expect(startOf(WITH, [], bit), `bit ${bit}`).toBe('start');
+    expect(startOf(WITH, [TAP_OFF])).toBe('start');
+    expect(startOf(WITH, ['button'])).toBe('start');
+    expect(startOf(WITH, ['start'])).toBe('start');
+    expect(startOf(WITH, [tap({ pause: 'quit' })])).toBe('start');
+    // A pick wins over a game button in the same frame, as for the other rows.
+    expect(startOf(WITH, ['pick'], 8)).toBe('continue');
+  });
+
+  it('GDD-UI-02 Continue: the settings screen comes back to the title with Settings chosen and Continue still there', () => {
+    const open = frame(DOWN3, ['pick']);
+    expect(open).toMatchObject({ settings: 'master', hasContinue: true });
+    expect(frame(open, ['key'])).toEqual({ ...WITH, choice: 'settings' });
+    expect(frame(frame(open, ['key']), ['menuUp', 'menuUp', 'menuUp']).choice).toBe('continue');
+  });
+
+  it('GDD-UI-02 Continue: upright nothing is chosen or picked, sideways again Continue is still chosen', () => {
+    const up = frame(WITH, ['portrait']);
+    expect(frame(up, ['menuDown', 'pick'])).toMatchObject({ choice: 'continue', shown: true });
+    expect(startOf(up, ['pick', 'landscape'])).toBeNull();
+    expect(startOf(up, ['landscape', 'pick'])).toBe('continue');
+    expect(startOf(up, [tap({ title: 'continue' }), 'landscape'])).toBe('start'); // upright a tap is only a start press
+  });
+});
+
+describe('GDD-UI-02 Poncho beside the title', () => {
+  it('GDD-UI-02 titlePonchoX puts the right edge of the sprite 8 px left of the wider line', () => {
+    // 40 px wide: the middle is 20 + 8 = 28 px left of the line's left edge.
+    expect(titlePonchoX(182, 40)).toBe(154);
+    expect(titlePonchoX(100, 40)).toBe(72);
+    expect(titlePonchoX(182, 20)).toBe(164);
+  });
+
+  it('GDD-UI-02 his feet are level with the bottom of "Siete Vidas", 104 px from the top, 8 px from the line', () => {
+    expect(TITLE_PONCHO).toEqual({ feetY: 104, gap: 8 });
   });
 });

@@ -98,12 +98,13 @@ test('GDD-ART-02 his sprite is drawn on screen', async ({ page }) => {
   expect(near(poncho!, BLUE), JSON.stringify(poncho)).toBe(true);
 });
 
-test('GDD-UI-02 the title screen shows the standing frame above the menu', async ({ page }) => {
+test('GDD-UI-02 the title screen shows the standing frame beside the title', async ({ page }) => {
   await openGame(page);
   await page.waitForTimeout(300);
   const title = await api(page, () => window.__PONCHO__!.titleDrawn());
   expect(title.ponchoShown).toBe(true);
-  expect(title.ponchoBottom).toBe(152);
-  const [poncho] = await pixelsAt(page, [{ x: 240 + BLUE_AT.right, y: title.ponchoBottom - BLUE_AT.above }]);
+  expect(title.ponchoBottom).toBe(104);
+  expect(title.ponchoRight).toBeLessThan(240 - 57); // left of both lines: "PONCHO" is the wider, 115 px
+  const [poncho] = await pixelsAt(page, [{ x: title.ponchoRight - 20 + BLUE_AT.right, y: title.ponchoBottom - BLUE_AT.above }]); // his frame is 40 px wide
   expect(near(poncho!, BLUE), JSON.stringify(poncho)).toBe(true);
 });

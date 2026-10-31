@@ -19,6 +19,7 @@ import { collectHilos, freshHilos, type Hilo } from './hilo';
 import { eat, freshTacos, touchesTaco, type Power, type Taco } from './taco';
 import { activateOfrenda, collectVeladora, isOutOfLives, loseLife, startWorld, type LivesState } from './lives';
 import { spawn, step, type Abilities, type PlayerInput, type PlayerState } from './movement';
+import type { SavedRun } from './save';
 import type { TileGrid } from './tilemap';
 import { touchesVeladora, veladoraId, type Veladora } from './veladora';
 
@@ -137,6 +138,29 @@ export interface RunState {
 export function startRun(level: Level, savedHilos?: readonly boolean[]): RunState {
   const hilosSaved = savedHilos ?? freshHilos(level.hilos ?? []);
   return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false };
+}
+
+/**
+ * GDD-PRG-02: the run a saved checkpoint brings back (the saved run is read against this level). It is a run that has just ended
+ * the Siete vidas gastadas screen, as far as the flip goes: the lives, the used ofrendas and veladora, the clock and the run's hilos
+ * (added to `savedHilos`, the ones saved for good) are the saved ones, the checkpoint is that ofrenda, and Poncho flips in there by the
+ * restart flip (GDD-LIFE-05), which cannot be skipped. The wait is one step longer than the flip, so its first step shows Poncho and
+ * plays the meow, as on a respawn (`stepSounds`). Everything else is at its start, in Base, as after a lost life.
+ */
+export function resumeRun(level: Level, saved: SavedRun, savedHilos?: readonly boolean[]): RunState {
+  const fresh = startRun(level, savedHilos);
+  const point = level.ofrendas[saved.checkpoint]!;
+  return {
+    ...fresh,
+    lives: { lives: saved.lives, used: new Set(saved.used) },
+    checkpoint: { x: point.x, y: point.y },
+    checkpointIndex: saved.checkpoint,
+    hilosTaken: saved.hilos.map((taken, i) => taken || (savedHilos?.[i] ?? false)),
+    clock: saved.clock,
+    phase: 'respawning',
+    wait: FLIP.steps + 1,
+    restarting: true,
+  };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
