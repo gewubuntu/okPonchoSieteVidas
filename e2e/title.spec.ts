@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { boot, openGame, pixelsAt } from './helpers';
+import { boot, openGame, pixelsAt, waitForResults } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const ticks = (page: Page) => api(page, () => window.__PONCHO__!.ticks());
@@ -400,24 +400,25 @@ test('GDD-UI-02 where the browser refuses storage, 0-1 leading on to 1-1 keeps t
   await titleHidden(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
-  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear' && window.__PONCHO__!.clearDrawn().prompt);
-  await page.keyboard.press('KeyX', { delay: 30 });
+  await waitForResults(page);
+  await page.keyboard.press('Enter', { delay: 30 }); // Next level
   await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.ticks() > 5);
   expect((await api(page, () => window.__PONCHO__!.settings())).master).toBe(8);
 });
 
-test('GDD-UI-02 with ?level=0-1, 1-1\'s clear screen brings back the title over 0-1, what Start plays', async ({ page }) => {
+test('GDD-UI-02 with ?level=0-1, 1-1\'s results menu brings back the title over 0-1, what Start plays', async ({ page }) => {
   const errors = await openGame(page, '/?level=0-1');
   await page.keyboard.press('Enter');
   await titleHidden(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
-  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear' && window.__PONCHO__!.clearDrawn().prompt);
-  await page.keyboard.press('KeyX', { delay: 30 });
+  await waitForResults(page);
+  await page.keyboard.press('Enter', { delay: 30 }); // Next level
   await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.teleport(2780, 224));
-  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear' && window.__PONCHO__!.clearDrawn().prompt);
-  await page.keyboard.press('KeyX', { delay: 30 });
+  await waitForResults(page);
+  await page.keyboard.press('ArrowDown'); // 1-1 names no next level, so the menu opens on Retry: Down chooses Quit to title
+  await page.keyboard.press('Enter', { delay: 30 });
   await page.waitForFunction(() => window.__PONCHO__!.level() === '0-1' && window.__PONCHO__!.titleDrawn().shown);
   expect((await api(page, () => window.__PONCHO__!.titleDrawn())).menu.chosen).toBe('start');
   expect(errors).toEqual([]);
@@ -429,6 +430,17 @@ test('GDD-PRG-02 a volume changed in the same frame as Tutorial is picked is sav
   // Settings opened, Left lowers Master, Escape comes back with Settings chosen, Up chooses Tutorial, Enter picks it.
   await keysInOneTask(page, [DOWN, DOWN, ENTER, LEFT, ESCAPE, UP, ENTER]);
   await page.waitForFunction(() => window.__PONCHO__!.level() === '0-1' && !window.__PONCHO__!.titleDrawn().shown);
+  expect((await savedGame(page))?.settings).toEqual({ master: 9, effects: 10, language: 'en' });
+});
+
+test('GDD-PRG-02 a volume changed in the same frame as a pick on the results menu is saved', async ({ page }) => {
+  await boot(page, '/');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
+  await waitForResults(page);
+  // Paused, Settings opened, Left lowers Master, Escape comes back to the pause menu, Up chooses Resume, Enter resumes, Enter picks Next level.
+  await keysInOneTask(page, [ESCAPE, DOWN, ENTER, LEFT, ESCAPE, UP, ENTER, ENTER]);
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.ticks() > 2);
   expect((await savedGame(page))?.settings).toEqual({ master: 9, effects: 10, language: 'en' });
 });
 

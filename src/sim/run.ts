@@ -74,9 +74,9 @@ export interface RunState {
   readonly lives: LivesState;
   /**
    * 'gameover' is the "Siete vidas gastadas" screen after the last life (GDD-LIFE-05). 'clear' is the level clear screen after
-   * the exit (GDD-WLD-03, GDD-UI-02), where nothing moves; 'done' is after a press ended it, and the scene goes back to the title.
+   * the exit (GDD-WLD-03, GDD-UI-02), where nothing moves and only a pick on the results menu leaves it (the scene's business).
    */
-  readonly phase: 'playing' | 'respawning' | 'gameover' | 'clear' | 'done';
+  readonly phase: 'playing' | 'respawning' | 'gameover' | 'clear';
   /** Steps left before Poncho respawns while respawning; steps the screen has been up while in 'gameover' or 'clear'. */
   readonly wait: number;
   /** True during the flip that follows the screen: it cannot be skipped, since the button that ended the screen is still held. */
@@ -121,7 +121,7 @@ export interface RunState {
   readonly stomped: boolean;
   /**
    * GDD-UI-02: the clear time in steps: those taken in play and in the respawn waits since the level start or the restart after the
-   * last life. The clear screen, the Siete vidas gastadas screen and 'done' count nothing; the pause and title screens run no step.
+   * last life. The clear screen and the Siete vidas gastadas screen count nothing; the pause and title screens run no step.
    */
   readonly clock: number;
   /** GDD-UI-02: a new press on the clear screen showed every line at once. */
@@ -168,9 +168,10 @@ export const buttonsDown = (input: PlayerInput): number =>
   (input.jumpHeld ? 1 : 0) | ((input.left ?? input.move < 0) ? 2 : 0) | ((input.right ?? input.move > 0) ? 4 : 0) | (input.claw ? 8 : 0) | (input.fuego ? 16 : 0);
 
 /**
- * GDD-LIFE-05, GDD-UI-02: a step on the Siete vidas gastadas screen or the level clear screen. Each stays up until a press of any
- * button after its first 1.0 s. `wait` counts its steps, this one included. Only a button that was up on the last step counts, so
- * one held since before the screen does not. `fresh` is such a new press at any time, which the clear screen's reveal takes (GDD-UI-02).
+ * GDD-LIFE-05, GDD-UI-02: a step on the Siete vidas gastadas screen or the level clear screen. `wait` counts its steps, this one
+ * included. Only a button that was up on the last step counts, so one held since before the screen does not. `fresh` is such a new
+ * press at any time, which the clear screen's reveal takes (GDD-UI-02); `press` is one after the first 1.0 s, which ends the
+ * Siete vidas gastadas screen (the clear screen is left by its menu, not by a button).
  */
 function screenStep(run: RunState, input: PlayerInput): { down: number; shown: number; fresh: boolean; press: boolean } {
   const shown = run.wait + 1;
@@ -187,11 +188,10 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
 }
 
 function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
-  if (run.phase === 'done') return run;
   if (run.phase === 'clear') {
-    // GDD-UI-02: nothing moves. A new press shows every line at once; a counted press ends the screen, and the scene then goes back to the title.
-    const { down, shown, fresh, press } = screenStep(run, input);
-    return { ...run, buttonsHeld: down, wait: shown, stomped: false, revealAll: run.revealAll || fresh, ...(press ? { phase: 'done' as const } : {}) };
+    // GDD-UI-02: nothing moves. A new press shows every line at once; no button leaves the screen, only a pick on the results menu.
+    const { down, shown, fresh } = screenStep(run, input);
+    return { ...run, buttonsHeld: down, wait: shown, stomped: false, revealAll: run.revealAll || fresh };
   }
   if (run.phase === 'gameover') {
     const { down, shown, press } = screenStep(run, input);

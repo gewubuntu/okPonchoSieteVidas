@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { MEDAL, RESULTS } from '../config/tuning';
+import { MEDAL, RESULTS, RESULTS_MENU } from '../config/tuning';
 import { loseLife, startWorld } from './lives';
 import type { PlayerInput } from './movement';
-import { clearTime, medal, medalLine, revealedLines } from './results';
+import { PLAYING, TAP_OFF, type PauseEvent, type PauseState, type Tap } from './pause';
+import { clearTime, medal, medalLine, openResults, resultsFrame, resultsShown, revealedLines, type ResultsItem, type ResultsMenu } from './results';
 import { startRun, stepRun, type Level, type RunState } from './run';
+import { DEFAULT_SETTINGS } from './settings';
 import { parseTiles } from './tilemap';
 
 const idle: PlayerInput = { move: 0, jumpHeld: false };
@@ -134,5 +136,148 @@ describe('GDD-UI-02 tuning derived from the GDD', () => {
 
   it('GDD-PRG-03 gold needs 4 lives', () => {
     expect(MEDAL.goldLives).toBe(4);
+  });
+
+  it('GDD-UI-02 the results menu rows: 160 by 28, the first at 162, the greyed colour', () => {
+    expect({ ...RESULTS_MENU }).toEqual({ width: 160, rowHeight: 28, top: 162, greyed: 0x5c6178 });
+  });
+});
+
+const PAUSED: PauseState = { ...PLAYING, paused: true };
+const at = (choice: ResultsItem): ResultsMenu => ({ choice });
+const tap = (t: Partial<Tap>): Tap => ({ ...TAP_OFF, ...t });
+/** One frame of events on the menu, Next level available unless said. */
+const frame = (menu: ResultsMenu, events: readonly PauseEvent[], hasNext = true, pause: PauseState = PLAYING) => resultsFrame(pause, menu, events, hasNext, DEFAULT_SETTINGS);
+/** The row chosen after the events, none of which picks. */
+const chosen = (menu: ResultsMenu, events: readonly PauseEvent[], hasNext = true): ResultsItem => {
+  const r = frame(menu, events, hasNext);
+  expect(r.pick, JSON.stringify(events)).toBeNull();
+  return r.menu.choice;
+};
+
+/** A run in `phase`, `wait` steps into it. */
+const onPhase = (phase: RunState['phase'], wait: number): RunState => ({ ...startRun(base), phase, wait });
+
+describe('GDD-UI-02 results menu', () => {
+  it('GDD-UI-02 results menu opens on Next level, or on Retry without a next level', () => {
+    expect(openResults(true).choice).toBe('next');
+    expect(openResults(false).choice).toBe('retry');
+  });
+
+  it("GDD-UI-02 results menu is up from the clear screen's first 1.0 s", () => {
+    expect(resultsShown(onPhase('clear', 59))).toBe(false);
+    expect(resultsShown(onPhase('clear', 60))).toBe(true);
+    expect(resultsShown(onPhase('clear', 200))).toBe(true);
+    expect(resultsShown(onPhase('playing', 100))).toBe(false);
+    expect(resultsShown(onPhase('gameover', 100))).toBe(false);
+  });
+
+  it('GDD-UI-02 results menu Up and Down choose, no wrap-around', () => {
+    let m = at('next');
+    const down = () => (m = { choice: chosen(m, ['menuDown']) });
+    const up = () => (m = { choice: chosen(m, ['menuUp']) });
+    expect([down(), down(), down()].map((x) => x.choice)).toEqual(['retry', 'quit', 'quit']);
+    expect([up(), up(), up()].map((x) => x.choice)).toEqual(['retry', 'next', 'next']);
+  });
+
+  it('GDD-UI-02 results menu: the greyed Next level cannot be chosen', () => {
+    expect(chosen(at('retry'), ['menuUp'], false)).toBe('retry');
+    expect(chosen(at('quit'), ['menuUp', 'menuUp'], false)).toBe('retry');
+    expect(chosen(at('retry'), ['menuUp', 'menuDown'], false)).toBe('quit');
+  });
+
+  it('GDD-UI-02 results menu: pick picks the chosen row', () => {
+    for (const item of ['next', 'retry', 'quit'] as const) {
+      const r = frame(at(item), ['pick']);
+      expect(r.pick, item).toBe(item);
+      expect(r.quit).toBe(false);
+    }
+  });
+
+  it('GDD-UI-02 results menu: a tap picks its row at once, whichever is chosen', () => {
+    expect(frame(at('next'), [tap({ results: 'quit' })]).pick).toBe('quit');
+    expect(frame(at('next'), [tap({ results: 'retry' })]).pick).toBe('retry');
+    expect(frame(at('quit'), [tap({ results: 'next' })]).pick).toBe('next');
+  });
+
+  it('GDD-UI-02 results menu: a tap on the greyed Next level does nothing, nor one off the rows', () => {
+    const greyed = frame(at('retry'), [tap({ results: 'next' })], false);
+    expect(greyed.pick).toBeNull();
+    expect(greyed.menu).toEqual(at('retry'));
+    expect(greyed.pause).toEqual(PLAYING);
+    const off = frame(at('retry'), [TAP_OFF]);
+    expect(off.pick).toBeNull();
+    expect(off.menu).toEqual(at('retry'));
+    expect(off.pause).toEqual(PLAYING);
+  });
+
+  it('GDD-UI-02 results menu: Left and Right do nothing', () => {
+    for (const e of ['menuLeft', 'menuRight'] as const) {
+      const r = frame(at('retry'), [e]);
+      expect(r).toMatchObject({ menu: at('retry'), pick: null, quit: false, pause: PLAYING });
+    }
+  });
+
+  it('GDD-UI-02 results menu: the presses of one frame count in order', () => {
+    expect(frame(at('next'), ['menuDown', 'menuDown', 'pick']).pick).toBe('quit');
+    // Nothing after a pick counts.
+    const r = frame(at('next'), ['pick', 'menuDown']);
+    expect(r.pick).toBe('next');
+    expect(r.menu).toEqual(at('next'));
+    expect(frame(at('next'), ['pick', 'key']).pause).toEqual(PLAYING);
+  });
+
+  it('GDD-UI-02 results menu: Escape pauses, picks nothing, and resume keeps the choice', () => {
+    const paused = frame(at('next'), ['menuDown', 'key']);
+    expect(paused).toMatchObject({ pick: null, quit: false, menu: at('retry') });
+    expect(paused.pause.paused).toBe(true);
+    const resumed = frame(paused.menu, ['key'], true, paused.pause);
+    expect(resumed.pause.paused).toBe(false);
+    expect(resumed.menu).toEqual(at('retry'));
+    expect(frame(resumed.menu, ['pick'], true, resumed.pause).pick).toBe('retry');
+  });
+
+  it('GDD-UI-02 results menu: while paused the menu keys go to the pause menu', () => {
+    const r = frame(at('next'), ['menuDown', 'menuDown', 'pick'], true, PAUSED);
+    expect(r.quit).toBe(true);
+    expect(r.pick).toBeNull();
+    expect(r.menu).toEqual(at('next'));
+    // Resume is the pause menu's first row: a pick resumes, and picks nothing here.
+    const resumed = frame(at('quit'), ['pick'], true, PAUSED);
+    expect(resumed).toMatchObject({ pick: null, quit: false, menu: at('quit') });
+    expect(resumed.pause.paused).toBe(false);
+    // A tap on a results row while paused resumes, as a tap anywhere does, and picks nothing.
+    const tapped = frame(at('next'), [tap({ results: 'quit' })], true, PAUSED);
+    expect(tapped.pick).toBeNull();
+    expect(tapped.pause.paused).toBe(false);
+  });
+
+  it('GDD-UI-02 results menu: blur and portrait pause', () => {
+    const blurred = frame(at('retry'), ['blur']);
+    expect(blurred.pause.paused).toBe(true);
+    expect(blurred.pause.portrait).toBe(false);
+    const upright = frame(at('retry'), ['portrait']);
+    expect(upright.pause).toMatchObject({ paused: true, portrait: true });
+    expect(upright.portrait).toBe(true);
+    // Upright, a pick picks nothing.
+    const stuck = frame(at('retry'), ['pick'], true, upright.pause);
+    expect(stuck.pick).toBeNull();
+    expect(stuck.quit).toBe(false);
+    expect(stuck.pause).toEqual(upright.pause);
+  });
+
+  it('GDD-UI-02 results menu: the gamepad start pauses', () => {
+    const r = frame(at('retry'), ['start']);
+    expect(r.pause.paused).toBe(true);
+    expect(r.pick).toBeNull();
+  });
+
+  it('GDD-UI-02 results menu: after a pick the frame only tracks the orientation', () => {
+    expect(frame(at('next'), ['pick', 'portrait'])).toMatchObject({ pick: 'next', portrait: true });
+    expect(frame(at('next'), ['pick', 'portrait', 'landscape'])).toMatchObject({ pick: 'next', portrait: false });
+    expect(frame(at('next'), ['pick'])).toMatchObject({ pick: 'next', portrait: false });
+    // The same after the pause menu's Quit to title.
+    expect(frame(at('next'), ['menuDown', 'menuDown', 'pick'], true, PAUSED)).toMatchObject({ quit: true, portrait: false });
+    expect(frame(at('next'), ['menuDown', 'menuDown', 'pick', 'portrait'], true, PAUSED)).toMatchObject({ quit: true, portrait: true });
   });
 });

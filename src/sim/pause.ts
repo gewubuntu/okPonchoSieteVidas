@@ -3,6 +3,7 @@
 import { buttonsDown, type RunState } from './run';
 import type { PlayerInput } from './movement';
 import { DEFAULT_SETTINGS, settingsEvent, type Settings, type SettingsRow } from './settings';
+import type { ResultsItem } from './results';
 import type { TitleItem } from './title';
 
 /** The pause menu's three items (GDD-UI-02). */
@@ -26,11 +27,12 @@ export interface PauseState {
 export interface Tap {
   readonly pause: MenuItem | null;
   readonly title: TitleItem | null;
+  readonly results: ResultsItem | null;
   readonly settings: { readonly row: SettingsRow; readonly side: 'left' | 'right' } | null;
 }
 
 /** A tap off every row. */
-export const TAP_OFF: Tap = { pause: null, title: null, settings: null };
+export const TAP_OFF: Tap = { pause: null, title: null, results: null, settings: null };
 
 /**
  * - `key`: Escape or P. `button`: the touch pause button. Both pause, and resume when paused (leave the settings screen when it is open).

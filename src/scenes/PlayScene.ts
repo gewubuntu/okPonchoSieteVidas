@@ -2,7 +2,7 @@
 // Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04), and the backdrop and the ground tiles are World 1's desert art
 // (GDD-ART-06); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, PLANTS, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_MENU, VELADORA } from '../config/tuning';
+import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, PLANTS, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_MENU, VELADORA } from '../config/tuning';
 import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { levelById, startLevel, TUTORIAL_ID, type LevelEntry } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
@@ -49,7 +49,7 @@ import { readSave, SAVE_KEY, saveText } from '../sim/save';
 import { browserLanguage, DEFAULT_SETTINGS, sfxVolume, type Language, type Settings, type SettingsRow } from '../sim/settings';
 import { TITLE, titleAfterQuit, titleFrame, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
-import { clearTime, medal, medalLine, revealedLines } from '../sim/results';
+import { clearTime, medal, medalLine, openResults, resultsFrame, resultsShown, revealedLines, type ResultsItem, type ResultsMenu } from '../sim/results';
 import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import type { Power } from '../sim/taco';
@@ -66,7 +66,7 @@ import { HILO_COLOURS, HILO_HUD, hiloColour, hiloCounterRight, hiloCounterText }
 import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
 import { gamePoint } from '../ui/gamePoint';
 import { startAnim, stepAnim, STAND, type PonchoAnim } from '../ui/ponchoAnim';
-import { layoutPauseMenu, layoutTitleMenu, pauseMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
+import { layoutPauseMenu, layoutResultsMenu, layoutTitleMenu, pauseMenuItemAt, resultsMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
 import { languageValueX, layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
 import { LANGUAGE_NAMES, TEXT } from '../ui/text';
 import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tipsDone as nextTipsDone, tipText, type Device, type TipFade } from '../ui/tips';
@@ -121,9 +121,24 @@ export interface PonchoDebug {
    * The level clear screen as drawn (GDD-UI-02): whether it is shown, its "Level clear!" line, its hilo line ("Hilos 31/50", read from
    * the text drawn), its time line ("Time 2:14"), its medal line's text and the colour the text is drawn in ("#c7834a"), how many of
    * the hilo, time and medal lines are visible (0 to 3, counted from the drawn objects), where the medal's disc has its middle and
-   * its text its left edge and how wide the text is (game px), and whether its prompt line is shown, with its text.
+   * its text its left edge and how wide the text is (game px), and the results menu: whether it is shown (from 1.0 s on, not while
+   * paused), its three items' texts and colours, the item the ">" stands beside and the ">" 's y, both null while the menu is hidden.
    */
-  clearDrawn(): { shown: boolean; title: string; hilos: string; time: string; medal: string; medalColour: string; lines: number; discX: number; textX: number; medalWidth: number; prompt: boolean; promptText: string };
+  clearDrawn(): {
+    shown: boolean;
+    title: string;
+    hilos: string;
+    time: string;
+    medal: string;
+    medalColour: string;
+    lines: number;
+    discX: number;
+    textX: number;
+    medalWidth: number;
+    menu: { shown: boolean; items: string[]; colors: string[]; chosen: ResultsItem | null; markerY: number | null };
+  };
+  /** The results menu's rows as laid out now, in game px, for tapping them (GDD-UI-02). */
+  resultsMenu(): MenuRow<ResultsItem>[];
   /**
    * One entry for each frame the level clear screen was drawn in its first 2 s (120 steps) since it last came up: the run's `wait` (steps it has been up) and how
    * many of its lines were visible then (GDD-UI-02). Reset when a clear screen comes up.
@@ -396,6 +411,14 @@ export class PlayScene extends Phaser.Scene {
   private pauseItems!: Record<MenuItem, Phaser.GameObjects.Text>;
   private pauseMarker!: Phaser.GameObjects.Text;
   private pauseRows: MenuRow[] = layoutPauseMenu(1);
+  /**
+   * GDD-UI-02: the results menu on the level clear screen: the chosen row, null until the clear screen comes up (it is opened each time the
+   * run enters 'clear', so a fresh run needs no reset), the rows' texts, the ">" in front of the chosen one, and the rows as last laid out.
+   */
+  private results: ResultsMenu | null = null;
+  private resultsItems!: Record<ResultsItem, Phaser.GameObjects.Text>;
+  private resultsMarker!: Phaser.GameObjects.Text;
+  private resultsRows: MenuRow<ResultsItem>[] = layoutResultsMenu(1);
   /** GDD-UI-02, GDD-AUD-01: the volumes, loaded from the browser's storage (GDD-PRG-02), and the settings screen. */
   private settings: Settings = DEFAULT_SETTINGS;
   /** GDD-UI-02, GDD-PRG-02: whether 0-1 has been started, which decides what "Start" plays. Saved with the settings. */
@@ -460,7 +483,7 @@ export class PlayScene extends Phaser.Scene {
   private gameOverTitle!: Phaser.GameObjects.Text;
   private gameOverSubtitle!: Phaser.GameObjects.Text;
   private gameOverPrompt!: Phaser.GameObjects.Text;
-  /** GDD-UI-02: the level clear screen: its title, hilo line and prompt line. */
+  /** GDD-UI-02: the level clear screen: its title, hilo, time and medal lines. */
   private clearScreen!: Phaser.GameObjects.Container;
   private clearTitle!: Phaser.GameObjects.Text;
   private clearHilos!: Phaser.GameObjects.Text;
@@ -469,7 +492,6 @@ export class PlayScene extends Phaser.Scene {
   private clearMedalDisc!: Phaser.GameObjects.Graphics;
   private clearMedalText!: Phaser.GameObjects.Text;
   private clearMedalDiscX = 0;
-  private clearPrompt!: Phaser.GameObjects.Text;
   /** What `clearReveal()` reports: the run's `wait` and the lines visible, one entry per frame the screen was drawn. */
   private clearRevealLog: { wait: number; lines: number }[] = [];
   /** GDD-UI-05: the device used last, the tip's fade, the tips whose thing is done, the steps for the highlight's pulse, and what was drawn. */
@@ -510,7 +532,7 @@ export class PlayScene extends Phaser.Scene {
   private readonly heldKeys = new Map<Phaser.Input.Keyboard.Key, number>();
   /** GDD-UI-02: the keys (by keyCode) whose press this scene saw go down and not yet up. */
   private readonly keysPressedHere = new Set<number>();
-  /** GDD-UI-02: in a level started by the press that ended the one before, the buttons down on the first frame count as already held. */
+  /** GDD-UI-02: in a level started by a pick on the results menu or the title, the buttons down on the first frame count as already held. */
   private holdAtStart: boolean;
   private swings = 0;
   private spits = 0;
@@ -518,7 +540,7 @@ export class PlayScene extends Phaser.Scene {
 
   /**
    * Opens on the level "Start" plays (`startLevel`: the address, else the saved game). A scene made for another level is the next
-   * level, played at once after a level clear screen or a pick on the title, or the title over the level "Start" now plays.
+   * level or this one again, played at once after a pick on the results menu or on the title, or the title over the level "Start" now plays.
    */
   constructor({ entry = startLevel(window.location.search, savedTutorialPlayed()), direct = false, title }: PlayOptions = {}) {
     super(scenesMade++ === 0 ? 'play' : `play-${entry.id}-${scenesMade}`);
@@ -526,7 +548,7 @@ export class PlayScene extends Phaser.Scene {
     this.level = entry.level;
     this.world = entry.level.world;
     this.floorY = entry.level.spawn.y;
-    // GDD-UI-02: started by the press that ended the level before it, it plays at once, with no title screen.
+    // GDD-UI-02: started by a pick, it plays at once, with no title screen.
     this.holdAtStart = direct;
     if (direct) this.title = { ...TITLE, shown: false };
     else if (title) this.title = title;
@@ -655,8 +677,19 @@ export class PlayScene extends Phaser.Scene {
     // The medal line: a disc and its text, placed by `drawClear` once the text's width is known (GDD-UI-02).
     this.clearMedalDisc = this.add.graphics();
     this.clearMedalText = this.add.text(BASE_WIDTH / 2, 150, '', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3dc' }).setOrigin(0, 0.5);
-    this.clearPrompt = this.add.text(BASE_WIDTH / 2, 172, 'Press any button', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
-    this.clearScreen = this.add.container(0, 0, [clearVeil, this.clearTitle, this.clearHilos, this.clearTime, this.clearMedalDisc, this.clearMedalText, this.clearPrompt]).setScrollFactor(0).setDepth(9).setVisible(false);
+    // The results menu, drawn like the pause menu; it shows from 1.0 s on, and not while the pause menu is over the screen.
+    const resultsStyle = { fontFamily: 'monospace', fontSize: `${PAUSE_MENU.textSize}px`, color: '#9ba3c4' };
+    this.resultsItems = {
+      next: this.add.text(0, 0, 'Next level', resultsStyle).setOrigin(0.5),
+      retry: this.add.text(0, 0, 'Retry', resultsStyle).setOrigin(0.5),
+      quit: this.add.text(0, 0, 'Quit to title', resultsStyle).setOrigin(0.5),
+    };
+    this.resultsMarker = this.add.text(0, 0, '>', resultsStyle).setOrigin(1, 0.5);
+    this.clearScreen = this.add
+      .container(0, 0, [clearVeil, this.clearTitle, this.clearHilos, this.clearTime, this.clearMedalDisc, this.clearMedalText, ...Object.values(this.resultsItems), this.resultsMarker])
+      .setScrollFactor(0)
+      .setDepth(9)
+      .setVisible(false);
 
     // GDD-UI-05: the tutorial tip's text box, top middle under the HUD, under the screens (depth 8), and its highlight in the level.
     this.tipBg = this.add.rectangle(0, 0, 1, 1, 0x0d1020, 0.75).setOrigin(0);
@@ -757,7 +790,7 @@ export class PlayScene extends Phaser.Scene {
       if (code === K.ENTER || code === K.SPACE || code === K.Z) this.pauseEvents.push('pick');
     };
     window.addEventListener('keydown', onPauseKey);
-    // GDD-UI-02: a key held down since the level before (the press that ended its clear screen) shows here only as auto-repeats,
+    // GDD-UI-02: a key held down since the level before (the pick on its results menu) shows here only as auto-repeats,
     // which would press it. They are kept from Phaser, read first in the capture phase, so the key counts as up until it is
     // released and pressed again, like a key held through a resume. Its default (scrolling the page) is stopped as Phaser does.
     const onKeyDownFirst = (e: KeyboardEvent) => {
@@ -785,6 +818,7 @@ export class PlayScene extends Phaser.Scene {
       this.pauseEvents.push({
         pause: pauseMenuItemAt(layoutPauseMenu(k), at.x, at.y),
         title: titleMenuItemAt(layoutTitleMenu(k), at.x, at.y),
+        results: resultsMenuItemAt(layoutResultsMenu(k), at.x, at.y),
         settings: settingsTapAt(layoutSettingsMenu(k), at.x, at.y),
       });
     });
@@ -861,9 +895,15 @@ export class PlayScene extends Phaser.Scene {
           discX: this.clearMedalDiscX,
           textX: this.clearMedalText.x,
           medalWidth: this.clearMedalText.width,
-          prompt: this.clearPrompt.visible,
-          promptText: this.clearPrompt.text,
+          menu: {
+            shown: this.clearScreen.visible && this.resultsItems.next.visible,
+            items: [this.resultsItems.next.text, this.resultsItems.retry.text, this.resultsItems.quit.text],
+            colors: [this.resultsItems.next, this.resultsItems.retry, this.resultsItems.quit].map((t) => colorOf(t)),
+            chosen: this.resultsMarker.visible && this.results !== null ? this.results.choice : null,
+            markerY: this.resultsMarker.visible ? this.resultsMarker.y : null,
+          },
         }),
+        resultsMenu: () => this.resultsRows,
         clearReveal: () => this.clearRevealLog,
         level: () => this.entry.id,
         camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x }),
@@ -1599,7 +1639,9 @@ export class PlayScene extends Phaser.Scene {
 
   /**
    * GDD-UI-02: the level clear screen is up while the run shows it. Its hilo line, time line and medal line (a disc and its text, in
-   * the medal's colour) appear as `revealedLines` says; its prompt only once a press would be taken (after 1.0 s).
+   * the medal's colour) appear as `revealedLines` says; its results menu from 1.0 s on (`resultsShown`), with a ">" in front of the chosen
+   * row, the greyed "Next level" darker, and hidden while the pause menu is over the screen. The rows follow the window, since they
+   * grow on a small screen.
    */
   private drawClear(): void {
     const shown = this.run.phase === 'clear';
@@ -1620,7 +1662,17 @@ export class PlayScene extends Phaser.Scene {
       // Only the screen's first 2 s, which the playtests read, so a screen left up for long does not grow the log.
       if (this.run.wait <= 2 * GAME_OVER.lockoutSteps) this.clearRevealLog.push({ wait: this.run.wait, lines: this.clearLinesVisible() });
     }
-    this.clearPrompt.setVisible(shown && this.run.wait >= GAME_OVER.lockoutSteps);
+    const menuShown = this.results !== null && resultsShown(this.run) && !this.pauseState.paused; // resultsShown includes 'the screen is up'
+    this.resultsRows = layoutResultsMenu(this.scale.displaySize.width / BASE_WIDTH);
+    this.resultsMarker.setVisible(false);
+    for (const row of this.resultsRows) {
+      const text = this.resultsItems[row.item];
+      const chosen = menuShown && row.item === this.results!.choice;
+      const greyed = row.item === 'next' && !this.hasNext();
+      const colour = chosen ? '#fff3dc' : greyed ? `#${RESULTS_MENU.greyed.toString(16).padStart(6, '0')}` : '#9ba3c4';
+      text.setPosition(row.x + row.w / 2, row.y + row.h / 2).setColor(colour).setVisible(menuShown);
+      if (chosen) this.resultsMarker.setPosition(text.x - text.width / 2 - 8, text.y).setVisible(true);
+    }
   }
 
   /** How many of the clear screen's hilo, time and medal lines are visible, counted from the drawn objects (the medal line counts if its disc or its text is). */
@@ -1699,6 +1751,7 @@ export class PlayScene extends Phaser.Scene {
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
     this.ticks++;
     if (this.run.phase !== before.phase) this.phaseSince = this.ticks;
+    if (this.run.phase === 'clear' && before.phase !== 'clear') this.results = openResults(this.hasNext());
     // GDD-UI-05: the tutorial tips follow Poncho by steps, so they stand still with the game.
     const tips = this.entry.tips;
     if (tips) {
@@ -1803,11 +1856,25 @@ export class PlayScene extends Phaser.Scene {
     // GDD-UI-02: apply the pause events since the last frame, in order. While paused no step runs; on resume
     // every button down counts as already held, so a press made while paused does nothing until pressed again.
     // Picking Quit to title ends the pause over a fresh run and the title screen.
+    // GDD-UI-02: while the level clear screen shows its results menu, the events go to it (and through it to the pause).
     const wasPaused = this.pauseState.paused;
-    const frame = pauseFrame(this.pauseState, this.pauseEvents, this.settings);
+    let pick: ResultsItem | null = null;
+    let frame: { state: PauseState; quit: boolean; portrait: boolean; settings: Settings };
+    if (this.results !== null && resultsShown(this.run)) {
+      const shown = resultsFrame(this.pauseState, this.results, this.pauseEvents, this.hasNext(), this.settings);
+      this.results = shown.menu;
+      pick = shown.pick;
+      frame = { state: shown.pause, quit: shown.quit, portrait: shown.portrait, settings: shown.settings };
+    } else frame = pauseFrame(this.pauseState, this.pauseEvents, this.settings);
     this.pauseEvents = [];
     this.settings = frame.settings;
-    if (frame.quit) {
+    if (pick === 'next' || pick === 'retry') {
+      // The next level, or this one again, as a fresh scene at once with the press held (GDD-UI-02).
+      if (settingsChanged()) this.saveSettings();
+      this.startNext(pick === 'next' ? this.nextLevel()! : this.entry);
+      return;
+    }
+    if (frame.quit || pick === 'quit') {
       if (this.backToTitle(input, frame.portrait)) {
         if (settingsChanged()) this.saveSettings();
         return;
@@ -1835,16 +1902,6 @@ export class PlayScene extends Phaser.Scene {
     const alpha = this.alpha;
     // A latched tap is spent once a step has used it; if the frame ran no step it waits for the next one.
     if (stepped) this.consumeLatches();
-    // GDD-UI-02: a press ended the level clear screen; the title comes back over a fresh run, with the draw calls below.
-    // In a level with a next level (0-1, GDD-WLD-07) that press starts it instead, at once.
-    if (this.run.phase === 'done') {
-      const next = this.entry.next === undefined ? undefined : levelById(this.entry.next);
-      if (next) {
-        this.startNext(next);
-        return;
-      }
-      if (this.backToTitle(input, this.pauseState.portrait)) return;
-    }
     // Redraw when the lives change, and on every step while a triangle is cracking.
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.pulseDrawn !== null || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
     if (`${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}` !== this.doorsKey) this.drawDoorsAndKeys();
@@ -1913,7 +1970,9 @@ export class PlayScene extends Phaser.Scene {
     this.gameOverSubtitle.setText(t.gameOver);
     this.gameOverPrompt.setText(t.retry);
     this.clearTitle.setText(t.levelClear);
-    this.clearPrompt.setText(t.pressAny);
+    this.resultsItems.next.setText(t.next);
+    this.resultsItems.retry.setText(t.retryLevel);
+    this.resultsItems.quit.setText(t.quit);
     this.textLanguage = this.settings.language;
   }
 
@@ -1970,10 +2029,20 @@ export class PlayScene extends Phaser.Scene {
     return now;
   }
 
+  /** GDD-UI-02: the level after this one (1-1 after 0-1, GDD-WLD-07), or undefined where the level names none. */
+  private nextLevel(): LevelEntry | undefined {
+    return this.entry.next === undefined ? undefined : levelById(this.entry.next);
+  }
+
+  /** GDD-UI-02: whether the results menu's "Next level" row can be chosen. */
+  private hasNext(): boolean {
+    return this.nextLevel() !== undefined;
+  }
+
   /**
-   * GDD-UI-02: the press that ended the level clear screen starts the next level (1-1 after 0-1, GDD-WLD-07) at once: a fresh run with
-   * seven lives (GDD-LIFE-05) in a scene of its own, which draws that level and takes the place of this one. Its first frame counts the
-   * buttons down as already held, so the press does not jump, claw or spit there.
+   * GDD-UI-02: a pick on the results menu ("Next level" or "Retry"), or a level picked over another on the title screen, starts that
+   * level at once: a fresh run with seven lives (GDD-LIFE-05) in a scene of its own, which draws that level and takes the place of this
+   * one. Its first frame counts the buttons down as already held, so the press does not jump, claw or spit there.
    */
   private startNext(next: LevelEntry): void {
     this.replaceWith({ entry: next, direct: true });
@@ -1988,10 +2057,10 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * GDD-UI-02: Quit to title, or the end of the level clear screen. A fresh run as when the game opens, behind the title screen
+   * GDD-UI-02: Quit to title, from the pause menu or the results menu. A fresh run as when the game opens, behind the title screen
    * waiting for a press. No step runs on the title, so every latched key press is spent here, or a quick tap that picked would stay
-   * latched and a new press would not be new. The buttons down now count as held on the title, so the one that picked (or that ended
-   * the clear screen) does not start the level. When "Start" no longer plays this level (the tutorial has started, so it plays 1-1),
+   * latched and a new press would not be new. The buttons down now count as held on the title, so the one that picked does not start the
+   * level. When "Start" no longer plays this level (the tutorial has started, so it plays 1-1),
    * a fresh scene of that level takes this one's place with the same title and this returns true: `update` must return at once.
    */
   private backToTitle(input: PlayerInput, portrait: boolean): boolean {

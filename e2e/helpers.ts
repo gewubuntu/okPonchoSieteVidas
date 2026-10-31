@@ -110,3 +110,14 @@ export function stepUntil(page: Page, goal: StepGoal, max: number, input: { move
     { goal, max, input },
   );
 }
+
+/** GDD-UI-02: waits for the level clear screen's results menu to be drawn, which is from the screen's first 1.0 s (60 steps) on. */
+export const waitForResults = (page: Page) => page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear' && window.__PONCHO__!.clearDrawn().menu.shown);
+
+/** The middle of a results menu row on the page, in CSS px, for a tap, a click or a held finger. */
+export async function resultsRowCentre(page: Page, item: 'next' | 'retry' | 'quit'): Promise<{ x: number; y: number }> {
+  const row = (await page.evaluate(() => window.__PONCHO__!.resultsMenu())).find((r) => r.item === item)!;
+  const box = (await page.locator('canvas').boundingBox())!;
+  const k = box.width / 480;
+  return { x: box.x + (row.x + row.w / 2) * k, y: box.y + (row.y + row.h / 2) * k };
+}

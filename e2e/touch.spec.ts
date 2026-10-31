@@ -75,11 +75,13 @@ test('GDD-CMB-02 a finger on the claw button swings the claw, together with movi
   const cdp = await page.context().newCDPSession(page);
   const claw = await buttonAt(page, 'claw');
   const right = await buttonAt(page, 'right');
+  const before = await api(page, () => window.__PONCHO__!.swings());
   await fingers(cdp, 'touchStart', [
     { x: claw.x, y: claw.y, id: 1 },
     { x: right.x, y: right.y, id: 2 },
   ]);
-  await page.waitForFunction(() => window.__PONCHO__!.claw() !== 'idle');
+  // The swing counter, not the claw's phase: the swing and its cooldown last about 20 steps, which a slow runner's polls can miss (L-042).
+  await page.waitForFunction((n) => window.__PONCHO__!.swings() === n + 1, before);
   expect(await api(page, () => window.__PONCHO__!.touch().pressed)).toEqual(expect.arrayContaining(['claw', 'right']));
   await fingers(cdp, 'touchEnd', []);
 });

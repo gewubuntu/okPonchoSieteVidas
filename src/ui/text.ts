@@ -17,7 +17,9 @@ export interface UiText {
   readonly gameOver: string;
   readonly retry: string;
   readonly levelClear: string;
-  readonly pressAny: string;
+  /** The results menu's rows besides `quit` (GDD-UI-02): "Next level" and "Retry" (`retry` is the game-over prompt). */
+  readonly next: string;
+  readonly retryLevel: string;
   /** The clear time's word, as in "Time 2:14". */
   readonly time: string;
   /** The medal lines, by `Medal` (GDD-PRG-03). */
@@ -43,7 +45,8 @@ export const TEXT: Record<Language, UiText> = {
     gameOver: 'Game over',
     retry: 'Press any button to Retry',
     levelClear: 'Level clear!',
-    pressAny: 'Press any button',
+    next: 'Next level',
+    retryLevel: 'Retry',
     time: 'Time',
     bronze: 'Bronze medal',
     silver: 'Silver medal',
@@ -64,7 +67,8 @@ export const TEXT: Record<Language, UiText> = {
     gameOver: 'Fin del juego',
     retry: 'Presiona cualquier botón para reintentar',
     levelClear: '¡Nivel superado!',
-    pressAny: 'Presiona cualquier botón',
+    next: 'Siguiente nivel',
+    retryLevel: 'Reintentar',
     time: 'Tiempo',
     bronze: 'Medalla de bronce',
     silver: 'Medalla de plata',
@@ -85,7 +89,8 @@ export const TEXT: Record<Language, UiText> = {
     gameOver: 'Spiel vorbei',
     retry: 'Drücke eine Taste für einen neuen Versuch',
     levelClear: 'Level geschafft!',
-    pressAny: 'Drücke eine Taste',
+    next: 'Nächstes Level',
+    retryLevel: 'Nochmal',
     time: 'Zeit',
     bronze: 'Bronzemedaille',
     silver: 'Silbermedaille',

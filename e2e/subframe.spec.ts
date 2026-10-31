@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot, openGame } from './helpers';
+import { boot, openGame, resultsRowCentre, waitForResults } from './helpers';
 
 // L-006: a tap whose press and release land in one frame must still reach a simulation step. The events are dispatched in
 // one task, so the browser cannot show a frame in between.
@@ -286,16 +286,36 @@ test('GDD-UI-02 Down, Down then Enter, each tapped inside one task, quit to the 
   expect(await api(page, () => window.__PONCHO__!.titleDrawn().shown)).toBe(true);
 });
 
-test('GDD-UI-02 a claw tap inside one task ends the level clear screen', async ({ page, isMobile }) => {
+test('GDD-UI-02 Down then Enter, each tapped inside one task, pick Retry on the results menu (L-006)', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await boot(page, '/');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
-  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear');
-  await page.waitForFunction(() => window.__PONCHO__!.ticks() - window.__PONCHO__!.phaseSince() >= 60);
-  await tapKey(page, 'KeyX', 88, 1);
-  // GDD-UI-02: 0-1's clear screen leads on to 1-1 (GDD-WLD-07).
-  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.phase() === 'playing');
+  await waitForResults(page);
+  // Two taps, down and up in one task each, in one task together: no frame between them.
+  await page.evaluate(() => {
+    for (const [code, keyCode] of [['ArrowDown', 40], ['Enter', 13]] as const) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code, keyCode, bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { code, keyCode, bubbles: true }));
+    }
+  });
+  // Retry: a fresh 0-1, playing at once (Next level would be 1-1, Quit to title the title screen).
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2);
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('0-1');
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false);
+});
+
+test('GDD-UI-02 a touch tap on the Retry row inside one frame picks it (L-006)', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await boot(page, '/');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
+  await waitForResults(page);
+  const retry = await resultsRowCentre(page, 'retry'); // the slow layout read, before the tap (L-042)
+  await tapTouch(page, retry);
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2);
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('0-1');
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false);
 });
 
 /** Plays 0-1 from the title. */

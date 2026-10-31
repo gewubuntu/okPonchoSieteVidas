@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot } from './helpers';
+import { boot, waitForResults } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const sfx = (page: Page) => page.evaluate(() => window.__PONCHO__!.sfx());
@@ -68,7 +68,7 @@ test('GDD-AUD-02 the clear screen ticks once per line', async ({ page }) => {
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
   await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear');
-  await page.waitForFunction(() => window.__PONCHO__!.ticks() - window.__PONCHO__!.phaseSince() >= 60 && window.__PONCHO__!.clearDrawn().prompt);
+  await waitForResults(page);
   // The hilo, time and medal lines each ticked, and nothing else played: three ticks, at Master times Effects (1 at the defaults).
   const ticks = (await api(page, () => window.__PONCHO__!.sfxPlayed())).filter((p) => p.key === 'sfx-tick');
   expect(ticks).toHaveLength(3);
