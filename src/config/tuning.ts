@@ -129,6 +129,12 @@ export const PAUSE_MENU = { width: 160, rowHeight: 28, top: 136, textSize: 12 } 
 export const TITLE_MENU = { width: 160, rowHeight: 28, top: 160 } as const;
 
 /**
+ * GDD-UI-02: the results menu's rows ("Next level", "Retry", "Quit to title"), in game pixels; each grows like the pause menu's. The
+ * first row's top is 162, under the medal line. `greyed` is the colour of "Next level" where the level names no next level.
+ */
+export const RESULTS_MENU = { width: 160, rowHeight: 28, top: 162, greyed: 0x5c6178 } as const;
+
+/**
  * GDD-UI-02: the settings screen, in game pixels. Rows grow like the pause menu's. A volume row has its label `labelInset`
  * from its left edge, "<" and ">" `arrowInset` inside its edges, and its bars (`barWidth` wide, `barGap` apart) ending
  * `barsInset` inside its right edge.

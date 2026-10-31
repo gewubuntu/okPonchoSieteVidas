@@ -124,35 +124,23 @@ describe('GDD-UI-02 the level clear screen', () => {
     expect(run(startRun(level), idle, 100, level).enemies[0]!.x).not.toBe(startRun(level).enemies[0]!.x);
   });
 
-  it('GDD-UI-02 the clear screen ignores presses in its first 1.0 s', () => {
-    // The screen's first step is the one after it comes up; a press on step 2 or step 60 is ignored, one on step 61 is taken.
-    expect(stepRun(run(cleared(idle), idle, 1), jump, base).phase).toBe('clear');
-    expect(stepRun(run(cleared(idle), idle, 59), jump, base).phase).toBe('clear');
-    expect(stepRun(run(cleared(idle), idle, 60), jump, base).phase).toBe('done');
-  });
-
-  it('GDD-UI-02 a button held since before the clear screen does not end it', () => {
-    const r = run(cleared(jump), jump, 200);
-    expect(r.phase).toBe('clear');
-    const again = stepRun(run(r, idle, 1), jump, base);
-    expect(again.phase).toBe('done');
-  });
-
-  it('GDD-UI-02 a second button pressed while holding one ends it', () => {
-    const r = run(cleared(right), right, 60);
-    expect(r.phase).toBe('clear');
-    expect(stepRun(r, { move: 1, jumpHeld: false, claw: true }, base).phase).toBe('done');
-  });
-
-  it('GDD-UI-02 each of claw, Fuego, left and right ends it', () => {
+  it('GDD-UI-02 no button ends the clear screen', () => {
     const presses: PlayerInput[] = [jump, { move: 0, jumpHeld: false, claw: true }, { move: 0, jumpHeld: false, fuego: true }, { move: -1, jumpHeld: false }, right];
-    for (const press of presses) expect(stepRun(run(cleared(idle), idle, 60), press, base).phase, JSON.stringify(press)).toBe('done');
+    for (const press of presses) {
+      // After the first 1.0 s, a new press (released between, L-048), and then 200 steps more: the screen stays.
+      let r = run(cleared(idle), idle, 60);
+      r = stepRun(r, press, base);
+      expect(r.phase, JSON.stringify(press)).toBe('clear');
+      r = run(stepRun(r, idle, base), press, 5);
+      expect(r.phase, JSON.stringify(press)).toBe('clear');
+      expect(run(r, idle, 200).phase, JSON.stringify(press)).toBe('clear');
+    }
     // Left pressed while right is held, given raw: the two cancel out in `move` (L-019).
     const rightOnly: PlayerInput = { move: 1, jumpHeld: false, left: false, right: true };
     const both: PlayerInput = { move: 0, jumpHeld: false, left: true, right: true };
     const held = run(cleared(rightOnly), rightOnly, 60);
-    expect(held.phase).toBe('clear');
-    expect(stepRun(held, both, base).phase).toBe('done');
+    expect(stepRun(held, both, base).phase).toBe('clear');
+    expect(run(held, both, 200).phase).toBe('clear');
   });
 
   it('GDD-UI-02 the clock counts every step in play, the exit step included', () => {
@@ -176,11 +164,8 @@ describe('GDD-UI-02 the level clear screen', () => {
     const later = run(r, idle, 100);
     expect(later.phase).toBe('clear');
     expect(later.clock).toBe(1);
-    // The press that leaves counts nothing either, nor do the steps after it.
-    const done = stepRun(run(r, idle, 60), jump, base);
-    expect(done.phase).toBe('done');
-    expect(done.clock).toBe(1);
-    expect(run(done, idle, 50).clock).toBe(1);
+    // A press on it counts nothing either.
+    expect(stepRun(run(r, idle, 60), jump, base).clock).toBe(1);
   });
 
   it('GDD-UI-02 the respawn wait counts', () => {
@@ -232,15 +217,9 @@ describe('GDD-UI-02 the level clear screen', () => {
     const next = stepRun(r, idle, base);
     expect(next).toMatchObject({ phase: 'clear', revealAll: true });
     expect(revealedLines(next)).toBe(3);
-    // The prompt still waits for 1.0 s: a fresh press (released first, L-048) on the 59th step does nothing, one on the 61st leaves.
-    const at58 = run(next, idle, 58 - next.wait);
-    expect(at58.wait).toBe(58);
-    const pressed = stepRun(at58, jump, base);
-    expect(pressed.phase).toBe('clear');
-    const released = stepRun(pressed, idle, base);
-    expect(released.wait).toBe(60);
-    expect(released.phase).toBe('clear');
-    expect(stepRun(released, jump, base).phase).toBe('done');
+    // A later fresh press (released first, L-048) changes nothing and does not leave.
+    const pressed = stepRun(run(next, idle, 58 - next.wait), jump, base);
+    expect(pressed).toMatchObject({ phase: 'clear', revealAll: true });
   });
 
   it('GDD-UI-02 each of jump, claw, Fuego, left and right skips the reveal', () => {
@@ -271,19 +250,5 @@ describe('GDD-UI-02 the level clear screen', () => {
         expect(revealedLines(r), `wait ${r.wait}`).toBe(expectedLines(r.wait));
       }
     }
-  });
-
-  it('GDD-UI-02 a skip press held past 1.0 s does not end the screen', () => {
-    let r = run(cleared(idle), idle, 2);
-    r = run(r, jump, 100 - 2);
-    expect(r).toMatchObject({ phase: 'clear', revealAll: true, wait: 100 });
-    // One step released, then a fresh press: it leaves.
-    expect(stepRun(stepRun(r, idle, base), jump, base).phase).toBe('done');
-  });
-
-  it('GDD-UI-02 done stays done', () => {
-    const done = stepRun(run(cleared(idle), idle, 60), jump, base);
-    expect(done.phase).toBe('done');
-    for (const input of [idle, jump, right]) expect(stepRun(done, input, base)).toBe(done);
   });
 });

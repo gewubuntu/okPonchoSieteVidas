@@ -55,11 +55,18 @@ test('GDD-WLD-06 0-1: start, the alacran pen, the pinata and spikes, the platfor
     return reveal.length > 0 && reveal[reveal.length - 1]!.lines === 1;
   });
   expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('clear');
-  expect(await page.evaluate(() => window.__PONCHO__!.clearDrawn())).toMatchObject({ hilos: 'Hilos 3/50', lines: 1, prompt: false });
+  expect(await page.evaluate(() => window.__PONCHO__!.clearDrawn())).toMatchObject({ hilos: 'Hilos 3/50', lines: 1 });
+  expect((await page.evaluate(() => window.__PONCHO__!.clearDrawn())).menu.shown).toBe(false);
   await shot(page, info, 'level0-1-clear-reveal');
   await page.evaluate(() => window.__PONCHO__!.step(45));
-  await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().shown && window.__PONCHO__!.clearDrawn().prompt);
+  await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().shown && window.__PONCHO__!.clearDrawn().menu.shown);
   expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('clear');
   expect(await page.evaluate(() => window.__PONCHO__!.clearDrawn())).toMatchObject({ hilos: 'Hilos 3/50', lines: 3 });
+  expect((await page.evaluate(() => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ items: ['Next level', 'Retry', 'Quit to title'], chosen: 'next', colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'] });
   await shot(page, info, 'level0-1-clear');
+  // GDD-UI-02: Down chooses Retry.
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'retry');
+  expect((await page.evaluate(() => window.__PONCHO__!.clearDrawn())).menu.colors).toEqual(['#9ba3c4', '#fff3dc', '#9ba3c4']);
+  await shot(page, info, 'level0-1-clear-retry');
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { layoutTouchButtons } from './touchLayout';
-import { layoutPauseMenu, layoutTitleMenu, pauseMenuItemAt, titleMenuItemAt } from './pauseMenu';
+import { layoutPauseMenu, layoutResultsMenu, layoutTitleMenu, pauseMenuItemAt, resultsMenuItemAt, titleMenuItemAt } from './pauseMenu';
 
 describe('GDD-UI-02 pause menu rows', () => {
   it('three rows, Resume, Settings and Quit to title, 160 by 28, centred, the first at 136, each next right below', () => {
@@ -94,5 +94,36 @@ describe('GDD-UI-02 title menu rows', () => {
 
   it('titleMenuItemAt finds \'tutorial\' in its row', () => {
     expect(titleMenuItemAt(layoutTitleMenu(390 / 270), 240, 210)).toBe('tutorial');
+  });
+});
+
+describe('GDD-UI-02 results menu rows', () => {
+  it('GDD-UI-02 three rows, Next level, Retry and Quit to title, 160 by 28, centred, the first at 162', () => {
+    expect(layoutResultsMenu(2)).toEqual([
+      { item: 'next', x: 160, y: 162, w: 160, h: 28 },
+      { item: 'retry', x: 160, y: 190, w: 160, h: 28 },
+      { item: 'quit', x: 160, y: 218, w: 160, h: 28 },
+    ]);
+  });
+
+  it('GDD-UI-02 on a landscape phone the three results rows grow to 34 px and end above the screen\'s bottom', () => {
+    const rows = layoutResultsMenu(390 / 270);
+    expect(rows.map((r) => [r.y, r.h])).toEqual([[162, 34], [196, 34], [230, 34]]);
+    expect(rows[2]!.y + rows[2]!.h).toBeLessThanOrEqual(270);
+    expect(layoutResultsMenu(1).map((r) => [r.y, r.h])).toEqual([[162, 48], [210, 48], [258, 48]]);
+  });
+
+  it('GDD-UI-02 a point picks the results row it is on, edges as the touch buttons', () => {
+    const rows = layoutResultsMenu(2);
+    expect(resultsMenuItemAt(rows, 160, 162)).toBe('next');
+    expect(resultsMenuItemAt(rows, 319, 189)).toBe('next');
+    expect(resultsMenuItemAt(rows, 320, 170)).toBeNull();
+    expect(resultsMenuItemAt(rows, 159, 170)).toBeNull();
+    expect(resultsMenuItemAt(rows, 200, 161)).toBeNull();
+    expect(resultsMenuItemAt(rows, 200, 190)).toBe('retry');
+    expect(resultsMenuItemAt(rows, 200, 217)).toBe('retry');
+    expect(resultsMenuItemAt(rows, 200, 218)).toBe('quit');
+    expect(resultsMenuItemAt(rows, 200, 245)).toBe('quit');
+    expect(resultsMenuItemAt(rows, 200, 246)).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { TIPS_0_1 } from '../src/levels/level0-1';
-import { boot, openGame, start } from './helpers';
+import { boot, openGame, start, waitForResults } from './helpers';
 
 // GDD-UI-02 (the Language row, the first language), GDD-UI-05 (the tips in each language), GDD-PRG-02 (the language is saved).
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
@@ -233,9 +233,11 @@ test('GDD-UI-02 the game over and level clear screens in the chosen language', a
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
-  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear' && window.__PONCHO__!.clearDrawn().prompt);
+  await waitForResults(page);
   const clear = await api(page, () => window.__PONCHO__!.clearDrawn());
-  expect(clear).toMatchObject({ shown: true, title: 'Level geschafft!', prompt: true, promptText: 'Drücke eine Taste' });
+  expect(clear).toMatchObject({ shown: true, title: 'Level geschafft!' });
+  // The results menu's rows too.
+  expect(clear.menu).toMatchObject({ shown: true, items: ['Nächstes Level', 'Nochmal', 'Zurück zum Titel'] });
   // The time and medal lines too: 0-1 cleared with no hilo gives bronze (GDD-PRG-03).
   expect(clear.time).toMatch(/^Zeit \d+:\d\d$/);
   expect(clear.medal).toBe('Bronzemedaille');
@@ -432,9 +434,9 @@ test('GDD-UI-02 the next level keeps the language where storage is refused', asy
   await press(page, 'Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
-  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear' && window.__PONCHO__!.clearDrawn().prompt);
+  await waitForResults(page);
   expect((await api(page, () => window.__PONCHO__!.clearDrawn())).title).toBe('Level geschafft!');
-  await page.keyboard.press('KeyX', { delay: 30 });
+  await page.keyboard.press('Enter', { delay: 30 }); // Next level
   await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.ticks() > 5);
   expect(await language(page)).toBe('de');
   await press(page, 'Escape');

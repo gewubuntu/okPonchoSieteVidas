@@ -1,6 +1,6 @@
 // Screenshots of level 1-1 for visual review (GDD-WLD-07). Run with `npm run shots`; images land in shots/ (not committed).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { start } from '../helpers';
+import { resultsRowCentre, start, waitForResults } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
   await page.waitForTimeout(250); // let the frame render
@@ -22,14 +22,12 @@ test('GDD-WLD-07 1-1: from 0-1 clear screen into 1-1, then its six screens, the 
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
   await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear');
-  await page.waitForFunction(() => window.__PONCHO__!.ticks() - window.__PONCHO__!.phaseSince() >= 60 && window.__PONCHO__!.clearDrawn().prompt);
-  // The clear screen ends the device's way too: the touch Jump button on a phone, the claw key on a desktop.
+  await waitForResults(page);
+  // The clear screen is left by its results menu, the device's way too: a tap on the Next level row on a phone, Enter on a desktop.
   if (isMobile) {
-    const b = (await page.evaluate(() => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'jump')!;
-    const box = (await page.locator('canvas').boundingBox())!;
-    const k = box.width / 480;
-    await page.touchscreen.tap(box.x + (b.x + b.w / 2) * k, box.y + (b.y + b.h / 2) * k);
-  } else await page.keyboard.press('KeyX', { delay: 30 });
+    const row = await resultsRowCentre(page, 'next');
+    await page.touchscreen.tap(row.x, row.y);
+  } else await page.keyboard.press('Enter', { delay: 30 });
   await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.ticks() > 10);
   expect(await page.evaluate(() => window.__PONCHO__!.camera().viewX)).toBe(0);
   await shot(page, info, 'level1-1-start');
@@ -56,7 +54,9 @@ test('GDD-WLD-07 1-1: from 0-1 clear screen into 1-1, then its six screens, the 
   }
   await page.evaluate(() => window.__PONCHO__!.teleport(2780, 224));
   await page.evaluate(() => window.__PONCHO__!.step(61));
-  await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().shown && window.__PONCHO__!.clearDrawn().prompt);
+  await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().shown && window.__PONCHO__!.clearDrawn().menu.shown);
   expect((await page.evaluate(() => window.__PONCHO__!.clearDrawn())).hilos).toBe('Hilos 4/50'); // and the one beside the exit, at column 173
+  // 1-1 names no next level: Next level is greyed and the menu opens on Retry.
+  expect((await page.evaluate(() => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
   await shot(page, info, 'level1-1-clear');
 });
