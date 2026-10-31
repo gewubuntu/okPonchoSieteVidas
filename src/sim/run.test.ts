@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { FLIP, HITBOX, LIVES_MAX, OFRENDA, RESPAWN, TILE } from '../config/tuning';
 import { loseLife } from './lives';
+import { medal } from './results';
 import { spawn, type PlayerInput } from './movement';
+import { NO_COMBO, stepSounds } from './sfx';
 import { isInPit, startRun, stepRun, touchesOfrenda, type Level, type Ofrenda, type RunState } from './run';
 import { parseTiles } from './tilemap';
 
@@ -368,5 +370,97 @@ describe('GDD-WLD-04 hilos in a run', () => {
     expect(r.phase).toBe('respawning');
     expect(r.lives.lives).toBe(LIVES_MAX - 1);
     expect(r.hilosTaken).toEqual([true]);
+  });
+});
+
+describe('GDD-WLD-04 saved hilos', () => {
+  // Hilo 0 sits on the way at tile (2, 3), as above; hilo 1 is on the far side of the pit.
+  const hilos = [{ col: 2, row: 3 }, { col: 9, row: 3 }];
+  const withHilos: Level = { ...level, hilos };
+
+  it('GDD-WLD-04 a saved hilo counts as collected from the start', () => {
+    const r = startRun(withHilos, [true, false]);
+    expect(r.hilosTaken).toEqual([true, false]);
+    expect(r.hilosSaved).toEqual([true, false]);
+  });
+
+  it('GDD-WLD-04 startRun without saved hilos starts with none, one flag per hilo', () => {
+    const r = startRun(withHilos);
+    expect(r.hilosTaken).toEqual([false, false]);
+    expect(r.hilosSaved).toEqual([false, false]);
+    expect(startRun(level).hilosSaved).toEqual([]);
+  });
+
+  it('GDD-WLD-04 a saved hilo is not collected again, and its step plays no hilo note', () => {
+    let r = startRun(withHilos, [true, false]);
+    let combo = NO_COMBO;
+    // Walks over hilo 0 (its box is touched around x 28 to 44): no step collects, none asks for the hilo sound.
+    for (let i = 0; i < 40; i++) {
+      const after = stepRun(r, right, withHilos);
+      const out = stepSounds(r, after, combo);
+      combo = out.combo;
+      expect(out.sounds.map((s) => s.name), `step ${i + 1}`).not.toContain('hilo');
+      expect(after.hilosTaken, `step ${i + 1}`).toEqual([true, false]);
+      r = after;
+    }
+    expect(r.player.x).toBeGreaterThan(60);
+    expect(r.hilosSaved).toEqual([true, false]);
+  });
+
+  it('GDD-WLD-04 an unsaved hilo still plays its note when collected', () => {
+    let r = startRun(withHilos, [false, false]);
+    let played = 0;
+    for (let i = 0; i < 40; i++) {
+      const after = stepRun(r, right, withHilos);
+      played += stepSounds(r, after, NO_COMBO).sounds.filter((s) => s.name === 'hilo').length;
+      r = after;
+    }
+    expect(played).toBe(1);
+    expect(r.hilosTaken).toEqual([true, false]);
+    expect(r.hilosSaved).toEqual([false, false]);
+  });
+
+  it('GDD-WLD-04 the restart after the last life keeps the saved hilos and the collected ones', () => {
+    let r = startRun(withHilos, [false, true]);
+    for (let i = 0; i < 100 && !r.hilosTaken[0]; i++) r = stepRun(r, right, withHilos);
+    expect(r.hilosTaken).toEqual([true, true]);
+    for (let i = 0; i < LIVES_MAX - 1; i++) r = { ...r, lives: loseLife(r.lives) };
+    for (let i = 0; i < 600 && r.phase === 'playing'; i++) r = stepRun(r, right, withHilos);
+    expect(r.lives.lives).toBe(0);
+    for (let i = 0; i < RESPAWN.delaySteps; i++) r = stepRun(r, idle, withHilos);
+    expect(r.phase).toBe('gameover');
+    for (let i = 0; i < 60; i++) r = stepRun(r, idle, withHilos);
+    r = stepRun(r, { move: 0, jumpHeld: true }, withHilos);
+    for (let i = 0; i < FLIP.steps; i++) r = stepRun(r, idle, withHilos);
+    expect(r.phase).toBe('playing');
+    expect(r.hilosTaken).toEqual([true, true]);
+    expect(r.hilosSaved).toEqual([false, true]);
+  });
+
+  it('GDD-WLD-04 a lost life keeps hilosSaved', () => {
+    let r = startRun(withHilos, [false, true]);
+    for (let i = 0; i < 600 && r.phase === 'playing'; i++) r = stepRun(r, right, withHilos);
+    for (let i = 0; i < RESPAWN.delaySteps; i++) r = stepRun(r, idle, withHilos);
+    expect(r.phase).toBe('playing');
+    expect(r.hilosSaved).toEqual([false, true]);
+  });
+
+  it('GDD-PRG-03 the medal counts saved hilos', () => {
+    // A flat level with the exit; hilo 0 is saved and out of reach (row 5), hilo 1 is on the floor in the way.
+    const flat = parseTiles([...Array<string>(14).fill('.'.repeat(30)), ...Array<string>(3).fill('#'.repeat(30))]);
+    const two: Level = { ...level, world: flat, spawn: { x: 24, y: 224 }, hilos: [{ col: 2, row: 5 }, { col: 3, row: 13 }], exit: { x: 120, y: 224 } };
+    const walk = (saved?: boolean[]): RunState => {
+      let r = startRun(two, saved);
+      for (let i = 0; i < 100 && r.phase === 'playing'; i++) r = stepRun(r, right, two);
+      return r;
+    };
+    const cleared = walk([true, false]);
+    expect(cleared.phase).toBe('clear');
+    expect(cleared.hilosTaken).toEqual([true, true]);
+    expect(cleared.lives.lives).toBe(LIVES_MAX);
+    expect(medal(cleared, two)).toBe('gold');
+    const alone = walk();
+    expect(alone.hilosTaken).toEqual([false, true]);
+    expect(medal(alone, two)).toBe('bronze');
   });
 });

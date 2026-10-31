@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEVELS, levelById, startLevel } from './index';
+import { LEVELS, levelById, SAVED_LEVELS, startLevel } from './index';
 import { SANDBOX_LEVEL } from './sandbox';
 import { gaps, validateLevel } from './validate';
 
@@ -60,5 +60,12 @@ describe('GDD-TEC-04 level 0-1', () => {
     expect(entry.test).toBe(false);
     const { exit: _exit, ...withoutExit } = entry.level;
     expect(validateLevel({ ...entry, level: withoutExit })).toContain('no exit');
+  });
+});
+
+describe('GDD-PRG-02 which levels are saved', () => {
+  it('GDD-PRG-02 0-1 and 1-1 are saved, with their hilo counts, and the sandbox is not', () => {
+    // Real levels keep 50 hilos (GDD-WLD-04); the sandbox, a test level, is never saved.
+    expect(SAVED_LEVELS).toEqual({ '0-1': 50, '1-1': 50 });
   });
 });

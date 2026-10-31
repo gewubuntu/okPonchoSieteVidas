@@ -24,7 +24,7 @@ test('GDD-WLD-04 hilo collected: the two floor hilos are gone and the counter re
     window.__PONCHO__!.teleport(56, 224);
     for (let i = 0; i < 80 && window.__PONCHO__!.hilos().taken < 2; i++) window.__PONCHO__!.step(1, { move: 1, jumpHeld: false });
   });
-  expect(await page.evaluate(() => window.__PONCHO__!.hilos())).toEqual({ taken: 2, total: 20, drawn: 18 });
+  expect(await page.evaluate(() => window.__PONCHO__!.hilos())).toEqual({ taken: 2, total: 20, drawn: 18, faded: 0 });
   expect((await page.evaluate(() => window.__PONCHO__!.hudHilos())).text).toBe('2/20');
   await shot(page, info, 'hilo-collected');
 });

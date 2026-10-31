@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MEDAL, RESULTS, RESULTS_MENU } from '../config/tuning';
+import { HILO, MEDAL, RESULTS, RESULTS_MENU } from '../config/tuning';
 import { loseLife, startWorld } from './lives';
 import type { PlayerInput } from './movement';
 import { PLAYING, TAP_OFF, type PauseEvent, type PauseState, type Tap } from './pause';
-import { clearTime, medal, medalLine, openResults, resultsFrame, resultsShown, revealedLines, type ResultsItem, type ResultsMenu } from './results';
+import { bestTimeSuffix, clearTime, medal, medalLine, medalSuffix, openResults, resultsFrame, resultsShown, revealedLines, type ResultsItem, type ResultsMenu } from './results';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { DEFAULT_SETTINGS } from './settings';
 import { parseTiles } from './tilemap';
@@ -279,5 +279,43 @@ describe('GDD-UI-02 results menu', () => {
     // The same after the pause menu's Quit to title.
     expect(frame(at('next'), ['menuDown', 'menuDown', 'pick'], true, PAUSED)).toMatchObject({ quit: true, portrait: false });
     expect(frame(at('next'), ['menuDown', 'menuDown', 'pick', 'portrait'], true, PAUSED)).toMatchObject({ quit: true, portrait: true });
+  });
+});
+
+describe('GDD-UI-02 best time and new bests', () => {
+  const en = { best: 'Best', newBest: 'New best!' };
+  const de = { best: 'Bestzeit', newBest: 'Neuer Rekord!' };
+
+  it('GDD-UI-02 bestTimeSuffix is empty for a level cleared the first time', () => {
+    expect(bestTimeSuffix(8040, null, en)).toBe('');
+  });
+
+  it('GDD-UI-02 bestTimeSuffix says New best! for a shorter time', () => {
+    expect(bestTimeSuffix(7000, 8040, en)).toBe('New best!');
+    expect(bestTimeSuffix(8039, 8040, en)).toBe('New best!');
+    expect(bestTimeSuffix(7000, 8040, de)).toBe('Neuer Rekord!');
+  });
+
+  it('GDD-UI-02 bestTimeSuffix shows the saved best otherwise, an equal time included', () => {
+    expect(bestTimeSuffix(9000, 8040, en)).toBe('Best 2:14'); // 8040 steps = 134 s
+    expect(bestTimeSuffix(8040, 8040, en)).toBe('Best 2:14');
+    expect(bestTimeSuffix(9000, 8040, de)).toBe('Bestzeit 2:14');
+    expect(bestTimeSuffix(9000, 59, en)).toBe('Best 0:00');
+    expect(bestTimeSuffix(7_000_000, 6000 * 60, en)).toBe('Best 99:59');
+  });
+
+  it('GDD-UI-02 medalSuffix is New best! only for a better medal than a saved one', () => {
+    expect(medalSuffix('gold', null, 'New best!')).toBe('');
+    expect(medalSuffix('gold', 'silver', 'New best!')).toBe('New best!');
+    expect(medalSuffix('silver', 'bronze', 'Neuer Rekord!')).toBe('Neuer Rekord!');
+    expect(medalSuffix('gold', 'bronze', 'New best!')).toBe('New best!');
+    expect(medalSuffix('silver', 'silver', 'New best!')).toBe('');
+    expect(medalSuffix('bronze', 'gold', 'New best!')).toBe('');
+    expect(medalSuffix('silver', 'gold', 'New best!')).toBe('');
+    expect(medalSuffix('bronze', 'silver', 'New best!')).toBe('');
+  });
+
+  it('GDD-WLD-04 a saved hilo is drawn at 35 percent opacity', () => {
+    expect(HILO.savedAlpha).toBe(0.35);
   });
 });
