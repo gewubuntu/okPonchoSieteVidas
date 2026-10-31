@@ -475,9 +475,9 @@ Prefer an automated check over a prose rule.
 - **Date:** 2026-10-29
 - **What went wrong:** The language plan listed every translatable text by searching `src/scenes/PlayScene.ts` and the tips. The title's "Turn your device sideways" came from `titlePrompt` in `src/sim/title.ts`, a pure helper, and was missed; the implementer found it and changed the helper's signature.
 - **Root cause:** On-screen text was assumed to live in the scene, but pure helpers in `src/sim/` and `src/ui/` return text the scene draws.
-- **Rule:** To list the texts a change touches, search all of `src/` for quoted strings the scene draws (`grep -rn "'[A-Z][a-z]" src --include=*.ts`, tests excluded), not only the scene.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Rule:** To list the texts a change touches, search all of `src/` for quoted strings the scene draws (`grep -rn "'[A-Z][a-z]" src --include=*.ts`, tests excluded), not only the scene. A new on-screen text goes into `src/ui/text.ts` in every language and into the GDD's language table, never into a helper.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-feature (step 5, on-screen texts). Second time (2026-10-30, GDD-UI-02 results): the plan, written before the Language row merged, put "Time" in `clearTime` and the medal names in a `medalLabel` helper in `src/sim/results.ts`, in English only; found when main was checked before the PR, and moved into `TEXT`.
 
 ## L-051 Screen text lived in code apart from the GDD table it came from
 
@@ -487,3 +487,12 @@ Prefer an automated check over a prose rule.
 - **Rule:** Texts quoted in the GDD are pinned by a test that reads `docs/GDD.md` (as `src/ui/text.test.ts` and the GDD-UI-05 tips test do), so the gate fails when they drift.
 - **Recurrence:** 1
 - **Promoted:** yes, to the tests `the GDD's table matches TEXT` and `every tip text is quoted in GDD-UI-05`
+
+## L-052 Main changed a convention while the feature branch waited for approval
+
+- **Date:** 2026-10-30
+- **What went wrong:** The results-screen branch was planned and built on one `main`; while its screenshots waited for approval, two PRs merged (the Language row, then the Mexican Spanish wording). The branch's new texts did not follow the new text table, and only the user's "check main again" caught it, twice.
+- **Root cause:** The work loop checks `main` at the start of a task (L-030) but not before the push, and a branch can wait a long time for the user's screenshot approval.
+- **Rule:** Right before pushing a PR, `git fetch origin main`; if it moved, rebase, read the new commits' GDD changelog lines for conventions the branch's new code must follow, rerun the gate and the touched playtests, and retake screenshots that the merged change affects.
+- **Recurrence:** 1
+- **Promoted:** no

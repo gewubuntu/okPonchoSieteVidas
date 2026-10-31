@@ -18,6 +18,12 @@ export interface UiText {
   readonly retry: string;
   readonly levelClear: string;
   readonly pressAny: string;
+  /** The clear time's word, as in "Time 2:14". */
+  readonly time: string;
+  /** The medal lines, by `Medal` (GDD-PRG-03). */
+  readonly bronze: string;
+  readonly silver: string;
+  readonly gold: string;
 }
 
 /** GDD-UI-02: the table of texts. The Spanish and German are Proposed. */
@@ -38,6 +44,10 @@ export const TEXT: Record<Language, UiText> = {
     retry: 'Press any button to Retry',
     levelClear: 'Level clear!',
     pressAny: 'Press any button',
+    time: 'Time',
+    bronze: 'Bronze medal',
+    silver: 'Silver medal',
+    gold: 'Gold medal',
   },
   es: {
     start: 'Jugar',
@@ -55,6 +65,10 @@ export const TEXT: Record<Language, UiText> = {
     retry: 'Presiona cualquier botón para reintentar',
     levelClear: '¡Nivel superado!',
     pressAny: 'Presiona cualquier botón',
+    time: 'Tiempo',
+    bronze: 'Medalla de bronce',
+    silver: 'Medalla de plata',
+    gold: 'Medalla de oro',
   },
   de: {
     start: 'Spielen',
@@ -72,6 +86,10 @@ export const TEXT: Record<Language, UiText> = {
     retry: 'Drücke eine Taste für einen neuen Versuch',
     levelClear: 'Level geschafft!',
     pressAny: 'Drücke eine Taste',
+    time: 'Zeit',
+    bronze: 'Bronzemedaille',
+    silver: 'Silbermedaille',
+    gold: 'Goldmedaille',
   },
 };
 

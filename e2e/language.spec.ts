@@ -236,6 +236,9 @@ test('GDD-UI-02 the game over and level clear screens in the chosen language', a
   await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear' && window.__PONCHO__!.clearDrawn().prompt);
   const clear = await api(page, () => window.__PONCHO__!.clearDrawn());
   expect(clear).toMatchObject({ shown: true, title: 'Level geschafft!', prompt: true, promptText: 'Drücke eine Taste' });
+  // The time and medal lines too: 0-1 cleared with no hilo gives bronze (GDD-PRG-03).
+  expect(clear.time).toMatch(/^Zeit \d+:\d\d$/);
+  expect(clear.medal).toBe('Bronzemedaille');
   expect(clear.hilos.startsWith('Hilos ')).toBe(true);
 });
 

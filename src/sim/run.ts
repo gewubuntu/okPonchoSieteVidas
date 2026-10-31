@@ -119,10 +119,17 @@ export interface RunState {
   readonly checkpointIndex: number;
   /** GDD-CMB-01: a stomp landed this step (one or more enemies), for its sound (GDD-AUD-02). */
   readonly stomped: boolean;
+  /**
+   * GDD-UI-02: the clear time in steps: those taken in play and in the respawn waits since the level start or the restart after the
+   * last life. The clear screen, the Siete vidas gastadas screen and 'done' count nothing; the pause and title screens run no step.
+   */
+  readonly clock: number;
+  /** GDD-UI-02: a new press on the clear screen showed every line at once. */
+  readonly revealAll: boolean;
 }
 
 export function startRun(level: Level): RunState {
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: freshHilos(level.hilos ?? []), tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: freshHilos(level.hilos ?? []), tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -163,27 +170,34 @@ export const buttonsDown = (input: PlayerInput): number =>
 /**
  * GDD-LIFE-05, GDD-UI-02: a step on the Siete vidas gastadas screen or the level clear screen. Each stays up until a press of any
  * button after its first 1.0 s. `wait` counts its steps, this one included. Only a button that was up on the last step counts, so
- * one held since before the screen does not.
+ * one held since before the screen does not. `fresh` is such a new press at any time, which the clear screen's reveal takes (GDD-UI-02).
  */
-function screenStep(run: RunState, input: PlayerInput): { down: number; shown: number; press: boolean } {
+function screenStep(run: RunState, input: PlayerInput): { down: number; shown: number; fresh: boolean; press: boolean } {
   const shown = run.wait + 1;
   const down = buttonsDown(input);
-  return { down, shown, press: (down & ~run.buttonsHeld) !== 0 && shown > GAME_OVER.lockoutSteps };
+  const fresh = (down & ~run.buttonsHeld) !== 0;
+  return { down, shown, fresh, press: fresh && shown > GAME_OVER.lockoutSteps };
 }
 
 /** Advances one fixed step. Returns a new state and never mutates its input. */
 export function stepRun(run: RunState, input: PlayerInput, level: Level): RunState {
+  const next = stepPhase(run, input, level);
+  // GDD-UI-02: a step that starts in play or in a respawn wait is on the clock, the one that reaches the exit included.
+  return run.phase === 'playing' || run.phase === 'respawning' ? { ...next, clock: run.clock + 1 } : next;
+}
+
+function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   if (run.phase === 'done') return run;
   if (run.phase === 'clear') {
-    // GDD-UI-02: nothing moves. A counted press ends the screen; the scene then goes back to the title.
-    const { down, shown, press } = screenStep(run, input);
-    return { ...run, buttonsHeld: down, wait: shown, stomped: false, ...(press ? { phase: 'done' as const } : {}) };
+    // GDD-UI-02: nothing moves. A new press shows every line at once; a counted press ends the screen, and the scene then goes back to the title.
+    const { down, shown, fresh, press } = screenStep(run, input);
+    return { ...run, buttonsHeld: down, wait: shown, stomped: false, revealAll: run.revealAll || fresh, ...(press ? { phase: 'done' as const } : {}) };
   }
   if (run.phase === 'gameover') {
     const { down, shown, press } = screenStep(run, input);
     if (!press) return { ...run, buttonsHeld: down, wait: shown, stomped: false };
-    // The world restarts with all seven lives, the ofrendas unused, from the level start, after the respawn flip.
-    return { ...run, buttonsHeld: down, lives: startWorld(), checkpoint: level.spawn, checkpointIndex: -1, phase: 'respawning', wait: FLIP.steps, restarting: true, stomped: false };
+    // The world restarts with all seven lives, the ofrendas unused, from the level start, after the respawn flip. The clock starts again (GDD-UI-02).
+    return { ...run, buttonsHeld: down, lives: startWorld(), checkpoint: level.spawn, checkpointIndex: -1, phase: 'respawning', wait: FLIP.steps, restarting: true, stomped: false, clock: 0 };
   }
   if (run.phase === 'respawning') {
     // `elapsed` is the number of respawning steps taken including this one, so 0.3 s is step 18 and 0.8 s is step 48.
@@ -226,6 +240,8 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
       fuegoHeld: false,
       enemies: freshEnemies(level.enemies),
       stomped: false,
+      clock: run.clock,
+      revealAll: false,
     };
   }
 
@@ -352,8 +368,8 @@ export function stepRun(run: RunState, input: PlayerInput, level: Level): RunSta
   });
   const next: RunState = { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: flying, enemies, stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
   // GDD-WLD-03: reaching the exit ends the level. A hit in Base, a pit and a crush returned above, so they win; a hit the taco or
-  // the Fuego absorbed does not. `wait` is already 0 in play, and the screen's first step records the buttons down whatever it
-  // finds (it takes no press in its first 1.0 s), so neither is set here.
-  if (level.exit && touchesExit(hurt, level.exit)) return { ...next, phase: 'clear' };
+  // the Fuego absorbed does not. `wait` is already 0 in play. The buttons down now are held, so one held as Poncho reaches the exit
+  // is no new press for the reveal (GDD-UI-02).
+  if (level.exit && touchesExit(hurt, level.exit)) return { ...next, phase: 'clear', buttonsHeld: buttonsDown(input) };
   return next;
 }

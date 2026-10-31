@@ -144,6 +144,11 @@ export const VOLUME = { steps: 10, default: 10 } as const;
  */
 export const GAME_OVER = { lockoutSteps: Math.round(1.0 * TICK_HZ) } as const;
 
+/** GDD-UI-02: the level clear screen's hilo, time and medal lines appear 0.25, 0.5 and 0.75 s after it comes up. */
+export const RESULTS = { revealSteps: [Math.round(0.25 * TICK_HZ), Math.round(0.5 * TICK_HZ), Math.round(0.75 * TICK_HZ)] } as const; // 15, 30, 45
+/** GDD-PRG-03: Gold needs every hilo and `goldLives` lives left at the exit; the medal colours on the clear screen (GDD-UI-02, placeholders). */
+export const MEDAL = { goldLives: 4, colours: { bronze: 0xc7834a, silver: 0xc9cfdc, gold: 0xf2c14e }, discPx: 10, gapPx: 6 } as const;
+
 /** GDD-LIFE-04: with one life left, the last triangle on the HUD grows to `pulseScale` and back every `pulseSteps` (0.8 s). */
 export const LAST_LIFE = { pulseSteps: Math.round(0.8 * TICK_HZ), pulseScale: 1.4 } as const;
 

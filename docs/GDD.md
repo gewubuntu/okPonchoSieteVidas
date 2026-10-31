@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.8.3
+Version: 0.8.4
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.8.4** (2026-10-30) GDD-UI-02, GDD-PRG-03, GDD-AUD-02, GDD-MVP-02: the results screen, first part (user, 2026-10-30: it shows the clear time and the medal, its lines appear one by one with a tick, and it is left through a menu). The level clear screen gets a "Time 2:14" line, counted in simulation steps from the level start (the restart after the last life starts it again), and a medal line, Bronze, Silver or Gold by GDD-PRG-03's rule; the hilo, time and medal lines appear 0.25 s apart, each with a new placeholder tick sound, and a new press before the last one shows them all at once. The new texts get Spanish and German (Proposed) in the Language table. Medals move out of the later scope; the score stays there. The menu that leaves the screen comes in the next change. Open Question 10 partly answered. (Found in the review of PR #61: a patch, since no ID is added; GDD-PRG-03's status line says medals are kept.)
 - **0.8.3** (2026-10-30) GDD-UI-02, GDD-UI-05: Mexican Spanish wording (user, 2026-10-30, after the review of PR #59): "Presiona" for "Pulsa" in the two "Press any button" prompts and the Alacrán tip, "con impulso" for "con carrerilla" in the running-jump tip, "Configuración" for "Ajustes", and "Los picos" for "Los pinchos" in the spikes tip.
 - **0.8.2** (2026-10-29) GDD-UI-02, GDD-UI-03, GDD-UI-05, GDD-PRG-02, GDD-WLD-06: the language switch (user, 2026-10-29: the Language row next, every text on screen switching, a first visit in the browser's language). The settings screen gets a fourth row, "Language", between "Effects volume" and "Back", that switches English, Español and Deutsch with Left and Right or a tap on its halves; the menus, the screens, the prompts and the tutorial tips are drawn in the chosen language at once. A first visit, or a save without a language, uses the first of the browser's languages that is English, Spanish or German, else English. The language is saved with the volumes. The Spanish and German texts are Proposed.
 - **0.8.1** (2026-10-28) GDD-UI-02, GDD-PRG-02, GDD-WLD-06, GDD-WLD-07: the tutorial is played once, or picked from the menu (user, 2026-10-27: "0-1 should only be played once or getting selected in the menu"; 2026-10-28: it counts as played once it starts; a "Tutorial" row). The title menu gets a third row, "Tutorial", between "Start" and "Settings"; "Start" plays 0-1 until 0-1 has been started once and 1-1 from then on, and "Tutorial" always plays 0-1. The save keeps whether 0-1 has been started. The menu's first row moves up from 176 to 160 px so three rows fit on a phone. A new scene (the next level, a title over another level) keeps this visit's volumes where the browser refuses storage (found in the review of PR #58). Open Question 16 answered and removed.
@@ -602,9 +603,12 @@ Status: Proposed
 
 ### GDD-PRG-03 Score and medals
 
-Status: Proposed. Optional, can be cut.
+Status: Proposed. Medals are kept (user, 2026-10-30); the score is optional and can be cut.
 
 Score from hilos, enemies and time. Level medals: Bronze (clear), Silver (all hilos), Gold (all hilos and 4 or more lives left at the exit). Última Vida doubles hilo score (GDD-LIFE-04).
+
+- **Medals (built; kept, user, 2026-10-30, details Proposed):** the medal is shown on the level clear screen (GDD-UI-02). "All hilos" counts every hilo of the level collected, those taken before a restart after the last life included, since they are kept (GDD-WLD-04, GDD-LIFE-05); a level without hilos has them all. "Lives left at the exit" is the triangles still whole as Poncho reaches it, a life restored by an ofrenda or the veladora included (GDD-LIFE-03). 4 is `MEDAL.goldLives` in `src/config/tuning.ts`. Medals are not saved yet (GDD-PRG-02). `src/sim/results.ts`.
+- **Not built yet:** the score, and Última Vida's double hilo score (Open Question 10).
 
 ---
 
@@ -653,6 +657,10 @@ Boot, title, world map, level, pause, results, settings. Fully operable by touch
   | Press any button to Retry | Presiona cualquier botón para reintentar | Drücke eine Taste für einen neuen Versuch |
   | Level clear! | ¡Nivel superado! | Level geschafft! |
   | Press any button | Presiona cualquier botón | Drücke eine Taste |
+  | Time | Tiempo | Zeit |
+  | Bronze medal | Medalla de bronce | Bronzemedaille |
+  | Silver medal | Medalla de plata | Silbermedaille |
+  | Gold medal | Medalla de oro | Goldmedaille |
 
   The tutorial's tips are listed in each language in GDD-UI-05.
 - **The first language:** a first visit, or a save with no language or one that is not `en`, `es` or `de`, uses the browser's languages (`navigator.languages`, else `navigator.language`), in the browser's order: the first one whose main part (before any `-`, in any case) is `en`, `es` or `de` decides, so `fr-FR, de-AT` gives Deutsch; none gives English. Until something is saved the browser's language is followed, so a new one counts at the next visit; once the game saves (a setting changed, or the tutorial started), the save holds the language in use, and that one is used from then on.
@@ -660,8 +668,11 @@ Boot, title, world map, level, pause, results, settings. Fully operable by touch
 - **Gamepad (built):** the D-pad or left stick works like the arrow keys, south like Enter and start like Escape on every menu, and start on the title screen starts the level (GDD-CTL-02).
 - **Which level (built; user, 2026-10-25, 1-1 added 2026-10-27, the tutorial played once 2026-10-28, details Proposed):** "Start" plays the tutorial 0-1 (GDD-WLD-06) until 0-1 has been started once, and level 1-1 (GDD-WLD-07) from then on; 0-1 counts as played the moment it starts, by "Start" or by "Tutorial", even if the player quits at once (user, 2026-10-28), and this is saved in the browser (GDD-PRG-02). "Tutorial" always plays 0-1. An address picks what "Start" plays instead, whatever was played: `?level=1-1`, `?level=0-1` or the sandbox test level with `?level=sandbox`; any other `level`, or none, gives the rule above. The title screen shows the start of the level "Start" plays behind the veil: when the game opens, after quitting to the title and after a level clear screen that leads back to the title. So after the tutorial has started once, quitting it brings back the title over 1-1. When the level picked is not the one behind the veil ("Tutorial" over 1-1, or "Start" over a level "Start" no longer plays), it starts at once from its own start as the next level does (below), with the press held. The playtests use the sandbox, except those for 0-1 and 1-1. `src/levels/index.ts`.
 - **The next level (built; user, 2026-10-27: a press on 0-1's level clear screen starts 1-1; details Proposed):** a level can name the level after it; 0-1 names 1-1, and 1-1 and the sandbox name none. In a level that names one, the press that ends the level clear screen starts that level at once, with no title screen: a fresh run of it with seven lives (lives do not carry out of the tutorial, GDD-LIFE-05), drawn from its start with the camera there (GDD-UI-04). The button that pressed counts as already held there, on any device, as after a resume: a key, finger or gamepad button still down does nothing until it is released and pressed again, and so does a key that the browser's auto-repeat presses again (a key held through the change shows there only as a repeat). The settings carry over (GDD-PRG-02). Quitting to the title from 1-1, or the press that ends 1-1's own clear screen, brings back the title screen over a fresh run of 1-1, as for any level, so "Start" then plays 1-1 again, and so does a new visit to the game, since 0-1 has been started (see "Which level").
-- **Level clear screen (built; a placeholder for the results screen, user, 2026-10-25):** when Poncho reaches the exit (GDD-WLD-03) the level stays in view, standing still, under the dark veil of the *Siete vidas gastadas* screen (GDD-LIFE-05), with "Level clear!" in 16 px pale text, under it the hilos as "Hilos 31/50", collected and the level's total (12 px, pale), and under that the prompt "Press any button" in 8 px grey text. Poncho stays drawn where he reached it. The HUD and the touch buttons stay on top. It takes presses exactly as the *Siete vidas gastadas* screen does: a new press of jump, claw, Fuego, left or right, on any device, after its first 1.0 s (60 steps), which is when the prompt appears; a tap shorter than a frame counts. That press brings back the title screen over a fresh run of the level "Start" plays (see "Which level"), as quitting to the title does, unless the level names a next level (see above) (seven lives, every hilo back until saving exists, GDD-PRG-02), and the button that pressed counts as already held there. Not built yet: the real results screen (time, medals, GDD-PRG-03), the world map and a sound.
-- **Not built yet:** boot, world map and results screens.
+- **Level clear screen (built; a placeholder for the results screen, user, 2026-10-25; the time, the medal and the reveal, user, 2026-10-30, details Proposed):** when Poncho reaches the exit (GDD-WLD-03) the level stays in view, standing still, under the dark veil of the *Siete vidas gastadas* screen (GDD-LIFE-05), with, centred, one under the other: "Level clear!" in 16 px pale text (its middle 92 px from the screen's top), the hilos as "Hilos 31/50", collected and the level's total (12 px, pale, its middle at 116 px), the clear time as "Time 2:14" (12 px, pale, at 132 px), the medal (at 150 px) and the prompt "Press any button" in 8 px grey text (at 172 px). Poncho stays drawn where he reached it. The HUD and the touch buttons stay on top. It takes presses exactly as the *Siete vidas gastadas* screen does: a new press of jump, claw, Fuego, left or right, on any device, after its first 1.0 s (60 steps), which is when the prompt appears; a tap shorter than a frame counts. A button held as Poncho reaches the exit is no new press. That press brings back the title screen over a fresh run of the level "Start" plays (see "Which level"), as quitting to the title does, unless the level names a next level (see above) (seven lives, every hilo back until saving exists, GDD-PRG-02), and the button that pressed counts as already held there. Not built yet: the menu that leaves it (user, 2026-10-30, next change), the score (GDD-PRG-03), the world map and a sound for the screen itself.
+- **Clear time (user, 2026-10-30, details Proposed):** the time from the level start to the exit, counted in simulation steps (60 a second), so the pause, the settings screen and the title screen do not count, and the waits after a lost life do. The restart after the last life (GDD-LIFE-05) starts it again from 0, as it gives back the seven lives. It is shown as minutes and whole seconds, rounded down: "Time 0:07", "Time 2:14", "Time 12:05", and "Time 99:59" for anything longer. `src/sim/results.ts`.
+- **Medal line (user, 2026-10-30, details Proposed):** the medal of GDD-PRG-03 as "Bronze medal", "Silver medal" or "Gold medal" (in the chosen language, see "Language") in 12 px text in the medal's colour, with a filled disc 10 px across in the same colour 6 px left of the text, the pair centred together. Bronze is `#c7834a`, silver `#c9cfdc`, gold `#f2c14e` (placeholders until medal art exists). `src/sim/results.ts`.
+- **Reveal (user, 2026-10-30: lines one by one with a tick; details Proposed):** "Level clear!" shows as the screen comes up, then the hilo line at 0.25 s (15 steps), the time line at 0.5 s (30 steps) and the medal line at 0.75 s (45 steps), each playing the tick (GDD-AUD-02) on the step it appears. A new press of jump, claw, Fuego, left or right, counted as for leaving, before the medal line shows, shows every line at once and plays one tick; it does not leave the screen, and the prompt still appears at 1.0 s. A press after the medal line and before 1.0 s does nothing. `RESULTS` in `src/config/tuning.ts`.
+- **Not built yet:** boot and world map screens, the results menu.
 
 ### GDD-UI-03 Accessibility
 
@@ -733,16 +744,17 @@ Upbeat chiptune-and-acoustic mix: marimba, guitarrón, guitar, trumpets, played 
 
 Status: Proposed (the ofrenda sound being a marimba is Decided, user, 2026-10-20)
 
-Short, punchy and readable: jump, land, claw, stomp, hilo pickup (rising pitch combo), life lost (unravelling thread sound), ofrenda activate (marimba), Poncho meows as personality. Each SFX is under 1 s and compressed for the web.
+Short, punchy and readable: jump, land, claw, stomp, hilo pickup (rising pitch combo), life lost (unravelling thread sound), ofrenda activate (marimba), the results tick, Poncho meows as personality. Each SFX is under 1 s and compressed for the web.
 
 - **Ofrenda activate:** two rosewood marimba bars struck in quick succession, E5 then B5, 0.95 s. Generated from code (`scripts/audio/ofrenda.mjs`, encoded by `scripts/audio/make-sfx.mjs`) as a placeholder until real audio exists (Open Question 9). Shipped as Ogg and MP3. It plays when an ofrenda is used for the first time, not on a repeat touch and not when a restart resets the ofrendas.
-- **When the other sounds play (user, 2026-10-23: the meow plays on respawn; the rest Proposed).** Each is generated from code (`scripts/audio/effects.mjs`, encoded by `scripts/audio/make-sfx.mjs`) as a placeholder until real audio exists (Open Question 9), shipped as Ogg and MP3, and plays on the step it happens. All but the meow play only while Poncho is in play; the meow plays as he appears, below. Numbers are in `SFX` in `src/config/tuning.ts`.
+- **When the other sounds play (user, 2026-10-23: the meow plays on respawn; the rest Proposed).** Each is generated from code (`scripts/audio/effects.mjs`, encoded by `scripts/audio/make-sfx.mjs`) as a placeholder until real audio exists (Open Question 9), shipped as Ogg and MP3, and plays on the step it happens. All but the meow and the tick play only while Poncho is in play; the meow plays as he appears and the tick on the level clear screen, below. Numbers are in `SFX` in `src/config/tuning.ts`.
   - **Jump:** a short rising chirp, 0.15 s, on every jump takeoff (from the ground, in coyote time or from the jump buffer, GDD-MOV-03) and every wall kick (GDD-MOV-08). Not on a spring launch (GDD-WLD-05) or a stomp bounce (GDD-CMB-01), which are not jumps.
   - **Land:** a soft thump, 0.12 s, when Poncho touches down from the air while falling at 60 px/s or faster, so stepping onto a platform or a tiny drop stays quiet. Not when the landing is a stomp or a spring launch, which have their own sound or none.
   - **Claw:** a swish, 0.18 s, when a claw swing starts (GDD-CMB-02). A press the claw ignores (during a swing or its cooldown) is silent.
   - **Stomp:** a springy thud, 0.2 s, on every stomp (GDD-CMB-01), a Tlacuache's first stomp that makes it play dead included (GDD-ENM-02). One sound for a step, even if two enemies are stomped at once.
   - **Hilo pickup:** a plucked thread, 0.3 s, for each step in which hilos are collected (GDD-WLD-04). Its note climbs a major scale: the first hilo plays the root (G5), and each hilo collected within 0.75 s of the previous one plays the next note up, to the octave (G6, the eighth note), where it stays. A hilo after a longer pause starts again at the root. Two hilos in one step move the scale on by two and play the higher note once.
   - **Life lost:** an unravelling thread, a fast run of plucks falling in pitch, 0.85 s, when a life is lost (GDD-LIFE-02): a pit, a crush, or a hit in Base. A hit that Taco or Fuego absorbs (GDD-CMB-03) is not a lost life and does not play it.
+  - **Tick (user, 2026-10-30, the sound itself Proposed):** a short wooden tick, 0.06 s, as each line of the level clear screen appears, and once when a press shows them all at once (GDD-UI-02). It plays on that screen, where Poncho is not in play.
   - **Meow (Decided, user, 2026-10-23):** a short meow, 0.5 s, when Poncho appears again after a lost life: on the first step of the respawn flip, or at the respawn itself when a skip cut the flip short, and after the restart from the *Siete vidas gastadas* screen (GDD-LIFE-05). The sound itself is Proposed.
 - Sounds start playing only after the first key press or touch, because browsers keep audio locked until then (GDD-AUD-01).
 
@@ -986,7 +998,7 @@ Done means: the `harness-playtest` skill passes on desktop and a phone viewport,
 
 Status: Proposed
 
-Worlds 2 to 7, Chile Fantasma (GDD-PWR-04), glide, wall cling, further powers, medals and score, cosmetics shop, full soundtrack, localisation beyond English, Spanish and German, native packaging (new ADR).
+Worlds 2 to 7, Chile Fantasma (GDD-PWR-04), glide, wall cling, further powers, score, cosmetics shop, full soundtrack, localisation beyond English, Spanish and German, native packaging (new ADR).
 
 The glide and the wall cling are built early but stay off in real levels; only the sandbox turns them on (GDD-MOV-07, GDD-MOV-08).
 
@@ -1005,7 +1017,7 @@ Answer these to move items from Proposed to Decided. Until then the Proposed tex
 7. **Combat (GDD-CMB-02):** keep both claw swipe and stomp, with fireballs on top? Partly answered (user, 2026-10-21): the claw swipe is a standard mechanic that Poncho always has, not a power-up. Stomp and fireballs alongside it are still open.
 8. **Difficulty (GDD-VIS-02):** is assist mode and a kid-friendly tone right, or do you want a harder game?
 9. **Audio (GDD-AUD-01):** will you provide music, or should placeholders be generated and licensed assets chosen?
-10. **Score and medals (GDD-PRG-03):** keep or cut?
+10. **Score (GDD-PRG-03):** keep or cut? Medals are kept (user, 2026-10-30).
 11. **Distribution:** where will it be hosted (itch.io, own site, stores)? This drives PWA versus native packaging.
 12. **Taco pickups in Taco (GDD-PWR-02, GDD-PWR-06):** a taco lying on the floor is left where it is when Poncho is already Taco, but a walking taco released from a piñata is used up when he touches it. Should both behave the same?
 13. **Gap limits after World 1 (GDD-WLD-03, GDD-TEC-04):** only World 1 has one (3 tiles). The level validator fails a level in any other world until that world has a limit. Should the limit grow by world, up to the 5 tiles a running jump can cross?

@@ -393,3 +393,43 @@ describe('GDD-AUD-02 hilo note rate', () => {
     expect(noteRate(12)).toBe(2);
   });
 });
+
+/** The steps that played a tick. */
+const ticks = (beats: Beat[]) => beats.filter((b) => b.names.includes('tick'));
+
+describe('GDD-AUD-02 tick', () => {
+  // The exit stands 10 px from Poncho's middle, so the first step reaches it.
+  const exitLevel: Level = { ...flat, exit: { x: 40, y: 64 } };
+  const atExit = (): RunState => withPlayer(exitLevel, { ...spawn(30, 64), grounded: true });
+
+  it('GDD-AUD-02 a tick as each clear screen line appears', () => {
+    const beats = play(exitLevel, atExit(), 101);
+    expect(beats[0]!.after.phase).toBe('clear');
+    // Not on the step that reaches the exit.
+    expect(beats[0]!.names).toEqual([]);
+    expect(ticks(beats).map((b) => b.after.wait)).toEqual([15, 30, 45]);
+    for (const b of ticks(beats)) expect(b.names).toEqual(['tick']);
+  });
+
+  it('GDD-AUD-02 a skip plays one tick', () => {
+    // A press on the screen's 3rd step shows all three lines at once: one tick, and none after.
+    const early = play(exitLevel, atExit(), 101, (i) => (i === 3 ? jump : idle));
+    expect(early[3]!.after.wait).toBe(3);
+    expect(early[3]!.names).toEqual(['tick']);
+    expect(ticks(early)).toHaveLength(1);
+    // A press on the 20th, with the hilo line already shown: one tick for the skip, two in all.
+    const later = play(exitLevel, atExit(), 101, (i) => (i === 20 ? jump : idle));
+    expect(later[20]!.after.wait).toBe(20);
+    expect(ticks(later).map((b) => b.after.wait)).toEqual([15, 20]);
+    expect(later[20]!.names).toEqual(['tick']);
+  });
+
+  it('GDD-AUD-02 no tick on the Siete vidas gastadas screen', () => {
+    let r = startRun(pit);
+    for (let i = 0; i < 6; i++) r = { ...r, lives: loseLife(r.lives) };
+    const beats = play(pit, fallen(r), 48 + 100);
+    expect(beats[beats.length - 1]!.after.phase).toBe('gameover');
+    expect(beats[beats.length - 1]!.after.wait).toBeGreaterThan(50);
+    expect(count(beats, 'tick')).toBe(0);
+  });
+});

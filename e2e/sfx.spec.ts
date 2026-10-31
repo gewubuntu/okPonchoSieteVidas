@@ -62,3 +62,15 @@ test('GDD-AUD-02 hilos play rising notes', async ({ page }) => {
   expect(played.length).toBeGreaterThan(0);
   expect(played.every((p) => p.volume === 1)).toBe(true);
 });
+
+test('GDD-AUD-02 the clear screen ticks once per line', async ({ page }) => {
+  await boot(page, '/');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.teleport(1400, 224));
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() - window.__PONCHO__!.phaseSince() >= 60 && window.__PONCHO__!.clearDrawn().prompt);
+  // The hilo, time and medal lines each ticked, and nothing else played: three ticks, at Master times Effects (1 at the defaults).
+  const ticks = (await api(page, () => window.__PONCHO__!.sfxPlayed())).filter((p) => p.key === 'sfx-tick');
+  expect(ticks).toHaveLength(3);
+  for (const t of ticks) expect(t).toEqual({ key: 'sfx-tick', rate: 1, volume: 1 });
+});
