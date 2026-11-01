@@ -23,6 +23,7 @@ describe('L-052 stale-main hook', () => {
     expect(isPush("cat <<'EOF' | bash>/tmp/log\ngit push origin x\nEOF")).toBe(true);
     expect(isPush("cat <<'EOF' |/bin/sh\ngit push origin x\nEOF")).toBe(true);
     expect(isPush("cat <<'EOF' |bash\ngit push origin x\nEOF")).toBe(true);
+    expect(isPush("bash</dev/null <<'EOF'\ngit push origin x\nEOF")).toBe(true);
     expect(isPush("bash <<'EOF'\ngit push origin x\nEOF")).toBe(true);
     // When unsure it asks: a quoted `; git push` reads as a push (an extra question, never a missed one).
     expect(isPush('git commit -m "fix; git push later"')).toBe(true);
