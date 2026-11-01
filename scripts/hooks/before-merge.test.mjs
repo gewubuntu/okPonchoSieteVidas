@@ -12,6 +12,9 @@ describe('L-043 before-merge hook', () => {
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'cd x && GH_REPO=o/r gh pr merge 62' } })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'gh api -X PUT repos/o/r/pulls/3/merge -f merge_method=merge' } })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "gh api -X PUT 'repos/o/r/pulls/3/merge'" } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'gh api --method PUT "repos/o/r/pulls/3/merge"' } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'git log | tr -d \'"\'; gh pr merge 3 --subject "Merge PR 3"' } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'echo "it\'s"; gh pr merge 3; echo \'a b\'' } })).toMatch(/L-043/);
   });
 
   it('says nothing for other tools or bad input', () => {

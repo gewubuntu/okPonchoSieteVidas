@@ -14,9 +14,12 @@ export function mergeQuestion(input) {
   // A here-document's body and a quoted string are text, not commands (a commit message or a grep may name `gh pr merge`).
   const command = String(input?.tool_input?.command ?? '')
     .replace(/<<-?\s*(['"]?)([A-Za-z_]\w*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g, '<<$3')
-    // A quoted single word (a path such as 'repos/o/r/pulls/3/merge') is an argument, not text: keep it, unquoted.
-    .replace(/'([^'\s]*)'|"([^"\s\\]*)"/g, '$1$2')
-    .replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, "''");
+    // In one pass, so each quote pairs once: a quoted single word with no quote inside (a path such as
+    // 'repos/o/r/pulls/3/merge') is an argument and stays, unquoted; any other quoted string is text and is emptied.
+    .replace(/'([^']*)'|"((?:[^"\\]|\\.)*)"/g, (_m, single, double) => {
+      const inner = single ?? double;
+      return /^[^\s'"\\]+$/.test(inner) ? inner : "''";
+    });
   // `gh pr merge`, or the REST merge through `gh api` (`.../pulls/<n>/merge`), which works where `gh pr` is refused.
   const viaGh =
     input?.tool_name === 'Bash' &&
