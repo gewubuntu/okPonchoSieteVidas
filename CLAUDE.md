@@ -64,7 +64,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - `.claude/skills/` project skills, all prefixed `harness-`: `harness-feature`, `harness-gdd-update`, `harness-playtest`, `harness-retro`
 - `.claude/agents/pr-reviewer.md` the subagent that reviews every pull request
 - `.claude/agents/implementer.md` the subagent that builds a feature from the main session's plan (`harness-feature` steps 5 to 7)
-- `.claude/settings.json` project hooks (one reminds you to run the reviewer after a PR is created; one denies a commit chained after a piped gate, L-012)
+- `.claude/settings.json` project hooks, each a script in `scripts/hooks/` with a test beside it; `docs/HARNESS.md` (Parts) says what each one guards
 - `scripts/check.mjs` the gate
 - `src/config/tuning.ts` every gameplay number, tagged with its GDD ID
 - `src/sim/` pure game logic (movement, fixed-step loop), no Phaser imports

@@ -242,6 +242,8 @@ function checkClaudeSettings() {
         const text = [hook.command, ...(Array.isArray(hook.args) ? hook.args : [])].filter((s) => typeof s === 'string').join(' ');
         for (const m of text.matchAll(/["']?\$\{?CLAUDE_PROJECT_DIR\}?["']?\/([^\s"']+)/g)) {
           if (!exists(m[1])) errors.push(`SETTINGS: ${event} hook points at ${m[1]}, which does not exist`);
+          // A hook decides in a pure function its test pins (HARNESS.md), so a hook script without a test beside it fails.
+          else if (m[1].endsWith('.mjs') && !exists(m[1].replace(/\.mjs$/, '.test.mjs'))) errors.push(`SETTINGS: ${event} hook ${m[1]} has no test beside it (${m[1].replace(/\.mjs$/, '.test.mjs')})`);
         }
       }
     }

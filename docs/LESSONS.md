@@ -424,7 +424,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** CLAUDE.md says to fix the reviewer's blocking findings before telling the user the PR is ready, but I treated green CI as ready and did not tell the user the review was still pending when they asked to merge.
 - **Rule:** Before merging, check that the `pr-reviewer` has posted its review on the current head. If it is still running when the user says merge, say so and ask whether to wait; merge without it only when the user says so knowing that.
 - **Recurrence:** 1
-- **Promoted:** no
+- **Promoted:** `scripts/hooks/after-pr.mjs` (the reminder after a PR is created says the PR is not merged before the review is posted)
 
 ## L-044 A bigger body box broke a level route and no test noticed
 

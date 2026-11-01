@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildContext, findPullNumber } from './after-pr.mjs';
 
@@ -50,6 +52,27 @@ describe('after-pr hook', () => {
 
   it('says nothing for other tools or bad input', () => {
     expect(buildContext({ tool_name: 'Bash' })).toBeNull();
+    expect(buildContext({ tool_name: 'Bash', tool_input: { command: 'gh pr view 5' }, tool_response: { stdout: 'https://github.com/o/r/pull/5' } })).toBeNull();
+    expect(buildContext({ tool_name: 'mcp__github__create_pull_request_with_copilot', tool_response: { url: 'https://github.com/o/r/pull/5' } })).toBeNull();
     expect(buildContext(null)).toBeNull();
+  });
+
+  it('also fires for a renamed GitHub server and for gh pr create, and names the fallback agent and L-043', () => {
+    const renamed = buildContext({ tool_name: 'mcp__plugin_engineering_github__create_pull_request', tool_response: { url: 'https://github.com/o/r/pull/6' } });
+    expect(renamed).toContain('Pull request #6');
+    const gh = buildContext({ tool_name: 'Bash', tool_input: { command: 'gh pr create --fill' }, tool_response: { stdout: 'https://github.com/o/r/pull/8\n', stderr: '' } });
+    expect(gh).toContain('Pull request #8');
+    expect(gh).toContain('general-purpose agent');
+    expect(gh).toContain('L-043');
+  });
+
+  it('prints a PostToolUse additionalContext for a created PR and nothing for other tools', () => {
+    const run = (input) =>
+      spawnSync(process.execPath, [fileURLToPath(new URL('./after-pr.mjs', import.meta.url))], { input: JSON.stringify(input), encoding: 'utf8' });
+    const out = run({ tool_name: 'mcp__github__create_pull_request', tool_response: { url: 'https://github.com/o/r/pull/5' } });
+    expect(out.status).toBe(0);
+    expect(JSON.parse(out.stdout).hookSpecificOutput).toMatchObject({ hookEventName: 'PostToolUse' });
+    expect(JSON.parse(out.stdout).hookSpecificOutput.additionalContext).toContain('#5');
+    expect(run({ tool_name: 'Bash', tool_input: { command: 'ls' } }).stdout).toBe('');
   });
 });

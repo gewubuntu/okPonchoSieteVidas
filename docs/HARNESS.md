@@ -14,7 +14,7 @@ project get better at itself over time.
 | `.claude/skills/*` | Repeatable procedures: `harness-feature`, `harness-gdd-update`, `harness-playtest`, `harness-retro` (all start with `harness-`, so typing `/harness` lists them). |
 | `.claude/agents/pr-reviewer.md` | The subagent that reviews every pull request in depth. |
 | `.claude/agents/implementer.md` | The subagent that builds a feature from the main session's plan. |
-| `.claude/settings.json` | Project hooks. After a PR is created, a hook tells Claude to run the reviewer. Before a shell command, `scripts/hooks/gate-pipe.mjs` denies one that commits after the gate with anything but `&&` between them (L-012). |
+| `.claude/settings.json` | Project hooks, each a script in `scripts/hooks/` with a test beside it. After the GitHub tool creates a PR, `after-pr.mjs` tells Claude to run the reviewer and not to merge before it reports (L-043). Before a shell command, `gate-pipe.mjs` denies one that commits after a run of the gate (`node scripts/check.mjs` or `npm run check`) with anything but `&&` between them (L-012). |
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
 | `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a visible change has no screenshots. |
 | `.github/pull_request_template.md` | The PR description every PR follows, including screenshots for visible changes. |
@@ -27,7 +27,7 @@ project get better at itself over time.
 4. `docs/BACKLOG.md` has exactly one valid row for every non-deprecated GDD ID and no unknown IDs.
 5. `docs/LESSONS.md` entries are well formed, IDs are unique, and any lesson with
    `Recurrence >= 2` has been promoted.
-6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and, if they set a model, set `inherit`, because repository files do not name models; `pr-reviewer` must set it, so it runs on the main session's model. `.claude/settings.json` is valid JSON and every hook script it points at exists.
+6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and, if they set a model, set `inherit`, because repository files do not name models; `pr-reviewer` must set it, so it runs on the main session's model. `.claude/settings.json` is valid JSON and every hook script it points at exists and has a `.test.mjs` beside it.
 7. No AI model identifiers in repository files.
 8. No mutation run was interrupted (`no-mutation`, L-020): `.mutating.json` from `scripts/mutate.mjs` must not exist, except for the test that the runner itself runs.
 9. Phaser key-down events (`'down'`, `Events.DOWN`, `'keydown-X'`) in `src/` appear only in the one-line form that presses an input latch (`key-down-handlers`, L-006).
@@ -82,7 +82,7 @@ Read-only is a rule the agent follows, not a sandbox: its tool list cannot restr
 It runs in two places:
 
 1. **In a session, when Claude opens a PR.** A project hook (`.claude/settings.json` runs `scripts/hooks/after-pr.mjs` after
-   `mcp__github__create_pull_request`) tells Claude the review has not run yet. Claude launches the subagent, fixes
+   the GitHub tool's `create_pull_request`) tells Claude the review has not run yet. Claude launches the subagent, fixes
    blocking findings, then subscribes to the PR.
 2. **In a session, when the user opens a PR.** Tell Claude the PR is up and it launches the subagent on it.
 
