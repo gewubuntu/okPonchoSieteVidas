@@ -107,7 +107,7 @@ Retired IDs: L-046
 - **Area:** process
 - **What went wrong:** The lives HUD (PR #3) was built, reviewed and merged with the HUD checked only by screenshots that Claude looked at. The user never saw the images and had to ask for them.
 - **Root cause:** The harness had no step for visual approval. The playtest skill said to look at screenshots, but not to show them to the person who decides whether the result is good.
-- **Rule:** Anything the player can see is shown to the user, in the session, as desktop and phone screenshots, and approved before the PR opens (CLAUDE.md "Visible changes need the user's approval"). Approved images are committed under `docs/screenshots/` and embedded in the PR.
+- **Rule:** Anything the player can see is shown to the user, in the session, as desktop and phone screenshots, and approved before the PR is marked ready for review, a draft until then (user, 2026-11-01; before that, approved before the PR opened) (CLAUDE.md "Visible changes need the user's approval before the PR is marked ready"). Approved images are committed under `docs/screenshots/` and embedded in the PR.
 - **Recurrence:** 1
 - **Promoted:** scripts/pr-screenshots.mjs (CI warning), pr-reviewer subagent (blocking finding), CLAUDE.md
 
@@ -119,8 +119,9 @@ Retired IDs: L-046
 - **Root cause:** The check encoded one spelling of the rule (names with a version) instead of the rule itself, and no check covered agent files at all.
 - **Rule:** When a check guards a rule, test it against every spelling the rule is meant to forbid, including config fields. Agent files must use `model: inherit` (enforced in `scripts/check.mjs`).
 - **Recurrence 2 (2026-10-31, harness audit):** `scripts/hooks/gate-pipe.mjs` (L-012) looked for the text `scripts/check.mjs` and then `git commit`, so `npm run check | tail -1; git commit` and `git -C <dir> commit` went through, while `echo scripts/check.mjs; echo git commit`, a here-document quoting both, `&> log &&` and `set -o pipefail`, which L-012's rule allows, were denied. The hook now matches a run of the gate and a commit with options, and its tests hold each spelling and each harmless mention.
-- **Recurrence:** 2
-- **Promoted:** scripts/check.mjs (no-model-ids now catches a model alias in a `model` field, checkAgents requires `inherit`); the `scripts/hooks/gate-pipe.mjs` tests (each spelling of the gate and of a commit, and mentions that must pass); `docs/HARNESS.md` (Adding a check: a hook is tested with every spelling it must catch and a mention it must let through)
+- **Recurrence 3 (2026-11-01, harness audit U3, U5, U9):** the new `stale-main.mjs` and `before-merge.mjs` hooks first took `git push` and `gh pr merge` inside a commit message's here-document or a quoted string for real commands, the same flaw just fixed in `gate-pipe.mjs`; their tests held an `echo` mention but no here-document. Found by the verification before the PR. The rule in `docs/HARNESS.md` asked for "a mention it must let through" without saying which.
+- **Recurrence:** 3
+- **Promoted:** scripts/check.mjs (no-model-ids now catches a model alias in a `model` field, checkAgents requires `inherit`); the `scripts/hooks/gate-pipe.mjs` tests (each spelling of the gate and of a commit, and mentions that must pass); `docs/HARNESS.md` (Adding a check: a hook is tested with every spelling it must catch and a mention it must let through). Guard: `scripts/check.mjs` (`claude-settings`, since recurrence 3: the test of a hook that reads shell commands must hold a here-document it lets through).
 
 ## L-009 The GitHub tool mangled image URLs in the PR description
 
@@ -567,6 +568,16 @@ Retired IDs: L-046
 - **Area:** process
 - **What went wrong:** The results-screen branch was planned and built on one `main`; while its screenshots waited for approval, two PRs merged (the Language row, then the Mexican Spanish wording). The branch's new texts did not follow the new text table, and only the user's "check main again" caught it, twice.
 - **Root cause:** The work loop checks `main` at the start of a task (L-030) but not before the push, and a branch can wait a long time for the user's screenshot approval.
-- **Rule:** Right before pushing a PR, `git fetch origin main`; if it moved, rebase, read the new commits' GDD changelog lines for conventions the branch's new code must follow, rerun the gate and the touched playtests, and retake screenshots that the merged change affects.
+- **Rule:** Right before pushing a PR, `git fetch origin main`; if it moved, merge it (a pushed branch is never rebased; `harness-feature`, Push and pull request), read the new commits' GDD changelog lines for conventions the branch's new code must follow, rerun the gate and the touched playtests, and retake screenshots that the merged change affects.
 - **Recurrence:** 1
 - **Promoted:** .claude/skills/harness-feature (Push and pull request step; it merges `origin/main` rather than rebasing a pushed branch); `scripts/hooks/stale-main.mjs` (before a push or a new PR it fetches `main` and asks when the branch lacks some of it)
+
+## L-053 A changed process rule left other harness files stating the old one
+
+- **Date:** 2026-11-01
+- **Area:** harness
+- **What went wrong:** When the user chose a draft PR after every push, `CLAUDE.md` and the feature skill were updated, but the `pr-reviewer` still made missing screenshot approval blocking on every PR (so each visible-change draft would get a false blocking finding), L-007's rule still said screenshots are approved before the PR opens, L-052's rule still said to rebase a pushed branch, and `docs/HARNESS.md` repeated the reviewer's rule. The verification before the PR found them.
+- **Root cause:** The stale-sentence hunt (L-013) covers the GDD only. Nothing says that a rule changed in `CLAUDE.md` or a skill is also searched for in the other harness files, and `--lessons` now puts every lesson's Rule line in front of each session.
+- **Rule:** When a harness rule changes, search `CLAUDE.md`, `docs/HARNESS.md`, `.claude/`, the PR template, the hook messages and the lesson rules (`node scripts/check.mjs --lessons`) for the old rule's words and its consequences, and fix every sentence it now falsifies, in the same commit.
+- **Recurrence:** 1
+- **Promoted:** no

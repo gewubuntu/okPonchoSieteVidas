@@ -11,7 +11,11 @@ const CREATE_TOOL = /^mcp__.*github.*__create_pull_request$/;
 
 /** Is this shell command a `git push` (also with options before `push`, or after `cd dir &&`)? A mention is not. */
 export function isPush(command) {
-  return /(?:^|[;&|\n(]\s*)git\s+(?:-[Cc]\s+\S+\s+|--?[^\s-]\S*\s+)*push\b/.test(String(command ?? ''));
+  // A here-document's body and a quoted string are text, not commands (a commit message often says `git push`).
+  const text = String(command ?? '')
+    .replace(/<<-?\s*(['"]?)([A-Za-z_]\w*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g, '<<$3')
+    .replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, "''");
+  return /(?:^|[;&|\n(]\s*)(?:[A-Za-z_]\w*=\S*\s+)*git\s+(?:-[Cc]\s+\S+\s+|--?[^\s-]\S*\s+)*push\b/.test(text);
 }
 
 /** Does this tool call publish the branch (a push, or a new PR)? */

@@ -17,7 +17,7 @@
 <!-- Required for anything the player can see. Desktop and phone, committed under docs/screenshots/<slug>/. Embed ONE overview
 image (all states on one sheet) as a markdown image with the /raw/<commit sha>/ path and no query string:
 ![overview](https://github.com/gewubuntu/okPonchoSieteVidas/raw/<sha>/docs/screenshots/<slug>/overview.png)
-Then read the description back: the GitHub tool can wrap URLs in backticks (L-009). Write "No visible change" if there is none. -->
+Then read the description back: the GitHub tool can wrap URLs in backticks (L-009). Write "No visible change" if there is none, or, on a draft still waiting for the user's approval, "Screenshots await approval". -->
 
 - [ ] The user saw these in the session and approved them
 

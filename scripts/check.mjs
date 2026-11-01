@@ -203,6 +203,9 @@ function checkLessons() {
     for (const name of ['Date', 'Area', 'What went wrong', 'Root cause', 'Rule', 'Recurrence', 'Promoted']) {
       if (!field(name)) errors.push(`LESSONS: ${id} is missing the "${name}" field`);
     }
+    // `--lessons` prints a field's first line only, so each field stays on one line (L-001: encode the consumer's rules).
+    const wrapped = part.split('\n').slice(1).find((l) => l.trim() && !/^- \*\*/.test(l));
+    if (wrapped) errors.push(`LESSONS: ${id} has a line that is not a "- **Field:**" bullet: "${wrapped.trim().slice(0, 50)}"; keep each field on one line`);
     // The Area is the index `--lessons <area>` reads, so a lesson outside the list would never be shown.
     for (const area of (field('Area') ?? '').split(/,\s*/).filter(Boolean)) {
       if (!LESSON_AREAS.includes(area)) errors.push(`LESSONS: ${id} has Area "${area}"; use one or more of ${LESSON_AREAS.join(', ')}`);
@@ -330,6 +333,11 @@ function checkClaudeSettings() {
           if (!exists(m[1])) errors.push(`SETTINGS: ${event} hook points at ${m[1]}, which does not exist`);
           // A hook decides in a pure function its test pins (HARNESS.md), so a hook script without a test beside it fails.
           else if (m[1].endsWith('.mjs') && !exists(m[1].replace(/\.mjs$/, '.test.mjs'))) errors.push(`SETTINGS: ${event} hook ${m[1]} has no test beside it (${m[1].replace(/\.mjs$/, '.test.mjs')})`);
+          // L-008: a hook that reads shell commands sees commit messages too, which are written as here-documents and name
+          // the very commands it looks for. Its test holds such a here-document, which it must let through.
+          else if (m[1].endsWith('.mjs') && /^(Bash|\.\*)?$/.test(group.matcher ?? '') && !/<<-?\s*\\?['"]?EOF/.test(read(m[1].replace(/\.mjs$/, '.test.mjs')))) {
+            errors.push(`SETTINGS: ${event} hook ${m[1]} reads shell commands, but its test holds no here-document (<<'EOF') it must let through (L-008)`);
+          }
         }
       }
     }

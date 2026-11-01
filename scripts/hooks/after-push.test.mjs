@@ -22,6 +22,8 @@ describe('L-043 after-push hook', () => {
 
   it('says nothing for other commands, other tools or bad input', () => {
     expect(buildContext({ tool_name: 'Bash', tool_input: { command: 'echo git push' }, tool_response: { stdout: '' } })).toBeNull();
+    const message = "git commit -m \"$(cat <<'EOF'\nchore: the hook\n\ngit push now reminds of the draft PR.\nEOF\n)\"";
+    expect(buildContext({ tool_name: 'Bash', tool_input: { command: message }, tool_response: { stdout: '[x 1a2b3c4] chore: the hook' } })).toBeNull();
     expect(buildContext({ tool_name: 'mcp__github__create_pull_request', tool_response: {} })).toBeNull();
     expect(buildContext(null)).toBeNull();
   });

@@ -9,12 +9,18 @@ describe('L-043 before-merge hook', () => {
     expect(mergeQuestion({ tool_name: 'mcp__github__enable_pr_auto_merge' })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'mcp__plugin_engineering_github__merge_pull_request' })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'gh pr merge 62 --merge' } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'cd x && GH_REPO=o/r gh pr merge 62' } })).toMatch(/L-043/);
   });
 
   it('says nothing for other tools or bad input', () => {
     expect(mergeQuestion({ tool_name: 'mcp__github__disable_pr_auto_merge' })).toBeNull();
     expect(mergeQuestion({ tool_name: 'mcp__github__merge_pull_request_extra' })).toBeNull();
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'gh pr view 62' } })).toBeNull();
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'echo gh pr merge' } })).toBeNull();
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'git commit -m "x; gh pr merge 62 later"' } })).toBeNull();
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "cat > notes.md <<'EOF'\ngh pr merge 62\nEOF" } })).toBeNull();
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'grep -rn "gh pr merge" docs' } })).toBeNull();
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "git commit -m \"$(cat <<'EOF'\nchore: the hook asks before gh pr merge\nEOF\n)\"" } })).toBeNull();
     expect(mergeQuestion({ tool_name: 'Bash' })).toBeNull();
     expect(mergeQuestion(null)).toBeNull();
   });

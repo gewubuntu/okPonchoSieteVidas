@@ -11,7 +11,11 @@ const MERGE_TOOL = /^mcp__.*github.*__(merge_pull_request|enable_pr_auto_merge)$
 
 /** The reason shown in the permission prompt before a merge, or null when the call is not a merge. */
 export function mergeQuestion(input) {
-  const viaGh = input?.tool_name === 'Bash' && /\bgh\s+pr\s+merge\b/.test(input.tool_input?.command ?? '');
+  // A here-document's body and a quoted string are text, not commands (a commit message or a grep may name `gh pr merge`).
+  const command = String(input?.tool_input?.command ?? '')
+    .replace(/<<-?\s*(['"]?)([A-Za-z_]\w*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g, '<<$3')
+    .replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, "''");
+  const viaGh = input?.tool_name === 'Bash' && /(?:^|[;&|\n(]\s*)(?:[A-Za-z_]\w*=\S*\s+)*gh\s+pr\s+merge\b/.test(command);
   if (!input || !(MERGE_TOOL.test(input.tool_name ?? '') || viaGh)) return null;
   return (
     'L-043: a pull request is merged only after the pr-reviewer subagent has posted its review on its current head commit. ' +

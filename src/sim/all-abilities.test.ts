@@ -15,7 +15,9 @@ describe('L-024 the all-abilities run', () => {
     expect(ABILITY_OFF_TESTS.size).toBeGreaterThan(0);
     for (const [name, reason] of ABILITY_OFF_TESTS) {
       const parts = name.split(' > ');
-      for (const part of parts) expect(sources.some((s) => s.includes(`'${part}'`)), `${name}: "${part}"`).toBe(true);
+      // All in one file, each part after the one before it, as a describe's name comes before its tests'.
+      const inOrder = (s: string) => parts.reduce((at, part) => (at < 0 ? -1 : s.indexOf(`'${part}'`, at)), 0) >= 0;
+      expect(sources.some(inOrder), name).toBe(true);
       expect(reason.length).toBeGreaterThan(0);
     }
   });
