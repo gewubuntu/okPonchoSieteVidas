@@ -15,6 +15,11 @@ export interface UiText {
   readonly master: string;
   readonly effects: string;
   readonly language: string;
+  /** GDD-CTL-03: the Button opacity row's name and its three steps. */
+  readonly buttonOpacity: string;
+  readonly low: string;
+  readonly medium: string;
+  readonly high: string;
   readonly back: string;
   readonly gameOver: string;
   readonly retry: string;
@@ -47,6 +52,10 @@ export const TEXT: Record<Language, UiText> = {
     master: 'Master volume',
     effects: 'Effects volume',
     language: 'Language',
+    buttonOpacity: 'Button opacity',
+    low: 'Low',
+    medium: 'Medium',
+    high: 'High',
     back: 'Back',
     gameOver: 'Game over',
     retry: 'Press any button to Retry',
@@ -72,6 +81,10 @@ export const TEXT: Record<Language, UiText> = {
     master: 'Volumen general',
     effects: 'Volumen de efectos',
     language: 'Idioma',
+    buttonOpacity: 'Opacidad de botones',
+    low: 'Baja',
+    medium: 'Media',
+    high: 'Alta',
     back: 'Volver',
     gameOver: 'Fin del juego',
     retry: 'Presiona cualquier botón para reintentar',
@@ -97,6 +110,10 @@ export const TEXT: Record<Language, UiText> = {
     master: 'Gesamtlautstärke',
     effects: 'Effektlautstärke',
     language: 'Sprache',
+    buttonOpacity: 'Tastendeckkraft',
+    low: 'Niedrig',
+    medium: 'Mittel',
+    high: 'Hoch',
     back: 'Zurück',
     gameOver: 'Spiel vorbei',
     retry: 'Drücke eine Taste für einen neuen Versuch',

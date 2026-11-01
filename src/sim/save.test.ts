@@ -10,13 +10,13 @@ const bare: Level = { world: flat, spawn: { x: 24, y: 224 }, ofrendas: [], spike
 
 const text = (master: unknown, effects: unknown) => JSON.stringify({ version: 1, settings: { master, effects } });
 const read = (raw: string | null) => readSave(raw).settings;
-const en = (master: number, effects: number): Settings => ({ master, effects, language: 'en' });
+const en = (master: number, effects: number): Settings => ({ master, effects, language: 'en', buttonOpacity: 'medium' });
 
 describe('GDD-PRG-02 saved settings', () => {
   it('the settings read back as saved', () => {
-    expect(read(saveText({ settings: { master: 3, effects: 7, language: 'en' }, tutorialPlayed: false, levels: {}, run: null }))).toEqual(en(3, 7));
-    expect(saveText({ settings: { master: 3, effects: 7, language: 'en' }, tutorialPlayed: false, levels: {}, run: null })).toBe('{"version":1,"settings":{"master":3,"effects":7,"language":"en"},"progress":{"tutorialPlayed":false},"levels":{},"run":null}');
-    expect(read(saveText({ settings: { master: 0, effects: 0, language: 'en' }, tutorialPlayed: false, levels: {}, run: null }))).toEqual(en(0, 0));
+    expect(read(saveText({ settings: { master: 3, effects: 7, language: 'en', buttonOpacity: 'medium' }, tutorialPlayed: false, levels: {}, run: null }))).toEqual(en(3, 7));
+    expect(saveText({ settings: { master: 3, effects: 7, language: 'en', buttonOpacity: 'medium' }, tutorialPlayed: false, levels: {}, run: null })).toBe('{"version":1,"settings":{"master":3,"effects":7,"language":"en","buttonOpacity":"medium"},"progress":{"tutorialPlayed":false},"levels":{},"run":null}');
+    expect(read(saveText({ settings: { master: 0, effects: 0, language: 'en', buttonOpacity: 'medium' }, tutorialPlayed: false, levels: {}, run: null }))).toEqual(en(0, 0));
   });
 
   it('nothing saved opens with the defaults', () => {
@@ -69,8 +69,31 @@ describe('GDD-PRG-02 save', () => {
 
   it('GDD-PRG-02 saveText writes the settings and the progress, and reads back the same', () => {
     const data = { settings: en(4, 9), tutorialPlayed: true, levels: {}, run: null };
-    expect(saveText(data)).toBe('{"version":1,"settings":{"master":4,"effects":9,"language":"en"},"progress":{"tutorialPlayed":true},"levels":{},"run":null}');
+    expect(saveText(data)).toBe('{"version":1,"settings":{"master":4,"effects":9,"language":"en","buttonOpacity":"medium"},"progress":{"tutorialPlayed":true},"levels":{},"run":null}');
     expect(readSave(saveText(data))).toEqual(data);
+  });
+});
+
+const withOpacity = (buttonOpacity: unknown) => JSON.stringify({ version: 1, settings: { master: 3, effects: 7, buttonOpacity } });
+
+describe('GDD-PRG-02 Button opacity is saved', () => {
+  it('it is written and read back', () => {
+    for (const buttonOpacity of ['low', 'medium', 'high'] as const) {
+      const data = { settings: { master: 3, effects: 7, language: 'es' as const, buttonOpacity }, tutorialPlayed: false, levels: {}, run: null };
+      expect(JSON.parse(saveText(data)).settings, buttonOpacity).toMatchObject({ buttonOpacity });
+      expect(readSave(saveText(data), 'en').settings, buttonOpacity).toEqual(data.settings);
+    }
+  });
+
+  it('an unknown value falls back to medium alone', () => {
+    for (const buttonOpacity of ['max', 'High', 3, null, '']) {
+      expect(readSave(withOpacity(buttonOpacity), 'de').settings, JSON.stringify(buttonOpacity)).toEqual({ master: 3, effects: 7, language: 'de', buttonOpacity: 'medium' });
+    }
+  });
+
+  it('a save without it reads medium', () => {
+    expect(readSave('{"version":1,"settings":{"master":4,"effects":6,"language":"es"}}', 'en').settings).toEqual({ master: 4, effects: 6, language: 'es', buttonOpacity: 'medium' });
+    expect(readSave(null).settings.buttonOpacity).toBe('medium');
   });
 });
 
@@ -78,30 +101,30 @@ const withLanguage = (language: unknown) => JSON.stringify({ version: 1, setting
 
 describe('GDD-PRG-02 the saved language', () => {
   it('saveText writes the language', () => {
-    expect(saveText({ settings: { master: 7, effects: 10, language: 'de' }, tutorialPlayed: false, levels: {}, run: null })).toBe(
-      '{"version":1,"settings":{"master":7,"effects":10,"language":"de"},"progress":{"tutorialPlayed":false},"levels":{},"run":null}',
+    expect(saveText({ settings: { master: 7, effects: 10, language: 'de', buttonOpacity: 'medium' }, tutorialPlayed: false, levels: {}, run: null })).toBe(
+      '{"version":1,"settings":{"master":7,"effects":10,"language":"de","buttonOpacity":"medium"},"progress":{"tutorialPlayed":false},"levels":{},"run":null}',
     );
   });
 
   it('a saved language reads back', () => {
     for (const language of ['en', 'es', 'de'] as const) {
-      const data = { settings: { master: 7, effects: 3, language }, tutorialPlayed: false, levels: {}, run: null };
+      const data = { settings: { master: 7, effects: 3, language, buttonOpacity: 'medium' as const }, tutorialPlayed: false, levels: {}, run: null };
       expect(readSave(saveText(data), 'en'), language).toEqual(data);
     }
-    expect(readSave(saveText({ settings: { master: 7, effects: 3, language: 'es' }, tutorialPlayed: false, levels: {}, run: null }), 'de').settings.language).toBe('es');
+    expect(readSave(saveText({ settings: { master: 7, effects: 3, language: 'es', buttonOpacity: 'medium' }, tutorialPlayed: false, levels: {}, run: null }), 'de').settings.language).toBe('es');
   });
 
   it('no save gives the fallback language', () => {
-    expect(readSave(null, 'es').settings).toEqual({ master: 10, effects: 10, language: 'es' });
+    expect(readSave(null, 'es').settings).toEqual({ master: 10, effects: 10, language: 'es', buttonOpacity: 'medium' });
     expect(readSave('{', 'de').settings.language).toBe('de');
     expect(readSave('{"version":2,"settings":{"master":3,"effects":3}}', 'de').settings.language).toBe('de');
-    expect(readSave('{"version":1,"settings":{"master":4,"effects":6}}', 'es').settings).toEqual({ master: 4, effects: 6, language: 'es' });
+    expect(readSave('{"version":1,"settings":{"master":4,"effects":6}}', 'es').settings).toEqual({ master: 4, effects: 6, language: 'es', buttonOpacity: 'medium' });
     expect(readSave(null).settings.language).toBe('en');
   });
 
   it('a saved language that is not en, es or de falls back alone', () => {
     for (const language of ['fr', 3, 'EN', null, '']) {
-      expect(readSave(withLanguage(language), 'de').settings, JSON.stringify(language)).toEqual({ master: 4, effects: 6, language: 'de' });
+      expect(readSave(withLanguage(language), 'de').settings, JSON.stringify(language)).toEqual({ master: 4, effects: 6, language: 'de', buttonOpacity: 'medium' });
     }
   });
 });
@@ -118,7 +141,7 @@ describe('GDD-PRG-02 progress', () => {
   it('GDD-PRG-02 levels round-trip', () => {
     const data = { settings: en(4, 6), tutorialPlayed: true, levels: { '0-1': SILVER }, run: null };
     expect(saveText(data)).toBe(
-      '{"version":1,"settings":{"master":4,"effects":6,"language":"en"},"progress":{"tutorialPlayed":true},"levels":{"0-1":{"hilos":"1010","medal":"silver","bestSteps":8040,"cleared":true}},"run":null}',
+      '{"version":1,"settings":{"master":4,"effects":6,"language":"en","buttonOpacity":"medium"},"progress":{"tutorialPlayed":true},"levels":{"0-1":{"hilos":"1010","medal":"silver","bestSteps":8040,"cleared":true}},"run":null}',
     );
     expect(readSave(saveText(data), 'en', COUNTS)).toEqual(data);
   });
@@ -131,7 +154,7 @@ describe('GDD-PRG-02 progress', () => {
 
   it('GDD-PRG-02 an old save without levels reads as nothing saved', () => {
     const old = readSave('{"version":1,"settings":{"master":3,"effects":7,"language":"de"},"progress":{"tutorialPlayed":true}}', 'en', COUNTS);
-    expect(old).toEqual({ settings: { master: 3, effects: 7, language: 'de' }, tutorialPlayed: true, levels: {}, run: null });
+    expect(old).toEqual({ settings: { master: 3, effects: 7, language: 'de', buttonOpacity: 'medium' }, tutorialPlayed: true, levels: {}, run: null });
     expect(readSave(null, 'en', COUNTS).levels).toEqual({});
     expect(DEFAULT_SAVE.levels).toEqual({});
   });
@@ -272,14 +295,14 @@ describe('GDD-PRG-02 saved run', () => {
   it('GDD-PRG-02 saved run round-trips', () => {
     const data = { settings: en(4, 6), tutorialPlayed: true, levels: {}, run: RUN };
     expect(saveText(data)).toBe(
-      '{"version":1,"settings":{"master":4,"effects":6,"language":"en"},"progress":{"tutorialPlayed":true},"levels":{},"run":{"level":"0-1","checkpoint":1,"lives":5,"used":["ofrenda:0-1-1","ofrenda:0-1-2"],"hilos":"1011","clock":4210}}',
+      '{"version":1,"settings":{"master":4,"effects":6,"language":"en","buttonOpacity":"medium"},"progress":{"tutorialPlayed":true},"levels":{},"run":{"level":"0-1","checkpoint":1,"lives":5,"used":["ofrenda:0-1-1","ofrenda:0-1-2"],"hilos":"1011","clock":4210}}',
     );
     expect(readSave(saveText(data), 'en', COUNTS, OFRENDA_COUNTS)).toEqual(data);
   });
 
   it('GDD-PRG-02 saved run: an old save without run reads as none and keeps the rest', () => {
     const old = '{"version":1,"settings":{"master":3,"effects":7,"language":"de"},"progress":{"tutorialPlayed":true},"levels":{"0-1":{"hilos":"1010","medal":"silver","bestSteps":8040,"cleared":true}}}';
-    expect(readSave(old, 'en', COUNTS, OFRENDA_COUNTS)).toEqual({ settings: { master: 3, effects: 7, language: 'de' }, tutorialPlayed: true, levels: { '0-1': SILVER }, run: null });
+    expect(readSave(old, 'en', COUNTS, OFRENDA_COUNTS)).toEqual({ settings: { master: 3, effects: 7, language: 'de', buttonOpacity: 'medium' }, tutorialPlayed: true, levels: { '0-1': SILVER }, run: null });
     expect(DEFAULT_SAVE.run).toBeNull();
     expect(readSave(null, 'en', COUNTS, OFRENDA_COUNTS).run).toBeNull();
     for (const run of [null, 5, 'x', true, []]) expect(readRun(run), JSON.stringify(run)).toBeNull();

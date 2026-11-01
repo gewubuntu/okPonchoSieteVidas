@@ -22,7 +22,7 @@ export interface VolumeBar {
 }
 
 /**
- * Four rows, "Master volume", "Effects volume", "Language" and "Back", centred, the first's top at SETTINGS_MENU.top and each next
+ * Five rows, "Master volume", "Effects volume", "Language", "Button opacity" and "Back", centred, the first's top at SETTINGS_MENU.top and each next
  * directly below, growing like the pause menu's rows so none is under TOUCH.minCssPx tall on the player's screen.
  */
 export function layoutSettingsMenu(cssPerVirtualPx: number): SettingsMenuRow[] {
@@ -52,5 +52,5 @@ export function volumeBars(row: SettingsMenuRow, value: number): VolumeBar[] {
   return Array.from({ length: VOLUME.steps }, (_, i) => ({ x: left + i * (barWidth + barGap), y, w: barWidth, h: barHeight, filled: i < value }));
 }
 
-/** GDD-UI-02: the middle x of the language's name, where a volume row's bars are (the middle of their span). */
+/** GDD-UI-02, GDD-CTL-03: the middle x of the language's name or the Button opacity step's name, where a volume row's bars are (the middle of their span). */
 export const languageValueX = (row: SettingsMenuRow): number => row.x + row.w - SETTINGS_MENU.barsInset - barsSpan() / 2;

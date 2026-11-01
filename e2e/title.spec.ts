@@ -371,7 +371,8 @@ test('GDD-PRG-02 a volume changed after the tutorial started keeps the tutorial 
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
   await page.keyboard.press('ArrowLeft');
   await page.waitForFunction(() => window.__PONCHO__!.settings().master === 9);
-  expect(await savedGame(page)).toEqual({ version: 1, settings: { master: 9, effects: 10, language: 'en' }, progress: { tutorialPlayed: true }, levels: {}, run: null });
+  // L-054: the fields this rule is about, not the whole save.
+  expect(await savedGame(page)).toMatchObject({ settings: { master: 9 }, progress: { tutorialPlayed: true } });
 });
 
 test('GDD-PRG-02 where the browser refuses storage the tutorial still counts as started for this visit', async ({ page }) => {
@@ -443,7 +444,7 @@ test('GDD-PRG-02 a volume changed in the same frame as Tutorial is picked is sav
   // Settings opened, Left lowers Master, Escape comes back with Settings chosen, Up chooses Tutorial, Enter picks it.
   await keysInOneTask(page, [DOWN, DOWN, ENTER, LEFT, ESCAPE, UP, ENTER]);
   await page.waitForFunction(() => window.__PONCHO__!.level() === '0-1' && !window.__PONCHO__!.titleDrawn().shown);
-  expect((await savedGame(page))?.settings).toEqual({ master: 9, effects: 10, language: 'en' });
+  expect((await savedGame(page))?.settings).toMatchObject({ master: 9 }); // L-054
 });
 
 test('GDD-PRG-02 a volume changed in the same frame as a pick on the results menu is saved', async ({ page }) => {
@@ -454,7 +455,7 @@ test('GDD-PRG-02 a volume changed in the same frame as a pick on the results men
   // Paused, Settings opened, Left lowers Master, Escape comes back to the pause menu, Up chooses Resume, Enter resumes, Enter picks Next level.
   await keysInOneTask(page, [ESCAPE, DOWN, ENTER, LEFT, ESCAPE, UP, ENTER, ENTER]);
   await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.ticks() > 2);
-  expect((await savedGame(page))?.settings).toEqual({ master: 9, effects: 10, language: 'en' });
+  expect((await savedGame(page))?.settings).toMatchObject({ master: 9 }); // L-054
 });
 
 test('GDD-PRG-02 a volume changed in the same frame as Quit to title is saved', async ({ page }) => {
@@ -463,5 +464,5 @@ test('GDD-PRG-02 a volume changed in the same frame as Quit to title is saved', 
   // Paused, Settings opened, Left lowers Master, Escape comes back to the pause menu with Settings chosen, Down chooses Quit, Enter picks it.
   await keysInOneTask(page, [ESCAPE, DOWN, ENTER, LEFT, ESCAPE, DOWN, ENTER]);
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.level() === '1-1');
-  expect((await savedGame(page))?.settings).toEqual({ master: 9, effects: 10, language: 'en' });
+  expect((await savedGame(page))?.settings).toMatchObject({ master: 9 }); // L-054
 });

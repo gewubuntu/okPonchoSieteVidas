@@ -458,6 +458,34 @@ function checkRealtimeWaits() {
   return errors;
 }
 
+// L-054: a playtest that pins the whole saved game, or the whole saved settings, with toEqual breaks on every new field of the
+// save. Read the fields the rule is about with toMatchObject; a test of the save format itself marks its line `// L-054: format`.
+function checkWholeSavePins() {
+  const errors = [];
+  const pin = /(savedGame\([^)]*\)\)?(\?\.\w+)?\)|\.settings\))\.toEqual\(/;
+  for (const f of textFiles().filter((p) => p.startsWith(join('e2e', '')) && p.endsWith('.ts'))) {
+    read(f).split('\n').forEach((line, i) => {
+      if (pin.test(line) && !/\/\/.*\bL-054: format\b/.test(line)) errors.push(`${f.split(sep).join('/')}:${i + 1}: the saved game or settings compared whole with toEqual; check the fields the rule is about with toMatchObject (L-054)`);
+    });
+  }
+  return errors;
+}
+
+// L-045: a screenshot scenario that only the phone takes shows what a phone player sees, so it is driven by touch: no keyboard
+// press in a test that skips the desktop, `boot()` included, which presses Enter (the phone project has a keyboard, and its key presses
+// switch the tips to the keyboard's words).
+function checkPhoneShotsByTouch() {
+  const errors = [];
+  for (const f of textFiles().filter((p) => p.startsWith(join('e2e', 'shots', '')) && p.endsWith('.ts'))) {
+    const blocks = read(f).split(/\n(?=test\()/);
+    for (const block of blocks) {
+      if (!/test\.skip\(!isMobile\b/.test(block)) continue;
+      if (/\bpress\(|\.keyboard\.|\bboot\(/.test(block)) errors.push(`${f.split(sep).join('/')}: "${block.slice(0, 80).split('\n')[0]}" takes the phone only but presses keys; drive it by touch as a phone player does (L-045)`);
+    }
+  }
+  return errors;
+}
+
 // L-020: a mutation run that was killed leaves its marker, and the mutated file, behind (scripts/mutate.mjs). The runner
 // itself sets PONCHO_MUTATING for the test it runs, so a mutant tested against the gate is judged by the other checks.
 function checkNoMutation() {
@@ -469,6 +497,8 @@ const checks = [
   ['no-mutation', checkNoMutation],
   ['key-down-handlers', checkKeyDownHandlers],
   ['realtime-waits', checkRealtimeWaits],
+  ['whole-save-pins', checkWholeSavePins],
+  ['phone-shots-by-touch', checkPhoneShotsByTouch],
   ['gdd', checkGdd],
   ['gdd-open-questions', checkOpenQuestionRefs],
   ['gdd-references', checkReferences],

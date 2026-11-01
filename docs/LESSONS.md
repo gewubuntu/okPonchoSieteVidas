@@ -147,7 +147,9 @@ Retired IDs: L-046
 - **Root cause:** I wrote the test, saw it green and stopped. A green test only proves the code and the test agree, not that the test can detect the rule being broken.
 - **Rule:** After writing a test for a rule, break the code (remove the rule, move a threshold by one) and confirm the test fails, then restore. Do it for every new rule or bullet in the GDD diff, not a sample, and write the expected values from the GDD into the test instead of reading them from the code under test. The `feature` skill has this step and the `pr-reviewer` agent does it on every PR.
 - **Recurrence 9 (2026-10-26, PR #55, GDD-ART-06, found by the review):** the sun and mountain positions the scene hands to Phaser had no test, though the mutation step already named such numbers; the scene now reports them and a playtest pins them.
-- **Recurrence:** 9
+- **Recurrence 10 (2026-11-01, GDD-CTL-03 Button opacity):** the plan scaled nine alphas in `TouchControls` but gave one mutant (the outline), and the implementer added no others; three of the nine (the slide stick and the Fuego icon, drawn only in stick mode and in Fuego) then survived until a new playtest drew them. The step says each code change gets its own mutant, but I counted the wrapper as one change, not one per call site.
+- **Recurrence 11 (2026-11-01, PR #67, GDD-CTL-03, found by the review):** the clause "a tutorial tip's dashed outline round a button is not changed" had no test that could fail; `touch()` did not report the outline's alpha. It now does, and a phone playtest at Low checks it stays 1.
+- **Recurrence:** 11
 - **Promoted:** .claude/skills/harness-feature (mutation step, now one mutation per new GDD rule), pr-reviewer subagent. (Fifth time, the Tlacuache: two play-dead tests read the 2.0 s from `TLACUACHE.playDeadSteps`, so moving it did not fail them; the mutation step caught it before the commit, and the tests now say 119 and 120 steps.) (Sixth time, the same PR: the reviewer found two Tlacuache rules with no test that could fail, the claw half of "the claw or a fireball wins over a first stomp" and the wake-up twitch. My mutations went bullet by bullet and missed clauses; the feature skill now asks for one mutation per clause.) (Seventh time, PR #35: the clause "so it always starts at its normal size" was tested only for the first drop to one; resetting the start when the lives leave one had no test. The start tracking moved into a pure helper with unit tests for each path.) (Eighth time, PR #44: the hilo playback rate was computed in `PlayScene`, and the plan left the scene out of the mutants, so the reviewer could set the rate to 1 with every test green. The rate moved into a pure helper (`noteRate`) and the scene logs the rate it passes, checked in e2e; the feature skill now names numbers computed in a scene.) Guard: none (only a mutant shows that a test can fail, and no script can tell which GDD clauses a plan left without one; the pr-reviewer mutates every new rule).
 
 ## L-011 Generated audio was never listened to or measured
@@ -515,8 +517,9 @@ Retired IDs: L-046
 - **What went wrong:** For level 0-1 (then 1-1) the clear-screen shot teleported Poncho straight to the exit, so it read "Hilos 0/50", and the user asked whether hilos were still collected. Collection worked, but nothing tested it in the new level. Then the phone tip shots started the level with Enter, which made the keyboard the device used last: the phone pictures showed keyboard words ("X to claw it") beside outlined touch buttons, and that same slip hid a design hole: the touch outline did not depend on the device in use. Two occurrences in one task, so it is promoted at once.
 - **Root cause:** The shot scenarios were written for speed (teleport, `boot()` with Enter on every viewport), and the harness asked them only to assert the state they are named for (L-016), not to get there the way a player on that device would. A shortcut that skips play shows numbers and words that no player sees.
 - **Rule:** In a screenshot scenario, start the level the device's way (`start(page, isMobile)` in `e2e/helpers.ts`: a tap on a phone, Enter on a desktop), and reach a screen that shows a count (hilos, lives) after collecting some in play, so the picture shows a count a player could see. A new level gets a test that its pickups are collected in play.
-- **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-playtest (Screenshots for visual review)
+- **Recurrence 3 (2026-11-01, PR #67, GDD-CTL-03, found by the review):** the phone-only Button opacity shot started the level by a tap but reached the pause menu, the settings rows and the resume by keyboard, so the shots showed the keyboard's tip and no outline round the touch buttons; the rule named only how to start the level, not how to go on.
+- **Recurrence:** 3
+- **Promoted:** .claude/skills/harness-playtest (Screenshots for visual review) Guard: `scripts/check.mjs` (`phone-shots-by-touch`: a phone-only shot scenario presses no keys).
 
 ## L-047 A piñata was placed where its chile could not be reached
 
@@ -597,8 +600,9 @@ Retired IDs: L-046
 - **What went wrong:** `e2e/settings.spec.ts` ("the settings are kept after a reload") and a title test compared `localStorage` with the exact saved JSON. Adding `levels` (PR #63) and then `run` (PR #65) to the save each failed them in the full playtest run, though neither change touched the settings.
 - **Root cause:** The tests pinned the whole serialised save, not the fields their rule is about, so any growth of the schema read as a regression.
 - **Rule:** A test of the save parses the JSON and checks the fields its rule is about with `toMatchObject`; only a test of the save format itself pins the whole text.
-- **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-playtest (Writing a scenario, step 7); `e2e/settings.spec.ts` now reads the parsed fields.
+- **Recurrence 3 (2026-11-01, PR #67, GDD-CTL-03, found by the review):** the new `buttonOpacity` field broke four `e2e/title.spec.ts` playtests that still compared the whole saved settings with `toEqual`; the implementer added the field to each instead of reading only the volume they are about, since the skill step covers new tests, not old ones met on the way.
+- **Recurrence:** 3
+- **Promoted:** .claude/skills/harness-playtest (Writing a scenario, step 7); `e2e/settings.spec.ts` now reads the parsed fields. Guard: `scripts/check.mjs` (`whole-save-pins`: no `toEqual` on the saved game or settings in `e2e/`).
 
 ## L-055 A lesson named a cause that was never checked
 

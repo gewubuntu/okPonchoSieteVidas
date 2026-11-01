@@ -9,6 +9,20 @@ const shot = async (page: Page, info: TestInfo, name: string) => {
 // A key event on the window, so the phone project, which has a keyboard too, takes the same path.
 const press = (page: Page, code: string, keyCode: number) => page.evaluate(({ c, k }) => window.dispatchEvent(new KeyboardEvent('keydown', { code: c, keyCode: k, bubbles: true })), { c: code, k: keyCode });
 const chosen = (page: Page, row: string) => page.waitForFunction((r) => window.__PONCHO__!.settingsDrawn().chosen === r, row);
+// Touch, for the scenarios only the phone takes (L-045): a tap at a point in game px, on a touch button, or on a pause menu row.
+const tap = async (page: Page, x: number, y: number) => {
+  const box = (await page.locator('canvas').boundingBox())!;
+  const k = box.width / 480;
+  await page.touchscreen.tap(box.x + x * k, box.y + y * k);
+};
+const tapPause = async (page: Page) => {
+  const b = (await page.evaluate(() => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'pause')!;
+  await tap(page, b.x + b.w / 2, b.y + b.h / 2);
+};
+const tapPauseSettings = async (page: Page) => {
+  const r = (await page.evaluate(() => window.__PONCHO__!.pauseMenu())).find((x) => x.item === 'settings')!;
+  await tap(page, r.x + r.w / 2, r.y + r.h / 2);
+};
 
 test('GDD-UI-02 the settings screen from the pause menu, after changes, and Back chosen', async ({ page }, info) => {
   await boot(page);
@@ -31,8 +45,10 @@ test('GDD-UI-02 the settings screen from the pause menu, after changes, and Back
   await press(page, 'ArrowDown', 40);
   await chosen(page, 'language');
   await press(page, 'ArrowDown', 40);
+  await chosen(page, 'buttonOpacity');
+  await press(page, 'ArrowDown', 40);
   await chosen(page, 'back');
-  expect(await page.evaluate(() => window.__PONCHO__!.settings())).toEqual({ master: 6, effects: 10, language: 'en' });
+  expect(await page.evaluate(() => window.__PONCHO__!.settings())).toEqual({ master: 6, effects: 10, language: 'en', buttonOpacity: 'medium' });
   await shot(page, info, 'settings-pause-back');
 });
 
@@ -49,13 +65,11 @@ test('GDD-UI-02 the settings screen from the title menu', async ({ page }, info)
 
 test('GDD-UI-02 the settings screen on an upright phone', async ({ page, isMobile }, info) => {
   test.skip(!isMobile, 'touch device only');
-  await boot(page);
+  await start(page, isMobile);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  await press(page, 'Escape', 27);
-  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
-  await press(page, 'ArrowDown', 40);
-  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.chosen === 'settings');
-  await press(page, 'Enter', 13);
+  await tapPause(page);
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.shown);
+  await tapPauseSettings(page);
   await chosen(page, 'master');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().prompt === 'Turn your device sideways');
@@ -136,4 +150,35 @@ test('GDD-UI-05 the running jump tip of 0-1 in Español', async ({ page, isMobil
   await page.evaluate(() => window.__PONCHO__!.pause(true));
   expect(await page.evaluate(() => window.__PONCHO__!.tip().text)).toBe('Un salto con impulso cruza 3 casillas');
   await shot(page, info, 'language-7-tip-es');
+});
+
+// GDD-CTL-03 the touch buttons at Low and at High Button opacity, in play. Everything is done by touch, as a phone player does it (L-045):
+// the pause button, the pause menu's Settings row, the Button opacity row's halves, Back, and the pause button again to resume. The
+// desktop draws no touch buttons, so only the phone takes it.
+test('GDD-CTL-03 the touch buttons at Low and at High opacity', async ({ page, isMobile }, info) => {
+  test.skip(!isMobile, 'the desktop draws no touch buttons');
+  const tapRow = async (item: string, at: number) => {
+    const r = (await page.evaluate(() => window.__PONCHO__!.settingsMenu())).find((x) => x.item === item)!;
+    await tap(page, r.x + r.w * at, r.y + r.h / 2);
+  };
+  await start(page, isMobile);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
+  for (const [name, side, steps, shotName] of [['low', 0.25, ['low'], 'touch-opacity-1-low'], ['high', 0.75, ['medium', 'high'], 'touch-opacity-2-high']] as const) {
+    await tapPause(page);
+    await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.shown);
+    await tapPauseSettings(page);
+    await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
+    // Low is one step left of Medium; High is two steps right of Low.
+    for (const step of steps) {
+      await tapRow('buttonOpacity', side);
+      await page.waitForFunction((o) => window.__PONCHO__!.touch().opacity === o, step);
+    }
+    await tapRow('back', 0.5); // back to the pause menu
+    await page.waitForFunction(() => !window.__PONCHO__!.settingsDrawn().shown && window.__PONCHO__!.pauseDrawn().menu.shown);
+    await tapPause(page); // resume
+    await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+    expect(await page.evaluate(() => window.__PONCHO__!.touch())).toMatchObject({ visible: true, opacity: name, highlighted: 'move' });
+    expect(await page.evaluate(() => window.__PONCHO__!.tip())).toMatchObject({ device: 'touch' });
+    await shot(page, info, shotName);
+  }
 });
