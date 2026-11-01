@@ -31,8 +31,10 @@ test('GDD-UI-02 the settings screen from the pause menu, after changes, and Back
   await press(page, 'ArrowDown', 40);
   await chosen(page, 'language');
   await press(page, 'ArrowDown', 40);
+  await chosen(page, 'buttonOpacity');
+  await press(page, 'ArrowDown', 40);
   await chosen(page, 'back');
-  expect(await page.evaluate(() => window.__PONCHO__!.settings())).toEqual({ master: 6, effects: 10, language: 'en' });
+  expect(await page.evaluate(() => window.__PONCHO__!.settings())).toEqual({ master: 6, effects: 10, language: 'en', buttonOpacity: 'medium' });
   await shot(page, info, 'settings-pause-back');
 });
 
@@ -136,4 +138,44 @@ test('GDD-UI-05 the running jump tip of 0-1 in Español', async ({ page, isMobil
   await page.evaluate(() => window.__PONCHO__!.pause(true));
   expect(await page.evaluate(() => window.__PONCHO__!.tip().text)).toBe('Un salto con impulso cruza 3 casillas');
   await shot(page, info, 'language-7-tip-es');
+});
+
+// GDD-CTL-03 the touch buttons at Low and at High Button opacity, in play. The setting is changed on the settings screen opened from the
+// pause menu, as a player does, and the game resumed before the shot. The desktop draws no touch buttons, so only the phone takes it.
+test('GDD-CTL-03 the touch buttons at Low and at High opacity', async ({ page, isMobile }, info) => {
+  test.skip(!isMobile, 'the desktop draws no touch buttons');
+  await start(page, isMobile);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
+  await press(page, 'Escape', 27);
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
+  await press(page, 'ArrowDown', 40);
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.chosen === 'settings');
+  await press(page, 'Enter', 13);
+  for (const row of ['master', 'effects', 'language', 'buttonOpacity']) {
+    if (row !== 'master') await press(page, 'ArrowDown', 40);
+    await chosen(page, row);
+  }
+  for (const [key, code, name, shotName] of [['ArrowLeft', 37, 'low', 'touch-opacity-1-low'], ['ArrowRight', 39, 'high', 'touch-opacity-2-high']] as const) {
+    // Low is one step from Medium; High is two from Low.
+    for (let i = 0; i < (name === 'low' ? 1 : 2); i++) await press(page, key, code);
+    await page.waitForFunction((o) => window.__PONCHO__!.touch().opacity === o, name);
+    await press(page, 'Escape', 27); // back to the pause menu
+    await page.waitForFunction(() => !window.__PONCHO__!.settingsDrawn().shown);
+    await press(page, 'Escape', 27); // resume
+    await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+    expect(await page.evaluate(() => window.__PONCHO__!.touch())).toMatchObject({ visible: true, opacity: name });
+    await shot(page, info, shotName);
+    if (name === 'low') {
+      await press(page, 'Escape', 27);
+      await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
+      await press(page, 'ArrowDown', 40);
+      await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.chosen === 'settings');
+      await press(page, 'Enter', 13);
+      await chosen(page, 'master');
+      for (const row of ['effects', 'language', 'buttonOpacity']) {
+        await press(page, 'ArrowDown', 40);
+        await chosen(page, row);
+      }
+    }
+  }
 });

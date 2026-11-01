@@ -6,26 +6,35 @@ import type { PauseEvent } from './pause';
 export type Language = 'en' | 'es' | 'de';
 export const LANGUAGES: readonly Language[] = ['en', 'es', 'de'];
 
-/** The two volumes, each a whole number of shares from 0 to `VOLUME.steps`, and the language (GDD-UI-02, GDD-AUD-01). */
+/** The steps of the Button opacity row, in the order it goes through them (GDD-CTL-03, GDD-UI-02). */
+export type ButtonOpacity = 'low' | 'medium' | 'high';
+export const BUTTON_OPACITIES: readonly ButtonOpacity[] = ['low', 'medium', 'high'];
+
+/** The two volumes, each a whole number of shares from 0 to `VOLUME.steps`, the language and the touch buttons' opacity (GDD-UI-02, GDD-AUD-01, GDD-CTL-03). */
 export interface Settings {
   readonly master: number;
   readonly effects: number;
   readonly language: Language;
+  readonly buttonOpacity: ButtonOpacity;
 }
 
-export const DEFAULT_SETTINGS: Settings = { master: VOLUME.default, effects: VOLUME.default, language: 'en' };
+export const DEFAULT_SETTINGS: Settings = { master: VOLUME.default, effects: VOLUME.default, language: 'en', buttonOpacity: 'medium' };
 
-export type SettingsRow = 'master' | 'effects' | 'language' | 'back';
-export const SETTINGS_ROWS: readonly SettingsRow[] = ['master', 'effects', 'language', 'back'];
+export type SettingsRow = 'master' | 'effects' | 'language' | 'buttonOpacity' | 'back';
+export const SETTINGS_ROWS: readonly SettingsRow[] = ['master', 'effects', 'language', 'buttonOpacity', 'back'];
 
 const clamp = (v: number): number => Math.max(0, Math.min(VOLUME.steps, v));
 
-/** One volume row moved by `delta` shares, or the language row by `delta` places (no wrap-around); Back changes nothing. */
+/** One volume row moved by `delta` shares, or the language or Button opacity row by `delta` places (no wrap-around); Back changes nothing. */
 function nudge(settings: Settings, row: SettingsRow, delta: number): Settings {
   if (row === 'back') return settings;
   if (row === 'language') {
     const i = Math.max(0, Math.min(LANGUAGES.length - 1, LANGUAGES.indexOf(settings.language) + delta));
     return { ...settings, language: LANGUAGES[i]! };
+  }
+  if (row === 'buttonOpacity') {
+    const i = Math.max(0, Math.min(BUTTON_OPACITIES.length - 1, BUTTON_OPACITIES.indexOf(settings.buttonOpacity) + delta));
+    return { ...settings, buttonOpacity: BUTTON_OPACITIES[i]! };
   }
   return { ...settings, [row]: clamp(settings[row] + delta) };
 }
@@ -45,8 +54,8 @@ export function browserLanguage(languages: readonly string[]): Language {
 
 /**
  * One event on the open settings screen, which only the sideways screen takes (callers handle orientation). Up and Down choose
- * a row (no wrap-around), Left and Right move the chosen volume or the language, Enter, Space or Z picks Back, Escape, P, the pause button
- * and the gamepad's start leave. A tap on a volume or the language row chooses it and moves it by its half; a tap on Back leaves; any other tap does nothing.
+ * a row (no wrap-around), Left and Right move the chosen volume, the language or the Button opacity, Enter, Space or Z picks Back, Escape, P, the pause button
+ * and the gamepad's start leave. A tap on a volume, the language or the Button opacity row chooses it and moves it by its half; a tap on Back leaves; any other tap does nothing.
  * `'back'` when the event leaves the screen.
  */
 export function settingsEvent(row: SettingsRow, settings: Settings, event: PauseEvent): { row: SettingsRow; settings: Settings } | 'back' {

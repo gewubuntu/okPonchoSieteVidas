@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TAP_OFF, type PauseEvent } from './pause';
-import { browserLanguage, DEFAULT_SETTINGS, settingsEvent, sfxVolume, type Language, type Settings, type SettingsRow } from './settings';
+import { browserLanguage, DEFAULT_SETTINGS, SETTINGS_ROWS, settingsEvent, sfxVolume, type ButtonOpacity, type Language, type Settings, type SettingsRow } from './settings';
 
 /** The result of one event on the open settings screen, which does not leave it. */
 const on = (row: SettingsRow, settings: Settings, event: PauseEvent) => {
@@ -8,16 +8,19 @@ const on = (row: SettingsRow, settings: Settings, event: PauseEvent) => {
   if (result === 'back') throw new Error(`${JSON.stringify(event)} left`);
   return result;
 };
-const at = (master: number, effects: number): Settings => ({ master, effects, language: 'en' });
-const speaking = (language: Language, master = 10, effects = 10): Settings => ({ master, effects, language });
+const at = (master: number, effects: number): Settings => ({ master, effects, language: 'en', buttonOpacity: 'medium' });
+const speaking = (language: Language, master = 10, effects = 10): Settings => ({ master, effects, language, buttonOpacity: 'medium' });
+const glowing = (buttonOpacity: ButtonOpacity, master = 10, effects = 10, language: Language = 'en'): Settings => ({ master, effects, language, buttonOpacity });
 
 describe('GDD-UI-02 settings screen', () => {
   it('Up and Down choose the row above or below, with no wrap-around', () => {
     expect(on('master', DEFAULT_SETTINGS, 'menuDown').row).toBe('effects');
     expect(on('effects', DEFAULT_SETTINGS, 'menuDown').row).toBe('language');
-    expect(on('language', DEFAULT_SETTINGS, 'menuDown').row).toBe('back');
+    expect(on('language', DEFAULT_SETTINGS, 'menuDown').row).toBe('buttonOpacity');
+    expect(on('buttonOpacity', DEFAULT_SETTINGS, 'menuDown').row).toBe('back');
     expect(on('back', DEFAULT_SETTINGS, 'menuDown').row).toBe('back');
-    expect(on('back', DEFAULT_SETTINGS, 'menuUp').row).toBe('language');
+    expect(on('back', DEFAULT_SETTINGS, 'menuUp').row).toBe('buttonOpacity');
+    expect(on('buttonOpacity', DEFAULT_SETTINGS, 'menuUp').row).toBe('language');
     expect(on('language', DEFAULT_SETTINGS, 'menuUp').row).toBe('effects');
     expect(on('effects', DEFAULT_SETTINGS, 'menuUp').row).toBe('master');
     expect(on('master', DEFAULT_SETTINGS, 'menuUp').row).toBe('master');
@@ -51,7 +54,7 @@ describe('GDD-UI-02 settings screen', () => {
   });
 
   it('Escape, P and the pause button leave', () => {
-    for (const row of ['master', 'effects', 'language', 'back'] as const) {
+    for (const row of ['master', 'effects', 'language', 'buttonOpacity', 'back'] as const) {
       expect(settingsEvent(row, DEFAULT_SETTINGS, 'key'), `key on ${row}`).toBe('back');
     }
     expect(settingsEvent('master', DEFAULT_SETTINGS, 'key')).toBe('back');
@@ -99,10 +102,11 @@ describe('GDD-CTL-02 gamepad start on the settings screen', () => {
 });
 
 describe('GDD-UI-02 language row', () => {
-  it('Down from effects chooses language, Down again chooses back, Up from back chooses language', () => {
+  it('Down from effects chooses language, Down again Button opacity then back, Up from back chooses Button opacity', () => {
     expect(on('effects', DEFAULT_SETTINGS, 'menuDown').row).toBe('language');
-    expect(on('language', DEFAULT_SETTINGS, 'menuDown').row).toBe('back');
-    expect(on('back', DEFAULT_SETTINGS, 'menuUp').row).toBe('language');
+    expect(on('language', DEFAULT_SETTINGS, 'menuDown').row).toBe('buttonOpacity');
+    expect(on('buttonOpacity', DEFAULT_SETTINGS, 'menuDown').row).toBe('back');
+    expect(on('back', DEFAULT_SETTINGS, 'menuUp').row).toBe('buttonOpacity');
   });
 
   it('Right on language goes en to es to de and stays at de', () => {
@@ -148,6 +152,59 @@ describe('GDD-UI-02 language row', () => {
   it('a tap on the language row at an end changes nothing', () => {
     expect(settingsEvent('master', speaking('en'), { ...TAP_OFF, settings: { row: 'language', side: 'left' } })).toEqual({ row: 'language', settings: speaking('en') });
     expect(settingsEvent('master', speaking('de'), { ...TAP_OFF, settings: { row: 'language', side: 'right' } })).toEqual({ row: 'language', settings: speaking('de') });
+  });
+});
+
+describe('GDD-UI-02 Button opacity row', () => {
+  it('the rows are Master volume, Effects volume, Language, Button opacity and Back', () => {
+    expect(SETTINGS_ROWS).toEqual(['master', 'effects', 'language', 'buttonOpacity', 'back']);
+  });
+
+  it('Right steps low to medium to high and stops at high', () => {
+    let state = on('buttonOpacity', glowing('low'), 'menuRight');
+    expect(state.settings.buttonOpacity).toBe('medium');
+    state = on('buttonOpacity', state.settings, 'menuRight');
+    expect(state.settings.buttonOpacity).toBe('high');
+    state = on('buttonOpacity', state.settings, 'menuRight');
+    expect(state).toEqual({ row: 'buttonOpacity', settings: glowing('high') });
+  });
+
+  it('Left steps high to medium to low and stops at low', () => {
+    let state = on('buttonOpacity', glowing('high'), 'menuLeft');
+    expect(state.settings.buttonOpacity).toBe('medium');
+    state = on('buttonOpacity', state.settings, 'menuLeft');
+    expect(state.settings.buttonOpacity).toBe('low');
+    state = on('buttonOpacity', state.settings, 'menuLeft');
+    expect(state).toEqual({ row: 'buttonOpacity', settings: glowing('low') });
+  });
+
+  it('the default is medium', () => {
+    expect(DEFAULT_SETTINGS.buttonOpacity).toBe('medium');
+  });
+
+  it('a tap on the left half steps down and on the right half up, and chooses the row', () => {
+    expect(settingsEvent('master', glowing('medium'), { ...TAP_OFF, settings: { row: 'buttonOpacity', side: 'left' } })).toEqual({ row: 'buttonOpacity', settings: glowing('low') });
+    expect(settingsEvent('master', glowing('medium'), { ...TAP_OFF, settings: { row: 'buttonOpacity', side: 'right' } })).toEqual({ row: 'buttonOpacity', settings: glowing('high') });
+  });
+
+  it('pick on Button opacity does nothing', () => {
+    expect(settingsEvent('buttonOpacity', glowing('high', 4, 6, 'es'), 'pick')).toEqual({ row: 'buttonOpacity', settings: glowing('high', 4, 6, 'es') });
+  });
+
+  it('Down from Language chooses Button opacity, and Down again Back', () => {
+    const first = on('language', DEFAULT_SETTINGS, 'menuDown');
+    expect(first.row).toBe('buttonOpacity');
+    expect(on(first.row, first.settings, 'menuDown').row).toBe('back');
+  });
+
+  it('a change of Button opacity leaves the volumes and the language alone', () => {
+    expect(on('buttonOpacity', glowing('medium', 4, 6, 'de'), 'menuRight')).toEqual({ row: 'buttonOpacity', settings: glowing('high', 4, 6, 'de') });
+    expect(on('buttonOpacity', glowing('medium', 4, 6, 'es'), 'menuLeft')).toEqual({ row: 'buttonOpacity', settings: glowing('low', 4, 6, 'es') });
+  });
+
+  it('a change of a volume or the language leaves Button opacity alone', () => {
+    expect(on('master', glowing('low', 5, 5), 'menuRight').settings).toEqual(glowing('low', 6, 5));
+    expect(on('language', glowing('high'), 'menuRight').settings).toEqual(glowing('high', 10, 10, 'es'));
   });
 });
 

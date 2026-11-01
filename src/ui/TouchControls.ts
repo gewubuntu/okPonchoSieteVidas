@@ -3,9 +3,11 @@
 import Phaser from 'phaser';
 import { BASE_WIDTH, TIPS } from '../config/tuning';
 import type { PlayerInput } from '../sim/movement';
+import type { ButtonOpacity } from '../sim/settings';
 import { dashedRect } from './dashed';
 import { gamePoint } from './gamePoint';
 import { effectiveHeld, InputLatch } from './inputLatch';
+import { touchAlpha } from './touchOpacity';
 import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchButton, type TouchButtonId, type TouchMode } from './touchLayout';
 
 const IDLE_ALPHA = 0.35;
@@ -41,6 +43,11 @@ export interface TouchDebug {
   stick: number;
   /** GDD-UI-05: the button outlined by a tutorial tip, as drawn: 'move' for the left and right buttons or the stick, or null. */
   highlighted: TouchButtonId | 'move' | null;
+  /** GDD-CTL-03: the Button opacity step in use, and the alphas of the idle and the pressed buttons' outline in the last `draw()`, as drawn. */
+  opacity: ButtonOpacity;
+  alphas: { idleOutline: number; pressedOutline: number };
+  /** Every alpha the last `draw()` gave a fill or line style, in order, so a playtest can compare them across the steps. */
+  styleAlphas: readonly number[];
 }
 
 export class TouchControls {
@@ -54,6 +61,10 @@ export class TouchControls {
   private drawnPressed: TouchButtonId[] = [];
   private mode: TouchMode = loadMode();
   private stick = 0;
+  /** GDD-CTL-03: the Button opacity step, which scales every alpha `draw()` uses, and the outline alphas the last `draw()` used. */
+  private opacity: ButtonOpacity = 'medium';
+  private drawnAlphas = { idleOutline: 0, pressedOutline: 0 };
+  private styleAlphas: number[] = [];
   /** L-006: a tap on Jump or Claw that is over before the next poll still counts for one step. Left and right too: a tap of
    * either ends the Siete vidas gastadas screen (GDD-LIFE-05). */
   private readonly jumpLatch = new InputLatch();
@@ -212,7 +223,14 @@ export class TouchControls {
   }
 
   debug(): TouchDebug {
-    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick, highlighted: this.highlighted };
+    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick, highlighted: this.highlighted, opacity: this.opacity, alphas: this.drawnAlphas, styleAlphas: this.styleAlphas };
+  }
+
+  /** GDD-CTL-03: the Button opacity step; the buttons are drawn again when it changes. */
+  setOpacity(opacity: ButtonOpacity): void {
+    if (opacity === this.opacity) return;
+    this.opacity = opacity;
+    this.draw();
   }
 
   private setMode(mode: TouchMode): void {
@@ -226,19 +244,40 @@ export class TouchControls {
     this.draw();
   }
 
+  /** The buttons' fill and line styles, each alpha logged for `debug().styleAlphas`. */
+  private fill(color: number, alpha: number): Phaser.GameObjects.Graphics {
+    this.styleAlphas.push(alpha);
+    return this.gfx.fillStyle(color, alpha);
+  }
+
+  private line(width: number, color: number, alpha: number): Phaser.GameObjects.Graphics {
+    this.styleAlphas.push(alpha);
+    return this.gfx.lineStyle(width, color, alpha);
+  }
+
+  /** GDD-CTL-03: an alpha of the look as it was, scaled by the Button opacity step. */
+  private a(base: number): number {
+    return touchAlpha(base, this.opacity);
+  }
+
   /** Placeholder look: a triangle in a frame, pointing the way the button moves (the poncho motif, GDD-ART-02). */
   private draw(): void {
     this.gfx.clear();
     this.drawnPressed = [];
+    this.drawnAlphas = { idleOutline: 0, pressedOutline: 0 };
+    this.styleAlphas = [];
     for (const b of this.buttons) {
       const down = this.pressed.has(b.id);
       if (down) this.drawnPressed.push(b.id);
-      this.gfx.fillStyle(0x1b2036, down ? 0.7 : 0.45).fillRect(b.x, b.y, b.w, b.h);
-      this.gfx.lineStyle(1, 0xfff3dc, down ? PRESSED_ALPHA : IDLE_ALPHA).strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+      this.fill(0x1b2036, this.a(down ? 0.7 : 0.45)).fillRect(b.x, b.y, b.w, b.h);
+      const outline = this.a(down ? PRESSED_ALPHA : IDLE_ALPHA);
+      if (down) this.drawnAlphas.pressedOutline = outline;
+      else this.drawnAlphas.idleOutline = outline;
+      this.line(1, 0xfff3dc, outline).strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
       const cx = b.x + b.w / 2;
       const cy = b.y + b.h / 2;
       const r = b.w * 0.25;
-      this.gfx.fillStyle(down ? 0xe8a33d : 0xfff3dc, down ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
+      this.fill(down ? 0xe8a33d : 0xfff3dc, this.a(down ? PRESSED_ALPHA : IDLE_ALPHA + 0.25));
       if (b.id === 'left') this.gfx.fillTriangle(cx - r, cy, cx + r, cy - r, cx + r, cy + r);
       else if (b.id === 'right') this.gfx.fillTriangle(cx + r, cy, cx - r, cy - r, cx - r, cy + r);
       else if (b.id === 'stick') this.drawStick(b);
@@ -255,12 +294,12 @@ export class TouchControls {
     const cy = b.y + b.h / 2;
     const r = b.h * 0.18;
     const live = this.stick !== 0;
-    this.gfx.fillStyle(0xfff3dc, IDLE_ALPHA + 0.1);
+    this.fill(0xfff3dc, this.a(IDLE_ALPHA + 0.1));
     this.gfx.fillTriangle(b.x + 6, cy, b.x + 6 + r, cy - r, b.x + 6 + r, cy + r);
     this.gfx.fillTriangle(b.x + b.w - 6, cy, b.x + b.w - 6 - r, cy - r, b.x + b.w - 6 - r, cy + r);
     const travel = b.w / 2 - b.h * 0.3;
     const thumbX = b.x + b.w / 2 + this.stick * travel;
-    this.gfx.fillStyle(live ? 0xe8a33d : 0xfff3dc, live ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
+    this.fill(live ? 0xe8a33d : 0xfff3dc, this.a(live ? PRESSED_ALPHA : IDLE_ALPHA + 0.25));
     this.gfx.fillCircle(thumbX, cy, b.h * 0.3);
   }
 
@@ -269,7 +308,7 @@ export class TouchControls {
     const cx = b.x + b.w / 2;
     const cy = b.y + b.h / 2;
     const r = b.w * 0.26;
-    this.gfx.fillStyle(down ? 0xfff3dc : 0xe8602d, down ? PRESSED_ALPHA : IDLE_ALPHA + 0.35);
+    this.fill(down ? 0xfff3dc : 0xe8602d, this.a(down ? PRESSED_ALPHA : IDLE_ALPHA + 0.35));
     this.gfx.fillCircle(cx, cy + r * 0.3, r * 0.8).fillTriangle(cx - r * 0.7, cy, cx + r * 0.7, cy, cx + r * 0.1, cy - r * 1.4);
   }
 
@@ -279,7 +318,7 @@ export class TouchControls {
     const cy = b.y + b.h / 2;
     const h = b.h * 0.44;
     const w = Math.max(2, Math.round(b.w * 0.12));
-    this.gfx.fillStyle(down ? 0xe8a33d : 0xfff3dc, down ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
+    this.fill(down ? 0xe8a33d : 0xfff3dc, this.a(down ? PRESSED_ALPHA : IDLE_ALPHA + 0.25));
     this.gfx.fillRect(cx - w * 1.5, cy - h / 2, w, h).fillRect(cx + w * 0.5, cy - h / 2, w, h);
   }
 
@@ -288,7 +327,7 @@ export class TouchControls {
     const cx = b.x + b.w / 2;
     const cy = b.y + b.h / 2;
     const r = b.w * 0.28;
-    this.gfx.lineStyle(2, down ? 0xe8a33d : 0xfff3dc, down ? PRESSED_ALPHA : IDLE_ALPHA + 0.25);
+    this.line(2, down ? 0xe8a33d : 0xfff3dc, this.a(down ? PRESSED_ALPHA : IDLE_ALPHA + 0.25));
     for (const dx of [-r * 0.7, 0, r * 0.7]) this.gfx.lineBetween(cx + dx - r * 0.4, cy - r, cx + dx + r * 0.4, cy + r);
   }
 
@@ -297,7 +336,7 @@ export class TouchControls {
     const cx = b.x + b.w / 2;
     const cy = b.y + b.h / 2;
     const r = b.w * 0.14;
-    this.gfx.fillStyle(0xfff3dc, IDLE_ALPHA + 0.25);
+    this.fill(0xfff3dc, this.a(IDLE_ALPHA + 0.25));
     if (this.mode === 'buttons') {
       this.gfx.fillRect(cx - b.w * 0.3, cy - 1, b.w * 0.6, 2);
       this.gfx.fillCircle(cx, cy, r);
