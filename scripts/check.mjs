@@ -312,6 +312,12 @@ function checkAgents() {
   return errors;
 }
 
+/** Does a hook matcher (an exact name, `|` alternatives or a regular expression; empty or `*` for all) take the Bash tool? */
+function readsShell(matcher) {
+  if (!matcher || matcher === '*') return true;
+  try { return new RegExp(`^(?:${matcher})$`).test('Bash'); } catch { return false; }
+}
+
 // Project Claude Code settings: valid JSON, and every hook script it points at exists.
 function checkClaudeSettings() {
   const file = join('.claude', 'settings.json');
@@ -335,7 +341,7 @@ function checkClaudeSettings() {
           else if (m[1].endsWith('.mjs') && !exists(m[1].replace(/\.mjs$/, '.test.mjs'))) errors.push(`SETTINGS: ${event} hook ${m[1]} has no test beside it (${m[1].replace(/\.mjs$/, '.test.mjs')})`);
           // L-008: a hook that reads shell commands sees commit messages too, which are written as here-documents and name
           // the very commands it looks for. Its test holds such a here-document, which it must let through.
-          else if (m[1].endsWith('.mjs') && /^(Bash|\.\*)?$/.test(group.matcher ?? '') && !/<<-?\s*\\?['"]?EOF/.test(read(m[1].replace(/\.mjs$/, '.test.mjs')))) {
+          else if (m[1].endsWith('.mjs') && readsShell(group.matcher) && !/<<-?\s*\\?['"]?EOF/.test(read(m[1].replace(/\.mjs$/, '.test.mjs')))) {
             errors.push(`SETTINGS: ${event} hook ${m[1]} reads shell commands, but its test holds no here-document (<<'EOF') it must let through (L-008)`);
           }
         }

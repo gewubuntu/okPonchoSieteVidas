@@ -52,7 +52,7 @@
           },
           {
             "type": "command",
-            "if": "Bash(gh pr merge*)",
+            "if": "Bash(gh *)",
             "command": "node",
             "args": [
               "${CLAUDE_PROJECT_DIR}/scripts/hooks/before-merge.mjs"

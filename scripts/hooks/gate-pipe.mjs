@@ -7,7 +7,7 @@
 import { pathToFileURL } from 'node:url';
 
 // A run of the gate, by path or by its npm alias; a mention in `echo`, `grep` or `sed` is not a run.
-const GATE = /\bnode\s+(?:[^\s;&|<>()]*\/)?scripts\/check\.mjs\b|\bnpm\s+run(?:-script)?\s+(?:-\S+\s+)*check\b/g;
+const GATE = /\bnode\s+(?:[^\s;&|<>()]*\/)?scripts\/check\.mjs\b|\bnpm\s+(?:-\S+\s+)*run(?:-script)?\s+(?:-\S+\s+)*check\b/g;
 // `git commit`, also with options before it (`git -C <dir> commit`, `git -c key=value commit`).
 const COMMIT = /\bgit(?:\s+-[cC]\s+[^\s-]\S*|\s+--?[^\s-][^\s=]*(?:=\S*)?)*\s+commit\b/g;
 // A here-document's body is text, not commands, unless a shell reads it.
@@ -17,7 +17,8 @@ const HEREDOC = /<<-?\s*(['"]?)([A-Za-z_]\w*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]
 export function gateProblem(command) {
   if (typeof command !== 'string') return null;
   const text = command.replace(HEREDOC, (m, _q, _tag, rest, at, all) =>
-    /\b(?:ba|z|da|k)?sh\b/.test(all.slice(all.lastIndexOf('\n', at) + 1, at)) ? m : `<<${rest}`,
+    // A shell named on the here-document's own line, before it (`bash <<EOF`) or after it (`cat <<EOF | bash`), runs the body.
+    /\b(?:ba|z|da|k)?sh\b/.test(all.slice(all.lastIndexOf('\n', at) + 1, at) + rest) ? m : `<<${rest}`,
   );
   for (const commit of text.matchAll(COMMIT)) {
     const gate = [...text.slice(0, commit.index).matchAll(GATE)].at(-1);

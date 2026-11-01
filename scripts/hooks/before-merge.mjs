@@ -15,7 +15,10 @@ export function mergeQuestion(input) {
   const command = String(input?.tool_input?.command ?? '')
     .replace(/<<-?\s*(['"]?)([A-Za-z_]\w*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g, '<<$3')
     .replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, "''");
-  const viaGh = input?.tool_name === 'Bash' && /(?:^|[;&|\n(]\s*)(?:[A-Za-z_]\w*=\S*\s+)*gh\s+pr\s+merge\b/.test(command);
+  // `gh pr merge`, or the REST merge through `gh api` (`.../pulls/<n>/merge`), which works where `gh pr` is refused.
+  const viaGh =
+    input?.tool_name === 'Bash' &&
+    /(?:^|[;&|\n(]\s*)(?:[A-Za-z_]\w*=\S*\s+)*gh\s+(?:pr\s+merge\b|api\b[^;&|\n]*\/pulls\/\d+\/merge\b)/.test(command);
   if (!input || !(MERGE_TOOL.test(input.tool_name ?? '') || viaGh)) return null;
   return (
     'L-043: a pull request is merged only after the pr-reviewer subagent has posted its review on its current head commit. ' +

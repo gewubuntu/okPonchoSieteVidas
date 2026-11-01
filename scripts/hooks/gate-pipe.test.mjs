@@ -27,6 +27,7 @@ describe('L-012 gate-pipe hook', () => {
   it('denies the npm alias and git options before commit', () => {
     expect(gateProblem('npm run check | tail -1 && git commit -m x')).toMatch(/L-012/);
     expect(gateProblem('npm run -s check; git commit -m x')).toMatch(/L-012/);
+    expect(gateProblem('npm --silent run check | tail; git commit -m x')).toMatch(/L-012/);
     expect(gateProblem('node scripts/check.mjs | tail -1; git -C /repo commit -m x')).toMatch(/L-012/);
     expect(gateProblem('node ./scripts/check.mjs | tail -1; git -c user.name=x commit -m x')).toMatch(/L-012/);
   });
@@ -35,6 +36,7 @@ describe('L-012 gate-pipe hook', () => {
     expect(gateProblem('echo scripts/check.mjs; echo git commit-dryrun-probe')).toBeNull();
     expect(gateProblem("cat > p.mjs <<'EOF'\nconst c = 'node scripts/check.mjs | tail; git commit';\nEOF\nnode p.mjs")).toBeNull();
     expect(gateProblem("bash <<'EOF'\nnode scripts/check.mjs | tail; git commit -m x\nEOF")).toMatch(/L-012/);
+    expect(gateProblem("cat <<'EOF' | bash\nnode scripts/check.mjs | tail; git commit -m x\nEOF")).toMatch(/L-012/);
     expect(gateProblem('node scripts/check.mjs &> /tmp/gate.log && git commit -m x')).toBeNull();
     expect(gateProblem('set -o pipefail; node scripts/check.mjs | tail -1 && git commit -m x')).toBeNull();
     expect(gateProblem('set -o pipefail; node scripts/check.mjs | tail -1; git commit -m x')).toMatch(/L-012/);
