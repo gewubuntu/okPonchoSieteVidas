@@ -5,17 +5,15 @@
 
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { commandText } from './command-text.mjs';
 
 // The GitHub MCP tool that creates a pull request, under any server name.
 const CREATE_TOOL = /^mcp__.*github.*__create_pull_request$/;
 
 /** Is this shell command a `git push` (also with options before `push`, or after `cd dir &&`)? A mention is not. */
 export function isPush(command) {
-  // A here-document's body and a quoted string are text, not commands (a commit message often says `git push`).
-  const text = String(command ?? '')
-    .replace(/<<-?\s*(['"]?)([A-Za-z_]\w*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g, '<<$3')
-    .replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, "''");
-  return /(?:^|[;&|\n(]\s*)(?:[A-Za-z_]\w*=\S*\s+)*git\s+(?:-[Cc]\s+\S+\s+|--?[^\s-]\S*\s+)*push\b/.test(text);
+  // Read as written but for here-document bodies (commandText): a quoted `; git push` counts too, as this hook asks when unsure.
+  return /(?:^|[;&|\n(]\s*)(?:[A-Za-z_]\w*=\S*\s+)*git\s+(?:-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+)\s+|--?[^\s-]\S*\s+)*push\b/.test(commandText(command));
 }
 
 /** Does this tool call publish the branch (a push, or a new PR)? */

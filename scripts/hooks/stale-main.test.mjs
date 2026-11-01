@@ -13,6 +13,11 @@ describe('L-052 stale-main hook', () => {
     expect(isPush('GIT_TERMINAL_PROMPT=0 git push -u origin x')).toBe(true);
     expect(isPush('git -C "/p q" push origin x')).toBe(true);
     expect(isPush('cd /repo && git push -u origin "$(git branch --show-current)"')).toBe(true);
+    expect(isPush("echo don\\'t; git push origin HEAD; echo 'x y'")).toBe(true);
+    expect(isPush('git -C /repo \\\n  push origin x')).toBe(true);
+    expect(isPush("bash <<'EOF'\ngit push origin x\nEOF")).toBe(true);
+    // When unsure it asks: a quoted `; git push` reads as a push (an extra question, never a missed one).
+    expect(isPush('git commit -m "fix; git push later"')).toBe(true);
   });
 
   it('ignores a mention of a push and other git commands', () => {
@@ -22,7 +27,6 @@ describe('L-052 stale-main hook', () => {
     expect(isPush('git fetch origin main')).toBe(false);
     expect(isPush(undefined)).toBe(false);
     expect(isPush("git commit -m \"$(cat <<'EOF'\nchore: hook\n\ngit push now asks first.\nEOF\n)\"")).toBe(false);
-    expect(isPush('git commit -m "fix; git push later"')).toBe(false);
     expect(isPush("cat > notes.md <<'EOF'\ngit push later\nEOF")).toBe(false);
   });
 

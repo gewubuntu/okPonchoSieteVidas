@@ -5,14 +5,15 @@
 // It never fails: any problem prints nothing and exits 0.
 
 import { pathToFileURL } from 'node:url';
+import { commandText } from './command-text.mjs';
 
 // The GitHub MCP merge tools under any server name, or `gh pr merge` in a shell.
 const MERGE_TOOL = /^mcp__.*github.*__(merge_pull_request|enable_pr_auto_merge)$/;
 
 /** The reason shown in the permission prompt before a merge, or null when the call is not a merge. */
 export function mergeQuestion(input) {
-  // A here-document's body is text, not commands (a commit message may name `gh pr merge`).
-  const raw = String(input?.tool_input?.command ?? '').replace(/<<-?\s*(['"]?)([A-Za-z_]\w*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g, '<<$3');
+  // A here-document's body is text, not commands, unless a shell reads it (a commit message may name `gh pr merge`).
+  const raw = commandText(input?.tool_input?.command);
   // `gh pr merge`, or a REST merge through `gh api` (`.../pulls/<n>/merge`, which works where `gh pr` is refused), read in the
   // command as written: quoted text is not emptied, because quotes inside quotes, comments and operators in arguments made
   // that hide real merges. A quoted mention after a separator asks too; an extra question costs a click where a missed one

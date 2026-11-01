@@ -27,7 +27,7 @@ project get better at itself over time.
 4. `docs/BACKLOG.md` has exactly one valid row for every non-deprecated GDD ID and no unknown IDs.
 5. `docs/LESSONS.md` entries are well formed, each with an `Area` from the template's list (the index `--lessons` reads), IDs are unique, count up and are never deleted (only the IDs after `Retired IDs:` may be missing), any lesson with
    `Recurrence >= 2` has been promoted, and from `Recurrence` 3 its `Promoted:` names an automated guard that exists, or says why there is none (`Guard:`). Every lesson ID cited in the repository exists.
-6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and, if they set a model, set `inherit`, because repository files do not name models; `pr-reviewer` must set it, so it runs on the main session's model. `.claude/settings.json` is valid JSON and every hook script it points at exists and has a `.test.mjs` beside it; the test of a hook that reads shell commands holds a here-document (a commit message) it must let through (L-008).
+6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and, if they set a model, set `inherit`, because repository files do not name models; `pr-reviewer` must set it, so it runs on the main session's model. `.claude/settings.json` is valid JSON and every hook script it points at exists and has a `.test.mjs` beside it; the test of a hook that reads shell commands holds a here-document (a commit message) it must let through (L-008), and such a hook that answers `ask` reads commands through `scripts/hooks/command-text.mjs` (L-053).
 7. No AI model identifiers in repository files.
 8. No mutation run was interrupted (`no-mutation`, L-020): `.mutating.json` from `scripts/mutate.mjs` must not exist, except for the test that the runner itself runs.
 9. Phaser key-down events (`'down'`, `Events.DOWN`, `'keydown-X'`) in `src/` appear only in the one-line form that presses an input latch (`key-down-handlers`, L-006).
@@ -57,7 +57,7 @@ motivated the check in a comment beside it.
 
 A hook is added the same way: a script in `scripts/hooks/` that exports its decision as a pure function, a `.test.mjs`
 beside it (run by `npm test` in the gate) holding every spelling the hook must catch and the mentions it must let through, a commit message's here-document and a quoted string among them
-(L-008), and an entry in `.claude/settings.json`. A hook never fails: on any problem it prints nothing and exits 0. A hook whose answer is `ask` leans to asking: it removes here-document bodies but reads quoted text as written, since emptying quotes let quotes inside quotes hide real calls, and an extra question costs a click where a missed one costs the guard (L-008).
+(L-008), and an entry in `.claude/settings.json`. A hook never fails: on any problem it prints nothing and exits 0. A hook whose answer is `ask` leans to asking: through `scripts/hooks/command-text.mjs` it joins line continuations and removes here-document bodies no shell reads, but reads quoted text as written, since emptying quotes let quotes inside quotes hide real calls, and an extra question costs a click where a missed one costs the guard (L-008).
 
 ## Planning and building on different models
 

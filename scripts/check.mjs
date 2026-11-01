@@ -344,6 +344,11 @@ function checkClaudeSettings() {
           else if (m[1].endsWith('.mjs') && readsShell(group.matcher) && !/<<-?\s*\\?['"]?EOF/.test(read(m[1].replace(/\.mjs$/, '.test.mjs')))) {
             errors.push(`SETTINGS: ${event} hook ${m[1]} reads shell commands, but its test holds no here-document (<<'EOF') it must let through (L-008)`);
           }
+          // L-053: a hook that answers `ask` on shell commands reads them through command-text.mjs, as docs/HARNESS.md says,
+          // so a change to how commands are read reaches every such hook at once.
+          else if (m[1].endsWith('.mjs') && readsShell(group.matcher) && /permissionDecision: 'ask'/.test(read(m[1])) && !/from '\.\/command-text\.mjs'/.test(read(m[1]))) {
+            errors.push(`SETTINGS: ${event} hook ${m[1]} answers ask on shell commands but does not read them through scripts/hooks/command-text.mjs (docs/HARNESS.md, Adding a check; L-053)`);
+          }
         }
       }
     }
