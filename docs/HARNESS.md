@@ -14,7 +14,7 @@ project get better at itself over time.
 | `.claude/skills/*` | Repeatable procedures: `harness-feature`, `harness-gdd-update`, `harness-playtest`, `harness-retro` (all start with `harness-`, so typing `/harness` lists them). |
 | `.claude/agents/pr-reviewer.md` | The subagent that reviews every pull request in depth. |
 | `.claude/agents/implementer.md` | The subagent that builds a feature from the main session's plan. |
-| `.claude/settings.json` | Project hooks, each a script in `scripts/hooks/` with a test beside it. After the GitHub tool creates a PR, `after-pr.mjs` tells Claude to run the reviewer and not to merge before it reports (L-043). Before a shell command, `gate-pipe.mjs` denies one that commits after a run of the gate (`node scripts/check.mjs` or `npm run check`) with anything but `&&` between them (L-012). |
+| `.claude/settings.json` | Project hooks, each a script in `scripts/hooks/` with a test beside it. After the GitHub tool creates a PR, `after-pr.mjs` tells Claude to run the reviewer and not to merge before it reports (L-043), and after a `git push`, `after-push.mjs` tells it to open a draft PR or have the new commits re-reviewed (L-043). Before a shell command, `gate-pipe.mjs` denies one that commits after a run of the gate (`node scripts/check.mjs` or `npm run check`) with anything but `&&` between them (L-012). Before a `git push` or a new PR, `stale-main.mjs` fetches `main` and asks the user first when the branch lacks some of it (L-052, L-030). Before a merge, `before-merge.mjs` asks the user, with the reason that a PR is merged only after its review (L-043). |
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
 | `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a visible change has no screenshots. |
 | `.github/pull_request_template.md` | The PR description every PR follows, including screenshots for visible changes. |
@@ -80,12 +80,14 @@ Every PR is reviewed by the `pr-reviewer` subagent (`.claude/agents/pr-reviewer.
 
 Read-only is a rule the agent follows, not a sandbox: its tool list cannot restrict `Bash`. For each new rule the reviewer also mutates the code in its worktree and confirms a test fails.
 
-It runs in two places:
+It runs in three places:
 
 1. **In a session, when Claude opens a PR.** A project hook (`.claude/settings.json` runs `scripts/hooks/after-pr.mjs` after
    the GitHub tool's `create_pull_request`) tells Claude the review has not run yet. Claude launches the subagent, fixes
    blocking findings, then subscribes to the PR.
 2. **In a session, when the user opens a PR.** Tell Claude the PR is up and it launches the subagent on it.
+3. **After each later push to a PR.** `scripts/hooks/after-push.mjs` reminds Claude that the review covers only the head it saw,
+   so the subagent re-reviews the new commits before the PR is reported ready or merged (L-043).
 
 There is no automatic review in CI. It used to run on every PR through `.github/workflows/claude-review.yml` and an `ANTHROPIC_API_KEY` secret; the user removed it, together with the 300-line size guideline (`scripts/pr-size.mjs`), because PRs were over it almost every time.
 

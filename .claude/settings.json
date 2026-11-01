@@ -13,6 +13,20 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git push*)",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/scripts/hooks/after-push.mjs"
+            ],
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -24,6 +38,50 @@
             "command": "node",
             "args": [
               "${CLAUDE_PROJECT_DIR}/scripts/hooks/gate-pipe.mjs"
+            ],
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "Bash(git push*)",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/scripts/hooks/stale-main.mjs"
+            ],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr merge*)",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/scripts/hooks/before-merge.mjs"
+            ],
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "^mcp__.*github.*__create_pull_request$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/scripts/hooks/stale-main.mjs"
+            ],
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "^mcp__.*github.*__(merge_pull_request|enable_pr_auto_merge)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/scripts/hooks/before-merge.mjs"
             ],
             "timeout": 10
           }

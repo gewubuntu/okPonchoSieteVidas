@@ -161,7 +161,7 @@ Retired IDs: L-046
 - **Recurrence 7 (2026-10-29, PR #58, found by the review):** after the Tutorial row, GDD-UI-02, the section the PR edited, still described the title screen and "Quit to title" as before. Logged late, as recurrence 4.
 - **Recurrence 8 (2026-10-31, PR #62, found by the review):** GDD-CTL-02 listed the menus without the new results menu. Two of these five were lists of a family the new member never joined (PRs #57 and #62) and one sat inside the section the PR edited (PR #58); none was counted when it happened, since the retro ran before the review.
 - **Recurrence:** 8
-- **Promoted:** .claude/skills/harness-feature (Update docs step, which now also searches for the path of every test file or block the feature deletes or moves, and since recurrence 8 for the lists a new member of a family must join and a full re-read of each edited section; its Pull request step runs the retro on the review's findings) and .claude/skills/harness-gdd-update (step 1, the same hunt for GDD edits made outside a feature). Guard: none (which sentences a change makes false takes reading the GDD; the pr-reviewer's consistency audit is the backstop).
+- **Promoted:** .claude/skills/harness-feature (Update docs step, which now also searches for the path of every test file or block the feature deletes or moves, and since recurrence 8 for the lists a new member of a family must join and a full re-read of each edited section; its Push and pull request step runs the retro on the review's findings) and .claude/skills/harness-gdd-update (step 1, the same hunt for GDD edits made outside a feature). Guard: none (which sentences a change makes false takes reading the GDD; the pr-reviewer's consistency audit is the backstop).
 
 ## L-014 A claim about where things are in the sandbox level had no test
 
@@ -321,7 +321,7 @@ Retired IDs: L-046
 - **Rule:** At the start of every task, `git fetch origin main` and compare; if the branch carries only merged history, restart it from `origin/main` before reading the backlog or the GDD.
 - **Recurrence 2 (2026-10-31, harness audit):** the audit of the skills, subagents and hooks read the branch as it was, the merged PR #62, while `main` already held PR #63; the planned edits had to be checked again on `main` and one gate-check list rebased before they could be applied. The rule was not yet promoted, so no step said to fetch before a task that is not a feature.
 - **Recurrence:** 2
-- **Promoted:** CLAUDE.md (Work loop step 1, for every task, harness work included)
+- **Promoted:** CLAUDE.md (Work loop step 1, for every task, harness work included); `scripts/hooks/stale-main.mjs` (before a push or a new PR it fetches `main` and asks when the branch lacks some of it)
 
 ## L-031 The PR overview sheet has no tool, so each session builds one by hand
 
@@ -444,7 +444,7 @@ Retired IDs: L-046
 - **Root cause:** CLAUDE.md says to fix the reviewer's blocking findings before telling the user the PR is ready, but I treated green CI as ready and did not tell the user the review was still pending when they asked to merge.
 - **Rule:** Before merging, check that the `pr-reviewer` has posted its review on the current head. If it is still running when the user says merge, say so and ask whether to wait; merge without it only when the user says so knowing that.
 - **Recurrence:** 1
-- **Promoted:** `scripts/hooks/after-pr.mjs` (the reminder after a PR is created says the PR is not merged before the review is posted)
+- **Promoted:** `scripts/hooks/after-pr.mjs` (the reminder after a PR is created says the PR is not merged before the review is posted); `scripts/hooks/after-push.mjs` (after a push, the new commits get a re-review); `scripts/hooks/before-merge.mjs` (every merge asks the user first)
 
 ## L-044 A bigger body box broke a level route and no test noticed
 
@@ -516,4 +516,4 @@ Retired IDs: L-046
 - **Root cause:** The work loop checks `main` at the start of a task (L-030) but not before the push, and a branch can wait a long time for the user's screenshot approval.
 - **Rule:** Right before pushing a PR, `git fetch origin main`; if it moved, rebase, read the new commits' GDD changelog lines for conventions the branch's new code must follow, rerun the gate and the touched playtests, and retake screenshots that the merged change affects.
 - **Recurrence:** 1
-- **Promoted:** .claude/skills/harness-feature (Pull request step; it merges `origin/main` rather than rebasing a pushed branch)
+- **Promoted:** .claude/skills/harness-feature (Push and pull request step; it merges `origin/main` rather than rebasing a pushed branch); `scripts/hooks/stale-main.mjs` (before a push or a new PR it fetches `main` and asks when the branch lacks some of it)
