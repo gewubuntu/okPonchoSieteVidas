@@ -7,7 +7,7 @@
 import { pathToFileURL } from 'node:url';
 
 // A run of the gate, by path or by its npm alias; a mention in `echo`, `grep` or `sed` is not a run.
-const GATE = /\bnode\s+(?:[^\s;&|<>()]*\/)?scripts\/check\.mjs\b|\bnpm\s+(?:-\S+\s+)*run(?:-script)?\s+(?:-\S+\s+)*check\b/g;
+const GATE = /\bnode\s+(?:-\S+\s+)*(?:[^\s;&|<>()]*\/)?scripts\/check\.mjs\b|\bnpm\s+(?:-\S+\s+)*run(?:-script)?\s+(?:-\S+\s+)*check\b/g;
 // `git commit`, also with options before it (`git -C <dir> commit`, `git -c key=value commit`).
 const COMMIT = /\bgit(?:\s+-[cC]\s+[^\s-]\S*|\s+--?[^\s-][^\s=]*(?:=\S*)?)*\s+commit\b/g;
 // A here-document's body is text, not commands, unless a shell reads it.

@@ -28,6 +28,7 @@ describe('L-012 gate-pipe hook', () => {
     expect(gateProblem('npm run check | tail -1 && git commit -m x')).toMatch(/L-012/);
     expect(gateProblem('npm run -s check; git commit -m x')).toMatch(/L-012/);
     expect(gateProblem('npm --silent run check | tail; git commit -m x')).toMatch(/L-012/);
+    expect(gateProblem('node --no-warnings scripts/check.mjs | tail; git commit -m x')).toMatch(/L-012/);
     expect(gateProblem('node scripts/check.mjs | tail -1; git -C /repo commit -m x')).toMatch(/L-012/);
     expect(gateProblem('node ./scripts/check.mjs | tail -1; git -c user.name=x commit -m x')).toMatch(/L-012/);
   });
