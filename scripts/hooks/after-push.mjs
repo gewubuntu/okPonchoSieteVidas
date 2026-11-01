@@ -11,7 +11,8 @@ export function buildContext(input) {
   if (input?.tool_name !== 'Bash' || !isPush(input.tool_input?.command)) return null;
   const r = input.tool_response ?? {};
   const out = typeof r === 'string' ? r : `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
-  if (r.interrupted || /\[rejected\]|\[remote rejected\]|^fatal:|^error: failed to push|Everything up-to-date/m.test(out)) return null;
+  // A rejected push, local or remote, always ends with "error: failed to push", so that line covers it (L-025).
+  if (r.interrupted || /^fatal:|^error: failed to push|Everything up-to-date/m.test(out)) return null;
   return (
     'The branch was just pushed. Under CLAUDE.md (Pull requests): a branch with no open PR gets a draft PR now, and a PR ' +
     'that already has a pr-reviewer review gets a re-review of the new commits (the pr-reviewer subagent with the PR number), ' +

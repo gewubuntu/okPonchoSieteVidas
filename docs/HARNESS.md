@@ -32,7 +32,7 @@ project get better at itself over time.
 8. No mutation run was interrupted (`no-mutation`, L-020): `.mutating.json` from `scripts/mutate.mjs` must not exist, except for the test that the runner itself runs.
 9. Phaser key-down events (`'down'`, `Events.DOWN`, `'keydown-X'`) in `src/` appear only in the one-line form that presses an input latch (`key-down-handlers`, L-006).
 10. Every `waitForTimeout` or `setTimeout` in `e2e/` (a test's own time limit aside) says why real time is fine there in an `// L-042:` comment on its line; the waits written before the check are counted per file, and a count may only go down (`realtime-waits`, L-042).
-11. If `package.json` defines `lint`, `typecheck` or `test` scripts, they run and must pass. Run `npm install` first; the gate fails without `node_modules`.
+11. If `package.json` defines `lint`, `typecheck`, `test` or `test:abilities` scripts, they run and must pass. `test:abilities` reruns the simulation tests with every progression ability on (`src/sim/all-abilities.setup.ts`, L-024); a test that must keep an ability off is listed there with its reason, and a new ability fails the typecheck until it is switched on there. Run `npm install` first; the gate fails without `node_modules`.
 
 ## The improvement loop
 

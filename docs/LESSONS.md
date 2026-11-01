@@ -289,7 +289,7 @@ Retired IDs: L-046
 - **Recurrence 2 (2026-10-22, same PR, found by the review):** the list missed GDD-UI-02. A jump pressed while paused and held through the resume (marked as held by `resumeHeld`) still glided, because the glide counted any held input instead of a press the simulation saw.
 - **Recurrence 3 (2026-10-23, GDD-MOV-08, found by the review):** the wall kick reads a jump press in the air, and the list did not have the spring launch, which GDD-WLD-05 says no jump press replaces. At the sandbox spring, against a wall, a late press kicked and cut the launch from 77 to 56 px. The skill's list now names the spring launch and stomp bounce, and says to look for the button in every GDD section, not only in movement.
 - **Recurrence:** 3
-- **Promoted:** step 5 of the `harness-feature` skill (input rules): list every rule that already reads the button, including the "already held" marks of the respawn and of the pause resume, and test each with the new rule on. Guard: none (which older rules read the same button takes a search of the whole GDD; the full playtest suite, run before screenshots, is the backstop).
+- **Promoted:** step 5 of the `harness-feature` skill (input rules): list every rule that already reads the button, including the "already held" marks of the respawn and of the pause resume, and test each with the new rule on. Guard: `vitest.abilities.config.ts` (`npm run test:abilities`, in the gate: the simulation tests rerun with every progression ability on, so a new ability meets every older rule's tests; which older rules read a button on a menu or screen still takes a search of the whole GDD, with the full playtest suite as the backstop).
 
 ## L-025 A guard that another rule already covers survived its mutant
 

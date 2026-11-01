@@ -377,7 +377,8 @@ function checkToolchain() {
   if (!exists('package.json')) return [];
   const scripts = JSON.parse(read('package.json')).scripts ?? {};
   const errors = [];
-  for (const name of ['lint', 'typecheck', 'test']) {
+  // test:abilities reruns the simulation tests with every progression ability on (L-024).
+  for (const name of ['lint', 'typecheck', 'test', 'test:abilities']) {
     if (!scripts[name]) continue;
     console.log(`  running npm run ${name} ...`);
     const r = spawnSync('npm', ['run', name, '--silent'], { cwd: ROOT, stdio: 'inherit' });

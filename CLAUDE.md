@@ -42,11 +42,12 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 
 | Command | Purpose |
 | --- | --- |
-| `node scripts/check.mjs` | The gate: the harness checks listed in `docs/HARNESS.md`, then `npm run lint`, `typecheck` and `test`. Must pass before every commit. |
+| `node scripts/check.mjs` | The gate: the harness checks listed in `docs/HARNESS.md`, then `npm run lint`, `typecheck`, `test` and `test:abilities`. Must pass before every commit. |
 | `npm install` | Install dependencies (needed once; CI runs `npm ci`). |
 | `npm run dev` | Dev server on port 5173. |
 | `npm run build` | Typecheck and production build into `dist/`. |
 | `npm test` | Vitest unit tests (`src/**/*.test.ts`, `scripts/**/*.test.mjs`). |
+| `npm run test:abilities` | The simulation tests again with every progression ability on (L-024); opt-outs with reasons in `src/sim/all-abilities.setup.ts`. |
 | `npm run shots` | Screenshots for visual review: desktop and phone viewport, into `shots/` (not committed). Scenarios live in `e2e/shots/`. |
 | `node scripts/overview.mjs docs/screenshots/<slug>` | Compose the approved screenshots in that folder into its `overview.png` sheet (L-031). |
 | `node scripts/pr-screenshots.mjs [base]` | Warn if visible files changed and no screenshot was added under `docs/screenshots/`. |
