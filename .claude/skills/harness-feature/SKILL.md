@@ -36,7 +36,7 @@ The main session plans and checks; the `implementer` subagent (`.claude/agents/i
    - Fix small things yourself; send larger ones back to the implementer with SendMessage. List the mutations in the PR description.
 8. **Playtest** with the `harness-playtest` skill when the feature is visible or interactive.
    **If anything visible changed**, follow the screenshot approval rule in `CLAUDE.md` now: `npm run shots`, look at the images, show them to the user with `SendUserFile`, and wait for their approval before opening the PR.
-9. **Update docs.** Mark the backlog row `done`. If implementation forced a rule change, update the GDD with `harness-gdd-update`.
+9. **Update docs.** Mark the backlog row `done`. Make every GDD edit, including a rule change the implementation forced, with `harness-gdd-update` (version, changelog, its stale-sentence hunt).
    **Hunt the stale sentences (L-013).** Search `docs/GDD.md` for the feature's neighbours (the IDs and names it touches) and for "yet", "so far", "only", "not built" and "built for", and fix every sentence the feature now falsifies. If the feature deletes or moves a test file or test block, also search for its path: sentences that say a rule is "checked by" it go stale (L-013). Each section named in the changelog line must be in the diff. A claim about where things are in the sandbox level (reach, clearance, spotting) needs a test over the real level data (L-014).
 10. **Gate.** Run `node scripts/check.mjs` and fix everything before committing. Chain the commit on its exit code (`node scripts/check.mjs && git commit ...`), never behind a pipe to `tail` or after `;` (L-012).
 11. **Retro.** Run the `harness-retro` skill.

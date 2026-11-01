@@ -21,7 +21,7 @@ project get better at itself over time.
 
 ## What `scripts/check.mjs` enforces
 
-1. GDD has a `Version:` line and the changelog mentions that version.
+1. GDD has a `Version:` line and the changelog mentions that version. No `Open Question N` in the GDD (outside its changelog) or the backlog points past the end of the Open Questions list (`gdd-open-questions`): removing a question renumbers the ones after it.
 2. Every `GDD-XXX-NN` heading is unique and has a valid `Status:` line.
 3. Every GDD ID mentioned anywhere in the repo (docs, source, tests, skills) exists in the GDD.
 4. `docs/BACKLOG.md` has exactly one valid row for every non-deprecated GDD ID and no unknown IDs.

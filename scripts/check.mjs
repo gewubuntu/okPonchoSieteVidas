@@ -87,6 +87,32 @@ function checkGdd() {
   return errors;
 }
 
+// Open Questions are a numbered list, so removing one renumbers the ones after it. A reference past the end of the list is
+// stale (GDD 0.7.0 kept "Open Question 16" after question 15 was removed; fixed in 0.7.1). The changelog keeps old numbers.
+function checkOpenQuestionRefs() {
+  if (!exists('docs/GDD.md')) return [];
+  const lines = read('docs/GDD.md').split('\n');
+  const start = lines.findIndex((l) => /^## Open Questions\s*$/.test(l));
+  if (start < 0) return ['GDD: no "## Open Questions" section'];
+  let count = 0;
+  for (let i = start + 1; i < lines.length && !/^#{1,2}\s/.test(lines[i]); i++) if (/^\d+\.\s/.test(lines[i])) count++;
+  const log = lines.findIndex((l) => /^## Changelog\s*$/.test(l));
+  let logEnd = log;
+  while (log >= 0 && logEnd + 1 < lines.length && !/^(#{1,2}\s|---\s*$)/.test(lines[logEnd + 1])) logEnd++;
+  const errors = [];
+  const scan = (file, fileLines, skip) => fileLines.forEach((line, i) => {
+    if (skip(i)) return;
+    for (const m of line.matchAll(/Open Questions? (\d+(?:(?:, | and | to | or )\d+)*)/g)) {
+      for (const n of m[1].match(/\d+/g)) {
+        if (Number(n) < 1 || Number(n) > count) errors.push(`${file}:${i + 1}: "Open Question ${n}", but the GDD lists ${count}: renumbered?`);
+      }
+    }
+  });
+  scan('docs/GDD.md', lines, (i) => log >= 0 && i > log && i <= logEnd);
+  if (exists('docs/BACKLOG.md')) scan('docs/BACKLOG.md', read('docs/BACKLOG.md').split('\n'), () => false);
+  return errors;
+}
+
 function checkReferences() {
   if (!exists('docs/GDD.md')) return [];
   const known = new Set(parseGdd().defs.map((d) => d.id));
@@ -342,6 +368,7 @@ const checks = [
   ['key-down-handlers', checkKeyDownHandlers],
   ['realtime-waits', checkRealtimeWaits],
   ['gdd', checkGdd],
+  ['gdd-open-questions', checkOpenQuestionRefs],
   ['gdd-references', checkReferences],
   ['backlog', checkBacklog],
   ['lessons', checkLessons],
