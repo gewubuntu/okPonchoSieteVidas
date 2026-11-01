@@ -45,14 +45,18 @@ task --> mistake or friction --> LESSON (harness-retro skill)
                                  keep logged
 ```
 
-Promotion order of preference: automated check, then skill step, then prose rule in `CLAUDE.md`.
+Promotion order of preference: an automated guard (a gate check in `scripts/check.mjs`, a test, a script, or a hook in `scripts/hooks/` when the mistake is a tool call such as a command or a merge rather than a file), then skill step, then prose rule in `CLAUDE.md`.
 When a lesson is promoted, set its `Promoted:` field to where the rule now lives.
 
 ## Adding a check
 
 Add a function to `scripts/check.mjs` that returns a list of error strings, register it in
-the `checks` array, and make sure it fails on a bad input. The harness-retro skill should name the
-lesson that motivated the check in a comment.
+the `checks` array, and make sure it fails on a bad input. Name the lesson that
+motivated the check in a comment beside it.
+
+A hook is added the same way: a script in `scripts/hooks/` that exports its decision as a pure function, a `.test.mjs`
+beside it (run by `npm test` in the gate) holding every spelling the hook must catch and a mention it must let through
+(L-008), and an entry in `.claude/settings.json`. A hook never fails: on any problem it prints nothing and exits 0.
 
 ## Planning and building on different models
 

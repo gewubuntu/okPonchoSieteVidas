@@ -95,8 +95,9 @@ Prefer an automated check over a prose rule.
 - **What went wrong:** The new review subagent was first written with its `model` field set to a model alias. The rule says repository files do not name models, but the check only looked for names followed by a version number, so the gate passed. It was found by rereading the file, not by the harness.
 - **Root cause:** The check encoded one spelling of the rule (names with a version) instead of the rule itself, and no check covered agent files at all.
 - **Rule:** When a check guards a rule, test it against every spelling the rule is meant to forbid, including config fields. Agent files must use `model: inherit` (enforced in `scripts/check.mjs`).
-- **Recurrence:** 1
-- **Promoted:** scripts/check.mjs (no-model-ids now catches a model alias in a `model` field, checkAgents requires `inherit`)
+- **Recurrence 2 (2026-10-31, harness audit):** `scripts/hooks/gate-pipe.mjs` (L-012) looked for the text `scripts/check.mjs` and then `git commit`, so `npm run check | tail -1; git commit` and `git -C <dir> commit` went through, while `echo scripts/check.mjs; echo git commit`, a here-document quoting both, `&> log &&` and `set -o pipefail`, which L-012's rule allows, were denied. The hook now matches a run of the gate and a commit with options, and its tests hold each spelling and each harmless mention.
+- **Recurrence:** 2
+- **Promoted:** scripts/check.mjs (no-model-ids now catches a model alias in a `model` field, checkAgents requires `inherit`); the `scripts/hooks/gate-pipe.mjs` tests (each spelling of the gate and of a commit, and mentions that must pass); `docs/HARNESS.md` (Adding a check: a hook is tested with every spelling it must catch and a mention it must let through)
 
 ## L-009 The GitHub tool mangled image URLs in the PR description
 

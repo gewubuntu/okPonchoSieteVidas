@@ -6,21 +6,35 @@
 
 import { pathToFileURL } from 'node:url';
 
+// A run of the gate, by path or by its npm alias; a mention in `echo`, `grep` or `sed` is not a run.
+const GATE = /\bnode\s+(?:[^\s;&|<>()]*\/)?scripts\/check\.mjs\b|\bnpm\s+run(?:-script)?\s+(?:-\S+\s+)*check\b/g;
+// `git commit`, also with options before it (`git -C <dir> commit`, `git -c key=value commit`).
+const COMMIT = /\bgit(?:\s+-[cC]\s+[^\s-]\S*|\s+--?[^\s-][^\s=]*(?:=\S*)?)*\s+commit\b/g;
+// A here-document's body is text, not commands, unless a shell reads it.
+const HEREDOC = /<<-?\s*(['"]?)([A-Za-z_]\w*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g;
+
 /** The reason to deny a shell command, or null when it is fine. */
 export function gateProblem(command) {
   if (typeof command !== 'string') return null;
-  const gate = command.indexOf('scripts/check.mjs');
-  if (gate === -1) return null;
-  const commit = command.indexOf('git commit', gate);
-  if (commit === -1) return null;
-  // Redirections such as `2>&1` are fine; every other `|`, `;`, `&` on its own or new line between them is not.
-  const between = command.slice(gate, commit).replace(/\d?>&\d/g, '').replace(/&&/g, '');
-  if (!/[|;&\n]/.test(between)) return null;
-  return (
-    'L-012: this command commits after the gate with something other than `&&` between them, so a failing gate could be ' +
-    'committed (a pipe keeps only the last exit status; `;`, `||` and new lines go on after a failure). Run ' +
-    '`node scripts/check.mjs && git commit ...` with no pipe, and read the output from a separate run if needed.'
+  const text = command.replace(HEREDOC, (m, _q, _tag, rest, at, all) =>
+    /\b(?:ba|z|da|k)?sh\b/.test(all.slice(all.lastIndexOf('\n', at) + 1, at)) ? m : `<<${rest}`,
   );
+  for (const commit of text.matchAll(COMMIT)) {
+    const gate = [...text.slice(0, commit.index).matchAll(GATE)].at(-1);
+    if (!gate) continue;
+    // Redirections such as `2>&1` and `&> log` are fine, and so is a pipe after `set -o pipefail`; every other `|`, `;`,
+    // `&` on its own or new line between them is not.
+    let between = text.slice(gate.index, commit.index).replace(/\d?>&\d|&>>?|&&/g, '');
+    if (/\bset\s+-[a-z]*o\s+pipefail\b/.test(text.slice(0, gate.index))) between = between.replace(/(?<!\|)\|(?!\|)/g, '');
+    if (/[|;&\n]/.test(between)) {
+      return (
+        'L-012: this command commits after the gate with something other than `&&` between them, so a failing gate could be ' +
+        'committed (a pipe keeps only the last exit status; `;`, `||` and new lines go on after a failure). Run ' +
+        '`node scripts/check.mjs && git commit ...` with no pipe (or after `set -o pipefail`), and read the output from a separate run if needed.'
+      );
+    }
+  }
+  return null;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
