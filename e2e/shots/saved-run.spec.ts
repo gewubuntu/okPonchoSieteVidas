@@ -2,8 +2,11 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { openGame } from '../helpers';
 
+/** Two drawn frames, so the picture shows the state just checked (the game is paused, so no step runs in them). */
+const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
+
 const shot = async (page: Page, info: TestInfo, name: string) => {
-  await page.waitForTimeout(150);
+  await frames(page);
   await page.screenshot({ path: `shots/${name}-${info.project.name.replace('shots-', '')}.png` });
 };
 

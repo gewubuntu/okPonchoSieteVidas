@@ -62,7 +62,7 @@ const withSavedRun = (page: Page, tutorialPlayed = false) =>
 test('GDD-UI-02 the title screen with a saved run, Continue chosen, over 0-1', async ({ page }, info) => {
   await withSavedRun(page);
   await openGame(page, '/');
-  await page.waitForTimeout(300);
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().menu.shown);
   expect(await page.evaluate(() => window.__PONCHO__!.level())).toBe('0-1');
   expect((await page.evaluate(() => window.__PONCHO__!.titleDrawn())).menu).toMatchObject({ shown: true, items: ['Continue', 'Start', 'Tutorial', 'Settings'], chosen: 'continue' });
   await shot(page, info, 'title-continue');
