@@ -311,6 +311,28 @@ function checkClaudeSettings() {
   return errors;
 }
 
+// Skills, agents and CLAUDE.md tell the model which files to read, run or edit, and like the GDD (L-013) that text goes
+// stale when the code moves. A renamed or deleted file fails here instead of sending a session to a path that is gone.
+// Every word in backticks that starts with a top-level folder of the repository is checked; a placeholder such as
+// `docs/screenshots/<slug>/` is skipped, and so is a `:line` suffix.
+function checkHarnessPaths() {
+  const files = ['CLAUDE.md', ...[join('.claude', 'skills'), join('.claude', 'agents')].filter(exists).flatMap((d) => walk(d))]
+    .filter((f) => f.endsWith('.md') && exists(f));
+  const errors = [];
+  for (const f of files) {
+    read(f).split('\n').forEach((line, i) => {
+      for (const [, span] of line.matchAll(/`([^`]+)`/g)) {
+        for (const word of span.split(/\s+/)) {
+          const p = word.replace(/^["'(]+|["'),.:;]+$/g, '').replace(/:\d+(-\d+)?$/, '');
+          if (!/^(src|e2e|scripts|docs|assets|\.claude|\.github)\//.test(p) || /[<>*{}$]/.test(p)) continue;
+          if (!exists(p)) errors.push(`${f.split(sep).join('/')}:${i + 1}: \`${p}\` does not exist; fix the text that names it`);
+        }
+      }
+    });
+  }
+  return errors;
+}
+
 // Repository files must not name AI models (see CLAUDE.md conventions).
 function checkNoModelIds() {
   const re = /\b(claude-(opus|sonnet|haiku|fable)[\w.-]*|(opus|sonnet|haiku|fable)\s+\d|model:\s*["']?(opus|sonnet|haiku|fable)\b)/i;
@@ -410,6 +432,7 @@ const checks = [
   ['skills', checkSkills],
   ['agents', checkAgents],
   ['claude-settings', checkClaudeSettings],
+  ['harness-paths', checkHarnessPaths],
   ['no-model-ids', checkNoModelIds],
   ['toolchain', checkToolchain],
 ];
