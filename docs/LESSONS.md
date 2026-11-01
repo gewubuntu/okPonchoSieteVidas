@@ -387,7 +387,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** The feature skill only asks whether the character reference blocks the work. It does not ask whether the user has further references (sprite sheets, scenes, moods) for the specific art about to be drawn.
 - **Rule:** Before drawing any new art (a sprite, a tileset, a scene, a UI look), ask the user whether they have reference images for it, and save any they share under `assets/` with a README before drawing.
 - **Recurrence:** 1
-- **Promoted:** no
+- **Promoted:** .claude/skills/harness-feature (Check blockers step)
 
 ## L-040 Source files edited while the playtests ran
 
@@ -406,7 +406,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** The plan treated south only as the jump button and did not look up what the paused screen does with it (Space and Z have the same double role).
 - **Rule:** Before planning a press made on a menu or pause screen, look up what that screen does with the button (`pauseEvent`, `titleFrame`, `settingsEvent`); for a button that picks (Space, Z, south), the hold-back test holds the press that picked.
 - **Recurrence:** 1
-- **Promoted:** no
+- **Promoted:** .claude/skills/harness-feature (step 5, shared buttons)
 
 ## L-042 A bigger canvas slowed the playtests' frames and exposed timing by polls
 
@@ -496,4 +496,4 @@ Prefer an automated check over a prose rule.
 - **Root cause:** The work loop checks `main` at the start of a task (L-030) but not before the push, and a branch can wait a long time for the user's screenshot approval.
 - **Rule:** Right before pushing a PR, `git fetch origin main`; if it moved, rebase, read the new commits' GDD changelog lines for conventions the branch's new code must follow, rerun the gate and the touched playtests, and retake screenshots that the merged change affects.
 - **Recurrence:** 1
-- **Promoted:** no
+- **Promoted:** .claude/skills/harness-feature (Pull request step; it merges `origin/main` rather than rebasing a pushed branch)
