@@ -23,7 +23,7 @@ test('GDD-CTL-01 a real keyboard press of X and of J swings the claw', async ({ 
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
   await page.keyboard.press('KeyX', { delay: 60 });
   await page.waitForFunction(() => window.__PONCHO__!.swings() === 1);
-  await page.waitForTimeout(400);
+  await afterSwing(page, 1);
   await page.keyboard.press('KeyJ', { delay: 60 });
   await page.waitForFunction(() => window.__PONCHO__!.swings() === 2);
 });

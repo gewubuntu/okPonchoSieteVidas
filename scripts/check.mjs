@@ -295,6 +295,41 @@ function checkKeyDownHandlers() {
   return errors;
 }
 
+// L-042: a playtest times the game in simulation steps, never in real time: headless frames are slow and uneven, so a real-time
+// wait lets a different number of steps run on each machine and each run. Every waitForTimeout or setTimeout in e2e/ (a test's own
+// time limit aside) says why real time is fine there in an `// L-042:` comment on its line (a frame to draw, a browser event to
+// land). The waits written before this check are counted per file below; a count may only go down.
+const REALTIME_WAITS = {
+  'e2e/block.spec.ts': 1, 'e2e/boot.spec.ts': 2, 'e2e/collision.spec.ts': 2, 'e2e/gameover.spec.ts': 1, 'e2e/gamepad.spec.ts': 16,
+  'e2e/hud.spec.ts': 4, 'e2e/language.spec.ts': 2, 'e2e/ofrenda.spec.ts': 3, 'e2e/pause.spec.ts': 8, 'e2e/pit.spec.ts': 3,
+  'e2e/settings.spec.ts': 9, 'e2e/sfx.spec.ts': 1, 'e2e/sprite.spec.ts': 4, 'e2e/subframe.spec.ts': 9, 'e2e/title.spec.ts': 12,
+  'e2e/touch.spec.ts': 3, 'e2e/shots/pit.spec.ts': 2, 'e2e/shots/title.spec.ts': 2,
+  ...Object.fromEntries(['block', 'cactus', 'claw', 'crumble', 'desert', 'door', 'enemy', 'flip', 'fuego', 'gameover', 'glide', 'hilo', 'hud',
+    'last-life', 'level', 'level0-1', 'level1-1', 'life-loss', 'ofrenda', 'pause', 'pinata', 'platform', 'progress', 'settings', 'spikes', 'spring',
+    'taco', 'tips', 'tlacuache', 'touch', 'wallcling', 'zopilote'].map((n) => [`e2e/shots/${n}.spec.ts`, 1])),
+};
+
+function checkRealtimeWaits() {
+  const errors = [];
+  const wait = /(\b\w+\.)?\b(waitForTimeout|setTimeout)\(/g;
+  for (const f of textFiles().filter((p) => p.startsWith(join('e2e', '')) && p.endsWith('.ts'))) {
+    const file = f.split(sep).join('/');
+    const found = [];
+    read(f).split('\n').forEach((line, i) => {
+      if (/^\s*(\/\/|\*|\/\*)/.test(line) || /\/\/.*\bL-042\b/.test(line)) return; // comments, and waits marked with their reason
+      for (const m of line.matchAll(wait)) if (!/^(test|testInfo|info)\.$/.test(m[1] ?? '')) found.push(i + 1);
+    });
+    const allowed = REALTIME_WAITS[file] ?? 0;
+    if (found.length > allowed) {
+      errors.push(`${file}:${found.join(',')}: ${found.length} real-time waits where ${allowed} are allowed. Wait for simulation steps instead (a ticks() count, phaseSince(), stepUntil in e2e/helpers.ts), or say why real time is fine in an \`// L-042:\` comment on the line (L-042)`);
+    } else if (found.length < allowed) {
+      errors.push(`${file}: ${found.length} real-time waits, fewer than the ${allowed} allowed: lower its count in REALTIME_WAITS in scripts/check.mjs (L-042)`);
+    }
+  }
+  for (const file of Object.keys(REALTIME_WAITS)) if (!exists(file)) errors.push(`${file} is gone: remove it from REALTIME_WAITS in scripts/check.mjs (L-042)`);
+  return errors;
+}
+
 // L-020: a mutation run that was killed leaves its marker, and the mutated file, behind (scripts/mutate.mjs). The runner
 // itself sets PONCHO_MUTATING for the test it runs, so a mutant tested against the gate is judged by the other checks.
 function checkNoMutation() {
@@ -305,6 +340,7 @@ function checkNoMutation() {
 const checks = [
   ['no-mutation', checkNoMutation],
   ['key-down-handlers', checkKeyDownHandlers],
+  ['realtime-waits', checkRealtimeWaits],
   ['gdd', checkGdd],
   ['gdd-references', checkReferences],
   ['backlog', checkBacklog],

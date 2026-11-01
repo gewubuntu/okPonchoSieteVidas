@@ -18,7 +18,7 @@ The main session plans and checks; the `implementer` subagent (`.claude/agents/i
 5. **Plan.** Write `.plans/<GDD-ID>.md` (gitignored). The implementer starts cold and builds only what it lists, so make it self-contained:
    - the GDD IDs and sections, and the user's decisions from this session, quoted;
    - the files to touch, with the functions or line ranges, and the tuning numbers with their GDD source;
-   - every test, by name, with its setup and expected values written from the GDD, not from code. Test names include the GDD ID, e.g. `describe('GDD-MOV-02 jump', ...)`. Pure logic gets Vitest tests with no Phaser imports; a new press-driven action gets its one-task tap in `e2e/subframe.spec.ts`;
+   - every test, by name, with its setup and expected values written from the GDD, not from code. Test names include the GDD ID, e.g. `describe('GDD-MOV-02 jump', ...)`. Pure logic gets Vitest tests with no Phaser imports; a new press-driven action gets its one-task tap in `e2e/subframe.spec.ts`; a playtest or screenshot scenario follows the `harness-playtest` skill (load it before planning one);
    - the mutant list in the `scripts/mutate.mjs` format, each naming the test that must kill it;
    - whether the change is visible (screenshots needed) and which playtests to run;
    - the lessons that apply (search `docs/LESSONS.md` for the area).

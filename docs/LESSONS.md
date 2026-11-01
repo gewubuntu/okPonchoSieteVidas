@@ -160,7 +160,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** The debug hook's `enemiesDrawn()` gives only positions, so each enemy test identifies its enemy by a place in the sandbox, which holds only until something new is put there.
 - **Rule:** When adding anything to the sandbox level, run the whole e2e suite, not only the new spec. Identify an enemy in a test by its index or kind, not by a region of the screen; if the hook cannot say which is which, extend the hook.
 - **Recurrence:** 1
-- **Promoted:** no
+- **Promoted:** .claude/skills/harness-playtest (Run: the whole suite; Writing a scenario: pick out an enemy by its index or kind)
 
 ## L-016 A screenshot scenario took the wrong picture and still passed
 
@@ -169,7 +169,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** Shot scenarios had no assertions, so a scenario that misses the state it is named for runs green.
 - **Rule:** In every `e2e/shots/` scenario, assert the state the shot is named for (phase, position in view) right before taking it.
 - **Recurrence:** 1
-- **Promoted:** no
+- **Promoted:** .claude/skills/harness-playtest (Screenshots for visual review: assert the state a shot is named for right before it)
 
 ## L-017 A 1 px drawing could not be checked by pixels on the phone viewport
 
@@ -187,7 +187,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** Pixel sample points were chosen on the desktop picture. On the phone the touch buttons cover the bottom corners and sit on top of everything.
 - **Rule:** Choose pixel sample points clear of the touch buttons (their boxes come from `touch().buttons`), and run pixel tests on both viewports before pushing.
 - **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-playtest (step 6 of "Writing a scenario")
+- **Promoted:** .claude/skills/harness-playtest ("Writing a scenario", the step on reading pixels)
 
 ## L-019 A press was read from a value that had already combined two buttons
 
@@ -215,7 +215,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** The debug `step()` hook redraws everything on each call, so a paused test cannot see what `update()` draws, or fails to draw, on its own.
 - **Rule:** For anything that animates or redraws over time, add at least one playtest that runs the game unpaused through its own frames and checks the picture (or the drawn state) keeps changing.
 - **Recurrence:** 1
-- **Promoted:** no
+- **Promoted:** .claude/skills/harness-playtest (Writing a scenario: one unpaused playtest for anything that animates)
 
 ## L-022 A playtest released a held key and pressed it again inside one frame
 
@@ -224,7 +224,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** Presses are latched (L-006), releases are not: the step reads the key as held when the release and the next press land in the same frame. That is how the game behaves for a player too, so the test, not the game, was wrong.
 - **Rule:** In a playtest, after releasing a held button and before pressing it again, wait until a step has seen the release (for jump, `state().jumpWasHeld` is false). Run a new real-time playtest with `--repeat-each=3` before trusting it.
 - **Recurrence:** 1
-- **Promoted:** no
+- **Promoted:** .claude/skills/harness-playtest (Run: `--repeat-each=3`; Writing a scenario: wait until a step has seen the release)
 
 ## L-023 A layer's "stays on top" and a check made once at start had no test
 
@@ -233,7 +233,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** The pixel test only checked what the overlay covers, not what must show through it. And the tests only reached the state by changing into it, never by starting in it.
 - **Rule:** For an overlay, sample one pixel it must dim and one it must leave alone (HUD, buttons). For anything checked on an event and also once at start (orientation, focus, storage), add a test that starts in that state.
 - **Recurrence:** 1
-- **Promoted:** no
+- **Promoted:** .claude/skills/harness-playtest (Writing a scenario: an overlay samples a pixel it dims and one it leaves alone); the start-in-that-state half is not promoted
 
 ## L-024 A new rule on a held button took a short press away from an older rule
 
@@ -331,7 +331,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** Drawing and visibility were set in two places, one before and one after the state change, and the playtests read the result a few frames later, so the lag never showed locally.
 - **Rule:** Set every visibility that follows a state in the same draw step that runs after the state can change (the `draw*` calls at the end of `update()`). When a test checks that two things change together, read both in one `waitForFunction` callback.
 - **Recurrence:** 1
-- **Promoted:** no
+- **Promoted:** .claude/skills/harness-playtest (time in simulation steps: read things that change together in one `waitForFunction`); the draw-step half is not promoted
 
 ## L-034 The mutation runner took one test command per file, but each mutant needs its own test
 
@@ -415,7 +415,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** The playtests assumed a fast frame rate: they measured steps from polls and spent real time inside a timed window. Nothing had ever made the frames slow before.
 - **Rule:** A playtest times things in simulation steps recorded where they happen (`phaseSince()`, the step counters), never by polling `ticks()` around an event, and does all its slow setup (layout reads, CDP sessions) before it starts anything timed. The game keeps Phaser's delta smoothing off, so the fixed-step loop holds real time on slow frames.
 - **Recurrence:** 8
-- **Promoted:** .claude/skills/harness-playtest (Writing a scenario: time in simulation steps). Sixth time (2026-10-30, PR #60): the two sub-frame Claw tap tests in `e2e/subframe.spec.ts` waited a fixed 400 ms between taps to clear the 0.25 s cooldown; on a loaded runner (CI, and the reviewer's playtests running alongside) a tap landed in the cooldown and was rightly ignored. They now wait for each swing and then 21 steps. These tests predate the skill's rule: when a playtest file is touched, look for `waitForTimeout` or `setTimeout` used to clear a game timer. Third and fourth times (2026-10-25, GDD-MOV-06): the gamepad "held through the pause" test let real-time waits around the pause run Poncho into a door (found by the review of PR #51), and the Tlacuache screenshot scenario assumed where the Tlacuache had walked before the pause; both now step the game to a known state. An automated check is still open: no cheap rule tells a harmless real-time wait from a timed one. Second time, the same PR, in the full run after merging main: the touch stick speed test waited 300 ms of real time before reading the speed; under the parallel run the game lagged behind and he had not reached top speed. It now waits 18 steps. Fifth time (2026-10-26, GDD-ART-06): the desert backdrop textured the whole screen, the headless frame rate fell from about 29 to 10, and 13 playtests failed on real-time waits and tick polls. The backdrop now textures little (flat bands and a flat mountain foot, small images for the sun, clouds and dither), and the failing tests step the game in the page with `stepUntil` (`e2e/helpers.ts`). New art should be measured for its headless frame rate before the full suite runs. Seventh time (2026-10-31, PR #62): the new Retry playtest read the HUD hilo count before letting the game step 130 times, and Poncho slid over another hilo in those steps; it now reads the count after the steps it waits. Eighth time (2026-10-31, CI of PR #62): `e2e/touch.spec.ts` waited for the claw's phase to leave idle, a state of about 20 steps that a loaded runner's polls missed; it now waits for the swing counter. Rule kept: wait for a counter or a lasting state, never for a short-lived one.
+- **Promoted:** `scripts/check.mjs` (`realtime-waits`, after the eighth time: a new `waitForTimeout` or `setTimeout` in `e2e/` fails unless an `// L-042:` comment on its line says why real time is fine; the waits written before are counted per file) and .claude/skills/harness-playtest (Writing a scenario: time in simulation steps). Sixth time (2026-10-30, PR #60): the two sub-frame Claw tap tests in `e2e/subframe.spec.ts` waited a fixed 400 ms between taps to clear the 0.25 s cooldown; on a loaded runner (CI, and the reviewer's playtests running alongside) a tap landed in the cooldown and was rightly ignored. They now wait for each swing and then 21 steps. These tests predate the skill's rule: when a playtest file is touched, look for `waitForTimeout` or `setTimeout` used to clear a game timer. Third and fourth times (2026-10-25, GDD-MOV-06): the gamepad "held through the pause" test let real-time waits around the pause run Poncho into a door (found by the review of PR #51), and the Tlacuache screenshot scenario assumed where the Tlacuache had walked before the pause; both now step the game to a known state. No cheap rule tells a harmless real-time wait from a timed one, so the check added after the eighth time asks every new wait to say why instead. Second time, the same PR, in the full run after merging main: the touch stick speed test waited 300 ms of real time before reading the speed; under the parallel run the game lagged behind and he had not reached top speed. It now waits 18 steps. Fifth time (2026-10-26, GDD-ART-06): the desert backdrop textured the whole screen, the headless frame rate fell from about 29 to 10, and 13 playtests failed on real-time waits and tick polls. The backdrop now textures little (flat bands and a flat mountain foot, small images for the sun, clouds and dither), and the failing tests step the game in the page with `stepUntil` (`e2e/helpers.ts`). New art should be measured for its headless frame rate before the full suite runs. Seventh time (2026-10-31, PR #62): the new Retry playtest read the HUD hilo count before letting the game step 130 times, and Poncho slid over another hilo in those steps; it now reads the count after the steps it waits. Eighth time (2026-10-31, CI of PR #62): `e2e/touch.spec.ts` waited for the claw's phase to leave idle, a state of about 20 steps that a loaded runner's polls missed; it now waits for the swing counter. Rule kept: wait for a counter or a lasting state, never for a short-lived one.
 
 ## L-043 A PR was merged before its deep review reported
 
