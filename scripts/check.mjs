@@ -472,14 +472,15 @@ function checkWholeSavePins() {
 }
 
 // L-045: a screenshot scenario that only the phone takes shows what a phone player sees, so it is driven by touch: no keyboard
-// press in a test that skips the desktop (the phone project has a keyboard, and its key presses switch the tips to the keyboard's words).
+// press in a test that skips the desktop, `boot()` included, which presses Enter (the phone project has a keyboard, and its key presses
+// switch the tips to the keyboard's words).
 function checkPhoneShotsByTouch() {
   const errors = [];
   for (const f of textFiles().filter((p) => p.startsWith(join('e2e', 'shots', '')) && p.endsWith('.ts'))) {
     const blocks = read(f).split(/\n(?=test\()/);
     for (const block of blocks) {
       if (!/test\.skip\(!isMobile\b/.test(block)) continue;
-      if (/\bpress\(|\.keyboard\./.test(block)) errors.push(`${f.split(sep).join('/')}: "${block.slice(0, 80).split('\n')[0]}" takes the phone only but presses keys; drive it by touch as a phone player does (L-045)`);
+      if (/\bpress\(|\.keyboard\.|\bboot\(/.test(block)) errors.push(`${f.split(sep).join('/')}: "${block.slice(0, 80).split('\n')[0]}" takes the phone only but presses keys; drive it by touch as a phone player does (L-045)`);
     }
   }
   return errors;

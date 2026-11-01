@@ -13,6 +13,8 @@ import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchBu
 const IDLE_ALPHA = 0.35;
 const PRESSED_ALPHA = 0.75;
 const MODE_KEY = 'poncho.touchMode';
+/** Phaser's Graphics command for a line style (`Commands.LINE_STYLE` in Phaser's graphics module, not exported in its types). */
+const LINE_STYLE = 6;
 
 /** A finger, told apart from a later one on the same pointer slot by when it went down. */
 const fingerKey = (p: { id: number; downTime: number }): string => `${p.id}:${p.downTime}`;
@@ -58,7 +60,6 @@ export class TouchControls {
   /** GDD-UI-05: the dashed outline a tutorial tip draws round a button, just above the buttons, and what it is round. */
   private readonly highlightGfx: Phaser.GameObjects.Graphics;
   private highlighted: TouchButtonId | 'move' | null = null;
-  private highlightAlpha = 0;
   private buttons: TouchButton[] = [];
   private pressed = new Set<TouchButtonId>();
   private drawnPressed: TouchButtonId[] = [];
@@ -207,7 +208,6 @@ export class TouchControls {
   highlight(button: TouchButtonId | 'move' | null, grow: number, alpha: number): void {
     this.highlightGfx.clear();
     this.highlighted = null;
-    this.highlightAlpha = 0;
     if (!this.enabled || button === null || alpha <= 0) return;
     const boxes = this.buttons.filter((b) => (button === 'move' ? b.id === 'left' || b.id === 'right' || b.id === 'stick' : b.id === button));
     if (boxes.length === 0) return;
@@ -217,11 +217,20 @@ export class TouchControls {
     const x1 = Math.max(...boxes.map((b) => b.x + b.w)) + grown;
     const y1 = Math.max(...boxes.map((b) => b.y + b.h)) + grown;
     // GDD-CTL-03: the tip's outline keeps the tip's own alpha, whatever the Button opacity.
-    const outline = alpha;
-    this.highlightGfx.lineStyle(1, 0xfff3dc, outline);
+    this.highlightGfx.lineStyle(1, 0xfff3dc, alpha);
     dashedRect(this.highlightGfx, x0, y0, x1 - x0, y1 - y0);
     this.highlighted = button;
-    this.highlightAlpha = outline;
+  }
+
+  /**
+   * The alpha of the tip outline's line style as Phaser holds it, 0 with no outline: after `clear()` the first command in the
+   * Graphics buffer is that `lineStyle` (LINE_STYLE, width, colour, alpha), so this reads what was drawn, not what was meant.
+   */
+  private drawnHighlightAlpha(): number {
+    const buffer: unknown = Reflect.get(this.highlightGfx, 'commandBuffer');
+    if (this.highlighted === null || !Array.isArray(buffer) || buffer[0] !== LINE_STYLE) return 0;
+    const alpha: unknown = buffer[3];
+    return typeof alpha === 'number' ? alpha : 0;
   }
 
   /** Whether a point (in game px) is on the pause button (GDD-UI-02). Always false without touch. */
@@ -230,7 +239,7 @@ export class TouchControls {
   }
 
   debug(): TouchDebug {
-    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick, highlighted: this.highlighted, opacity: this.opacity, alphas: this.drawnAlphas, styleAlphas: this.styleAlphas, highlightAlpha: this.highlightAlpha };
+    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick, highlighted: this.highlighted, opacity: this.opacity, alphas: this.drawnAlphas, styleAlphas: this.styleAlphas, highlightAlpha: this.drawnHighlightAlpha() };
   }
 
   /** GDD-CTL-03: the Button opacity step; the buttons are drawn again when it changes. */

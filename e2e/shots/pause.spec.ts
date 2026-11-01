@@ -1,6 +1,6 @@
 // Screenshots of the pause screen for visual review. Run with `npm run shots`; images land in shots/ (not committed).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { boot } from '../helpers';
+import { boot, start } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
   await page.waitForTimeout(150);
@@ -33,7 +33,7 @@ test('GDD-UI-02 playing, with the touch pause button, then paused', async ({ pag
 
 test('GDD-UI-02 a phone turned upright', async ({ page, isMobile }, info) => {
   test.skip(!isMobile, 'touch device only');
-  await boot(page);
+  await start(page, isMobile);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().prompt === 'Turn your device sideways');
