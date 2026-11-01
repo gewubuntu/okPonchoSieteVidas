@@ -25,8 +25,8 @@ project get better at itself over time.
 2. Every `GDD-XXX-NN` heading is unique and has a valid `Status:` line.
 3. Every GDD ID mentioned anywhere in the repo (docs, source, tests, skills) exists in the GDD.
 4. `docs/BACKLOG.md` has exactly one valid row for every non-deprecated GDD ID and no unknown IDs.
-5. `docs/LESSONS.md` entries are well formed, IDs are unique, and any lesson with
-   `Recurrence >= 2` has been promoted.
+5. `docs/LESSONS.md` entries are well formed, IDs are unique, count up and are never deleted (only the IDs after `Retired IDs:` may be missing), any lesson with
+   `Recurrence >= 2` has been promoted, and from `Recurrence` 3 its `Promoted:` names an automated guard that exists, or says why there is none (`Guard:`). Every lesson ID cited in the repository exists.
 6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and, if they set a model, set `inherit`, because repository files do not name models; `pr-reviewer` must set it, so it runs on the main session's model. `.claude/settings.json` is valid JSON and every hook script it points at exists and has a `.test.mjs` beside it.
 7. No AI model identifiers in repository files.
 8. No mutation run was interrupted (`no-mutation`, L-020): `.mutating.json` from `scripts/mutate.mjs` must not exist, except for the test that the runner itself runs.
@@ -47,7 +47,7 @@ task --> mistake or friction --> LESSON (harness-retro skill)
 ```
 
 Promotion order of preference: an automated guard (a gate check in `scripts/check.mjs`, a test, a script, or a hook in `scripts/hooks/` when the mistake is a tool call such as a command or a merge rather than a file), then skill step, then prose rule in `CLAUDE.md`.
-When a lesson is promoted, set its `Promoted:` field to where the rule now lives.
+When a lesson is promoted, set its `Promoted:` field to where the rule now lives. A lesson that recurs after a promotion to prose moves up to an automated guard (`harness-retro` step 3).
 
 ## Adding a check
 

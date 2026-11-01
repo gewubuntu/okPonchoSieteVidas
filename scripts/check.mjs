@@ -171,10 +171,12 @@ function checkLessons() {
   const body = text.replace(/```[\s\S]*?```/g, ''); // ignore the template in the code fence
   const parts = body.split(/^(?=## L-\d{3}\b)/m).slice(1);
   const seen = new Set();
+  const order = [];
   for (const part of parts) {
     const id = /^## (L-\d{3})\b/.exec(part)[1];
     if (seen.has(id)) errors.push(`LESSONS: duplicate ${id}`);
     seen.add(id);
+    order.push(Number(id.slice(2)));
     const field = (name) => new RegExp(`^- \\*\\*${name}:\\*\\*\\s*(.+)$`, 'm').exec(part)?.[1].trim();
     for (const name of ['Date', 'What went wrong', 'Root cause', 'Rule', 'Recurrence', 'Promoted']) {
       if (!field(name)) errors.push(`LESSONS: ${id} is missing the "${name}" field`);
@@ -186,6 +188,38 @@ function checkLessons() {
     else if (rec !== undefined && Number(rec) >= 2 && /^no\b/i.test(field('Promoted') ?? 'no')) {
       errors.push(`LESSONS: ${id} has Recurrence ${rec} but is not promoted (see the promotion rule)`);
     }
+    // A lesson back a third time has outlived a prose rule: Promoted names its automated guard, or says why none can work.
+    if (Number(rec) >= 3) {
+      const guard = /\bGuard: (?:`([^`]+)`|none \([^)\s][^)]*\))/.exec(field('Promoted') ?? '');
+      if (!guard) errors.push(`LESSONS: ${id} has Recurrence ${rec}, so Promoted must contain "Guard: \`<path of its check, test, hook or script>\`" or "Guard: none (<why no automated check can catch it>)" (see the promotion rule)`);
+      else if (guard[1]?.endsWith('.md')) errors.push(`LESSONS: ${id} Guard \`${guard[1]}\` is prose, not a check, test, hook or script`);
+      else if (guard[1] && !exists(guard[1])) errors.push(`LESSONS: ${id} Guard \`${guard[1]}\` does not exist`);
+    }
+  }
+  // IDs count up and are never deleted, renumbered or reused. L-046 went into L-014 before this check, so it is listed after "Retired IDs:".
+  const retired = new Set((/^Retired IDs:(.*)$/m.exec(body)?.[1] ?? '').match(/L-\d{3}/g) ?? []);
+  order.forEach((n, i) => { if (i > 0 && n <= order[i - 1]) errors.push(`LESSONS: L-${String(n).padStart(3, '0')} is out of order; IDs count up`); });
+  for (let n = 1; n < Math.max(0, ...order); n++) {
+    const id = `L-${String(n).padStart(3, '0')}`;
+    if (!seen.has(id) && !retired.has(id)) errors.push(`LESSONS: ${id} is missing; entries are never deleted or renumbered (see the promotion rule)`);
+  }
+  return errors;
+}
+
+// Lesson IDs cited anywhere (skills, docs, code comments) name a lesson that exists or is retired, so a promoted rule
+// keeps its source. L-000 is the template's placeholder.
+function checkLessonRefs() {
+  if (!exists('docs/LESSONS.md')) return [];
+  const lessons = read('docs/LESSONS.md');
+  const known = new Set([...lessons.matchAll(/^## (L-\d{3})\b/gm)].map((m) => m[1]));
+  for (const id of (/^Retired IDs:(.*)$/m.exec(lessons)?.[1] ?? '').match(/L-\d{3}/g) ?? []) known.add(id);
+  const errors = [];
+  for (const f of textFiles()) {
+    read(f).split('\n').forEach((line, i) => {
+      for (const id of line.match(/\bL-\d{3}\b/g) ?? []) {
+        if (id !== 'L-000' && !known.has(id)) errors.push(`${f.split(sep).join('/')}:${i + 1}: unknown lesson ${id}`);
+      }
+    });
   }
   return errors;
 }
@@ -372,6 +406,7 @@ const checks = [
   ['gdd-references', checkReferences],
   ['backlog', checkBacklog],
   ['lessons', checkLessons],
+  ['lesson-references', checkLessonRefs],
   ['skills', checkSkills],
   ['agents', checkAgents],
   ['claude-settings', checkClaudeSettings],
