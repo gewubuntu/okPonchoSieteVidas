@@ -32,9 +32,16 @@ test('GDD-PRG-02 a resumed run right after the flip, at the second ofrenda with 
     const k = box.width / 480;
     await page.touchscreen.tap(box.x + (row.x + row.w / 2) * k, box.y + (row.y + row.h / 2) * k);
   } else await page.keyboard.press('Enter');
-  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.phase() === 'playing');
-  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 30); // a few steps in play after the flip
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
   await page.evaluate(() => window.__PONCHO__!.pause(true));
+  // Step to the first step after the respawn blink ends, a fixed number of steps after Continue however fast the frames came, so
+  // Poncho is drawn solid and the picture is the same every run (L-042).
+  await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    for (let n = 0; n < 400 && (d.phase() !== 'playing' || d.invulnerable() > 0); n++) d.step(1);
+  });
+  expect(await page.evaluate(() => window.__PONCHO__!.invulnerable())).toBe(0);
+  expect(await page.evaluate(() => window.__PONCHO__!.bodyAlpha())).toBe(1);
   expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ x: 792, y: 224, grounded: true });
   expect(await page.evaluate(() => window.__PONCHO__!.lives())).toBe(4);
   expect((await page.evaluate(() => window.__PONCHO__!.hudHilos())).text).toBe('2/50');
