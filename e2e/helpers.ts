@@ -23,7 +23,11 @@ export async function openGame(page: Page, path = '/?level=sandbox'): Promise<st
   return errors;
 }
 
-/** Opens the game (the sandbox, or the address given) and starts the level from the title screen with Enter, which is no game button, so nothing counts as held. */
+/**
+ * Opens the game (the sandbox, or the address given) and starts the level from the title screen with Enter, which is no game button, so
+ * nothing counts as held. Enter picks the chosen row: with a saved run (GDD-PRG-02) that is "Continue", so a test that seeds one presses
+ * Down first to start the level itself.
+ */
 export async function boot(page: Page, path = '/?level=sandbox'): Promise<string[]> {
   const errors = await openGame(page, path);
   await page.keyboard.press('Enter');
