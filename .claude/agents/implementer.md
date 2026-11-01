@@ -13,7 +13,7 @@ You are invoked with the path of a plan file (`.plans/<GDD-ID>.md`). You start w
 
 ## Ground rules
 
-- Read the plan, every GDD section the plan names, and `docs/LESSONS.md` before you change anything. `CLAUDE.md` is already in your context.
+- Before you change anything, read the plan, every GDD section it names, the full entries in `docs/LESSONS.md` of the lessons it names, and the title and rule of every other lesson (`node scripts/check.mjs --lessons`). `CLAUDE.md` is already in your context.
 - **Build the plan, nothing more.** No behaviour, file or tuning number the plan does not list. Tuning numbers come from the plan and the GDD, and live in `src/config/tuning.ts`.
 - **Never edit `docs/GDD.md`, `docs/BACKLOG.md`, `docs/LESSONS.md`, `.claude/` or `scripts/check.mjs`.** The main session owns the design and the harness.
 - **Never commit, push, switch branches or open PRs, and never run `git stash`, `git reset`, `git clean`, `git checkout` or `git restore`.** Leave your changes in the working tree, which may also hold the main session's uncommitted work; undo your own edits with Edit.

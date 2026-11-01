@@ -2,6 +2,7 @@
 // The harness gate. Zero dependencies. Run before every commit and in CI.
 //   node scripts/check.mjs                 run all checks
 //   node scripts/check.mjs --backlog-stub  print backlog rows for GDD IDs missing from the backlog
+//   node scripts/check.mjs --lessons [a,b]  print each lesson's title and rule, only those areas' if named
 // See docs/HARNESS.md. When a lesson in docs/LESSONS.md is promoted to a check, name it in a comment here.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -164,6 +165,27 @@ function checkBacklog() {
 }
 
 // Entries: "## L-001 Title" followed by labelled bullet fields.
+// The areas a lesson belongs to, in the order the template lists them (docs/LESSONS.md).
+const LESSON_AREAS = ['input', 'tests', 'playtest', 'gdd', 'level', 'ui', 'art', 'process', 'harness'];
+
+// `--lessons [area,...]`: each lesson's title, recurrence and rule, so a task reads the rules it needs without the whole
+// file and opens the full entries that apply. With no areas it prints them all.
+function printLessons(areas) {
+  const bad = areas.filter((a) => !LESSON_AREAS.includes(a));
+  if (bad.length) {
+    console.error(`unknown area ${bad.join(', ')}; the areas are ${LESSON_AREAS.join(', ')}`);
+    return 2;
+  }
+  const body = read('docs/LESSONS.md').replace(/```[\s\S]*?```/g, '');
+  for (const part of body.split(/^(?=## L-\d{3}\b)/m).slice(1)) {
+    const field = (name) => new RegExp(`^- \\*\\*${name}:\\*\\*\\s*(.+)$`, 'm').exec(part)?.[1].trim();
+    const own = (field('Area') ?? '').split(/,\s*/);
+    if (areas.length && !own.some((a) => areas.includes(a))) continue;
+    console.log(`${part.split('\n')[0].slice(3)} [${own.join(', ')}] (Recurrence ${field('Recurrence')})\n  ${field('Rule')}\n`);
+  }
+  return 0;
+}
+
 function checkLessons() {
   if (!exists('docs/LESSONS.md')) return ['docs/LESSONS.md is missing'];
   const errors = [];
@@ -178,8 +200,12 @@ function checkLessons() {
     seen.add(id);
     order.push(Number(id.slice(2)));
     const field = (name) => new RegExp(`^- \\*\\*${name}:\\*\\*\\s*(.+)$`, 'm').exec(part)?.[1].trim();
-    for (const name of ['Date', 'What went wrong', 'Root cause', 'Rule', 'Recurrence', 'Promoted']) {
+    for (const name of ['Date', 'Area', 'What went wrong', 'Root cause', 'Rule', 'Recurrence', 'Promoted']) {
       if (!field(name)) errors.push(`LESSONS: ${id} is missing the "${name}" field`);
+    }
+    // The Area is the index `--lessons <area>` reads, so a lesson outside the list would never be shown.
+    for (const area of (field('Area') ?? '').split(/,\s*/).filter(Boolean)) {
+      if (!LESSON_AREAS.includes(area)) errors.push(`LESSONS: ${id} has Area "${area}"; use one or more of ${LESSON_AREAS.join(', ')}`);
     }
     const date = field('Date');
     if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push(`LESSONS: ${id} Date must be YYYY-MM-DD`);
@@ -438,6 +464,12 @@ const checks = [
 ];
 
 // ---- main ------------------------------------------------------------------
+
+const lessonsArg = process.argv.indexOf('--lessons');
+if (lessonsArg !== -1) {
+  const next = process.argv[lessonsArg + 1];
+  process.exit(printLessons(next && !next.startsWith('--') ? next.split(',').map((a) => a.trim()).filter(Boolean) : []));
+}
 
 if (process.argv.includes('--backlog-stub')) {
   const have = new Set(parseBacklog().map((r) => r.id));

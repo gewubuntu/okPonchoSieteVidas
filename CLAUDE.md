@@ -20,7 +20,7 @@ commit refers to a stable GDD ID such as `GDD-MOV-02`; a harness-only commit nam
 
 ## Work loop (every task)
 
-1. **Read** the GDD section(s) you are implementing, and `docs/LESSONS.md`. Before that, `git fetch origin main`: if the branch holds only merged history, restart it from `origin/main` (L-030).
+1. **Read** the GDD section(s) you are implementing, and the lessons: `node scripts/check.mjs --lessons` prints every lesson's title and rule (add areas to narrow it, e.g. `--lessons input,playtest`); read in full each entry in `docs/LESSONS.md` that applies. Before that, `git fetch origin main`: if the branch holds only merged history, restart it from `origin/main` (L-030).
 2. **Plan** briefly. Name the GDD IDs touched. Ask the user only when blocked on a decision that is theirs.
 3. **Test first** where logic is testable (movement, lives, damage, save data are pure code).
 4. **Implement** the smallest change that satisfies the GDD text. For a feature, the main session writes the plan and the `implementer` subagent writes the tests and code from it, then the main session checks the result (`harness-feature` steps 5 to 7, `docs/HARNESS.md`).
@@ -53,6 +53,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `harness-playtest` skill). |
 | `node scripts/mutate.mjs <mutants.json>` | Run mutants (L-010) and restore each file; `--restore` after an interrupted run, which the gate otherwise fails on (L-020). |
 | `node scripts/check.mjs --backlog-stub` | Print backlog rows for GDD IDs missing from `docs/BACKLOG.md`. |
+| `node scripts/check.mjs --lessons [area,...]` | Print each lesson's title, areas and rule from `docs/LESSONS.md`, only those areas' if named. |
 
 ## Repository map
 

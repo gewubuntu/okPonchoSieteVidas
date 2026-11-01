@@ -25,7 +25,7 @@ project get better at itself over time.
 2. Every `GDD-XXX-NN` heading is unique and has a valid `Status:` line.
 3. Every GDD ID mentioned anywhere in the repo (docs, source, tests, skills) exists in the GDD, and every repository path that a skill, a subagent or `CLAUDE.md` names in backticks exists (`harness-paths`); a placeholder such as `docs/screenshots/<slug>/` is skipped.
 4. `docs/BACKLOG.md` has exactly one valid row for every non-deprecated GDD ID and no unknown IDs.
-5. `docs/LESSONS.md` entries are well formed, IDs are unique, count up and are never deleted (only the IDs after `Retired IDs:` may be missing), any lesson with
+5. `docs/LESSONS.md` entries are well formed, each with an `Area` from the template's list (the index `--lessons` reads), IDs are unique, count up and are never deleted (only the IDs after `Retired IDs:` may be missing), any lesson with
    `Recurrence >= 2` has been promoted, and from `Recurrence` 3 its `Promoted:` names an automated guard that exists, or says why there is none (`Guard:`). Every lesson ID cited in the repository exists.
 6. Every skill and every subagent in `.claude/agents/` has valid frontmatter (name matching its folder or file, a description, values with `: ` quoted). Agents list their tools and, if they set a model, set `inherit`, because repository files do not name models; `pr-reviewer` must set it, so it runs on the main session's model. `.claude/settings.json` is valid JSON and every hook script it points at exists and has a `.test.mjs` beside it.
 7. No AI model identifiers in repository files.

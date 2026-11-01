@@ -11,7 +11,7 @@ Goal: make the next task cheaper and safer than this one.
 
 1. Review what happened: `git diff` against the task start, failed commands, rework, anything the user corrected, every blocking finding of the `pr-reviewer`, and every deviation or surviving mutant in the `implementer`'s report.
 2. For each real mistake or avoidable friction, decide:
-   - Is it already in `docs/LESSONS.md`? Search the titles (`grep -n '^## L-' docs/LESSONS.md`) and the area's words, and read the matches in full. If yes, increase its `Recurrence` by 1 and add the occurrence line that the file's promotion rule describes, in one or two sentences: what happened, and why the rule already in place did not stop it.
+   - Is it already in `docs/LESSONS.md`? List the area's titles and rules (`node scripts/check.mjs --lessons <area>`), search for the area's words, and read the matches in full. If yes, increase its `Recurrence` by 1 and add the occurrence line that the file's promotion rule describes, in one or two sentences: what happened, and why the rule already in place did not stop it.
    - If not, append a new entry using the template in that file, with the next free ID. Root cause must be a
      process or knowledge gap, never "careless".
    - Never delete, renumber or reuse an entry. A new entry that turns out to repeat an older lesson stays: bump the older one and set the new one's `Promoted:` to `merged into L-NNN`.
