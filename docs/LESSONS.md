@@ -186,7 +186,8 @@ Retired IDs: L-046
 - **Recurrence 6 (2026-10-27, PR #57, found by the review):** after 1-1 was added, GDD-LIFE-05 still said there was no second level yet, GDD-TEC-04 listed only 0-1 and the sandbox, and the changelog line named GDD-WLD-03 instead of GDD-TEC-04. Logged late, as recurrence 4.
 - **Recurrence 7 (2026-10-29, PR #58, found by the review):** after the Tutorial row, GDD-UI-02, the section the PR edited, still described the title screen and "Quit to title" as before. Logged late, as recurrence 4.
 - **Recurrence 8 (2026-10-31, PR #62, found by the review):** GDD-CTL-02 listed the menus without the new results menu. Two of these five were lists of a family the new member never joined (PRs #57 and #62) and one sat inside the section the PR edited (PR #58); none was counted when it happened, since the retro ran before the review.
-- **Recurrence:** 8
+- **Recurrence 9 (2026-11-01, PR #68, found by the review):** after the mirrored layout, GDD-CTL-03's slide stick and claw bullets still said Jump stays on the right, the switch sits above the left thumb zone and the claw sits left of Jump. The hunt searched for the stick's quarter but not for the words a mirror makes false: the sides ("left", "right") in the section the change edits.
+- **Recurrence:** 9
 - **Promoted:** .claude/skills/harness-feature (Update docs step, which now also searches for the path of every test file or block the feature deletes or moves, and since recurrence 8 for the lists a new member of a family must join and a full re-read of each edited section; its Push and pull request step runs the retro on the review's findings) and .claude/skills/harness-gdd-update (step 1, the same hunt for GDD edits made outside a feature). Guard: none (which sentences a change makes false takes reading the GDD; the pr-reviewer's consistency audit is the backstop).
 
 ## L-014 A claim about where things are in the sandbox level had no test

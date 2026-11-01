@@ -64,7 +64,7 @@ export function browserLanguage(languages: readonly string[]): Language {
 /**
  * One event on the open settings screen, which only the sideways screen takes (callers handle orientation). Up and Down choose
  * a row (no wrap-around), Left and Right move the chosen volume, the language, the Button opacity or the Layout, Enter, Space or Z picks Back, Escape, P, the pause button
- * and the gamepad's start leave. A tap on a volume, the language or the Button opacity row chooses it and moves it by its half; a tap on Back leaves; any other tap does nothing.
+ * and the gamepad's start leave. A tap on a volume, the language, the Button opacity or the Layout row chooses it and moves it by its half; a tap on Back leaves; any other tap does nothing.
  * `'back'` when the event leaves the screen.
  */
 export function settingsEvent(row: SettingsRow, settings: Settings, event: PauseEvent): { row: SettingsRow; settings: Settings } | 'back' {
