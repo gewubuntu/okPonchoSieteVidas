@@ -8,19 +8,19 @@ linted with Oxlint, targeting **web and mobile browsers**. The stack tracks the 
 ## The anchor rule
 
 `docs/GDD.md` is the single source of truth. Every feature, test, backlog row and
-commit refers to a stable GDD ID such as `GDD-MOV-02`.
+commit refers to a stable GDD ID such as `GDD-MOV-02`; a harness-only commit names its lesson instead (`chore(harness): <what> (L-NNN)`, `harness-retro` step 6).
 
 - No GDD ID, no feature. If an idea has no ID, use the `harness-gdd-update` skill first.
 - Never present a guess as a decision. Each GDD section has `Status: Decided | Proposed | Deprecated`.
   Only the user turns `Proposed` into `Decided`.
-- Tuning numbers live in the GDD and in one code file (`src/config/tuning.ts`, once it exists).
+- Tuning numbers live in the GDD and in one code file (`src/config/tuning.ts`).
   Change both together, in the same commit.
 - Poncho's look is defined by the user's reference images (`GDD-ART-02`): the pixel drawing `sprite-pixel.jpg` is the main one and wins over the side-view sprite sheets and the illustration. Never invent visual
   details those images might contradict.
 
 ## Work loop (every task)
 
-1. **Read** the GDD section(s) you are implementing, and `docs/LESSONS.md`.
+1. **Read** the GDD section(s) you are implementing, and the lessons: `node scripts/check.mjs --lessons` prints every lesson's title and rule (add areas to narrow it, e.g. `--lessons input,playtest`); read in full each entry in `docs/LESSONS.md` that applies. Before that, `git fetch origin main`: if the branch holds only merged history, restart it from `origin/main` (L-030).
 2. **Plan** briefly. Name the GDD IDs touched. Ask the user only when blocked on a decision that is theirs.
 3. **Test first** where logic is testable (movement, lives, damage, save data are pure code).
 4. **Implement** the smallest change that satisfies the GDD text. For a feature, the main session writes the plan and the `implementer` subagent writes the tests and code from it, then the main session checks the result (`harness-feature` steps 5 to 7, `docs/HARNESS.md`).
@@ -42,17 +42,19 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 
 | Command | Purpose |
 | --- | --- |
-| `node scripts/check.mjs` | The gate: GDD integrity, backlog, lessons, skills, then `npm run lint`, `typecheck` and `test`. Must pass before every commit. |
-| `npm install` | Install dependencies (needed once, and by CI). |
+| `node scripts/check.mjs` | The gate: the harness checks listed in `docs/HARNESS.md`, then `npm run lint`, `typecheck`, `test` and `test:abilities`. Must pass before every commit. |
+| `npm install` | Install dependencies (needed once; CI runs `npm ci`). |
 | `npm run dev` | Dev server on port 5173. |
 | `npm run build` | Typecheck and production build into `dist/`. |
-| `npm test` | Vitest unit tests (`src/**/*.test.ts`). |
+| `npm test` | Vitest unit tests (`src/**/*.test.ts`, `scripts/**/*.test.mjs`). |
+| `npm run test:abilities` | The simulation tests again with every progression ability on (L-024); opt-outs with reasons in `src/sim/all-abilities.setup.ts`. |
 | `npm run shots` | Screenshots for visual review: desktop and phone viewport, into `shots/` (not committed). Scenarios live in `e2e/shots/`. |
 | `node scripts/overview.mjs docs/screenshots/<slug>` | Compose the approved screenshots in that folder into its `overview.png` sheet (L-031). |
 | `node scripts/pr-screenshots.mjs [base]` | Warn if visible files changed and no screenshot was added under `docs/screenshots/`. |
 | `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `harness-playtest` skill). |
 | `node scripts/mutate.mjs <mutants.json>` | Run mutants (L-010) and restore each file; `--restore` after an interrupted run, which the gate otherwise fails on (L-020). |
 | `node scripts/check.mjs --backlog-stub` | Print backlog rows for GDD IDs missing from `docs/BACKLOG.md`. |
+| `node scripts/check.mjs --lessons [area,...]` | Print each lesson's title, areas and rule from `docs/LESSONS.md`, only those areas' if named. |
 
 ## Repository map
 
@@ -64,7 +66,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - `.claude/skills/` project skills, all prefixed `harness-`: `harness-feature`, `harness-gdd-update`, `harness-playtest`, `harness-retro`
 - `.claude/agents/pr-reviewer.md` the subagent that reviews every pull request
 - `.claude/agents/implementer.md` the subagent that builds a feature from the main session's plan (`harness-feature` steps 5 to 7)
-- `.claude/settings.json` project hooks (one reminds you to run the reviewer after a PR is created; one denies a commit chained after a piped gate, L-012)
+- `.claude/settings.json` project hooks, each a script in `scripts/hooks/` with a test beside it; `docs/HARNESS.md` (Parts) says what each one guards
 - `scripts/check.mjs` the gate
 - `src/config/tuning.ts` every gameplay number, tagged with its GDD ID
 - `src/sim/` pure game logic (movement, fixed-step loop), no Phaser imports
@@ -77,16 +79,16 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 
 - Cite GDD IDs in code comments only where a number or rule comes from the GDD.
 - Keep simulation logic (movement, lives, damage) free of Phaser imports so it is unit-testable.
-- Input that starts something on a press (jump, claw, and later Fuego) is latched from raw key and pointer events with `src/ui/inputLatch.ts` and cleared by the step that uses it, never only polled once per frame (L-006). A new press-driven action needs a test in `e2e/subframe.spec.ts` that taps it inside one task. Pause (Escape, P) is the exception: it is applied per frame, not per step, from raw browser `keydown` events with auto-repeat ignored, so it needs no latch. It must not use Phaser `Key` `down` events, which can fire again on the release when a press and release land in one frame (L-006), and an extra event toggles the pause back. Its one-task tap tests are in `e2e/pause.spec.ts`. The gamepad is the other exception: browsers give no raw pad events, so it is polled once per frame in `src/ui/gamepad.ts` with no latch, and a press shorter than a frame can be missed (user, 2026-10-25; GDD-CTL-02, GDD-CTL-04). It needs no `e2e/subframe.spec.ts` test.
+- Input that starts something on a press (jump, claw, Fuego) is latched from raw key and pointer events with `src/ui/inputLatch.ts` and cleared by the step that uses it, never only polled once per frame (L-006). A new press-driven action needs a test in `e2e/subframe.spec.ts` that taps it inside one task. Pause (Escape, P) is the exception: it is applied per frame, not per step, from raw browser `keydown` events with auto-repeat ignored, so it needs no latch. It must not use Phaser `Key` `down` events, which can fire again on the release when a press and release land in one frame (L-006), and an extra event toggles the pause back. Its one-task tap tests are in `e2e/pause.spec.ts`. The gamepad is the other exception: browsers give no raw pad events, so it is polled once per frame in `src/ui/gamepad.ts` with no latch, and a press shorter than a frame can be missed (user, 2026-10-25; GDD-CTL-02, GDD-CTL-04). It needs no `e2e/subframe.spec.ts` test.
 - Do not add game code that no GDD ID asks for.
 - Do not name AI models in repository files or in commit subjects and bodies. Attribution trailers (such as `Co-Authored-By`) follow the session's own instructions.
-- Commit on the branch the session designates. Do not open a PR unless the user asks.
+- Commit on the branch the session designates. After every push, open a draft PR for the branch if it has no open one; a merged or closed PR does not count (user, 2026-11-01). A PR is marked ready for review only when its work is done: gate and CI green, the `pr-reviewer`'s blocking findings fixed, and for a visible change the user's screenshot approval.
 
 ## Pull requests
 
 - Base branch is `main`. Work step by step: one small PR at a time, each one a single GDD ID or a tight group of them.
 - Every PR keeps the gate green (`node scripts/check.mjs`) and CI green, updates the backlog row, and fills in `.github/pull_request_template.md`.
-- **Every PR gets a deep review from the `pr-reviewer` subagent.** Right after you create a PR (a hook reminds you), launch it with the Agent tool: `subagent_type` `pr-reviewer`, prompt with the PR number. It checks the PR out, runs it, audits the GDD changes, looks at the screenshots and posts one GitHub review. Fix its blocking findings with a push before you tell the user the PR is ready, and include its verdict in your report. When the user says they opened a PR, launch it on that PR too. If the agent type is not available in the session (the first time `.claude/agents/` appears a restart is needed), launch a general-purpose agent with the instruction to follow `.claude/agents/pr-reviewer.md` exactly.
-- **Visible changes need the user's approval before the PR.** For any UI or UX work (scenes, HUD, layout, art, colours, animation, text on screen): run `npm run shots`, look at every image yourself, then show them to the user with `SendUserFile` (display `render`, desktop and phone) and ask whether they like it. Iterate until they approve. Only then open the PR, commit the approved images under `docs/screenshots/<slug>/` plus one `overview.png` sheet of them (`node scripts/overview.mjs docs/screenshots/<slug>`), embed the overview in the PR description as a markdown image with a `/raw/<commit sha>/` URL, and say "approved in session" there. Read the description back after writing it: the GitHub tool can mangle image URLs (L-009). Never open a PR for a visible change without that approval. CI warns when visible files change and no screenshots are added (`scripts/pr-screenshots.mjs`).
+- **Every PR gets a deep review from the `pr-reviewer` subagent.** Right after you create a PR, and again after each later push to it (hooks remind you; a review of an older head does not cover new commits, L-043), launch it with the Agent tool: `subagent_type` `pr-reviewer`, no `model` (so it runs on this session's model, `docs/HARNESS.md`), prompt with the PR number. It checks the PR out, runs it, audits the GDD changes, looks at the screenshots and posts one GitHub review. Fix its blocking findings, run the `harness-retro` skill on them and push, all before you tell the user the PR is ready, and include its verdict in your report. When the user says they opened a PR, launch it on that PR too. If the agent type is not available in the session (the first time `.claude/agents/` appears a restart is needed), launch a general-purpose agent with the instruction to follow `.claude/agents/pr-reviewer.md` exactly.
+- **Visible changes need the user's approval before the PR is marked ready.** For any UI or UX work (scenes, HUD, layout, art, colours, animation, text on screen): run `npm run shots`, look at every image yourself, then show them to the user with `SendUserFile` (display `render`, desktop and phone) and ask whether they like it. Iterate until they approve. Only then commit the approved images under `docs/screenshots/<slug>/` plus one `overview.png` sheet of them (`node scripts/overview.mjs docs/screenshots/<slug>`), embed the overview in the PR description as a markdown image with a `/raw/<commit sha>/` URL, and say "approved in session" there. Read the description back after writing it: the GitHub tool can mangle image URLs (L-009). Until then the PR stays a draft that says its screenshots await approval; never mark it ready without that approval. CI warns when visible files change and no screenshots are added (`scripts/pr-screenshots.mjs`).
 - Do not start the next PR's work until the current one is merged or the user says to.
 - After a PR is merged, restart the working branch from `main` (same branch name) before the next piece.

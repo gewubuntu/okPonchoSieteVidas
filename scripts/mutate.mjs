@@ -53,9 +53,13 @@ for (const m of mutants) {
   try {
     writeFileSync(path, original.replace(m.from, () => m.to));
     // PONCHO_MUTATING tells scripts/check.mjs not to fail on this run's own marker, so the gate can be a mutant's test.
-    const r = spawnSync(m.test ?? test, { cwd: ROOT, shell: true, stdio: 'ignore', env: { ...process.env, PONCHO_MUTATING: '1' } });
-    if (r.status === 0) survived++;
-    console.log(`${r.status === 0 ? 'GREEN (survived)' : 'RED  '} ${m.name}`);
+    const r = spawnSync(m.test ?? test, { cwd: ROOT, shell: true, encoding: 'utf8', maxBuffer: 1 << 28, env: { ...process.env, PONCHO_MUTATING: '1' } });
+    // A test filter that matches nothing fails the run too (Playwright exits 1 on "No tests found", Vitest on a missing
+    // file). No test went red, so the mutant is not caught (L-034: each mutant names the one test that must kill it).
+    const noTest = /No tests found|No test files found/.test(`${r.stdout}${r.stderr}`);
+    const caught = r.status !== 0 && !r.error && !noTest;
+    if (!caught) survived++;
+    console.log(`${noTest ? 'NO TEST (the filter matched none)' : caught ? 'RED  ' : 'GREEN (survived)'} ${m.name}`);
   } finally {
     restore();
   }

@@ -2,6 +2,7 @@
 // The harness gate. Zero dependencies. Run before every commit and in CI.
 //   node scripts/check.mjs                 run all checks
 //   node scripts/check.mjs --backlog-stub  print backlog rows for GDD IDs missing from the backlog
+//   node scripts/check.mjs --lessons [a,b]  print each lesson's title and rule, only those areas' if named
 // See docs/HARNESS.md. When a lesson in docs/LESSONS.md is promoted to a check, name it in a comment here.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -87,6 +88,32 @@ function checkGdd() {
   return errors;
 }
 
+// Open Questions are a numbered list, so removing one renumbers the ones after it. A reference past the end of the list is
+// stale (GDD 0.7.0 kept "Open Question 16" after question 15 was removed; fixed in 0.7.1). The changelog keeps old numbers.
+function checkOpenQuestionRefs() {
+  if (!exists('docs/GDD.md')) return [];
+  const lines = read('docs/GDD.md').split('\n');
+  const start = lines.findIndex((l) => /^## Open Questions\s*$/.test(l));
+  if (start < 0) return ['GDD: no "## Open Questions" section'];
+  let count = 0;
+  for (let i = start + 1; i < lines.length && !/^#{1,2}\s/.test(lines[i]); i++) if (/^\d+\.\s/.test(lines[i])) count++;
+  const log = lines.findIndex((l) => /^## Changelog\s*$/.test(l));
+  let logEnd = log;
+  while (log >= 0 && logEnd + 1 < lines.length && !/^(#{1,2}\s|---\s*$)/.test(lines[logEnd + 1])) logEnd++;
+  const errors = [];
+  const scan = (file, fileLines, skip) => fileLines.forEach((line, i) => {
+    if (skip(i)) return;
+    for (const m of line.matchAll(/Open Questions? (\d+(?:(?:, | and | to | or )\d+)*)/g)) {
+      for (const n of m[1].match(/\d+/g)) {
+        if (Number(n) < 1 || Number(n) > count) errors.push(`${file}:${i + 1}: "Open Question ${n}", but the GDD lists ${count}: renumbered?`);
+      }
+    }
+  });
+  scan('docs/GDD.md', lines, (i) => log >= 0 && i > log && i <= logEnd);
+  if (exists('docs/BACKLOG.md')) scan('docs/BACKLOG.md', read('docs/BACKLOG.md').split('\n'), () => false);
+  return errors;
+}
+
 function checkReferences() {
   if (!exists('docs/GDD.md')) return [];
   const known = new Set(parseGdd().defs.map((d) => d.id));
@@ -138,6 +165,27 @@ function checkBacklog() {
 }
 
 // Entries: "## L-001 Title" followed by labelled bullet fields.
+// The areas a lesson belongs to, in the order the template lists them (docs/LESSONS.md).
+const LESSON_AREAS = ['input', 'tests', 'playtest', 'gdd', 'level', 'ui', 'art', 'process', 'harness'];
+
+// `--lessons [area,...]`: each lesson's title, recurrence and rule, so a task reads the rules it needs without the whole
+// file and opens the full entries that apply. With no areas it prints them all.
+function printLessons(areas) {
+  const bad = areas.filter((a) => !LESSON_AREAS.includes(a));
+  if (bad.length) {
+    console.error(`unknown area ${bad.join(', ')}; the areas are ${LESSON_AREAS.join(', ')}`);
+    return 2;
+  }
+  const body = read('docs/LESSONS.md').replace(/```[\s\S]*?```/g, '');
+  for (const part of body.split(/^(?=## L-\d{3}\b)/m).slice(1)) {
+    const field = (name) => new RegExp(`^- \\*\\*${name}:\\*\\*\\s*(.+)$`, 'm').exec(part)?.[1].trim();
+    const own = (field('Area') ?? '').split(/,\s*/);
+    if (areas.length && !own.some((a) => areas.includes(a))) continue;
+    console.log(`${part.split('\n')[0].slice(3)} [${own.join(', ')}] (Recurrence ${field('Recurrence')})\n  ${field('Rule')}\n`);
+  }
+  return 0;
+}
+
 function checkLessons() {
   if (!exists('docs/LESSONS.md')) return ['docs/LESSONS.md is missing'];
   const errors = [];
@@ -145,13 +193,22 @@ function checkLessons() {
   const body = text.replace(/```[\s\S]*?```/g, ''); // ignore the template in the code fence
   const parts = body.split(/^(?=## L-\d{3}\b)/m).slice(1);
   const seen = new Set();
+  const order = [];
   for (const part of parts) {
     const id = /^## (L-\d{3})\b/.exec(part)[1];
     if (seen.has(id)) errors.push(`LESSONS: duplicate ${id}`);
     seen.add(id);
+    order.push(Number(id.slice(2)));
     const field = (name) => new RegExp(`^- \\*\\*${name}:\\*\\*\\s*(.+)$`, 'm').exec(part)?.[1].trim();
-    for (const name of ['Date', 'What went wrong', 'Root cause', 'Rule', 'Recurrence', 'Promoted']) {
+    for (const name of ['Date', 'Area', 'What went wrong', 'Root cause', 'Rule', 'Recurrence', 'Promoted']) {
       if (!field(name)) errors.push(`LESSONS: ${id} is missing the "${name}" field`);
+    }
+    // `--lessons` prints a field's first line only, so each field stays on one line (L-001: encode the consumer's rules).
+    const wrapped = part.split('\n').slice(1).find((l) => l.trim() && !/^- \*\*/.test(l));
+    if (wrapped) errors.push(`LESSONS: ${id} has a line that is not a "- **Field:**" bullet: "${wrapped.trim().slice(0, 50)}"; keep each field on one line`);
+    // The Area is the index `--lessons <area>` reads, so a lesson outside the list would never be shown.
+    for (const area of (field('Area') ?? '').split(/,\s*/).filter(Boolean)) {
+      if (!LESSON_AREAS.includes(area)) errors.push(`LESSONS: ${id} has Area "${area}"; use one or more of ${LESSON_AREAS.join(', ')}`);
     }
     const date = field('Date');
     if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push(`LESSONS: ${id} Date must be YYYY-MM-DD`);
@@ -160,6 +217,38 @@ function checkLessons() {
     else if (rec !== undefined && Number(rec) >= 2 && /^no\b/i.test(field('Promoted') ?? 'no')) {
       errors.push(`LESSONS: ${id} has Recurrence ${rec} but is not promoted (see the promotion rule)`);
     }
+    // A lesson back a third time has outlived a prose rule: Promoted names its automated guard, or says why none can work.
+    if (Number(rec) >= 3) {
+      const guard = /\bGuard: (?:`([^`]+)`|none \([^)\s][^)]*\))/.exec(field('Promoted') ?? '');
+      if (!guard) errors.push(`LESSONS: ${id} has Recurrence ${rec}, so Promoted must contain "Guard: \`<path of its check, test, hook or script>\`" or "Guard: none (<why no automated check can catch it>)" (see the promotion rule)`);
+      else if (guard[1]?.endsWith('.md')) errors.push(`LESSONS: ${id} Guard \`${guard[1]}\` is prose, not a check, test, hook or script`);
+      else if (guard[1] && !exists(guard[1])) errors.push(`LESSONS: ${id} Guard \`${guard[1]}\` does not exist`);
+    }
+  }
+  // IDs count up and are never deleted, renumbered or reused. L-046 went into L-014 before this check, so it is listed after "Retired IDs:".
+  const retired = new Set((/^Retired IDs:(.*)$/m.exec(body)?.[1] ?? '').match(/L-\d{3}/g) ?? []);
+  order.forEach((n, i) => { if (i > 0 && n <= order[i - 1]) errors.push(`LESSONS: L-${String(n).padStart(3, '0')} is out of order; IDs count up`); });
+  for (let n = 1; n < Math.max(0, ...order); n++) {
+    const id = `L-${String(n).padStart(3, '0')}`;
+    if (!seen.has(id) && !retired.has(id)) errors.push(`LESSONS: ${id} is missing; entries are never deleted or renumbered (see the promotion rule)`);
+  }
+  return errors;
+}
+
+// Lesson IDs cited anywhere (skills, docs, code comments) name a lesson that exists or is retired, so a promoted rule
+// keeps its source. L-000 is the template's placeholder.
+function checkLessonRefs() {
+  if (!exists('docs/LESSONS.md')) return [];
+  const lessons = read('docs/LESSONS.md');
+  const known = new Set([...lessons.matchAll(/^## (L-\d{3})\b/gm)].map((m) => m[1]));
+  for (const id of (/^Retired IDs:(.*)$/m.exec(lessons)?.[1] ?? '').match(/L-\d{3}/g) ?? []) known.add(id);
+  const errors = [];
+  for (const f of textFiles()) {
+    read(f).split('\n').forEach((line, i) => {
+      for (const id of line.match(/\bL-\d{3}\b/g) ?? []) {
+        if (id !== 'L-000' && !known.has(id)) errors.push(`${f.split(sep).join('/')}:${i + 1}: unknown lesson ${id}`);
+      }
+    });
   }
   return errors;
 }
@@ -223,6 +312,12 @@ function checkAgents() {
   return errors;
 }
 
+/** Does a hook matcher (an exact name, `|` alternatives or a regular expression; empty or `*` for all) take the Bash tool? */
+function readsShell(matcher) {
+  if (!matcher || matcher === '*') return true;
+  try { return new RegExp(`^(?:${matcher})$`).test('Bash'); } catch { return false; }
+}
+
 // Project Claude Code settings: valid JSON, and every hook script it points at exists.
 function checkClaudeSettings() {
   const file = join('.claude', 'settings.json');
@@ -242,9 +337,43 @@ function checkClaudeSettings() {
         const text = [hook.command, ...(Array.isArray(hook.args) ? hook.args : [])].filter((s) => typeof s === 'string').join(' ');
         for (const m of text.matchAll(/["']?\$\{?CLAUDE_PROJECT_DIR\}?["']?\/([^\s"']+)/g)) {
           if (!exists(m[1])) errors.push(`SETTINGS: ${event} hook points at ${m[1]}, which does not exist`);
+          // A hook decides in a pure function its test pins (HARNESS.md), so a hook script without a test beside it fails.
+          else if (m[1].endsWith('.mjs') && !exists(m[1].replace(/\.mjs$/, '.test.mjs'))) errors.push(`SETTINGS: ${event} hook ${m[1]} has no test beside it (${m[1].replace(/\.mjs$/, '.test.mjs')})`);
+          // L-008: a hook that reads shell commands sees commit messages too, which are written as here-documents and name
+          // the very commands it looks for. Its test holds such a here-document, which it must let through.
+          else if (m[1].endsWith('.mjs') && readsShell(group.matcher) && !/<<-?\s*\\?['"]?EOF/.test(read(m[1].replace(/\.mjs$/, '.test.mjs')))) {
+            errors.push(`SETTINGS: ${event} hook ${m[1]} reads shell commands, but its test holds no here-document (<<'EOF') it must let through (L-008)`);
+          }
+          // L-053: a hook that answers `ask` on shell commands reads them through command-text.mjs, as docs/HARNESS.md says,
+          // so a change to how commands are read reaches every such hook at once.
+          else if (m[1].endsWith('.mjs') && readsShell(group.matcher) && /permissionDecision: 'ask'/.test(read(m[1])) && !/from '\.\/command-text\.mjs'/.test(read(m[1]))) {
+            errors.push(`SETTINGS: ${event} hook ${m[1]} answers ask on shell commands but does not read them through scripts/hooks/command-text.mjs (docs/HARNESS.md, Adding a check; L-053)`);
+          }
         }
       }
     }
+  }
+  return errors;
+}
+
+// Skills, agents and CLAUDE.md tell the model which files to read, run or edit, and like the GDD (L-013) that text goes
+// stale when the code moves. A renamed or deleted file fails here instead of sending a session to a path that is gone.
+// Every word in backticks that starts with a top-level folder of the repository is checked; a placeholder such as
+// `docs/screenshots/<slug>/` is skipped, and so is a `:line` suffix.
+function checkHarnessPaths() {
+  const files = ['CLAUDE.md', ...[join('.claude', 'skills'), join('.claude', 'agents')].filter(exists).flatMap((d) => walk(d))]
+    .filter((f) => f.endsWith('.md') && exists(f));
+  const errors = [];
+  for (const f of files) {
+    read(f).split('\n').forEach((line, i) => {
+      for (const [, span] of line.matchAll(/`([^`]+)`/g)) {
+        for (const word of span.split(/\s+/)) {
+          const p = word.replace(/^["'(]+|["'),.:;]+$/g, '').replace(/:\d+(-\d+)?$/, '');
+          if (!/^(src|e2e|scripts|docs|assets|\.claude|\.github)\//.test(p) || /[<>*{}$]/.test(p)) continue;
+          if (!exists(p)) errors.push(`${f.split(sep).join('/')}:${i + 1}: \`${p}\` does not exist; fix the text that names it`);
+        }
+      }
+    });
   }
   return errors;
 }
@@ -267,7 +396,8 @@ function checkToolchain() {
   if (!exists('package.json')) return [];
   const scripts = JSON.parse(read('package.json')).scripts ?? {};
   const errors = [];
-  for (const name of ['lint', 'typecheck', 'test']) {
+  // test:abilities reruns the simulation tests with every progression ability on (L-024).
+  for (const name of ['lint', 'typecheck', 'test', 'test:abilities']) {
     if (!scripts[name]) continue;
     console.log(`  running npm run ${name} ...`);
     const r = spawnSync('npm', ['run', name, '--silent'], { cwd: ROOT, stdio: 'inherit' });
@@ -293,6 +423,41 @@ function checkKeyDownHandlers() {
   return errors;
 }
 
+// L-042: a playtest times the game in simulation steps, never in real time: headless frames are slow and uneven, so a real-time
+// wait lets a different number of steps run on each machine and each run. Every waitForTimeout or setTimeout in e2e/ (a test's own
+// time limit aside) says why real time is fine there in an `// L-042:` comment on its line (a frame to draw, a browser event to
+// land). The waits written before this check are counted per file below; a count may only go down.
+const REALTIME_WAITS = {
+  'e2e/block.spec.ts': 1, 'e2e/boot.spec.ts': 2, 'e2e/collision.spec.ts': 2, 'e2e/gameover.spec.ts': 1, 'e2e/gamepad.spec.ts': 16,
+  'e2e/hud.spec.ts': 4, 'e2e/language.spec.ts': 2, 'e2e/ofrenda.spec.ts': 3, 'e2e/pause.spec.ts': 8, 'e2e/pit.spec.ts': 3,
+  'e2e/settings.spec.ts': 9, 'e2e/sfx.spec.ts': 1, 'e2e/sprite.spec.ts': 4, 'e2e/subframe.spec.ts': 9, 'e2e/title.spec.ts': 12,
+  'e2e/touch.spec.ts': 3, 'e2e/shots/pit.spec.ts': 2, 'e2e/shots/title.spec.ts': 2,
+  ...Object.fromEntries(['block', 'cactus', 'claw', 'crumble', 'desert', 'door', 'enemy', 'flip', 'fuego', 'gameover', 'glide', 'hilo', 'hud',
+    'last-life', 'level', 'level0-1', 'level1-1', 'life-loss', 'ofrenda', 'pause', 'pinata', 'platform', 'progress', 'settings', 'spikes', 'spring',
+    'taco', 'tips', 'tlacuache', 'touch', 'wallcling', 'zopilote'].map((n) => [`e2e/shots/${n}.spec.ts`, 1])),
+};
+
+function checkRealtimeWaits() {
+  const errors = [];
+  const wait = /(\b\w+\.)?\b(waitForTimeout|setTimeout)\(/g;
+  for (const f of textFiles().filter((p) => p.startsWith(join('e2e', '')) && p.endsWith('.ts'))) {
+    const file = f.split(sep).join('/');
+    const found = [];
+    read(f).split('\n').forEach((line, i) => {
+      if (/^\s*(\/\/|\*|\/\*)/.test(line) || /\/\/.*\bL-042\b/.test(line)) return; // comments, and waits marked with their reason
+      for (const m of line.matchAll(wait)) if (!/^(test|testInfo|info)\.$/.test(m[1] ?? '')) found.push(i + 1);
+    });
+    const allowed = REALTIME_WAITS[file] ?? 0;
+    if (found.length > allowed) {
+      errors.push(`${file}:${found.join(',')}: ${found.length} real-time waits where ${allowed} are allowed. Wait for simulation steps instead (a ticks() count, phaseSince(), stepUntil in e2e/helpers.ts), or say why real time is fine in an \`// L-042:\` comment on the line (L-042)`);
+    } else if (found.length < allowed) {
+      errors.push(`${file}: ${found.length} real-time waits, fewer than the ${allowed} allowed: lower its count in REALTIME_WAITS in scripts/check.mjs (L-042)`);
+    }
+  }
+  for (const file of Object.keys(REALTIME_WAITS)) if (!exists(file)) errors.push(`${file} is gone: remove it from REALTIME_WAITS in scripts/check.mjs (L-042)`);
+  return errors;
+}
+
 // L-020: a mutation run that was killed leaves its marker, and the mutated file, behind (scripts/mutate.mjs). The runner
 // itself sets PONCHO_MUTATING for the test it runs, so a mutant tested against the gate is judged by the other checks.
 function checkNoMutation() {
@@ -303,18 +468,28 @@ function checkNoMutation() {
 const checks = [
   ['no-mutation', checkNoMutation],
   ['key-down-handlers', checkKeyDownHandlers],
+  ['realtime-waits', checkRealtimeWaits],
   ['gdd', checkGdd],
+  ['gdd-open-questions', checkOpenQuestionRefs],
   ['gdd-references', checkReferences],
   ['backlog', checkBacklog],
   ['lessons', checkLessons],
+  ['lesson-references', checkLessonRefs],
   ['skills', checkSkills],
   ['agents', checkAgents],
   ['claude-settings', checkClaudeSettings],
+  ['harness-paths', checkHarnessPaths],
   ['no-model-ids', checkNoModelIds],
   ['toolchain', checkToolchain],
 ];
 
 // ---- main ------------------------------------------------------------------
+
+const lessonsArg = process.argv.indexOf('--lessons');
+if (lessonsArg !== -1) {
+  const next = process.argv[lessonsArg + 1];
+  process.exit(printLessons(next && !next.startsWith('--') ? next.split(',').map((a) => a.trim()).filter(Boolean) : []));
+}
 
 if (process.argv.includes('--backlog-stub')) {
   const have = new Set(parseBacklog().map((r) => r.id));

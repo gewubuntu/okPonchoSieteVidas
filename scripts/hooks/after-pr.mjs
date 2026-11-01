@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// PostToolUse hook for mcp__github__create_pull_request (see .claude/settings.json).
+// PostToolUse hook for creating a pull request with the GitHub MCP tool (see .claude/settings.json); it also reads `gh pr create` output.
 // Reads the hook input from stdin and tells Claude, as context, that the new PR still needs its review.
 // It never blocks and never fails: any problem prints nothing and exits 0.
 
@@ -46,16 +46,22 @@ export function findPullNumber(toolResponse) {
   return found.html_url ?? found.url ?? found.number ?? found.text;
 }
 
+// The GitHub MCP tool under any server name (a plugin's server is named differently), or `gh pr create` in a shell.
+const CREATE_TOOL = /^mcp__.*github.*__create_pull_request$/;
+
 /** Builds the context text for a hook input, or null when the event is not a created pull request. */
 export function buildContext(input) {
-  if (!input || input.tool_name !== 'mcp__github__create_pull_request') return null;
+  const viaGh = input?.tool_name === 'Bash' && /\bgh\s+pr\s+create\b/.test(input.tool_input?.command ?? '');
+  if (!input || !(CREATE_TOOL.test(input.tool_name ?? '') || viaGh)) return null;
   const n = findPullNumber(input.tool_response);
   const which = n === null ? 'A pull request' : `Pull request #${n}`;
   return (
     `${which} was just created. CLAUDE.md requires every new pull request to be reviewed by the pr-reviewer subagent ` +
     'before it is reported as ready, and that review has not run yet. The subagent is launched with the Agent tool ' +
-    `(subagent_type pr-reviewer) and the PR number${n === null ? '' : ` ${n}`}. Its blocking findings are fixed with a push, ` +
-    'and the review result is part of the report to the user.'
+    `(subagent_type pr-reviewer) and the PR number${n === null ? '' : ` ${n}`}, or, if that type is not available, as a ` +
+    'general-purpose agent told to follow .claude/agents/pr-reviewer.md exactly. Its blocking findings are fixed with a push, ' +
+    'and the review result is part of the report to the user. The PR is not merged before the review is posted: if the user ' +
+    'asks to merge first, say the review is still running and ask whether to wait (L-043).'
   );
 }
 
