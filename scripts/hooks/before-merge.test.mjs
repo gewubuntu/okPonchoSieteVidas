@@ -15,6 +15,12 @@ describe('L-043 before-merge hook', () => {
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'gh api --method PUT "repos/o/r/pulls/3/merge"' } })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'git log | tr -d \'"\'; gh pr merge 3 --subject "Merge PR 3"' } })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'echo "it\'s"; gh pr merge 3; echo \'a b\'' } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "gh api --jq '.merged|tostring' -X PUT repos/o/r/pulls/3/merge" } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "gh api -X PUT -f commit_title='R&D' repos/o/r/pulls/3/merge" } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "# merge once it's reviewed\ngh pr merge 3 --subject 'x y'" } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "echo don\\'t; gh pr merge 3; echo 'x y'" } })).toMatch(/L-043/);
+    // When unsure it asks: a quoted mention after a separator reads as a merge (an extra question, never a missed one).
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'git commit -m "x; gh pr merge 62 later"' } })).toMatch(/L-043/);
   });
 
   it('says nothing for other tools or bad input', () => {
@@ -23,7 +29,6 @@ describe('L-043 before-merge hook', () => {
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'gh pr view 62' } })).toBeNull();
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'gh api repos/o/r/pulls/3' } })).toBeNull();
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'echo gh pr merge' } })).toBeNull();
-    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'git commit -m "x; gh pr merge 62 later"' } })).toBeNull();
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "cat > notes.md <<'EOF'\ngh pr merge 62\nEOF" } })).toBeNull();
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'grep -rn "gh pr merge" docs' } })).toBeNull();
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "git commit -m \"$(cat <<'EOF'\nchore: the hook asks before gh pr merge\nEOF\n)\"" } })).toBeNull();

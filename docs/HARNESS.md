@@ -57,7 +57,7 @@ motivated the check in a comment beside it.
 
 A hook is added the same way: a script in `scripts/hooks/` that exports its decision as a pure function, a `.test.mjs`
 beside it (run by `npm test` in the gate) holding every spelling the hook must catch and the mentions it must let through, a commit message's here-document and a quoted string among them
-(L-008), and an entry in `.claude/settings.json`. A hook never fails: on any problem it prints nothing and exits 0.
+(L-008), and an entry in `.claude/settings.json`. A hook never fails: on any problem it prints nothing and exits 0. A hook whose answer is `ask` leans to asking: it removes here-document bodies but reads quoted text as written, since emptying quotes let quotes inside quotes hide real calls, and an extra question costs a click where a missed one costs the guard (L-008).
 
 ## Planning and building on different models
 
