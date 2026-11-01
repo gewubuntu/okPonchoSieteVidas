@@ -17,6 +17,20 @@ async function standAt(page: Page, x: number): Promise<void> {
   await page.evaluate(() => window.__PONCHO__!.step(13));
 }
 
+test('GDD-CTL-03 at Low Button opacity the tip outline round the touch buttons keeps its own alpha', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'the desktop draws no touch buttons');
+  // A save with Button opacity Low, as if set on the settings screen earlier (GDD-PRG-02).
+  await page.addInitScript(() =>
+    localStorage.setItem('poncho-siete-vidas', JSON.stringify({ version: 1, settings: { master: 10, effects: 10, language: 'en', buttonOpacity: 'low' }, progress: { tutorialPlayed: false } })),
+  );
+  await start(page, isMobile);
+  await page.waitForFunction(() => window.__PONCHO__!.tip().alpha === 1 && window.__PONCHO__!.touch().highlighted === 'move');
+  const touch = await api(page, () => window.__PONCHO__!.touch());
+  expect(touch.opacity).toBe('low'); // the buttons are drawn at half
+  expect(touch.alphas.idleOutline).toBeCloseTo(0.175, 10);
+  expect(touch.highlightAlpha).toBe(1); // the outline is not
+});
+
 test('GDD-UI-05 the first tip shows at the start in the words of the device', async ({ page, isMobile }) => {
   await start(page, isMobile);
   await page.waitForFunction(() => window.__PONCHO__!.tip().alpha === 1);

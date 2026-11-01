@@ -32,7 +32,9 @@ project get better at itself over time.
 8. No mutation run was interrupted (`no-mutation`, L-020): `.mutating.json` from `scripts/mutate.mjs` must not exist, except for the test that the runner itself runs.
 9. Phaser key-down events (`'down'`, `Events.DOWN`, `'keydown-X'`) in `src/` appear only in the one-line form that presses an input latch (`key-down-handlers`, L-006).
 10. Every `waitForTimeout` or `setTimeout` in `e2e/` (a test's own time limit aside) says why real time is fine there in an `// L-042:` comment on its line; the waits written before the check are counted per file, and a count may only go down (`realtime-waits`, L-042).
-11. If `package.json` defines `lint`, `typecheck`, `test` or `test:abilities` scripts, they run and must pass. `test:abilities` reruns the simulation tests with every progression ability on (`src/sim/all-abilities.setup.ts`, L-024); a test that must keep an ability off is listed there with its reason, and a new ability fails the typecheck until it is switched on there. Run `npm install` first; the gate fails without `node_modules`.
+11. No playtest in `e2e/` compares the whole saved game or the whole saved settings with `toEqual` (`whole-save-pins`, L-054); a test of the save format itself marks its line `// L-054: format`.
+12. No screenshot scenario in `e2e/shots/` that only the phone takes (`test.skip(!isMobile, ...)`) presses keys: it is driven by touch, as a phone player plays (`phone-shots-by-touch`, L-045).
+13. If `package.json` defines `lint`, `typecheck`, `test` or `test:abilities` scripts, they run and must pass. `test:abilities` reruns the simulation tests with every progression ability on (`src/sim/all-abilities.setup.ts`, L-024); a test that must keep an ability off is listed there with its reason, and a new ability fails the typecheck until it is switched on there. Run `npm install` first; the gate fails without `node_modules`.
 
 ## The improvement loop
 
