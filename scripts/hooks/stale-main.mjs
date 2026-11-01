@@ -12,7 +12,7 @@ const CREATE_TOOL = /^mcp__.*github.*__create_pull_request$/;
 
 // `git push` at the start of a command, after env assignments and git's own options (`-C <dir>`, `-c k=v`, `--git-dir=...`),
 // each option one shell word with its quoted parts.
-const PUSH = new RegExp(String.raw`(?:^|[;&|\n(]\s*)(?:[A-Za-z_]\w*=${WORD}\s+)*git\s+(?:-[Cc]\s+${WORD}\s+|-${WORD}\s+)*push\b`);
+const PUSH = new RegExp(String.raw`(?:^|[;&|\n(]\s*)(?:[A-Za-z_]\w*=(?:${WORD})?\s+)*git\s+(?:-[Cc]\s+${WORD}\s+|-${WORD}\s+)*push\b`);
 
 /** Is this shell command a `git push` (also with options before `push`, or after `cd dir &&`)? A mention is not. */
 export function isPush(command) {

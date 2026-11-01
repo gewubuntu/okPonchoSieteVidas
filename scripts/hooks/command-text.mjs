@@ -1,10 +1,10 @@
-// The text of a shell command that hooks answering `ask` search for a call (stale-main.mjs, before-merge.mjs). Line
+// The text of a shell command that the hooks search for a call (stale-main.mjs, before-merge.mjs, gate-pipe.mjs). Line
 // continuations are joined, and a here-document's body is dropped unless a shell named on its line reads it (`bash <<EOF`,
 // `cat <<EOF | bash`), since a commit message's body is text. Quoted text stays as written: emptying it let quotes inside
-// quotes hide real calls, and such a hook asks when unsure (docs/HARNESS.md, Adding a check; L-008).
+// quotes hide real calls, and a hook that answers `ask` asks when unsure (docs/HARNESS.md, Adding a check; L-008).
 
 // A shell as a command word (`bash`, `/bin/sh -s`, `| zsh`), not inside a file name such as `scripts/x.sh`.
-const SHELL = /(?:^|[\s|;&(])(?:\S*\/)?(?:ba|z|da|k)?sh(?=[\s;&|)]|$)/;
+const SHELL = /(?:^|[\s|;&(])(?:\S*\/)?(?:ba|z|da|k)?sh(?=[\s;&|)<>]|$)/;
 // One shell word: plain characters and quoted parts, as in `core.sshCommand="ssh -i k"` or `--git-dir='/a b'`.
 export const WORD = String.raw`(?:[^\s"';&|()]|"[^"]*"|'[^']*')+`;
 const HEREDOC = /<<-?\s*(['"]?)([A-Za-z_]\w*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g;

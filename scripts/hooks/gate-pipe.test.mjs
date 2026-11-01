@@ -38,6 +38,7 @@ describe('L-012 gate-pipe hook', () => {
     expect(gateProblem("cat > p.mjs <<'EOF'\nconst c = 'node scripts/check.mjs | tail; git commit';\nEOF\nnode p.mjs")).toBeNull();
     expect(gateProblem("bash <<'EOF'\nnode scripts/check.mjs | tail; git commit -m x\nEOF")).toMatch(/L-012/);
     expect(gateProblem("cat <<'EOF' | bash\nnode scripts/check.mjs | tail; git commit -m x\nEOF")).toMatch(/L-012/);
+    expect(gateProblem("cat <<'EOF' | bash>log\nnode scripts/check.mjs | tail; git commit -m x\nEOF")).toMatch(/L-012/);
     expect(gateProblem('node scripts/check.mjs &> /tmp/gate.log && git commit -m x')).toBeNull();
     expect(gateProblem('node scripts/check.mjs \\\n  && git commit -m x')).toBeNull();
     expect(gateProblem('set -o pipefail; node scripts/check.mjs | tail -1 && git commit -m x')).toBeNull();

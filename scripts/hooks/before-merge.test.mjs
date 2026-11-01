@@ -21,6 +21,8 @@ describe('L-043 before-merge hook', () => {
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "echo don\\'t; gh pr merge 3; echo 'x y'" } })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'gh api -X PUT \\\n  repos/o/r/pulls/3/merge' } })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "bash <<'EOF'\ngh pr merge 3\nEOF" } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'GH_TOKEN="$(cat tok)" gh pr merge 3' } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "cat <<'EOF' | bash>log\ngh pr merge 3\nEOF" } })).toMatch(/L-043/);
     // When unsure it asks: a quoted mention after a separator reads as a merge (an extra question, never a missed one).
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'git commit -m "x; gh pr merge 62 later"' } })).toMatch(/L-043/);
   });

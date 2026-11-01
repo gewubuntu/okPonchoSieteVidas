@@ -18,6 +18,11 @@ describe('L-052 stale-main hook', () => {
     expect(isPush('git -c core.sshCommand="ssh -i ~/.ssh/k" push origin x')).toBe(true);
     expect(isPush('git --git-dir="/a b" push')).toBe(true);
     expect(isPush("git --work-tree='/a b' push")).toBe(true);
+    expect(isPush('GIT_TRACE= git push')).toBe(true);
+    expect(isPush('GIT_SSH_COMMAND="ssh -i ~/.ssh/k" git push')).toBe(true);
+    expect(isPush("cat <<'EOF' | bash>/tmp/log\ngit push origin x\nEOF")).toBe(true);
+    expect(isPush("cat <<'EOF' |/bin/sh\ngit push origin x\nEOF")).toBe(true);
+    expect(isPush("cat <<'EOF' |bash\ngit push origin x\nEOF")).toBe(true);
     expect(isPush("bash <<'EOF'\ngit push origin x\nEOF")).toBe(true);
     // When unsure it asks: a quoted `; git push` reads as a push (an extra question, never a missed one).
     expect(isPush('git commit -m "fix; git push later"')).toBe(true);
