@@ -599,3 +599,13 @@ Retired IDs: L-046
 - **Rule:** A test of the save parses the JSON and checks the fields its rule is about with `toMatchObject`; only a test of the save format itself pins the whole text.
 - **Recurrence:** 2
 - **Promoted:** .claude/skills/harness-playtest (Writing a scenario, step 7); `e2e/settings.spec.ts` now reads the parsed fields.
+
+## L-055 A playtest removed a browser API with `delete`, and it was still there
+
+- **Date:** 2026-11-01
+- **Area:** playtest
+- **What went wrong:** For GDD-CTL-03, `e2e/vibration.spec.ts` played a platform without vibration by running `delete Navigator.prototype.vibrate` in an init script. In Chromium `navigator.vibrate` stayed defined, so the first run of the test failed on its own check.
+- **Root cause:** Not knowing that deleting a built-in browser API from its prototype does not reliably remove it in Chromium.
+- **Rule:** To play a platform without a browser API in a playtest, define it as `undefined` with `Object.defineProperty(<Prototype>, '<name>', { configurable: true, value: undefined })` in `page.addInitScript`, and assert `typeof` of it in the page before trusting the test.
+- **Recurrence:** 1
+- **Promoted:** no

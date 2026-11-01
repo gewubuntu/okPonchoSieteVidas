@@ -109,6 +109,8 @@ export const TOUCH = {
   pauseSize: 24,
   /** Slide stick: the share of the half-track around its centre that does nothing (same 0.2 as the gamepad, GDD-CTL-02). */
   stickDeadZone: 0.2,
+  /** GDD-CTL-03: a short vibration on every life lost, where the platform supports it, in milliseconds. */
+  vibrateMs: 50,
 } as const;
 
 /** GDD-CTL-02: the gamepad's left stick. */

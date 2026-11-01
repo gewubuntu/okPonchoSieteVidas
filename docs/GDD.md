@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.8.7
+Version: 0.8.8
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.8.8** (2026-11-01) GDD-CTL-03: the vibration on life loss is built (user, 2026-11-01: vibration first of the touch pieces still missing): 50 ms on the step a life is lost, whatever the cause and the last life included, where the browser has `navigator.vibrate`; nothing on a step that keeps or gains lives.
 - **0.8.7** (2026-10-31) GDD-PRG-02, GDD-UI-02, GDD-LIFE-03: saving at checkpoints (user, 2026-10-31: a "Continue" row on the title; the saved run keeps the lives, the run's hilos, the clock and the used ofrendas; it is dropped at the level clear and by the Siete vidas gastadas screen; Poncho moves beside the title so four rows fit). The run is saved when the checkpoint moves to a later ofrenda, and "Continue" resumes it at that ofrenda after the respawn flip. The title menu starts at 112 px, under the subtitle, with Poncho standing left of "PONCHO" and "Siete Vidas". "Continue" joins the language table (Spanish and German Proposed). In 0-1 the tips show again after "Continue" (user, 2026-11-01). A test level never drops the saved run (found in the review of PR #65).
 - **0.8.6** (2026-10-31) GDD-PRG-02, GDD-WLD-04, GDD-PRG-03, GDD-UI-02, GDD-CMB-02: progress is saved (user, 2026-10-31: each hilo collected once for good, the best medal, the best time and whether a level was cleared are kept per level, saved at the level clear). A hilo saved in an earlier run is drawn faded and cannot be collected again, and counts on the HUD, on the clear screen and for the medal. The clear screen shows the best time beside the time, and "New best!" for a beaten time or medal. "Best" and "New best!" join the language table. GDD-CMB-02: the stun waits for a heavy enemy (user, 2026-10-31).
 - **0.8.5** (2026-10-31) GDD-UI-02, GDD-WLD-06, GDD-WLD-07, GDD-CTL-02: the results menu (user, 2026-10-31: "Next level", "Retry" and "Quit to title"; Retry is a fresh run; in a level with no next level the "Next level" row stays, greyed out). At 1.0 s the level clear screen shows the menu in place of "Press any button", read like the pause menu by keys, taps and the gamepad; game buttons no longer leave the screen. "Retry" starts the same level again at once, as the next level starts. The prompt's text leaves the language table and "Next level" and "Retry" join it (Spanish and German Proposed). Open Question 16 added (menu rows on short phone windows, found in the review of PR #62).
@@ -443,7 +444,8 @@ Status: Proposed. Required for the MVP (GDD-MVP-01).
 - **Claw button (built):** a button the size of the left and right buttons sits left of Jump on the same floor line, a gap of 4 px from it, drawn with three slanted claw marks; it works together with moving and jumping (GDD-CMB-02).
 - **Fuego button (built):** the same size as the claw button, directly above it with a gap of 4 px, drawn as an orange flame. It exists only while Poncho is in Fuego: it appears when he becomes Fuego and goes when he is hit or loses a life (GDD-PWR-03). A press spits a fireball, and, like jump and the claw, a tap shorter than a frame still counts (GDD-CTL-04).
 - **Pause button (built):** top-right, see GDD-UI-02.
-- **Still missing:** mirrored layout and opacity setting, safe-area insets (the canvas is letterboxed, which keeps the buttons clear of notches on wide phones), vibration.
+- **Vibration (built; user, 2026-11-01):** the step a life is lost vibrates once for 50 ms, whatever took it (a hit, a pit, a crush) and the last life too; a step that keeps or gains lives does not. It is handed to the browser only where `navigator.vibrate` exists (Android browsers; Safari on iPhone has none, so nothing happens there), whichever device is being played with. `TOUCH.vibrateMs` in `src/config/tuning.ts`, `src/sim/vibration.ts`.
+- **Still missing:** mirrored layout and opacity setting, and safe-area insets (the canvas is letterboxed, which keeps the buttons clear of notches on wide phones).
 
 ### GDD-CTL-04 Input latency budget
 

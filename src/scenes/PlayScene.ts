@@ -52,6 +52,7 @@ import { hilosCollected } from '../sim/hilo';
 import { bestTimeSuffix, clearTime, medal, medalLine, medalSuffix, openResults, resultsFrame, resultsShown, revealedLines, type ResultsItem, type ResultsMenu } from '../sim/results';
 import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
+import { stepVibration } from '../sim/vibration';
 import type { Power } from '../sim/taco';
 import { parallaxOffset } from '../ui/backdrop';
 import { followCamera } from '../ui/camera';
@@ -196,6 +197,8 @@ export interface PonchoDebug {
   sfxLoaded(): boolean;
   /** Every sound effect handed to the audio system, with the playback rate and the volume it was given (GDD-AUD-02, GDD-AUD-01). */
   sfxPlayed(): { key: string; rate: number; volume: number }[];
+  /** Every vibration handed to the browser so far, in milliseconds (GDD-CTL-03); empty where the platform has no `navigator.vibrate`. */
+  vibrations(): number[];
   /** Triangles the HUD was asked to draw as cracking (GDD-LIFE-02): the place in the row and the fill and crack alpha. The pixels themselves are checked by reading the screenshot. */
   hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
   /** The scale the last triangle was drawn at while one life is left, or null when it does not pulse (GDD-LIFE-04). */
@@ -482,6 +485,7 @@ export class PlayScene extends Phaser.Scene {
   private ofrendasKey = '';
   private sfxLog: string[] = [];
   private sfxPlayed: { key: string; rate: number; volume: number }[] = [];
+  private vibrationLog: number[] = [];
   /** GDD-AUD-02: how far up the scale the hilo notes have climbed. */
   private hiloCombo: HiloCombo = NO_COMBO;
   private devOfrendas = 0;
@@ -1086,6 +1090,7 @@ export class PlayScene extends Phaser.Scene {
         touch: () => this.touch.debug(),
         sfxLoaded: () => SFX_KEYS.every((key) => this.cache.audio.exists(key)),
         sfxPlayed: () => this.sfxPlayed,
+        vibrations: () => this.vibrationLog,
         loseLife: () => this.setLives(loseLife(this.run.lives)),
         activateOfrenda: (id) => this.setLives(activateOfrenda(this.run.lives, id)),
         teleport: (x, y) => {
@@ -1638,6 +1643,13 @@ export class PlayScene extends Phaser.Scene {
     this.sfxPlayed.push({ key: `sfx-${name}`, ...options });
   }
 
+  /** GDD-CTL-03: a vibration where the platform supports it; the log holds what the browser was given. */
+  private vibrate(ms: number): void {
+    if (typeof navigator.vibrate !== 'function') return;
+    this.vibrationLog.push(ms);
+    navigator.vibrate(ms);
+  }
+
   private usedKey(): string {
     return this.level.ofrendas.map((o) => (this.run.lives.used.has(`ofrenda:${o.id}`) ? '1' : '0')).join('');
   }
@@ -1807,6 +1819,8 @@ export class PlayScene extends Phaser.Scene {
     const { sounds, combo } = stepSounds(before, this.run, this.hiloCombo);
     this.hiloCombo = combo;
     for (const sound of sounds) this.playSfx(sound.name, sound.semitones);
+    const vibration = stepVibration(before, this.run);
+    if (vibration !== null) this.vibrate(vibration);
     // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
     this.ticks++;
