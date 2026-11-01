@@ -13,14 +13,14 @@ commit refers to a stable GDD ID such as `GDD-MOV-02`.
 - No GDD ID, no feature. If an idea has no ID, use the `harness-gdd-update` skill first.
 - Never present a guess as a decision. Each GDD section has `Status: Decided | Proposed | Deprecated`.
   Only the user turns `Proposed` into `Decided`.
-- Tuning numbers live in the GDD and in one code file (`src/config/tuning.ts`, once it exists).
+- Tuning numbers live in the GDD and in one code file (`src/config/tuning.ts`).
   Change both together, in the same commit.
 - Poncho's look is defined by the user's reference images (`GDD-ART-02`): the pixel drawing `sprite-pixel.jpg` is the main one and wins over the side-view sprite sheets and the illustration. Never invent visual
   details those images might contradict.
 
 ## Work loop (every task)
 
-1. **Read** the GDD section(s) you are implementing, and `docs/LESSONS.md`.
+1. **Read** the GDD section(s) you are implementing, and `docs/LESSONS.md`. Before that, `git fetch origin main`: if the branch holds only merged history, restart it from `origin/main` (L-030).
 2. **Plan** briefly. Name the GDD IDs touched. Ask the user only when blocked on a decision that is theirs.
 3. **Test first** where logic is testable (movement, lives, damage, save data are pure code).
 4. **Implement** the smallest change that satisfies the GDD text. For a feature, the main session writes the plan and the `implementer` subagent writes the tests and code from it, then the main session checks the result (`harness-feature` steps 5 to 7, `docs/HARNESS.md`).
@@ -42,11 +42,11 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 
 | Command | Purpose |
 | --- | --- |
-| `node scripts/check.mjs` | The gate: GDD integrity, backlog, lessons, skills, then `npm run lint`, `typecheck` and `test`. Must pass before every commit. |
-| `npm install` | Install dependencies (needed once, and by CI). |
+| `node scripts/check.mjs` | The gate: the harness checks listed in `docs/HARNESS.md`, then `npm run lint`, `typecheck` and `test`. Must pass before every commit. |
+| `npm install` | Install dependencies (needed once; CI runs `npm ci`). |
 | `npm run dev` | Dev server on port 5173. |
 | `npm run build` | Typecheck and production build into `dist/`. |
-| `npm test` | Vitest unit tests (`src/**/*.test.ts`). |
+| `npm test` | Vitest unit tests (`src/**/*.test.ts`, `scripts/**/*.test.mjs`). |
 | `npm run shots` | Screenshots for visual review: desktop and phone viewport, into `shots/` (not committed). Scenarios live in `e2e/shots/`. |
 | `node scripts/overview.mjs docs/screenshots/<slug>` | Compose the approved screenshots in that folder into its `overview.png` sheet (L-031). |
 | `node scripts/pr-screenshots.mjs [base]` | Warn if visible files changed and no screenshot was added under `docs/screenshots/`. |
@@ -77,7 +77,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 
 - Cite GDD IDs in code comments only where a number or rule comes from the GDD.
 - Keep simulation logic (movement, lives, damage) free of Phaser imports so it is unit-testable.
-- Input that starts something on a press (jump, claw, and later Fuego) is latched from raw key and pointer events with `src/ui/inputLatch.ts` and cleared by the step that uses it, never only polled once per frame (L-006). A new press-driven action needs a test in `e2e/subframe.spec.ts` that taps it inside one task. Pause (Escape, P) is the exception: it is applied per frame, not per step, from raw browser `keydown` events with auto-repeat ignored, so it needs no latch. It must not use Phaser `Key` `down` events, which can fire again on the release when a press and release land in one frame (L-006), and an extra event toggles the pause back. Its one-task tap tests are in `e2e/pause.spec.ts`. The gamepad is the other exception: browsers give no raw pad events, so it is polled once per frame in `src/ui/gamepad.ts` with no latch, and a press shorter than a frame can be missed (user, 2026-10-25; GDD-CTL-02, GDD-CTL-04). It needs no `e2e/subframe.spec.ts` test.
+- Input that starts something on a press (jump, claw, Fuego) is latched from raw key and pointer events with `src/ui/inputLatch.ts` and cleared by the step that uses it, never only polled once per frame (L-006). A new press-driven action needs a test in `e2e/subframe.spec.ts` that taps it inside one task. Pause (Escape, P) is the exception: it is applied per frame, not per step, from raw browser `keydown` events with auto-repeat ignored, so it needs no latch. It must not use Phaser `Key` `down` events, which can fire again on the release when a press and release land in one frame (L-006), and an extra event toggles the pause back. Its one-task tap tests are in `e2e/pause.spec.ts`. The gamepad is the other exception: browsers give no raw pad events, so it is polled once per frame in `src/ui/gamepad.ts` with no latch, and a press shorter than a frame can be missed (user, 2026-10-25; GDD-CTL-02, GDD-CTL-04). It needs no `e2e/subframe.spec.ts` test.
 - Do not add game code that no GDD ID asks for.
 - Do not name AI models in repository files or in commit subjects and bodies. Attribution trailers (such as `Co-Authored-By`) follow the session's own instructions.
 - Commit on the branch the session designates. Do not open a PR unless the user asks.

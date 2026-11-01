@@ -301,7 +301,7 @@ Prefer an automated check over a prose rule.
 - **Root cause:** The work loop says to restart the branch from `main` after a merge, but nothing says to check that at the start of a session, when the merge happened in another session.
 - **Rule:** At the start of every task, `git fetch origin main` and compare; if the branch carries only merged history, restart it from `origin/main` before reading the backlog or the GDD.
 - **Recurrence:** 1
-- **Promoted:** no
+- **Promoted:** CLAUDE.md (Work loop step 1)
 
 ## L-031 The PR overview sheet has no tool, so each session builds one by hand
 

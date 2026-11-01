@@ -86,8 +86,6 @@ It runs in two places:
    blocking findings, then subscribes to the PR.
 2. **In a session, when the user opens a PR.** Tell Claude the PR is up and it launches the subagent on it.
 
-Findings carry a severity: 🔴 blocking, 🟡 optional, 🟣 pre-existing.
-
 There is no automatic review in CI. It used to run on every PR through `.github/workflows/claude-review.yml` and an `ANTHROPIC_API_KEY` secret; the user removed it, together with the 300-line size guideline (`scripts/pr-size.mjs`), because PRs were over it almost every time.
 
 ## Visual review
@@ -96,7 +94,7 @@ Anything the player can see needs the user's eyes before it merges.
 
 1. `npm run shots` produces desktop and phone screenshots from `e2e/shots/`.
 2. Claude looks at them, shows them to the user in the session with `SendUserFile`, and asks for approval.
-3. After approval, the images go under `docs/screenshots/<slug>/` and are embedded in the PR description.
+3. After approval, the images go under `docs/screenshots/<slug>/` with an `overview.png` sheet of them (`node scripts/overview.mjs`, L-031), and only that overview is embedded in the PR description (L-009).
 4. CI warns when visible files change and no screenshot was added (`scripts/pr-screenshots.mjs`), and the `pr-reviewer` subagent treats missing screenshots or missing approval as blocking.
 
 ## Dependencies
