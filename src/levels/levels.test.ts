@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEVELS, levelById, SAVED_LEVELS, startLevel } from './index';
+import { LEVELS, levelById, SAVED_LEVELS, SAVED_OFRENDAS, startLevel } from './index';
 import { SANDBOX_LEVEL } from './sandbox';
 import { gaps, validateLevel } from './validate';
 
@@ -67,5 +67,11 @@ describe('GDD-PRG-02 which levels are saved', () => {
   it('GDD-PRG-02 0-1 and 1-1 are saved, with their hilo counts, and the sandbox is not', () => {
     // Real levels keep 50 hilos (GDD-WLD-04); the sandbox, a test level, is never saved.
     expect(SAVED_LEVELS).toEqual({ '0-1': 50, '1-1': 50 });
+  });
+});
+
+describe('GDD-PRG-02 saved run: the ofrendas of the saved levels', () => {
+  it('GDD-PRG-02 0-1 and 1-1 have three ofrendas each, and the sandbox is not saved', () => {
+    expect(SAVED_OFRENDAS).toEqual({ '0-1': 3, '1-1': 3 });
   });
 });

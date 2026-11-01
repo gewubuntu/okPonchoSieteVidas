@@ -1,9 +1,9 @@
-// GDD-UI-02: where the pause menu's, the title menu's and the results menu's three rows are and which one a point is on. Pure data, no
+// GDD-UI-02: where the pause menu's, the title menu's (three or four) and the results menu's three rows are and which one a point is on. Pure data, no
 // Phaser, so it can be unit tested. The scene draws the texts and feeds in where the pointer went down.
 import { BASE_WIDTH, PAUSE_MENU, RESULTS_MENU, TITLE_MENU, TOUCH } from '../config/tuning';
 import type { MenuItem } from '../sim/pause';
 import type { ResultsItem } from '../sim/results';
-import type { TitleItem } from '../sim/title';
+import { titleItems, type TitleItem } from '../sim/title';
 
 /** A row's rectangle in game pixels. */
 export interface MenuRow<Item extends string = MenuItem> {
@@ -27,8 +27,9 @@ function stackRows<Item extends string>(items: readonly Item[], menu: { width: n
 /** Three rows, "Resume", "Settings" and "Quit to title", the first's top at PAUSE_MENU.top. */
 export const layoutPauseMenu = (cssPerVirtualPx: number): MenuRow[] => stackRows(['resume', 'settings', 'quit'] as const, PAUSE_MENU, cssPerVirtualPx);
 
-/** Three rows, "Start", "Tutorial" and "Settings", the first's top at TITLE_MENU.top. */
-export const layoutTitleMenu = (cssPerVirtualPx: number): MenuRow<TitleItem>[] => stackRows(['start', 'tutorial', 'settings'] as const, TITLE_MENU, cssPerVirtualPx);
+/** "Start", "Tutorial" and "Settings", with "Continue" on top while a run is saved (GDD-PRG-02), the first's top at TITLE_MENU.top. */
+export const layoutTitleMenu = (cssPerVirtualPx: number, hasContinue: boolean): MenuRow<TitleItem>[] =>
+  stackRows(titleItems(hasContinue), TITLE_MENU, cssPerVirtualPx);
 
 /** Three rows, "Next level", "Retry" and "Quit to title", the first's top at RESULTS_MENU.top. */
 export const layoutResultsMenu = (cssPerVirtualPx: number): MenuRow<ResultsItem>[] => stackRows(['next', 'retry', 'quit'] as const, RESULTS_MENU, cssPerVirtualPx);

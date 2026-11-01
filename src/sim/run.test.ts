@@ -4,7 +4,8 @@ import { loseLife } from './lives';
 import { medal } from './results';
 import { spawn, type PlayerInput } from './movement';
 import { NO_COMBO, stepSounds } from './sfx';
-import { isInPit, startRun, stepRun, touchesOfrenda, type Level, type Ofrenda, type RunState } from './run';
+import { isInPit, resumeRun, startRun, stepRun, touchesOfrenda, type Level, type Ofrenda, type RunState } from './run';
+import type { SavedRun } from './save';
 import { parseTiles } from './tilemap';
 
 const idle: PlayerInput = { move: 0, jumpHeld: false };
@@ -462,5 +463,97 @@ describe('GDD-WLD-04 saved hilos', () => {
     const alone = walk();
     expect(alone.hilosTaken).toEqual([false, true]);
     expect(medal(alone, two)).toBe('bronze');
+  });
+});
+
+describe('GDD-PRG-02 resume', () => {
+  // Floor y = 64. Ofrendas on the left floor (x = 56), past the pit (x = 152), and further on (x = 200). Three hilos high up, out of reach.
+  const near: Ofrenda = { id: 'near', x: 56, y: 4 * TILE };
+  const far: Ofrenda = { id: 'far', x: 152, y: 4 * TILE };
+  const later: Ofrenda = { id: 'later', x: 200, y: 4 * TILE };
+  const resumable: Level = { ...level, ofrendas: [near, far, later], hilos: [0, 1, 2].map((col) => ({ col, row: 0 })) };
+  const saved: SavedRun = { level: '0-1', checkpoint: 1, lives: 4, used: ['ofrenda:near', 'ofrenda:far'], hilos: [true, false, false], clock: 1800 };
+  const go = (r: RunState, input: PlayerInput, steps: number): RunState => {
+    for (let i = 0; i < steps; i++) r = stepRun(r, input, resumable);
+    return r;
+  };
+  // The flip is the last 0.35 s (FLIP.steps) of a wait that starts one step earlier, so its first step shows Poncho and meows.
+  const FLIP_WAIT = FLIP.steps + 1;
+
+  it('GDD-PRG-02 resume starts the flip of a restart with the saved lives, used ofrendas, clock and checkpoint', () => {
+    const r = resumeRun(resumable, saved);
+    expect(r).toMatchObject({ phase: 'respawning', wait: FLIP_WAIT, restarting: true, power: 'base', keysHeld: 0, checkpointIndex: 1, clock: 1800, invulnerable: 0 });
+    expect(r.checkpoint).toEqual({ x: 152, y: 64 });
+    expect(r.lives.lives).toBe(4);
+    expect(r.lives.used).toEqual(new Set(['ofrenda:near', 'ofrenda:far']));
+  });
+
+  it('GDD-PRG-02 resume: the checkpoint is the saved ofrenda, the first one too', () => {
+    const r = resumeRun(resumable, { ...saved, checkpoint: 0 });
+    expect(r.checkpointIndex).toBe(0);
+    expect(r.checkpoint).toEqual({ x: 56, y: 64 });
+    expect(go(r, idle, FLIP_WAIT).player).toMatchObject({ x: 56, y: 64 });
+  });
+
+  it('GDD-PRG-02 resume: the hilos are the run\'s saved ones added to the hilos saved for good', () => {
+    const r = resumeRun(resumable, { ...saved, hilos: [true, false, false] }, [false, true, false]);
+    expect(r.hilosTaken).toEqual([true, true, false]);
+    expect(r.hilosSaved).toEqual([false, true, false]);
+    expect(resumeRun(resumable, { ...saved, hilos: [false, false, true] }).hilosTaken).toEqual([false, false, true]);
+    expect(resumeRun(resumable, { ...saved, hilos: [false, false, true] }).hilosSaved).toEqual([false, false, false]);
+    expect(resumeRun(resumable, { ...saved, hilos: [false, false, false] }, [true, false, true]).hilosTaken).toEqual([true, false, true]);
+  });
+
+  it('GDD-PRG-02 resume: stepping through the flip lands Poncho at the ofrenda, playing, in Base', () => {
+    let r = resumeRun(resumable, saved);
+    for (let i = 1; i < FLIP_WAIT; i++) {
+      r = stepRun(r, idle, resumable);
+      expect(r.phase, `step ${i}`).toBe('respawning');
+    }
+    r = stepRun(r, idle, resumable);
+    expect(r.phase).toBe('playing');
+    expect(r.player).toMatchObject({ x: 152, y: 64, grounded: true });
+    expect(r).toMatchObject({ lives: { lives: 4 }, restarting: false, power: 'base', checkpointIndex: 1 });
+    expect(r.hilosTaken).toEqual([true, false, false]);
+  });
+
+  it('GDD-PRG-02 resume: a button held during the flip does not skip it', () => {
+    const held: PlayerInput = { move: 1, jumpHeld: true, claw: true, fuego: true, left: false, right: true };
+    let r = resumeRun(resumable, saved);
+    for (let i = 1; i < FLIP_WAIT; i++) {
+      r = stepRun(r, held, resumable);
+      expect(r.phase, `step ${i}`).toBe('respawning');
+    }
+    expect(stepRun(r, held, resumable).phase).toBe('playing');
+  });
+
+  it('GDD-PRG-02 resume: a used ofrenda touched again gives no life, an unused one does', () => {
+    let r = go(resumeRun(resumable, saved), idle, FLIP_WAIT);
+    expect(r.lives.lives).toBe(4);
+    r = go(r, idle, 5); // standing on far, which is used
+    expect(r.lives.lives).toBe(4);
+    r = stepRun({ ...r, player: spawn(near.x, near.y) }, idle, resumable); // near, used and earlier
+    expect(r.lives.lives).toBe(4);
+    expect(r.checkpointIndex).toBe(1);
+    r = stepRun({ ...r, player: spawn(later.x, later.y) }, idle, resumable); // later, not used
+    expect(r.lives.lives).toBe(5);
+    expect(r.checkpointIndex).toBe(2);
+  });
+
+  it('GDD-PRG-02 resume: the clock goes on from the saved value, one a step', () => {
+    let r = resumeRun(resumable, saved);
+    r = go(r, idle, 10);
+    expect(r.clock).toBe(1810);
+    r = go(r, idle, FLIP_WAIT - 10 + 5); // the flip ends, then five steps in play
+    expect(r.phase).toBe('playing');
+    expect(r.clock).toBe(1800 + FLIP_WAIT + 5);
+  });
+
+  it('GDD-PRG-02 resume: everything else is at its start, as after a lost life', () => {
+    const r = go(resumeRun(resumable, saved), idle, FLIP_WAIT);
+    expect(r.invulnerable).toBe(120); // 2.0 s, as after a lost life
+    expect(r.platformTick).toBe(0);
+    expect(r.items).toEqual([]);
+    expect(r.fireballs).toEqual([]);
   });
 });

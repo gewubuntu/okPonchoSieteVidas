@@ -32,6 +32,9 @@ export const LEVELS: readonly LevelEntry[] = [
 /** GDD-PRG-02: the levels whose progress is saved (the real ones, not the test level), by id, with their hilo counts: what `readSave` needs to read their entries. */
 export const SAVED_LEVELS: Readonly<Record<string, number>> = Object.fromEntries(LEVELS.filter((e) => !e.test).map((e) => [e.id, e.level.hilos?.length ?? 0]));
 
+/** GDD-PRG-02: the same levels with their ofrenda counts: what `readSave` needs to read the saved run's checkpoint. */
+export const SAVED_OFRENDAS: Readonly<Record<string, number>> = Object.fromEntries(LEVELS.filter((e) => !e.test).map((e) => [e.id, e.level.ofrendas.length]));
+
 /** The level with this id, if there is one. */
 export const levelById = (id: string): LevelEntry | undefined => LEVELS.find((e) => e.id === id);
 

@@ -123,10 +123,14 @@ export const GAMEPAD = {
 export const PAUSE_MENU = { width: 160, rowHeight: 28, top: 136, textSize: 12 } as const;
 
 /**
- * GDD-UI-02: the title menu's rows ("Start", "Tutorial", "Settings"), in game pixels; each grows like the pause menu's. The text
- * size is `PAUSE_MENU.textSize`. The first row's top is 160 so the three rows end above the bottom of a landscape phone (34 px each).
+ * GDD-UI-02: the title menu's rows ("Continue" while a run is saved, "Start", "Tutorial", "Settings"), in game pixels; each grows like the pause
+ * menu's. The text size is `PAUSE_MENU.textSize`. The first row's top is 112, right under "Siete Vidas", so the four rows end above the bottom of
+ * a landscape phone (34 px each, at 248).
  */
-export const TITLE_MENU = { width: 160, rowHeight: 28, top: 160 } as const;
+export const TITLE_MENU = { width: 160, rowHeight: 28, top: 112 } as const;
+
+/** GDD-UI-02: Poncho beside the title: his feet are level with the bottom of "Siete Vidas" (`feetY`), and `gap` px lie between his right edge and the wider title line's left edge. */
+export const TITLE_PONCHO = { feetY: 104, gap: 8 } as const;
 
 /**
  * GDD-UI-02: the results menu's rows ("Next level", "Retry", "Quit to title"), in game pixels; each grows like the pause menu's. The

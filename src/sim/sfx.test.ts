@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { loseLife } from './lives';
 import { spawn, type Abilities, type PlayerInput, type PlayerState } from './movement';
 import type { MovingBlock } from './block';
-import { startRun, stepRun, type Level, type RunState } from './run';
+import { resumeRun, startRun, stepRun, type Level, type RunState } from './run';
 import { NO_COMBO, noteRate, stepHiloCombo, stepSounds, type HiloCombo, type Sfx, type SfxName } from './sfx';
 import { parseTiles } from './tilemap';
 
@@ -431,5 +431,19 @@ describe('GDD-AUD-02 tick', () => {
     expect(beats[beats.length - 1]!.after.phase).toBe('gameover');
     expect(beats[beats.length - 1]!.after.wait).toBeGreaterThan(50);
     expect(count(beats, 'tick')).toBe(0);
+  });
+});
+
+describe('GDD-PRG-02 the resumed flip', () => {
+  const resumable: Level = { ...pit, ofrendas: [{ id: 'a', x: 56, y: 64 }] };
+  const saved = { level: '0-1', checkpoint: 0, lives: 4, used: ['ofrenda:a'], hilos: [], clock: 100 };
+
+  it('GDD-PRG-02 the resumed flip plays the meow once, on its first step, and nothing else', () => {
+    const beats = play(resumable, resumeRun(resumable, saved), 40);
+    expect(beats[0]!.names).toEqual(['meow']);
+    expect(beats[0]!.after.phase).toBe('respawning');
+    expect(count(beats, 'meow')).toBe(1);
+    expect(beats.slice(1).every((b) => b.names.length === 0)).toBe(true);
+    expect(beats[39]!.after.phase).toBe('playing');
   });
 });

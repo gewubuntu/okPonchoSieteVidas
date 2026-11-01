@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loseLife, startWorld } from './lives';
 import { startRun, type Level, type RunState } from './run';
-import { DEFAULT_SAVE, mergeLevels, mergeProgress, readSave, recordClear, saveText, type LevelProgress } from './save';
+import { checkpointRun, DEFAULT_SAVE, mergeLevels, mergeProgress, readSave, recordClear, saveText, type LevelProgress, type SavedRun } from './save';
 import type { Settings } from './settings';
 import { parseTiles } from './tilemap';
 
@@ -14,9 +14,9 @@ const en = (master: number, effects: number): Settings => ({ master, effects, la
 
 describe('GDD-PRG-02 saved settings', () => {
   it('the settings read back as saved', () => {
-    expect(read(saveText({ settings: { master: 3, effects: 7, language: 'en' }, tutorialPlayed: false, levels: {} }))).toEqual(en(3, 7));
-    expect(saveText({ settings: { master: 3, effects: 7, language: 'en' }, tutorialPlayed: false, levels: {} })).toBe('{"version":1,"settings":{"master":3,"effects":7,"language":"en"},"progress":{"tutorialPlayed":false},"levels":{}}');
-    expect(read(saveText({ settings: { master: 0, effects: 0, language: 'en' }, tutorialPlayed: false, levels: {} }))).toEqual(en(0, 0));
+    expect(read(saveText({ settings: { master: 3, effects: 7, language: 'en' }, tutorialPlayed: false, levels: {}, run: null }))).toEqual(en(3, 7));
+    expect(saveText({ settings: { master: 3, effects: 7, language: 'en' }, tutorialPlayed: false, levels: {}, run: null })).toBe('{"version":1,"settings":{"master":3,"effects":7,"language":"en"},"progress":{"tutorialPlayed":false},"levels":{},"run":null}');
+    expect(read(saveText({ settings: { master: 0, effects: 0, language: 'en' }, tutorialPlayed: false, levels: {}, run: null }))).toEqual(en(0, 0));
   });
 
   it('nothing saved opens with the defaults', () => {
@@ -48,11 +48,11 @@ const withProgress = (progress: unknown) => JSON.stringify({ version: 1, setting
 
 describe('GDD-PRG-02 save', () => {
   it('GDD-PRG-02 a save with progress.tutorialPlayed true reads as played', () => {
-    expect(readSave(withProgress({ tutorialPlayed: true }))).toEqual({ settings: en(4, 6), tutorialPlayed: true, levels: {} });
+    expect(readSave(withProgress({ tutorialPlayed: true }))).toEqual({ settings: en(4, 6), tutorialPlayed: true, levels: {}, run: null });
   });
 
   it('GDD-PRG-02 a settings-only save reads as not played and keeps its settings', () => {
-    expect(readSave('{"version":1,"settings":{"master":3,"effects":7}}')).toEqual({ settings: en(3, 7), tutorialPlayed: false, levels: {} });
+    expect(readSave('{"version":1,"settings":{"master":3,"effects":7}}')).toEqual({ settings: en(3, 7), tutorialPlayed: false, levels: {}, run: null });
   });
 
   it('GDD-PRG-02 anything but true in tutorialPlayed reads as not played', () => {
@@ -62,14 +62,14 @@ describe('GDD-PRG-02 save', () => {
   });
 
   it('GDD-PRG-02 nothing saved or unreadable gives the default save', () => {
-    expect(DEFAULT_SAVE).toEqual({ settings: en(10, 10), tutorialPlayed: false, levels: {} });
+    expect(DEFAULT_SAVE).toEqual({ settings: en(10, 10), tutorialPlayed: false, levels: {}, run: null });
     expect(readSave(null)).toEqual(DEFAULT_SAVE);
     expect(readSave('{"version":2,"settings":{"master":3,"effects":3},"progress":{"tutorialPlayed":true}}')).toEqual(DEFAULT_SAVE);
   });
 
   it('GDD-PRG-02 saveText writes the settings and the progress, and reads back the same', () => {
-    const data = { settings: en(4, 9), tutorialPlayed: true, levels: {} };
-    expect(saveText(data)).toBe('{"version":1,"settings":{"master":4,"effects":9,"language":"en"},"progress":{"tutorialPlayed":true},"levels":{}}');
+    const data = { settings: en(4, 9), tutorialPlayed: true, levels: {}, run: null };
+    expect(saveText(data)).toBe('{"version":1,"settings":{"master":4,"effects":9,"language":"en"},"progress":{"tutorialPlayed":true},"levels":{},"run":null}');
     expect(readSave(saveText(data))).toEqual(data);
   });
 });
@@ -78,17 +78,17 @@ const withLanguage = (language: unknown) => JSON.stringify({ version: 1, setting
 
 describe('GDD-PRG-02 the saved language', () => {
   it('saveText writes the language', () => {
-    expect(saveText({ settings: { master: 7, effects: 10, language: 'de' }, tutorialPlayed: false, levels: {} })).toBe(
-      '{"version":1,"settings":{"master":7,"effects":10,"language":"de"},"progress":{"tutorialPlayed":false},"levels":{}}',
+    expect(saveText({ settings: { master: 7, effects: 10, language: 'de' }, tutorialPlayed: false, levels: {}, run: null })).toBe(
+      '{"version":1,"settings":{"master":7,"effects":10,"language":"de"},"progress":{"tutorialPlayed":false},"levels":{},"run":null}',
     );
   });
 
   it('a saved language reads back', () => {
     for (const language of ['en', 'es', 'de'] as const) {
-      const data = { settings: { master: 7, effects: 3, language }, tutorialPlayed: false, levels: {} };
+      const data = { settings: { master: 7, effects: 3, language }, tutorialPlayed: false, levels: {}, run: null };
       expect(readSave(saveText(data), 'en'), language).toEqual(data);
     }
-    expect(readSave(saveText({ settings: { master: 7, effects: 3, language: 'es' }, tutorialPlayed: false, levels: {} }), 'de').settings.language).toBe('es');
+    expect(readSave(saveText({ settings: { master: 7, effects: 3, language: 'es' }, tutorialPlayed: false, levels: {}, run: null }), 'de').settings.language).toBe('es');
   });
 
   it('no save gives the fallback language', () => {
@@ -116,22 +116,22 @@ const readLevel = (levels: unknown) => readSave(saved(levels), 'en', COUNTS).lev
 
 describe('GDD-PRG-02 progress', () => {
   it('GDD-PRG-02 levels round-trip', () => {
-    const data = { settings: en(4, 6), tutorialPlayed: true, levels: { '0-1': SILVER } };
+    const data = { settings: en(4, 6), tutorialPlayed: true, levels: { '0-1': SILVER }, run: null };
     expect(saveText(data)).toBe(
-      '{"version":1,"settings":{"master":4,"effects":6,"language":"en"},"progress":{"tutorialPlayed":true},"levels":{"0-1":{"hilos":"1010","medal":"silver","bestSteps":8040,"cleared":true}}}',
+      '{"version":1,"settings":{"master":4,"effects":6,"language":"en"},"progress":{"tutorialPlayed":true},"levels":{"0-1":{"hilos":"1010","medal":"silver","bestSteps":8040,"cleared":true}},"run":null}',
     );
     expect(readSave(saveText(data), 'en', COUNTS)).toEqual(data);
   });
 
   it('GDD-PRG-02 an entry with no medal and no time is written as null and reads back as none', () => {
-    const data = { settings: en(4, 6), tutorialPlayed: false, levels: { '0-1': NOTHING } };
+    const data = { settings: en(4, 6), tutorialPlayed: false, levels: { '0-1': NOTHING }, run: null };
     expect(saveText(data)).toContain('"0-1":{"hilos":"0000","medal":null,"bestSteps":null,"cleared":false}');
     expect(readSave(saveText(data), 'en', COUNTS)).toEqual(data);
   });
 
   it('GDD-PRG-02 an old save without levels reads as nothing saved', () => {
     const old = readSave('{"version":1,"settings":{"master":3,"effects":7,"language":"de"},"progress":{"tutorialPlayed":true}}', 'en', COUNTS);
-    expect(old).toEqual({ settings: { master: 3, effects: 7, language: 'de' }, tutorialPlayed: true, levels: {} });
+    expect(old).toEqual({ settings: { master: 3, effects: 7, language: 'de' }, tutorialPlayed: true, levels: {}, run: null });
     expect(readSave(null, 'en', COUNTS).levels).toEqual({});
     expect(DEFAULT_SAVE.levels).toEqual({});
   });
@@ -176,9 +176,9 @@ describe('GDD-PRG-02 progress', () => {
   });
 
   it('GDD-PRG-02 saving the settings keeps the levels', () => {
-    const first = readSave(saveText({ settings: en(4, 6), tutorialPlayed: true, levels: { '0-1': SILVER } }), 'en', COUNTS);
+    const first = readSave(saveText({ settings: en(4, 6), tutorialPlayed: true, levels: { '0-1': SILVER }, run: null }), 'en', COUNTS);
     const again = readSave(saveText({ ...first, settings: en(1, 2) }), 'en', COUNTS);
-    expect(again).toEqual({ settings: en(1, 2), tutorialPlayed: true, levels: { '0-1': SILVER } });
+    expect(again).toEqual({ settings: en(1, 2), tutorialPlayed: true, levels: { '0-1': SILVER }, run: null });
   });
 });
 
@@ -258,5 +258,77 @@ describe('GDD-PRG-02 recording a clear', () => {
     expect(merged['0-1']!.hilos).toEqual([true, true, false, false]);
     expect(merged['1-1']).toEqual(a['1-1']);
     expect(merged['2-1']).toEqual(b['2-1']);
+  });
+});
+
+// GDD-PRG-02 saved run: the run part of the save. 0-1 has four hilos and three ofrendas here.
+const OFRENDA_COUNTS = { '0-1': 3 };
+const RUN: SavedRun = { level: '0-1', checkpoint: 1, lives: 5, used: ['ofrenda:0-1-1', 'ofrenda:0-1-2'], hilos: [true, false, true, true], clock: 4210 };
+const runFields = (over: Record<string, unknown> = {}) => ({ level: '0-1', checkpoint: 1, lives: 5, used: ['ofrenda:0-1-1', 'ofrenda:0-1-2'], hilos: '1011', clock: 4210, ...over });
+const withRun = (run: unknown) => JSON.stringify({ version: 1, settings: { master: 4, effects: 6 }, progress: { tutorialPlayed: true }, levels: {}, run });
+const readRun = (run: unknown) => readSave(withRun(run), 'en', COUNTS, OFRENDA_COUNTS).run;
+
+describe('GDD-PRG-02 saved run', () => {
+  it('GDD-PRG-02 saved run round-trips', () => {
+    const data = { settings: en(4, 6), tutorialPlayed: true, levels: {}, run: RUN };
+    expect(saveText(data)).toBe(
+      '{"version":1,"settings":{"master":4,"effects":6,"language":"en"},"progress":{"tutorialPlayed":true},"levels":{},"run":{"level":"0-1","checkpoint":1,"lives":5,"used":["ofrenda:0-1-1","ofrenda:0-1-2"],"hilos":"1011","clock":4210}}',
+    );
+    expect(readSave(saveText(data), 'en', COUNTS, OFRENDA_COUNTS)).toEqual(data);
+  });
+
+  it('GDD-PRG-02 saved run: an old save without run reads as none and keeps the rest', () => {
+    const old = '{"version":1,"settings":{"master":3,"effects":7,"language":"de"},"progress":{"tutorialPlayed":true},"levels":{"0-1":{"hilos":"1010","medal":"silver","bestSteps":8040,"cleared":true}}}';
+    expect(readSave(old, 'en', COUNTS, OFRENDA_COUNTS)).toEqual({ settings: { master: 3, effects: 7, language: 'de' }, tutorialPlayed: true, levels: { '0-1': SILVER }, run: null });
+    expect(DEFAULT_SAVE.run).toBeNull();
+    expect(readSave(null, 'en', COUNTS, OFRENDA_COUNTS).run).toBeNull();
+    for (const run of [null, 5, 'x', true, []]) expect(readRun(run), JSON.stringify(run)).toBeNull();
+  });
+
+  it('GDD-PRG-02 saved run: a level that is not a real level reads as none', () => {
+    expect(readRun(runFields())).toEqual(RUN);
+    for (const level of ['sandbox', 'x', '', 'constructor', 5, null]) expect(readRun(runFields({ level })), JSON.stringify(level)).toBeNull();
+    // A level with an ofrenda count but no hilo count is no saved level either.
+    expect(readSave(withRun(runFields({ level: '1-1', hilos: '' })), 'en', COUNTS, { ...OFRENDA_COUNTS, '1-1': 3 }).run).toBeNull();
+  });
+
+  it('GDD-PRG-02 saved run: a checkpoint must be a whole number from 0 to the ofrendas less one', () => {
+    for (const checkpoint of [0, 1, 2]) expect(readRun(runFields({ checkpoint }))?.checkpoint, String(checkpoint)).toBe(checkpoint);
+    for (const checkpoint of [-1, 3, 1.5, '1', null, 2.9999]) expect(readRun(runFields({ checkpoint })), JSON.stringify(checkpoint)).toBeNull();
+  });
+
+  it('GDD-PRG-02 saved run: lives must be a whole number from 1 to 7', () => {
+    for (const lives of [1, 7]) expect(readRun(runFields({ lives }))?.lives, String(lives)).toBe(lives);
+    for (const lives of [0, 8, 2.5, '5', null, -3]) expect(readRun(runFields({ lives })), JSON.stringify(lives)).toBeNull();
+  });
+
+  it('GDD-PRG-02 saved run: hilos of the wrong length or with another character read as none', () => {
+    expect(readRun(runFields({ hilos: '0000' }))?.hilos).toEqual([false, false, false, false]);
+    for (const hilos of ['101', '10111', '', '10x1', '1O11', 1011, null, ['1', '0', '1', '1']]) expect(readRun(runFields({ hilos })), JSON.stringify(hilos)).toBeNull();
+  });
+
+  it('GDD-PRG-02 saved run: the clock must be a whole number of 0 or more', () => {
+    for (const clock of [0, 1, 99999]) expect(readRun(runFields({ clock }))?.clock, String(clock)).toBe(clock);
+    for (const clock of [-1, 2.5, '4210', null]) expect(readRun(runFields({ clock })), JSON.stringify(clock)).toBeNull();
+  });
+
+  it('GDD-PRG-02 saved run: used keeps only the texts, and a used that is not a list reads as none used', () => {
+    expect(readRun(runFields({ used: ['ofrenda:a', 7, null, 'veladora:v', {}, ['x']] }))?.used).toEqual(['ofrenda:a', 'veladora:v']);
+    for (const used of [5, 'ofrenda:a', null, {}]) expect(readRun(runFields({ used }))?.used, JSON.stringify(used)).toEqual([]);
+    expect(readRun({ level: '0-1', checkpoint: 1, lives: 5, hilos: '1011', clock: 4210 })?.used).toEqual([]);
+  });
+
+  it('GDD-PRG-02 saved run: checkpointRun takes the checkpoint, lives, used, hilos and clock of the run state', () => {
+    const lives = { lives: 4, used: new Set(['ofrenda:a', 'veladora:v']) };
+    const state: RunState = { ...startRun(four), checkpointIndex: 2, lives, hilosTaken: [true, false, true, false], clock: 321 };
+    const snapshot = checkpointRun(state, '1-1');
+    expect(snapshot).toEqual({ level: '1-1', checkpoint: 2, lives: 4, used: ['ofrenda:a', 'veladora:v'], hilos: [true, false, true, false], clock: 321 });
+  });
+
+  it('GDD-PRG-02 saved run: saving the settings or the progress keeps the run', () => {
+    const first = readSave(saveText({ settings: en(4, 6), tutorialPlayed: true, levels: { '0-1': SILVER }, run: RUN }), 'en', COUNTS, OFRENDA_COUNTS);
+    const again = readSave(saveText({ ...first, settings: en(1, 2) }), 'en', COUNTS, OFRENDA_COUNTS);
+    expect(again).toEqual({ settings: en(1, 2), tutorialPlayed: true, levels: { '0-1': SILVER }, run: RUN });
+    expect(readSave(saveText({ ...first, run: null }), 'en', COUNTS, OFRENDA_COUNTS).run).toBeNull();
   });
 });
