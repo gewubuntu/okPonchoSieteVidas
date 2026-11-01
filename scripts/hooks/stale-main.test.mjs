@@ -15,6 +15,9 @@ describe('L-052 stale-main hook', () => {
     expect(isPush('cd /repo && git push -u origin "$(git branch --show-current)"')).toBe(true);
     expect(isPush("echo don\\'t; git push origin HEAD; echo 'x y'")).toBe(true);
     expect(isPush('git -C /repo \\\n  push origin x')).toBe(true);
+    expect(isPush('git -c core.sshCommand="ssh -i ~/.ssh/k" push origin x')).toBe(true);
+    expect(isPush('git --git-dir="/a b" push')).toBe(true);
+    expect(isPush("git --work-tree='/a b' push")).toBe(true);
     expect(isPush("bash <<'EOF'\ngit push origin x\nEOF")).toBe(true);
     // When unsure it asks: a quoted `; git push` reads as a push (an extra question, never a missed one).
     expect(isPush('git commit -m "fix; git push later"')).toBe(true);
@@ -28,6 +31,7 @@ describe('L-052 stale-main hook', () => {
     expect(isPush(undefined)).toBe(false);
     expect(isPush("git commit -m \"$(cat <<'EOF'\nchore: hook\n\ngit push now asks first.\nEOF\n)\"")).toBe(false);
     expect(isPush("cat > notes.md <<'EOF'\ngit push later\nEOF")).toBe(false);
+    expect(isPush("git add scripts/x.sh && git commit -m \"$(cat <<'EOF'\nfix\n\ngit push asks first\nEOF\n)\"")).toBe(false);
   });
 
   it('counts a new PR by the GitHub tool, under any server name, as publishing', () => {
