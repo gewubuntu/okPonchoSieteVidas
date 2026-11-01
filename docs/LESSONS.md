@@ -589,3 +589,13 @@ Retired IDs: L-046
 - **Recurrence 3 (2026-11-01, PR #64, found by the re-review):** the commit that made `docs/HARNESS.md` say a hook answering `ask` reads quoted text as written changed only `before-merge.mjs`; `stale-main.mjs` still emptied quoted text and missed `echo don\'t; git push origin HEAD; echo 'x y'`. Both now read commands through `scripts/hooks/command-text.mjs`.
 - **Recurrence:** 3
 - **Promoted:** .claude/skills/harness-retro (step 3: after a promotion or any rule change, search the other harness files and the lesson rules for the old rule and fix what it falsifies). Guard: none (whether a changed rule falsifies a sentence elsewhere takes reading it; the instance of recurrence 3 is pinned by `scripts/check.mjs`, claude-settings: a hook that answers ask on shell commands must read them through command-text.mjs)
+
+## L-054 A playtest compared the whole saved text, and every new part of the save broke it
+
+- **Date:** 2026-11-01
+- **Area:** playtest, tests
+- **What went wrong:** `e2e/settings.spec.ts` ("the settings are kept after a reload") and a title test compared `localStorage` with the exact saved JSON. Adding `levels` (PR #63) and then `run` (PR #65) to the save each failed them in the full playtest run, though neither change touched the settings.
+- **Root cause:** The tests pinned the whole serialised save, not the fields their rule is about, so any growth of the schema read as a regression.
+- **Rule:** A test of the save parses the JSON and checks the fields its rule is about with `toMatchObject`; only a test of the save format itself pins the whole text.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-playtest (Writing a scenario, step 7); `e2e/settings.spec.ts` now reads the parsed fields.

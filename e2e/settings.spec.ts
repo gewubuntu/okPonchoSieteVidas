@@ -169,7 +169,9 @@ test('GDD-PRG-02 the settings are kept after a reload', async ({ page }) => {
   await started(page);
   await openFromPause(page);
   for (const v of [9, 8, 7]) await change(page, 'ArrowLeft', 'master', v);
-  expect(await page.evaluate((k) => localStorage.getItem(k), SAVE_KEY)).toBe('{"version":1,"settings":{"master":7,"effects":10,"language":"en"},"progress":{"tutorialPlayed":false},"levels":{},"run":null}');
+  // The fields this rule is about, not the whole saved text, which grows with each part the save gets (L-054).
+  const saved: unknown = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), SAVE_KEY))!);
+  expect(saved).toMatchObject({ version: 1, settings: { master: 7, effects: 10, language: 'en' } });
   await page.reload();
   await page.waitForFunction(() => window.__PONCHO__ !== undefined);
   expect(await settings(page)).toEqual({ master: 7, effects: 10, language: 'en' });
