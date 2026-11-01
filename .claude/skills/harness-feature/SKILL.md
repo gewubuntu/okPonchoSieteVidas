@@ -31,6 +31,7 @@ Implements exactly one GDD ID (or a small named group of them) from spec to test
    - Read the whole diff against the plan: nothing missing, nothing extra, expected values from the GDD, code that reads like its neighbours.
    - Run `node scripts/check.mjs` yourself.
    - Every planned mutant must have been killed by its named test, run alone (L-026): each mutant has its own `test` command that runs only that test, with `-t` for Vitest or `-g` for Playwright (L-034). Re-run any the report does not account for with `node scripts/mutate.mjs <mutants.json>` (L-020), never by hand with `sed` or an ad hoc script, in the foreground. A surviving guard that another rule covers is deleted, with the covering rule named in a comment (L-025).
+   - Every change in the diff the plan did not list (a guard, a branch, a new call) gets its own mutant and a test that kills it, like the planned ones (L-010).
    - Fix small things yourself; send larger ones back to the implementer with SendMessage. List the mutations in the PR description.
 8. **Playtest** with the `harness-playtest` skill when the feature is visible or interactive.
    **If anything visible changed**, follow the screenshot approval rule in `CLAUDE.md` now: `npm run shots`, look at the images, show them to the user with `SendUserFile`, and wait for their approval before the PR is marked ready for review.

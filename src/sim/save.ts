@@ -2,7 +2,7 @@
 import { LIVES_MAX, VOLUME } from '../config/tuning';
 import { betterMedal, medal, type Medal } from './results';
 import type { Level, RunState } from './run';
-import { BUTTON_OPACITIES, DEFAULT_SETTINGS, LANGUAGES, type ButtonOpacity, type Language, type Settings } from './settings';
+import { BUTTON_OPACITIES, DEFAULT_SETTINGS, LANGUAGES, TOUCH_LAYOUTS, type ButtonOpacity, type Language, type Settings, type TouchLayout } from './settings';
 
 /** The local storage key of the save. */
 export const SAVE_KEY = 'poncho-siete-vidas';
@@ -50,6 +50,9 @@ const language = (value: unknown, fallback: Language): Language => LANGUAGES.fin
 
 /** GDD-CTL-03: a saved Button opacity: exactly `low`, `medium` or `high`, else medium alone. */
 const buttonOpacity = (value: unknown): ButtonOpacity => BUTTON_OPACITIES.find((o) => o === value) ?? 'medium';
+
+/** GDD-CTL-03: a saved Layout: exactly `standard` or `mirrored`, else standard alone. */
+const layout = (value: unknown): TouchLayout => TOUCH_LAYOUTS.find((l) => l === value) ?? 'standard';
 
 /** One saved level, or undefined when it is not an object. A part that does not read as the GDD says reads as none. */
 function levelProgress(value: unknown, hiloCount: number): LevelProgress | undefined {
@@ -106,7 +109,7 @@ export function readSave(raw: string | null, fallback: Language = 'en', hiloCoun
   if (typeof data !== 'object' || data === null) return defaults;
   const { version, settings, progress, levels, run } = data as { version?: unknown; settings?: unknown; progress?: unknown; levels?: unknown; run?: unknown };
   if (version !== 1 || typeof settings !== 'object' || settings === null) return defaults;
-  const saved = settings as { master?: unknown; effects?: unknown; language?: unknown; buttonOpacity?: unknown };
+  const saved = settings as { master?: unknown; effects?: unknown; language?: unknown; buttonOpacity?: unknown; layout?: unknown };
   const tutorialPlayed = typeof progress === 'object' && progress !== null && (progress as { tutorialPlayed?: unknown }).tutorialPlayed === true;
   // An array, like any non-object, has no level id among its keys: the counts drop them.
   const table = typeof levels === 'object' && levels !== null ? new Map<string, unknown>(Object.entries(levels)) : new Map<string, unknown>();
@@ -116,7 +119,7 @@ export function readSave(raw: string | null, fallback: Language = 'en', hiloCoun
     if (one) read[id] = one;
   }
   return {
-    settings: { master: volume(saved.master, DEFAULT_SETTINGS.master), effects: volume(saved.effects, DEFAULT_SETTINGS.effects), language: language(saved.language, fallback), buttonOpacity: buttonOpacity(saved.buttonOpacity) },
+    settings: { master: volume(saved.master, DEFAULT_SETTINGS.master), effects: volume(saved.effects, DEFAULT_SETTINGS.effects), language: language(saved.language, fallback), buttonOpacity: buttonOpacity(saved.buttonOpacity), layout: layout(saved.layout) },
     tutorialPlayed,
     levels: read,
     run: savedRun(run, hiloCounts, ofrendaCounts),
@@ -127,7 +130,7 @@ export function readSave(raw: string | null, fallback: Language = 'en', hiloCoun
 export const saveText = (data: SaveData): string =>
   JSON.stringify({
     version: 1,
-    settings: { master: data.settings.master, effects: data.settings.effects, language: data.settings.language, buttonOpacity: data.settings.buttonOpacity },
+    settings: { master: data.settings.master, effects: data.settings.effects, language: data.settings.language, buttonOpacity: data.settings.buttonOpacity, layout: data.settings.layout },
     progress: { tutorialPlayed: data.tutorialPlayed },
     levels: Object.fromEntries(
       Object.entries(data.levels).map(([id, p]) => [id, { hilos: p.hilos.map((h) => (h ? '1' : '0')).join(''), medal: p.medal, bestSteps: p.bestSteps, cleared: p.cleared }]),
