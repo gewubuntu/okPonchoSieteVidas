@@ -603,7 +603,7 @@ Retired IDs: L-046
 ## L-055 A lesson named a cause that was never checked
 
 - **Date:** 2026-11-01
-- **Area:** playtest
+- **Area:** process, playtest
 - **What went wrong:** For GDD-CTL-03, the first run of the "no vibration" playtest in `e2e/vibration.spec.ts` failed its own check that `navigator.vibrate` is gone. I switched the stub to `Object.defineProperty(..., { value: undefined })`, which passed, and wrote into this lesson that `delete Navigator.prototype.vibrate` does not work in Chromium. The `pr-reviewer` on PR #66 tried it, and a check in a clean page confirmed: the `delete` does remove it. The real cause of the first failure was never found.
 - **Root cause:** A cause was written into a lesson from one failed run, without a check that isolates it.
 - **Rule:** Before a lesson names a cause (a browser or library behaving some way), reproduce that behaviour alone, in a few lines outside the test that failed; if it does not reproduce, the lesson says the cause is unknown. A playtest that stubs a browser API asserts `typeof` of it in the page before it relies on the stub.
