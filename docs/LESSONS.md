@@ -604,8 +604,8 @@ Retired IDs: L-046
 
 - **Date:** 2026-11-01
 - **Area:** process, playtest
-- **What went wrong:** For GDD-CTL-03, the first run of the "no vibration" playtest in `e2e/vibration.spec.ts` failed its own check that `navigator.vibrate` is gone. I switched the stub to `Object.defineProperty(..., { value: undefined })`, which passed, and wrote into this lesson that `delete Navigator.prototype.vibrate` does not work in Chromium. The `pr-reviewer` on PR #66 tried it, and a check in a clean page confirmed: the `delete` does remove it. The real cause of the first failure was never found.
+- **What went wrong:** For GDD-CTL-03, the first run of the "no vibration" playtest in `e2e/vibration.spec.ts` failed its own check that `navigator.vibrate` is gone. I switched the stub to `Object.defineProperty(..., { value: undefined })`, which passed, and wrote into this lesson that `delete Navigator.prototype.vibrate` does not work in Chromium. The `pr-reviewer` on PR #66 tried it, and a check in a clean page confirmed: the `delete` does remove it. The real cause: the check was `'vibrate' in navigator`, and Phaser's boot runs `navigator.vibrate = navigator.vibrate || ...` (`node_modules/phaser/src/device/Features.js`), which leaves an own property holding `undefined`, so `in` stayed true while `typeof` was `'undefined'`.
 - **Root cause:** A cause was written into a lesson from one failed run, without a check that isolates it.
-- **Rule:** Before a lesson names a cause (a browser or library behaving some way), reproduce that behaviour alone, in a few lines outside the test that failed; if it does not reproduce, the lesson says the cause is unknown. A playtest that stubs a browser API asserts `typeof` of it in the page before it relies on the stub.
+- **Rule:** Before a lesson names a cause (a browser or library behaving some way), reproduce that behaviour alone, in a few lines outside the test that failed; if it does not reproduce, the lesson says the cause is unknown. A playtest that stubs a browser API checks it in the page with `typeof`, never with `in`: Phaser assigns some `navigator` properties at boot.
 - **Recurrence:** 1
 - **Promoted:** no
