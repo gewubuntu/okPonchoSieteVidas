@@ -600,12 +600,12 @@ Retired IDs: L-046
 - **Recurrence:** 2
 - **Promoted:** .claude/skills/harness-playtest (Writing a scenario, step 7); `e2e/settings.spec.ts` now reads the parsed fields.
 
-## L-055 A playtest removed a browser API with `delete`, and it was still there
+## L-055 A lesson named a cause that was never checked
 
 - **Date:** 2026-11-01
 - **Area:** playtest
-- **What went wrong:** For GDD-CTL-03, `e2e/vibration.spec.ts` played a platform without vibration by running `delete Navigator.prototype.vibrate` in an init script. In Chromium `navigator.vibrate` stayed defined, so the first run of the test failed on its own check.
-- **Root cause:** Not knowing that deleting a built-in browser API from its prototype does not reliably remove it in Chromium.
-- **Rule:** To play a platform without a browser API in a playtest, define it as `undefined` with `Object.defineProperty(<Prototype>, '<name>', { configurable: true, value: undefined })` in `page.addInitScript`, and assert `typeof` of it in the page before trusting the test.
+- **What went wrong:** For GDD-CTL-03, the first run of the "no vibration" playtest in `e2e/vibration.spec.ts` failed its own check that `navigator.vibrate` is gone. I switched the stub to `Object.defineProperty(..., { value: undefined })`, which passed, and wrote into this lesson that `delete Navigator.prototype.vibrate` does not work in Chromium. The `pr-reviewer` on PR #66 tried it, and a check in a clean page confirmed: the `delete` does remove it. The real cause of the first failure was never found.
+- **Root cause:** A cause was written into a lesson from one failed run, without a check that isolates it.
+- **Rule:** Before a lesson names a cause (a browser or library behaving some way), reproduce that behaviour alone, in a few lines outside the test that failed; if it does not reproduce, the lesson says the cause is unknown. A playtest that stubs a browser API asserts `typeof` of it in the page before it relies on the stub.
 - **Recurrence:** 1
 - **Promoted:** no
