@@ -340,6 +340,30 @@ test('GDD-PRG-02 the Siete vidas gastadas screen drops the saved run', async ({ 
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('gameover');
   expect(await stored(page)).toBeNull();
   expect(await api(page, () => window.__PONCHO__!.savedRun())).toBeNull();
+  // Pressed through, the restart from the level start brings no saved run back (its checkpoint falls back to the level start, -1).
+  await api(page, () => window.__PONCHO__!.step(61));
+  await stepUntil(page, { phaseNot: 'gameover' }, 3, { move: 0, jumpHeld: true });
+  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('respawning');
+  await stepUntil(page, { phase: 'playing' }, 60);
+  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('playing');
+  expect(await stored(page)).toBeNull();
+  expect(await api(page, () => window.__PONCHO__!.savedRun())).toBeNull();
+});
+
+test('GDD-PRG-02 a game over in the sandbox keeps the saved run of a real level', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the same on a phone: the saving is not input');
+  await seed(page, savedRun());
+  await openGame(page); // the sandbox's title, Continue chosen: Down, then Enter on Start plays the sandbox
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__PONCHO__!.level() === 'sandbox' && !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5);
+  await api(page, () => window.__PONCHO__!.pause(true));
+  for (let i = 0; i < 6; i++) await api(page, () => window.__PONCHO__!.loseLife());
+  await api(page, () => window.__PONCHO__!.teleport(40, 340)); // below the level: a fall into a pit costs the last life
+  await stepUntil(page, { phase: 'gameover' }, 90);
+  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('gameover');
+  expect(await stored(page)).toEqual(savedRun());
+  expect(await api(page, () => window.__PONCHO__!.savedRun())).toMatchObject({ level: '0-1', checkpoint: 1, lives: 4, clock: 1800 });
 });
 
 // ---- Where the browser refuses storage, the saved run lasts for the visit (L-049) ----

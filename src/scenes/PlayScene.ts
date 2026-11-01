@@ -1813,9 +1813,9 @@ export class PlayScene extends Phaser.Scene {
     if (this.run.phase !== before.phase) this.phaseSince = this.ticks;
     if (this.run.phase === 'clear' && before.phase !== 'clear') {
       this.results = openResults(this.hasNext());
-      this.saveRun(null); // GDD-PRG-02: the saved run is dropped at the level clear, and the clear writes the save
+      this.saveRun(null); // GDD-PRG-02: the saved run is dropped at the level clear, and the clear writes the save (a test level has no exit, so never clears)
       this.saveClear();
-    } else if (this.run.phase === 'gameover' && before.phase !== 'gameover') this.saveRun(null); // GDD-PRG-02
+    } else if (!this.entry.test && this.run.phase === 'gameover' && before.phase !== 'gameover') this.saveRun(null); // GDD-PRG-02: a test level never touches the saved run
     else if (!this.entry.test && this.run.checkpointIndex > before.checkpointIndex) this.saveRun(checkpointRun(this.run, this.entry.id)); // GDD-PRG-02: the checkpoint moved on
     // GDD-UI-05: the tutorial tips follow Poncho by steps, so they stand still with the game.
     const tips = this.entry.tips;
