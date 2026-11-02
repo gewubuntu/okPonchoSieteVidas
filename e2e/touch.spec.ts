@@ -216,3 +216,119 @@ test('GDD-CTL-03 a finger that slides from the stick onto the mode switch does n
   expect((await api(page, () => window.__PONCHO__!.touch())).mode).toBe('buttons');
   await fingers(cdp, 'touchEnd', []);
 });
+
+// GDD-CTL-03 safe-area insets
+
+/** Makes the browser report these safe-area insets (CSS px) as `env(safe-area-inset-*)`; `{}` clears them. */
+const insetsTo = (cdp: CDPSession, insets: { left?: number; right?: number; top?: number; bottom?: number }) =>
+  cdp.send('Emulation.setSafeAreaInsetsOverride', { insets });
+const touchState = (page: Page) => api(page, () => window.__PONCHO__!.touch());
+/** Waits for this many more simulation steps (L-042). */
+async function framesLater(page: Page, n: number): Promise<void> {
+  const t0 = await api(page, () => window.__PONCHO__!.ticks());
+  await page.waitForFunction((t) => window.__PONCHO__!.ticks() > t, t0 + n);
+}
+
+test('GDD-CTL-03 safe area: a level started with a bottom inset has its buttons clear of it, and a finger presses them there', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  const cdp = await page.context().newCDPSession(page);
+  await insetsTo(cdp, { left: 47, right: 47, top: 0, bottom: 21 }); // before the game starts: it starts in that state (L-023)
+  const errors = await boot(page);
+  const touch = await touchState(page);
+  expect(touch.insets).toEqual({ left: 0, right: 0, top: 0, bottom: 15 });
+  const at = (id: string) => touch.buttons.find((b) => b.id === id);
+  expect(at('jump')).toMatchObject({ x: 418, y: 193, w: 56, h: 56 });
+  expect(at('left')).toMatchObject({ x: 6, y: 209, w: 40, h: 40 });
+  expect(at('right')).toMatchObject({ x: 50, y: 209, w: 40, h: 40 });
+  expect(at('claw')).toMatchObject({ x: 374, y: 209, w: 40, h: 40 });
+  expect(at('mode')).toMatchObject({ x: 6, y: 165, w: 40, h: 40 });
+  expect(at('pause')).toMatchObject({ x: 440, y: 6, w: 34, h: 34 });
+  await page.evaluate(() => window.__PONCHO__!.teleport(280, 224)); // open ground, as the two-finger test
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+  const jump = await buttonAt(page, 'jump');
+  await fingers(cdp, 'touchStart', [{ x: jump.x, y: jump.y, id: 1 }]);
+  await page.waitForFunction(() => !window.__PONCHO__!.state().grounded);
+  await fingers(cdp, 'touchEnd', []);
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+  await page.waitForFunction(() => !window.__PONCHO__!.state().jumpWasHeld); // a step has seen the release (L-022)
+  // Game (446, 256) is inside where the jump button was and below where it is now: it presses nothing.
+  const box = (await page.locator('canvas').boundingBox())!;
+  const k = box.width / 480;
+  await fingers(cdp, 'touchStart', [{ x: box.x + 446 * k, y: box.y + 256 * k, id: 2 }]);
+  await framesLater(page, 10);
+  expect((await touchState(page)).pressed).toEqual([]);
+  expect((await api(page, () => window.__PONCHO__!.state())).grounded).toBe(true);
+  await fingers(cdp, 'touchEnd', []);
+  expect(errors).toEqual([]);
+});
+
+test('GDD-CTL-03 safe area: the buttons move in the frames after the insets change, and back', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await page.setViewportSize({ width: 800, height: 450 }); // a 16:9 screen: no bars, 800 / 480 CSS px per game px
+  const cdp = await page.context().newCDPSession(page);
+  await boot(page);
+  const box = (id: string) => api(page, () => window.__PONCHO__!.touch()).then((t) => t.buttons.find((b) => b.id === id)!);
+
+  await insetsTo(cdp, { left: 40 }); // 24 game px
+  await page.waitForFunction(() => {
+    const t = window.__PONCHO__!.touch();
+    return t.insets.left === 24 && t.buttons.find((b) => b.id === 'left')!.x === 30;
+  });
+  expect([(await box('mode')).x, (await box('claw')).x, (await box('jump')).x]).toEqual([30, 374, 418]);
+
+  await insetsTo(cdp, { right: 40 });
+  await page.waitForFunction(() => {
+    const t = window.__PONCHO__!.touch();
+    return t.insets.right === 24 && t.insets.left === 0 && t.buttons.find((b) => b.id === 'left')!.x === 6;
+  });
+  expect([(await box('jump')).x, (await box('claw')).x, (await box('pause')).x]).toEqual([394, 350, 421]);
+  expect((await api(page, () => window.__PONCHO__!.hudHilos())).right).toBe(415); // 6 left of the pause button (GDD-UI-01)
+
+  await insetsTo(cdp, { top: 30 }); // 18 game px
+  await page.waitForFunction(() => {
+    const p = window.__PONCHO__!.touch().buttons.find((b) => b.id === 'pause')!;
+    return p.y === 24 && p.x === 445;
+  });
+  const pause = await box('pause');
+  const canvas = (await page.locator('canvas').boundingBox())!;
+  const k = canvas.width / 480;
+  await page.touchscreen.tap(canvas.x + (pause.x + pause.w / 2) * k, canvas.y + (pause.y + pause.h / 2) * k);
+  await page.waitForFunction(() => window.__PONCHO__!.playerPause().paused);
+  await page.touchscreen.tap(canvas.x + (pause.x + pause.w / 2) * k, canvas.y + (pause.y + pause.h / 2) * k); // and it resumes
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+
+  await insetsTo(cdp, {});
+  await page.waitForFunction(() => {
+    const b = window.__PONCHO__!.touch().buttons;
+    const at = (id: string) => b.find((x) => x.id === id)!;
+    return at('jump').x === 418 && at('jump').y === 208 && at('left').x === 6 && at('left').y === 224 && at('pause').x === 445 && at('pause').y === 6;
+  });
+});
+
+test('GDD-CTL-03 safe area: the buttons are laid out again only when the insets change, by one probe', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  const cdp = await page.context().newCDPSession(page);
+  await boot(page);
+  const n = (await touchState(page)).layouts;
+  await framesLater(page, 10);
+  expect((await touchState(page)).layouts).toBe(n);
+  await insetsTo(cdp, { bottom: 21 });
+  await page.waitForFunction((count) => {
+    const t = window.__PONCHO__!.touch();
+    return t.layouts === count + 1 && t.insets.bottom === 15;
+  }, n);
+  await framesLater(page, 10);
+  expect((await touchState(page)).layouts).toBe(n + 1);
+  expect(await page.evaluate(() => document.querySelectorAll('[data-safe-area]').length)).toBe(1);
+});
+
+test('GDD-CTL-03 safe area: a desktop draws no touch buttons whatever the insets', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'desktop only');
+  const cdp = await page.context().newCDPSession(page);
+  await boot(page);
+  await insetsTo(cdp, { left: 40, bottom: 40 });
+  await framesLater(page, 10);
+  const touch = await touchState(page);
+  expect(touch.buttons).toEqual([]);
+  expect(touch.visible).toBe(false);
+});

@@ -2027,6 +2027,8 @@ export class PlayScene extends Phaser.Scene {
     this.touch.setOpacity(this.settings.buttonOpacity);
     // GDD-CTL-03: and laid out at the Layout in use from this frame.
     this.touch.setLayout(this.settings.layout);
+    // GDD-CTL-03: and kept clear of the safe-area insets from this frame.
+    this.touch.updateSafeArea();
     this.drawGameOver();
     this.drawClear();
     this.drawTip();

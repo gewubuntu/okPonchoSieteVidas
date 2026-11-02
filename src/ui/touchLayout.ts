@@ -3,6 +3,7 @@
 import { BASE_HEIGHT, BASE_WIDTH, TOUCH } from '../config/tuning';
 import type { PlayerInput } from '../sim/movement';
 import type { TouchLayout } from '../sim/settings';
+import { NO_INSETS, type Insets } from './safeArea';
 
 export type TouchButtonId = 'left' | 'right' | 'jump' | 'claw' | 'fuego' | 'stick' | 'mode' | 'pause';
 
@@ -24,8 +25,16 @@ export interface TouchButton {
  * never smaller than TOUCH.minCssPx there, so on a small screen it grows (GDD-CTL-03). In the mirrored layout (GDD-CTL-03, GDD-UI-02) every
  * button but the pause button is at its mirror image across the screen's vertical middle, so jump is bottom-left and the move buttons or the
  * stick bottom-right, with the left button still left of the right button (they trade mirrored places); the pause button stays top-right.
+ * Last, each button moves in by the safe-area insets (GDD-CTL-03): sideways by the inset of the half of the screen its middle is in, the pause
+ * button down by the top inset and every other button up by the bottom inset. Sizes and gaps stay; with no insets nothing moves.
  */
-export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'buttons', fuego = false, layout: TouchLayout = 'standard'): TouchButton[] {
+export function layoutTouchButtons(
+  cssPerVirtualPx: number,
+  mode: TouchMode = 'buttons',
+  fuego = false,
+  layout: TouchLayout = 'standard',
+  insets: Insets = NO_INSETS,
+): TouchButton[] {
   const min = Math.ceil(TOUCH.minCssPx / cssPerVirtualPx);
   const size = Math.max(TOUCH.size, min);
   const jump = Math.max(TOUCH.jumpSize, min);
@@ -50,9 +59,20 @@ export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'b
     // GDD-UI-02: the pause button, top-right, opposite the lives on the HUD.
     { id: 'pause', x: BASE_WIDTH - TOUCH.margin - pause, y: TOUCH.margin, w: pause, h: pause },
   ];
-  if (layout === 'standard') return standard;
-  // Mirrored: each zone moves to the other side, but the left button stays left of the right button, so it takes the right
-  // button's mirrored place and the right button the left's (a thumb on the left of the pair still runs left).
+  const placed = layout === 'standard' ? standard : mirror(standard);
+  return placed.map((b) => ({
+    ...b,
+    x: b.x + (b.x + b.w / 2 < BASE_WIDTH / 2 ? insets.left : -insets.right),
+    // By id, not by the middle: on a very small screen the grown mode switch and Fuego button have their middles in the upper half.
+    y: b.y + (b.id === 'pause' ? insets.top : -insets.bottom),
+  }));
+}
+
+/**
+ * Mirrored: each zone moves to the other side, but the left button stays left of the right button, so it takes the right
+ * button's mirrored place and the right button the left's (a thumb on the left of the pair still runs left). The pause button stays.
+ */
+function mirror(standard: readonly TouchButton[]): TouchButton[] {
   const box = (id: TouchButtonId) => standard.find((b) => b.id === id)!;
   return standard.map((b) => {
     if (b.id === 'pause') return b;
