@@ -2,6 +2,7 @@
 // tested. The scene draws the buttons and feeds in where the fingers are.
 import { BASE_HEIGHT, BASE_WIDTH, TOUCH } from '../config/tuning';
 import type { PlayerInput } from '../sim/movement';
+import type { TouchLayout } from '../sim/settings';
 
 export type TouchButtonId = 'left' | 'right' | 'jump' | 'claw' | 'fuego' | 'stick' | 'mode' | 'pause';
 
@@ -20,9 +21,11 @@ export interface TouchButton {
 /**
  * Jump bottom-right with the claw button beside it (and the Fuego button above that, while in Fuego), the pause button top-right, and a mode switch above the left thumb zone, which holds either the left and right buttons or one
  * slide stick as wide as both. `cssPerVirtualPx` is how big one game pixel is on the player's screen: a button is
- * never smaller than TOUCH.minCssPx there, so on a small screen it grows (GDD-CTL-03).
+ * never smaller than TOUCH.minCssPx there, so on a small screen it grows (GDD-CTL-03). In the mirrored layout (GDD-CTL-03, GDD-UI-02) every
+ * button but the pause button is at its mirror image across the screen's vertical middle, so jump is bottom-left and the move buttons or the
+ * stick bottom-right, with the left button still left of the right button (they trade mirrored places); the pause button stays top-right.
  */
-export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'buttons', fuego = false): TouchButton[] {
+export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'buttons', fuego = false, layout: TouchLayout = 'standard'): TouchButton[] {
   const min = Math.ceil(TOUCH.minCssPx / cssPerVirtualPx);
   const size = Math.max(TOUCH.size, min);
   const jump = Math.max(TOUCH.jumpSize, min);
@@ -37,7 +40,7 @@ export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'b
           { id: 'right', x: TOUCH.margin + size + TOUCH.gap, y, w: size, h: size },
         ];
   const claw: TouchButton = { id: 'claw', x: BASE_WIDTH - TOUCH.margin - jump - TOUCH.gap - size, y: bottom - size, w: size, h: size };
-  return [
+  const standard: TouchButton[] = [
     ...left,
     { id: 'mode', x: TOUCH.margin, y: y - TOUCH.gap - size, w: size, h: size },
     claw,
@@ -47,6 +50,15 @@ export function layoutTouchButtons(cssPerVirtualPx: number, mode: TouchMode = 'b
     // GDD-UI-02: the pause button, top-right, opposite the lives on the HUD.
     { id: 'pause', x: BASE_WIDTH - TOUCH.margin - pause, y: TOUCH.margin, w: pause, h: pause },
   ];
+  if (layout === 'standard') return standard;
+  // Mirrored: each zone moves to the other side, but the left button stays left of the right button, so it takes the right
+  // button's mirrored place and the right button the left's (a thumb on the left of the pair still runs left).
+  const box = (id: TouchButtonId) => standard.find((b) => b.id === id)!;
+  return standard.map((b) => {
+    if (b.id === 'pause') return b;
+    const from = b.id === 'left' ? box('right') : b.id === 'right' ? box('left') : b;
+    return { ...b, x: BASE_WIDTH - from.x - from.w };
+  });
 }
 
 /** Which buttons at least one finger is on. A button covers its left and top edge but not its right and bottom edge. */
@@ -65,7 +77,8 @@ export function touchInput(pressed: ReadonlySet<TouchButtonId>, stick = 0): Play
 }
 
 /**
- * The slide stick: a finger anywhere in the lower left quarter of the screen (outside the mode switch) steers by how far
+ * The slide stick: a finger anywhere in the lower quarter of the screen on the stick's side (the lower left one in the standard layout, the
+ * lower right one in the mirrored layout, told by which half of the screen the track's middle is in; outside the mode switch) steers by how far
  * left or right of the track's centre it is. Inside the dead zone nothing happens, beyond it speed grows to full at the
  * track's edge and stays full past it (analog speed, GDD-MOV-01). With no finger there it is 0.
  */
@@ -73,8 +86,9 @@ export function stickMove(buttons: readonly TouchButton[], fingers: readonly { x
   const track = buttons.find((b) => b.id === 'stick');
   const mode = buttons.find((b) => b.id === 'mode');
   if (!track) return 0;
+  const zoneLeft = track.x + track.w / 2 < BASE_WIDTH / 2 ? 0 : BASE_WIDTH / 2;
   const finger = fingers.find(
-    (f) => f.x >= 0 && f.x < BASE_WIDTH / 2 && f.y >= BASE_HEIGHT / 2 && !(mode && inside(mode, f)),
+    (f) => f.x >= zoneLeft && f.x < zoneLeft + BASE_WIDTH / 2 && f.y >= BASE_HEIGHT / 2 && !(mode && inside(mode, f)),
   );
   if (!finger) return 0;
   const d = Math.max(-1, Math.min(1, (finger.x - (track.x + track.w / 2)) / (track.w / 2)));

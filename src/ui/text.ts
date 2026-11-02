@@ -20,6 +20,10 @@ export interface UiText {
   readonly low: string;
   readonly medium: string;
   readonly high: string;
+  /** GDD-CTL-03: the Layout row's name and its two steps. */
+  readonly layout: string;
+  readonly standard: string;
+  readonly mirrored: string;
   readonly back: string;
   readonly gameOver: string;
   readonly retry: string;
@@ -56,6 +60,9 @@ export const TEXT: Record<Language, UiText> = {
     low: 'Low',
     medium: 'Medium',
     high: 'High',
+    layout: 'Layout',
+    standard: 'Standard',
+    mirrored: 'Mirrored',
     back: 'Back',
     gameOver: 'Game over',
     retry: 'Press any button to Retry',
@@ -85,6 +92,9 @@ export const TEXT: Record<Language, UiText> = {
     low: 'Baja',
     medium: 'Media',
     high: 'Alta',
+    layout: 'Disposición',
+    standard: 'Estándar',
+    mirrored: 'Invertida',
     back: 'Volver',
     gameOver: 'Fin del juego',
     retry: 'Presiona cualquier botón para reintentar',
@@ -114,6 +124,9 @@ export const TEXT: Record<Language, UiText> = {
     low: 'Niedrig',
     medium: 'Mittel',
     high: 'Hoch',
+    layout: 'Anordnung',
+    standard: 'Standard',
+    mirrored: 'Gespiegelt',
     back: 'Zurück',
     gameOver: 'Spiel vorbei',
     retry: 'Drücke eine Taste für einen neuen Versuch',

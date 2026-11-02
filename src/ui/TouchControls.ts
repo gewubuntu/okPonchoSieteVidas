@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { BASE_WIDTH, TIPS } from '../config/tuning';
 import type { PlayerInput } from '../sim/movement';
-import type { ButtonOpacity } from '../sim/settings';
+import type { ButtonOpacity, TouchLayout } from '../sim/settings';
 import { dashedRect } from './dashed';
 import { gamePoint } from './gamePoint';
 import { effectiveHeld, InputLatch } from './inputLatch';
@@ -48,6 +48,8 @@ export interface TouchDebug {
   /** GDD-CTL-03: the Button opacity step in use, and the alphas of the idle and the pressed buttons' outline in the last `draw()`, as drawn. */
   opacity: ButtonOpacity;
   alphas: { idleOutline: number; pressedOutline: number };
+  /** GDD-CTL-03: the Layout in use: 'mirrored' puts every button but pause at its mirror image. */
+  layout: TouchLayout;
   /** Every alpha the last `draw()` gave a fill or line style, in order, so a playtest can compare them across the steps. */
   styleAlphas: readonly number[];
   /** GDD-UI-05: the alpha of a tutorial tip's dashed outline as drawn, 0 while none is; the Button opacity does not change it. */
@@ -68,6 +70,8 @@ export class TouchControls {
   /** GDD-CTL-03: the Button opacity step, which scales every alpha `draw()` uses, and the outline alphas the last `draw()` used. */
   private opacity: ButtonOpacity = 'medium';
   private drawnAlphas = { idleOutline: 0, pressedOutline: 0 };
+  /** GDD-CTL-03: the Layout, standard or mirrored. */
+  private layout: TouchLayout = 'standard';
   private styleAlphas: number[] = [];
   /** L-006: a tap on Jump or Claw that is over before the next poll still counts for one step. Left and right too: a tap of
    * either ends the Siete vidas gastadas screen (GDD-LIFE-05). */
@@ -239,7 +243,7 @@ export class TouchControls {
   }
 
   debug(): TouchDebug {
-    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick, highlighted: this.highlighted, opacity: this.opacity, alphas: this.drawnAlphas, styleAlphas: this.styleAlphas, highlightAlpha: this.drawnHighlightAlpha() };
+    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick, highlighted: this.highlighted, opacity: this.opacity, layout: this.layout, alphas: this.drawnAlphas, styleAlphas: this.styleAlphas, highlightAlpha: this.drawnHighlightAlpha() };
   }
 
   /** GDD-CTL-03: the Button opacity step; the buttons are drawn again when it changes. */
@@ -249,6 +253,13 @@ export class TouchControls {
     this.draw();
   }
 
+  /** GDD-CTL-03: the Layout; the buttons are laid out again when it changes. */
+  setLayout(layout: TouchLayout): void {
+    if (layout === this.layout) return;
+    this.layout = layout;
+    if (this.enabled) this.relayout(); // without touch there are no buttons to lay out
+  }
+
   private setMode(mode: TouchMode): void {
     this.mode = mode;
     saveMode(mode);
@@ -256,7 +267,7 @@ export class TouchControls {
   }
 
   private relayout(): void {
-    this.buttons = layoutTouchButtons(this.scene.scale.displaySize.width / BASE_WIDTH, this.mode, this.fuego);
+    this.buttons = layoutTouchButtons(this.scene.scale.displaySize.width / BASE_WIDTH, this.mode, this.fuego, this.layout);
     this.draw();
   }
 

@@ -213,7 +213,7 @@ describe('GDD-UI-02 pause menu with Settings', () => {
   });
 
   it('the settings screen opens on Master volume every time', () => {
-    const moved = after(OPEN, 'menuDown', 'menuDown', 'menuDown', 'menuDown');
+    const moved = after(OPEN, 'menuDown', 'menuDown', 'menuDown', 'menuDown', 'menuDown');
     expect(moved.settings).toBe('back');
     const closed = after(moved, 'pick');
     expect(closed).toEqual(PAUSED_SETTINGS);
@@ -226,25 +226,25 @@ describe('GDD-UI-02 pause menu with Settings', () => {
     const upright = after(effects, 'portrait');
     expect(upright).toEqual({ ...effects, portrait: true });
     for (const e of ['menuDown', 'menuUp', 'menuLeft', 'menuRight', 'pick', 'key', 'button', TAP_OFF, tap({ settings: { row: 'back', side: 'left' } })] as const) {
-      expect(pauseEvent(upright, e, { master: 4, effects: 4, language: 'en', buttonOpacity: 'medium' }), label(e)).toEqual({ state: upright, settings: { master: 4, effects: 4, language: 'en', buttonOpacity: 'medium' } });
+      expect(pauseEvent(upright, e, { master: 4, effects: 4, language: 'en', buttonOpacity: 'medium', layout: 'standard' }), label(e)).toEqual({ state: upright, settings: { master: 4, effects: 4, language: 'en', buttonOpacity: 'medium', layout: 'standard' } });
     }
-    expect(pauseFrame(upright, ['landscape', 'menuLeft'], { master: 4, effects: 4, language: 'en', buttonOpacity: 'medium' })).toMatchObject({ state: effects, settings: { master: 4, effects: 3, language: 'en', buttonOpacity: 'medium' } });
+    expect(pauseFrame(upright, ['landscape', 'menuLeft'], { master: 4, effects: 4, language: 'en', buttonOpacity: 'medium', layout: 'standard' })).toMatchObject({ state: effects, settings: { master: 4, effects: 3, language: 'en', buttonOpacity: 'medium', layout: 'standard' } });
     expect(after(upright, 'landscape', 'menuDown').settings).toBe('language');
     expect(after(effects, 'blur')).toEqual(effects);
   });
 
   it('the volumes change through the pause frame in order', () => {
-    const frame = pauseFrame(PAUSED_SETTINGS, ['pick', 'menuLeft', 'menuDown', 'menuLeft', 'menuLeft'], { master: 10, effects: 10, language: 'en', buttonOpacity: 'medium' });
-    expect(frame.settings).toEqual({ master: 9, effects: 8, language: 'en', buttonOpacity: 'medium' });
+    const frame = pauseFrame(PAUSED_SETTINGS, ['pick', 'menuLeft', 'menuDown', 'menuLeft', 'menuLeft'], { master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+    expect(frame.settings).toEqual({ master: 9, effects: 8, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
     expect(frame.state).toEqual(SCREEN('effects'));
     expect(frame.quit).toBe(false);
   });
 
   it('a quit leaves the volumes as they were', () => {
-    const frame = pauseFrame(PAUSED, ['menuDown', 'menuDown', 'pick', 'menuLeft'], { master: 7, effects: 3, language: 'en', buttonOpacity: 'medium' });
-    expect(frame).toEqual({ state: PLAYING, quit: true, portrait: false, settings: { master: 7, effects: 3, language: 'en', buttonOpacity: 'medium' } });
-    const changed = pauseFrame(PAUSED_SETTINGS, ['pick', 'menuLeft', 'key', 'menuDown', 'menuDown', 'pick', 'menuRight'], { master: 7, effects: 3, language: 'en', buttonOpacity: 'medium' });
-    expect(changed).toMatchObject({ quit: true, settings: { master: 6, effects: 3, language: 'en', buttonOpacity: 'medium' } });
+    const frame = pauseFrame(PAUSED, ['menuDown', 'menuDown', 'pick', 'menuLeft'], { master: 7, effects: 3, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+    expect(frame).toEqual({ state: PLAYING, quit: true, portrait: false, settings: { master: 7, effects: 3, language: 'en', buttonOpacity: 'medium', layout: 'standard' } });
+    const changed = pauseFrame(PAUSED_SETTINGS, ['pick', 'menuLeft', 'key', 'menuDown', 'menuDown', 'pick', 'menuRight'], { master: 7, effects: 3, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+    expect(changed).toMatchObject({ quit: true, settings: { master: 6, effects: 3, language: 'en', buttonOpacity: 'medium', layout: 'standard' } });
   });
 
   it('resuming closes the settings screen for the next pause', () => {

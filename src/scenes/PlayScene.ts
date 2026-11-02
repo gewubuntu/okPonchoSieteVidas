@@ -246,7 +246,7 @@ export interface PonchoDebug {
   /**
    * The settings screen as drawn (GDD-UI-02): whether it is shown, its title and its prompt line ("Turn your device sideways"
    * upright, empty otherwise), the menu it was opened from, its rows (the label, the bars drawn filled for a volume row, the language
-   * name for the Language row, the step's name for the Button opacity row, null for Back, and the colour; for those two rows also the x of the name, in game px) and the row
+   * name for the Language row, the step's name for the Button opacity and Layout rows, null for Back, and the colour; for those three rows also the x of the name, in game px) and the row
    * the chosen look is on. The rows are empty and `chosen` null while it is hidden or upright.
    */
   settingsDrawn(): {
@@ -259,7 +259,7 @@ export interface PonchoDebug {
   };
   /** The settings screen's rows as laid out now, in game px, for tapping them (GDD-UI-02). */
   settingsMenu(): SettingsMenuRow[];
-  /** The volumes, the language and the Button opacity in use now (GDD-UI-02, GDD-AUD-01, GDD-CTL-03). */
+  /** The volumes, the language, the Button opacity and the Layout in use now (GDD-UI-02, GDD-AUD-01, GDD-CTL-03). */
   settings(): Settings;
   /** Whether the tutorial 0-1 has been started, in the browser's save or in this visit (GDD-UI-02, GDD-PRG-02). */
   tutorialPlayed(): boolean;
@@ -463,6 +463,7 @@ export class PlayScene extends Phaser.Scene {
   private settingsArrows!: Phaser.GameObjects.Text[];
   private settingsLanguageValue!: Phaser.GameObjects.Text;
   private settingsOpacityValue!: Phaser.GameObjects.Text;
+  private settingsLayoutValue!: Phaser.GameObjects.Text;
   private settingsBars!: Phaser.GameObjects.Graphics;
   private settingsMarker!: Phaser.GameObjects.Text;
   private settingsRows: SettingsMenuRow[] = layoutSettingsMenu(1);
@@ -804,18 +805,21 @@ export class PlayScene extends Phaser.Scene {
       effects: this.add.text(0, 0, 'Effects volume', menuStyle).setOrigin(0, 0.5),
       language: this.add.text(0, 0, 'Language', menuStyle).setOrigin(0, 0.5),
       buttonOpacity: this.add.text(0, 0, 'Button opacity', menuStyle).setOrigin(0, 0.5),
+      layout: this.add.text(0, 0, 'Layout', menuStyle).setOrigin(0, 0.5),
       back: this.add.text(0, 0, 'Back', menuStyle).setOrigin(0.5),
     };
-    // "<" and ">" for the two volume rows, the language row and the Button opacity row, left then right, row by row.
-    this.settingsArrows = ['<', '>', '<', '>', '<', '>', '<', '>'].map((c) => this.add.text(0, 0, c, menuStyle).setOrigin(0.5));
+    // "<" and ">" for the two volume rows, the language row, the Button opacity row and the Layout row, left then right, row by row.
+    this.settingsArrows = ['<', '>', '<', '>', '<', '>', '<', '>', '<', '>'].map((c) => this.add.text(0, 0, c, menuStyle).setOrigin(0.5));
     // GDD-UI-02: the chosen language's own name, where a volume row's bars are.
     this.settingsLanguageValue = this.add.text(0, 0, '', menuStyle).setOrigin(0.5);
     // GDD-CTL-03: the Button opacity step's name, in the same place.
     this.settingsOpacityValue = this.add.text(0, 0, '', menuStyle).setOrigin(0.5);
+    // GDD-CTL-03: the Layout step's name, in the same place.
+    this.settingsLayoutValue = this.add.text(0, 0, '', menuStyle).setOrigin(0.5);
     this.settingsBars = this.add.graphics();
     this.settingsMarker = this.add.text(0, 0, '>', menuStyle).setOrigin(1, 0.5);
     this.settingsScreen = this.add
-      .container(0, 0, [this.settingsVeil, this.settingsTitle, this.settingsPrompt, ...Object.values(this.settingsLabels), ...this.settingsArrows, this.settingsLanguageValue, this.settingsOpacityValue, this.settingsBars, this.settingsMarker])
+      .container(0, 0, [this.settingsVeil, this.settingsTitle, this.settingsPrompt, ...Object.values(this.settingsLabels), ...this.settingsArrows, this.settingsLanguageValue, this.settingsOpacityValue, this.settingsLayoutValue, this.settingsBars, this.settingsMarker])
       .setScrollFactor(0)
       .setDepth(9.5)
       .setVisible(false);
@@ -1906,7 +1910,8 @@ export class PlayScene extends Phaser.Scene {
     const volumeChanged = () => this.settings.master !== settingsBefore.master || this.settings.effects !== settingsBefore.effects;
     const languageChanged = () => this.settings.language !== settingsBefore.language;
     const opacityChanged = () => this.settings.buttonOpacity !== settingsBefore.buttonOpacity;
-    const settingsChanged = () => volumeChanged() || languageChanged() || opacityChanged();
+    const layoutChanged = () => this.settings.layout !== settingsBefore.layout;
+    const settingsChanged = () => volumeChanged() || languageChanged() || opacityChanged() || layoutChanged();
 
     // GDD-UI-02: the title screen. While it is up no step runs, and the pause events go to it: the title menu, its settings screen,
     // a tap that starts the level; Escape, P and losing focus do nothing on the menu. The button that started the level counts as
@@ -1974,7 +1979,7 @@ export class PlayScene extends Phaser.Scene {
     }
 
     // GDD-PRG-02: a change is saved at once. GDD-UI-02: a volume change plays the jump sound at the new volume, so the player hears
-    // it, and a language or Button opacity change plays nothing; a setting already at its end changes nothing, so nothing is saved or played.
+    // it, and a language, Button opacity or Layout change plays nothing; a setting already at its end changes nothing, so nothing is saved or played.
     if (settingsChanged()) this.writeSave();
     if (volumeChanged()) this.playSfx('jump');
 
@@ -2020,6 +2025,8 @@ export class PlayScene extends Phaser.Scene {
     if (this.settings.language !== this.textLanguage) this.applyLanguage();
     // GDD-CTL-03: the touch buttons are drawn at the Button opacity in use from this frame.
     this.touch.setOpacity(this.settings.buttonOpacity);
+    // GDD-CTL-03: and laid out at the Layout in use from this frame.
+    this.touch.setLayout(this.settings.layout);
     this.drawGameOver();
     this.drawClear();
     this.drawTip();
@@ -2079,6 +2086,7 @@ export class PlayScene extends Phaser.Scene {
     this.settingsLabels.effects.setText(t.effects);
     this.settingsLabels.language.setText(t.language);
     this.settingsLabels.buttonOpacity.setText(t.buttonOpacity);
+    this.settingsLabels.layout.setText(t.layout);
     this.settingsLabels.back.setText(t.back);
     this.gameOverSubtitle.setText(t.gameOver);
     this.gameOverPrompt.setText(t.retry);
@@ -2262,9 +2270,9 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * GDD-UI-02: the settings screen, open from the pause menu or the title menu. Sideways it shows the five rows, the chosen one
+   * GDD-UI-02: the settings screen, open from the pause menu or the title menu. Sideways it shows the six rows, the chosen one
    * pale and the others grey; a volume row has "<" and ">" and its bars, the Language row "<" and ">" and the language's own name
-   * where the bars would be, the Button opacity row "<" and ">" and the step's name there (GDD-CTL-03), Back a ">" in front of it when chosen. Upright the rows
+   * where the bars would be, the Button opacity and Layout rows "<" and ">" and the step's name there (GDD-CTL-03), Back a ">" in front of it when chosen. Upright the rows
    * are hidden and the prompt asks to turn the device sideways; the chosen row is kept. The rows follow the window.
    */
   private drawSettings(): void {
@@ -2284,6 +2292,7 @@ export class PlayScene extends Phaser.Scene {
     this.settingsMarker.setVisible(false);
     this.settingsLanguageValue.setVisible(false);
     this.settingsOpacityValue.setVisible(false);
+    this.settingsLayoutValue.setVisible(false);
     this.settingsArrows.forEach((a) => a.setVisible(false));
     let arrow = 0;
     for (const r of this.settingsRows) {
@@ -2312,6 +2321,12 @@ export class PlayScene extends Phaser.Scene {
         const name = TEXT[this.settings.language][this.settings.buttonOpacity];
         this.settingsOpacityValue.setText(name).setPosition(languageValueX(r), r.y + r.h / 2).setColor(colour).setVisible(show);
         if (show) painted.push({ item: r.item, label: label.text, value: name, color: colour, valueX: this.settingsOpacityValue.x });
+        continue;
+      }
+      if (r.item === 'layout') {
+        const name = TEXT[this.settings.language][this.settings.layout];
+        this.settingsLayoutValue.setText(name).setPosition(languageValueX(r), r.y + r.h / 2).setColor(colour).setVisible(show);
+        if (show) painted.push({ item: r.item, label: label.text, value: name, color: colour, valueX: this.settingsLayoutValue.x });
         continue;
       }
       if (!show) continue;

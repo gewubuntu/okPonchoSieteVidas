@@ -22,7 +22,7 @@ export interface VolumeBar {
 }
 
 /**
- * Five rows, "Master volume", "Effects volume", "Language", "Button opacity" and "Back", centred, the first's top at SETTINGS_MENU.top and each next
+ * Six rows, "Master volume", "Effects volume", "Language", "Button opacity", "Layout" and "Back", centred, the first's top at SETTINGS_MENU.top and each next
  * directly below, growing like the pause menu's rows so none is under TOUCH.minCssPx tall on the player's screen.
  */
 export function layoutSettingsMenu(cssPerVirtualPx: number): SettingsMenuRow[] {

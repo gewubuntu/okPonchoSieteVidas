@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { boot, openGame, pixelsAt, red } from './helpers';
+import { boot, openGame, pixelsAt, red, start } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const ticks = (page: Page) => api(page, () => window.__PONCHO__!.ticks());
@@ -39,8 +39,13 @@ async function openFromPause(page: Page): Promise<void> {
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
 }
 /** Moves to a row of the open settings screen with Down and waits for it. */
-async function chooseRow(page: Page, row: 'effects' | 'buttonOpacity' | 'back'): Promise<void> {
-  const path = { effects: ['effects'], buttonOpacity: ['effects', 'language', 'buttonOpacity'], back: ['effects', 'language', 'buttonOpacity', 'back'] } as const;
+async function chooseRow(page: Page, row: 'effects' | 'buttonOpacity' | 'layout' | 'back'): Promise<void> {
+  const path = {
+    effects: ['effects'],
+    buttonOpacity: ['effects', 'language', 'buttonOpacity'],
+    layout: ['effects', 'language', 'buttonOpacity', 'layout'],
+    back: ['effects', 'language', 'buttonOpacity', 'layout', 'back'],
+  } as const;
   for (const want of path[row]) {
     await press(page, 'ArrowDown');
     await page.waitForFunction((r) => window.__PONCHO__!.settingsDrawn().chosen === r, want);
@@ -74,9 +79,9 @@ async function stickMode(page: Page, cdp: CDPSession): Promise<void> {
   await touchAt(page, cdp, 'touchEnd', []);
   await page.waitForFunction(() => window.__PONCHO__!.touch().mode === 'stick');
 }
-const settingsRow = async (page: Page, item: 'master' | 'effects' | 'language' | 'buttonOpacity' | 'back') => (await api(page, () => window.__PONCHO__!.settingsMenu())).find((r) => r.item === item)!;
+const settingsRow = async (page: Page, item: 'master' | 'effects' | 'language' | 'buttonOpacity' | 'layout' | 'back') => (await api(page, () => window.__PONCHO__!.settingsMenu())).find((r) => r.item === item)!;
 /** Taps the left or right half of a settings row, in its vertical middle. */
-async function tapHalf(page: Page, item: 'master' | 'effects' | 'language' | 'buttonOpacity' | 'back', side: 'left' | 'right'): Promise<void> {
+async function tapHalf(page: Page, item: 'master' | 'effects' | 'language' | 'buttonOpacity' | 'layout' | 'back', side: 'left' | 'right'): Promise<void> {
   const r = await settingsRow(page, item);
   await tapVirtual(page, r.x + r.w * (side === 'left' ? 0.25 : 0.75), r.y + r.h / 2);
 }
@@ -100,11 +105,12 @@ test('GDD-UI-02 Settings from the pause menu: Down, Enter opens it on Master vol
       { item: 'effects', label: 'Effects volume', value: 10, color: GREY },
       { item: 'language', label: 'Language', value: 'English', color: GREY, valueX: 316 },
       { item: 'buttonOpacity', label: 'Button opacity', value: 'Medium', color: GREY, valueX: 316 },
+      { item: 'layout', label: 'Layout', value: 'Standard', color: GREY, valueX: 316 },
       { item: 'back', label: 'Back', value: null, color: GREY },
     ],
     chosen: 'master',
   });
-  expect(rows.map((r) => [r.item, r.x, r.y, r.w])).toEqual([['master', 110, 80, 260], ['effects', 110, expect.any(Number), 260], ['language', 110, expect.any(Number), 260], ['buttonOpacity', 110, expect.any(Number), 260], ['back', 110, expect.any(Number), 260]]);
+  expect(rows.map((r) => [r.item, r.x, r.y, r.w])).toEqual([['master', 110, 62, 260], ['effects', 110, expect.any(Number), 260], ['language', 110, expect.any(Number), 260], ['buttonOpacity', 110, expect.any(Number), 260], ['layout', 110, expect.any(Number), 260], ['back', 110, expect.any(Number), 260]]);
   expect((await api(page, () => window.__PONCHO__!.pauseDrawn())).shown).toBe(false); // it replaces the pause screen
   await press(page, 'Escape');
   await page.waitForFunction(() => !window.__PONCHO__!.settingsDrawn().shown);
@@ -122,7 +128,7 @@ test('GDD-UI-02 Left and Right change the volume and the sound effects play at M
   await change(page, 'ArrowLeft', 'master', 8);
   await chooseRow(page, 'effects');
   for (const v of [9, 8, 7, 6, 5]) await change(page, 'ArrowLeft', 'effects', v);
-  expect(await settingsDrawn(page)).toMatchObject({ rows: [{ value: 8, color: GREY }, { value: 5, color: PALE }, { value: 'English' }, { value: 'Medium' }, { value: null }], chosen: 'effects' });
+  expect(await settingsDrawn(page)).toMatchObject({ rows: [{ value: 8, color: GREY }, { value: 5, color: PALE }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: null }], chosen: 'effects' });
   // One jump sound after each of the seven changes, at the volume it changed to.
   const played = await sfxPlayed(page);
   expect(played).toHaveLength(7);
@@ -151,7 +157,7 @@ test('GDD-UI-02 a volume at its end plays and saves nothing', async ({ page }) =
   await press(page, 'ArrowRight'); // master is at 10 already
   await frames(page);
   await frames(page);
-  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium' });
+  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
   expect(await sfxPlayed(page)).toEqual([]);
   expect(await page.evaluate((k) => localStorage.getItem(k), SAVE_KEY)).toBeNull();
   // The Left after it moves the volume, so the quiet above was the clamp and not a missed key.
@@ -164,7 +170,7 @@ test('GDD-UI-02 a volume at its end plays and saves nothing', async ({ page }) =
   await frames(page);
   await frames(page);
   expect(await sfxPlayed(page)).toHaveLength(n);
-  expect(await settings(page)).toEqual({ master: 0, effects: 10, language: 'en', buttonOpacity: 'medium' });
+  expect(await settings(page)).toEqual({ master: 0, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
 });
 
 test('GDD-PRG-02 the settings are kept after a reload', async ({ page }) => {
@@ -176,13 +182,13 @@ test('GDD-PRG-02 the settings are kept after a reload', async ({ page }) => {
   expect(saved).toMatchObject({ version: 1, settings: { master: 7, effects: 10, language: 'en' } });
   await page.reload();
   await page.waitForFunction(() => window.__PONCHO__ !== undefined);
-  expect(await settings(page)).toEqual({ master: 7, effects: 10, language: 'en', buttonOpacity: 'medium' });
+  expect(await settings(page)).toEqual({ master: 7, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
   // The bars show it too: open the screen from the title.
   await press(page, 'ArrowDown');
   await press(page, 'ArrowDown');
   await press(page, 'Enter');
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
-  expect(await settingsDrawn(page)).toMatchObject({ from: 'title', rows: [{ value: 7 }, { value: 10 }, { value: 'English' }, { value: 'Medium' }, { value: null }] });
+  expect(await settingsDrawn(page)).toMatchObject({ from: 'title', rows: [{ value: 7 }, { value: 10 }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: null }] });
 });
 
 // ---- GDD-UI-02, GDD-CTL-03: the Button opacity row ----
@@ -190,7 +196,7 @@ const opacityRow = async (page: Page) => (await settingsDrawn(page)).rows.find((
 /** Waits for the Button opacity row to read `name`, with the touch controls drawn at `step` in the same frame (L-033). */
 const opacityIs = (page: Page, name: string, step: string) =>
   page.waitForFunction(([n, o]) => window.__PONCHO__!.settingsDrawn().rows.find((r) => r.item === 'buttonOpacity')?.value === n && window.__PONCHO__!.touch().opacity === o, [name, step] as const);
-const savedOpacity = async (page: Page): Promise<unknown> => {
+const savedSettings = async (page: Page): Promise<unknown> => {
   const saved: { settings: unknown } = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), SAVE_KEY))!);
   return saved.settings;
 };
@@ -214,14 +220,14 @@ test('GDD-UI-02 Button opacity: Right and Left step it, it is saved, and the tou
   const sfxBefore = (await api(page, () => window.__PONCHO__!.sfx())).length;
   await press(page, 'ArrowRight');
   await opacityIs(page, 'High', 'high');
-  expect(await savedOpacity(page)).toMatchObject({ buttonOpacity: 'high' });
+  expect(await savedSettings(page)).toMatchObject({ buttonOpacity: 'high' });
   if (isMobile) expect((await api(page, () => window.__PONCHO__!.touch())).alphas.idleOutline).toBeCloseTo(0.525, 10);
   if (isMobile) await scaled(1.5);
   await press(page, 'ArrowLeft');
   await opacityIs(page, 'Medium', 'medium');
   await press(page, 'ArrowLeft');
   await opacityIs(page, 'Low', 'low');
-  expect(await savedOpacity(page)).toMatchObject({ buttonOpacity: 'low' });
+  expect(await savedSettings(page)).toMatchObject({ buttonOpacity: 'low' });
   if (isMobile) expect((await api(page, () => window.__PONCHO__!.touch())).alphas.idleOutline).toBeCloseTo(0.175, 10);
   if (isMobile) await scaled(0.5);
   // At Low, one more Left changes nothing; the Right after it does, so the quiet was the end and not a missed key.
@@ -280,7 +286,7 @@ test("GDD-UI-02 on touch, tapping Button opacity's halves steps it down and up",
   await opacityIs(page, 'Medium', 'medium');
   await tapHalf(page, 'buttonOpacity', 'right');
   await opacityIs(page, 'High', 'high');
-  expect(await savedOpacity(page)).toMatchObject({ buttonOpacity: 'high' });
+  expect(await savedSettings(page)).toMatchObject({ buttonOpacity: 'high' });
 });
 
 test('GDD-PRG-02 Button opacity is kept after a reload', async ({ page }) => {
@@ -300,10 +306,109 @@ test('GDD-PRG-02 Button opacity is kept after a reload', async ({ page }) => {
   expect(await opacityRow(page)).toMatchObject({ value: 'High' });
 });
 
+// ---- GDD-UI-02, GDD-CTL-03: the Layout row ----
+const layoutRow = async (page: Page) => (await settingsDrawn(page)).rows.find((r) => r.item === 'layout')!;
+/** Waits for the Layout row to read `name`, with the touch controls laid out as `layout` in the same frame (L-033). */
+const layoutIs = (page: Page, name: string, layout: string) =>
+  page.waitForFunction(([n, l]) => window.__PONCHO__!.settingsDrawn().rows.find((r) => r.item === 'layout')?.value === n && window.__PONCHO__!.touch().layout === l, [name, layout] as const);
+const touchState = (page: Page) => api(page, () => window.__PONCHO__!.touch());
+const buttonOf = async (page: Page, id: string) => (await touchState(page)).buttons.find((b) => b.id === id)!;
+/** A save with the Layout mirrored (and the rest as the defaults), put in the storage before the page loads. */
+const seedMirrored = (page: Page) =>
+  page.addInitScript(
+    ([key]) => localStorage.setItem(key!, JSON.stringify({ version: 1, settings: { master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'mirrored' }, progress: { tutorialPlayed: false } })),
+    [SAVE_KEY],
+  );
+const MARGIN = 6; // TOUCH.margin: a button's distance from the screen's edge (GDD-CTL-03)
+
+test('GDD-UI-02 Layout: Right and Left step it, it is saved, and the touch buttons move', async ({ page, isMobile }) => {
+  await started(page);
+  await openFromPause(page);
+  await chooseRow(page, 'layout');
+  expect(await layoutRow(page)).toMatchObject({ label: 'Layout', value: 'Standard', color: PALE });
+  const sfxBefore = (await api(page, () => window.__PONCHO__!.sfx())).length;
+  const standard = (await touchState(page)).buttons;
+  if (isMobile) {
+    const jump = standard.find((b) => b.id === 'jump')!;
+    expect(jump.x + jump.w).toBe(480 - MARGIN);
+  }
+  await press(page, 'ArrowRight');
+  await layoutIs(page, 'Mirrored', 'mirrored');
+  expect(await savedSettings(page)).toMatchObject({ layout: 'mirrored' });
+  if (isMobile) {
+    // The buttons drawn over the settings screen have moved as the step was picked; pause has not.
+    const mirrored = (await touchState(page)).buttons;
+    expect(mirrored.find((b) => b.id === 'jump')!.x).toBe(MARGIN);
+    expect(mirrored.find((b) => b.id === 'pause')).toEqual(standard.find((b) => b.id === 'pause'));
+  } else {
+    // A device without touch has no touch buttons, in either layout (GDD-CTL-03: they show only on devices that report touch).
+    expect(standard).toEqual([]);
+    expect(await touchState(page)).toMatchObject({ buttons: [], visible: false });
+  }
+  // At Mirrored, one more Right changes nothing; the Left after it does, so the quiet was the end and not a missed key.
+  await press(page, 'ArrowRight');
+  await frames(page);
+  await frames(page);
+  await layoutIs(page, 'Mirrored', 'mirrored');
+  await press(page, 'ArrowLeft');
+  await layoutIs(page, 'Standard', 'standard');
+  expect(await savedSettings(page)).toMatchObject({ layout: 'standard' });
+  if (isMobile) {
+    const jump = await buttonOf(page, 'jump');
+    expect(jump.x + jump.w).toBe(480 - MARGIN);
+  }
+  await press(page, 'ArrowLeft');
+  await frames(page);
+  await frames(page);
+  await layoutIs(page, 'Standard', 'standard');
+  expect(await api(page, () => window.__PONCHO__!.sfx())).toHaveLength(sfxBefore); // no change plays a sound
+  // Enter on the row does nothing.
+  await press(page, 'Enter');
+  await frames(page);
+  await frames(page);
+  expect(await settingsDrawn(page)).toMatchObject({ shown: true, chosen: 'layout' });
+});
+
+test("GDD-UI-02 on touch, tapping Layout's halves steps it down and up", async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await started(page);
+  await tapButton(page, 'pause');
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.shown);
+  await tapPauseSettings(page);
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
+  await tapHalf(page, 'layout', 'left');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'layout'); // a tap on the row chooses it
+  await frames(page);
+  await layoutIs(page, 'Standard', 'standard'); // and at Standard the left half changes nothing
+  await tapHalf(page, 'layout', 'right');
+  await layoutIs(page, 'Mirrored', 'mirrored');
+  expect(await savedSettings(page)).toMatchObject({ layout: 'mirrored' });
+  await tapHalf(page, 'layout', 'left');
+  await layoutIs(page, 'Standard', 'standard');
+  expect(await savedSettings(page)).toMatchObject({ layout: 'standard' });
+});
+
+test('GDD-PRG-02 Layout is kept after a reload', async ({ page }) => {
+  await started(page);
+  await openFromPause(page);
+  await chooseRow(page, 'layout');
+  await press(page, 'ArrowRight');
+  await layoutIs(page, 'Mirrored', 'mirrored');
+  await page.reload();
+  await page.waitForFunction(() => window.__PONCHO__ !== undefined);
+  expect(await settings(page)).toMatchObject({ layout: 'mirrored' });
+  await page.waitForFunction(() => window.__PONCHO__!.touch().layout === 'mirrored');
+  await press(page, 'ArrowDown');
+  await press(page, 'ArrowDown');
+  await press(page, 'Enter');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
+  expect(await layoutRow(page)).toMatchObject({ value: 'Mirrored' });
+});
+
 test('GDD-PRG-02 something unreadable in the storage opens the game with the defaults', async ({ page }) => {
   await page.addInitScript((k) => localStorage.setItem(k, '{"version":1,"settings":{"master":4,"effects":99}}'), SAVE_KEY);
   await openGame(page);
-  expect(await settings(page)).toEqual({ master: 4, effects: 10, language: 'en', buttonOpacity: 'medium' });
+  expect(await settings(page)).toEqual({ master: 4, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
 });
 
 test('GDD-PRG-02 with storage refused the game plays with defaults and no error', async ({ page }) => {
@@ -316,7 +421,7 @@ test('GDD-PRG-02 with storage refused the game plays with defaults and no error'
     };
   });
   const errors = await boot(page);
-  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium' });
+  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
   await openFromPause(page);
   await change(page, 'ArrowLeft', 'master', 9); // this visit's settings still work
@@ -341,7 +446,7 @@ test('GDD-UI-02 on touch, tapping a volume row\'s halves lowers and raises it, a
   // A tap on another volume row chooses it.
   await tapHalf(page, 'effects', 'left');
   await page.waitForFunction(() => window.__PONCHO__!.settings().effects === 9);
-  expect(await settingsDrawn(page)).toMatchObject({ chosen: 'effects', rows: [{ value: 9 }, { value: 9 }, { value: 'English' }, { value: 'Medium' }, { value: null }] });
+  expect(await settingsDrawn(page)).toMatchObject({ chosen: 'effects', rows: [{ value: 9 }, { value: 9 }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: null }] });
   await tapHalf(page, 'back', 'right');
   await page.waitForFunction(() => !window.__PONCHO__!.settingsDrawn().shown);
   expect(await api(page, () => window.__PONCHO__!.pauseDrawn())).toMatchObject({ shown: true, menu: { chosen: 'settings' } });
@@ -361,7 +466,7 @@ test('GDD-UI-02 a tap off the rows on the settings screen does nothing', async (
   await page.waitForTimeout(200);
   expect(await settingsDrawn(page)).toMatchObject({ shown: true, from: 'pause', chosen: 'master' });
   expect((await api(page, () => window.__PONCHO__!.playerPause()))).toMatchObject({ paused: true, settings: 'master' });
-  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium' });
+  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
 });
 
 test('GDD-UI-02 a finger pressed on the settings screen is held back after the resume', async ({ page, isMobile }) => {
@@ -375,7 +480,7 @@ test('GDD-UI-02 a finger pressed on the settings screen is held back after the r
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
   const x0 = (await api(page, () => window.__PONCHO__!.state())).x;
   // On the Button opacity row's left half, inside the lower left quarter the slide stick reads (x < 240, y >= 135 on the phone's rows;
-  // the Effects row, which this test used before the fifth row, now lies above it).
+  // the Effects row, which this test used before the fifth row, lies above it).
   const row = await settingsRow(page, 'buttonOpacity');
   expect(row.y).toBeGreaterThanOrEqual(135);
   await touchAt(page, cdp, 'touchStart', [{ x: 150, y: row.y + row.h / 2, id: 1 }]);
@@ -399,7 +504,7 @@ test('GDD-UI-02 Settings from the title: Down, Enter opens it, Left does not sta
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().menu.chosen === 'settings');
   await press(page, 'Enter');
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
-  expect(await settingsDrawn(page)).toMatchObject({ from: 'title', chosen: 'master', rows: [{ value: 10 }, { value: 10 }, { value: 'English' }, { value: 'Medium' }, { value: null }] });
+  expect(await settingsDrawn(page)).toMatchObject({ from: 'title', chosen: 'master', rows: [{ value: 10 }, { value: 10 }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: null }] });
   expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false); // it replaces the title screen
   await page.keyboard.press('ArrowLeft'); // the game's Left button, which starts nothing here
   await page.waitForFunction(() => window.__PONCHO__!.settings().master === 9);
@@ -513,8 +618,95 @@ test('GDD-UI-02 a phone turned upright on the settings screen asks to turn sidew
   await press(page, 'ArrowLeft');
   await press(page, 'ArrowDown');
   await frames(page);
-  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium' });
+  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
   await page.setViewportSize({ width: 844, height: 390 });
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().prompt === '' && window.__PONCHO__!.settingsDrawn().chosen !== null);
   expect(await settingsDrawn(page)).toMatchObject({ chosen: 'effects', from: 'pause' });
+});
+
+// ---- GDD-CTL-03: the mirrored layout in play ----
+test('GDD-CTL-03 mirrored: the jump button on the left jumps and the left/right buttons on the right run', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await seedMirrored(page);
+  await start(page, true, '/?level=sandbox');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
+  const cdp = await page.context().newCDPSession(page);
+  const right = await buttonOf(page, 'right');
+  const jump = await buttonOf(page, 'jump');
+  expect((await touchState(page)).layout).toBe('mirrored');
+  expect(jump.x).toBe(MARGIN); // bottom-left
+  expect(right.x).toBeGreaterThan(240); // bottom-right
+  const x0 = (await api(page, () => window.__PONCHO__!.state())).x;
+  await touchAt(page, cdp, 'touchStart', [{ x: right.x + right.w / 2, y: right.y + right.h / 2, id: 1 }]);
+  await page.waitForFunction((x) => window.__PONCHO__!.state().x > x + 8, x0); // held for several frames, he runs right
+  expect((await touchState(page)).pressed).toEqual(['right']);
+  await touchAt(page, cdp, 'touchEnd', []);
+  await page.waitForFunction(() => window.__PONCHO__!.state().vx === 0);
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded);
+  await tapButton(page, 'jump');
+  await page.waitForFunction(() => !window.__PONCHO__!.state().grounded);
+});
+
+test('GDD-CTL-03 mirrored slide stick steers from the lower right quarter, and a finger in the lower left does not', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await seedMirrored(page);
+  await page.addInitScript(() => localStorage.setItem('poncho.touchMode', 'stick'));
+  await start(page, true, '/?level=sandbox');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
+  const cdp = await page.context().newCDPSession(page);
+  const touch = await touchState(page);
+  expect([touch.layout, touch.mode]).toEqual(['mirrored', 'stick']);
+  const track = touch.buttons.find((b) => b.id === 'stick')!;
+  expect(track.x + track.w / 2).toBeGreaterThan(240);
+  // A finger at the track's right end steers right for several frames.
+  const x0 = (await api(page, () => window.__PONCHO__!.state())).x;
+  await touchAt(page, cdp, 'touchStart', [{ x: track.x + track.w - 2, y: track.y + track.h / 2, id: 1 }]);
+  await page.waitForFunction((x) => window.__PONCHO__!.state().x > x + 8, x0);
+  expect((await touchState(page)).stick).toBeGreaterThan(0);
+  await touchAt(page, cdp, 'touchEnd', []);
+  await page.waitForFunction(() => window.__PONCHO__!.state().vx === 0);
+  // A finger in the lower left quarter, on no button, steers nothing.
+  const spot = { x: 100, y: 220 };
+  for (const b of touch.buttons) expect(spot.x >= b.x && spot.x < b.x + b.w && spot.y >= b.y && spot.y < b.y + b.h, `(100, 220) is on ${b.id}`).toBe(false);
+  const x1 = (await api(page, () => window.__PONCHO__!.state())).x;
+  await touchAt(page, cdp, 'touchStart', [{ ...spot, id: 1 }]);
+  const t = await ticks(page);
+  await page.waitForFunction((t0) => window.__PONCHO__!.ticks() > t0 + 20, t);
+  expect((await api(page, () => window.__PONCHO__!.state())).x).toBe(x1);
+  expect((await touchState(page)).stick).toBe(0);
+  await touchAt(page, cdp, 'touchEnd', []);
+});
+
+test('GDD-CTL-03 mirrored: a finger held on the Layout row, in the lower right quarter, steers nothing after Back and the resume', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch device only');
+  await seedMirrored(page);
+  await page.addInitScript(() => localStorage.setItem('poncho.touchMode', 'stick'));
+  await start(page, true, '/?level=sandbox');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
+  const cdp = await page.context().newCDPSession(page);
+  await tapButton(page, 'pause');
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.shown);
+  await tapPauseSettings(page);
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
+  const x0 = (await api(page, () => window.__PONCHO__!.state())).x;
+  // On the Layout row's right half, inside the lower right quarter the mirrored slide stick reads (x >= 240, y >= 135), far left of the
+  // track's centre, so a stick that read it would steer left at full speed. Mirrored is the last step: the right half moves nothing.
+  const row = await settingsRow(page, 'layout');
+  const finger = { x: row.x + row.w * 0.75, y: row.y + row.h / 2 };
+  expect(finger.x).toBeGreaterThanOrEqual(240);
+  expect(finger.y).toBeGreaterThanOrEqual(135);
+  await touchAt(page, cdp, 'touchStart', [{ ...finger, id: 1 }]);
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'layout'); // it was a tap on the row
+  expect(await settings(page)).toMatchObject({ layout: 'mirrored' });
+  await press(page, 'Escape'); // Back to the pause menu
+  await page.waitForFunction(() => !window.__PONCHO__!.settingsDrawn().shown);
+  // The resume: a second finger on the pause button, the first still down.
+  const pause = await buttonOf(page, 'pause');
+  await touchAt(page, cdp, 'touchStart', [{ ...finger, id: 1 }, { x: pause.x + pause.w / 2, y: pause.y + pause.h / 2, id: 2 }]);
+  await page.waitForFunction(() => !window.__PONCHO__!.playerPause().paused);
+  const t = await ticks(page);
+  await page.waitForFunction((t0) => window.__PONCHO__!.ticks() > t0 + 20, t);
+  expect((await api(page, () => window.__PONCHO__!.state())).x).toBe(x0); // 20 steps with the finger down, none moved him
+  expect((await touchState(page)).stick).toBe(0);
+  await touchAt(page, cdp, 'touchEnd', []);
 });

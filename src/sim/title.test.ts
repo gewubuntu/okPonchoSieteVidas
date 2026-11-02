@@ -229,7 +229,7 @@ describe('GDD-UI-02 title menu', () => {
     for (const leave of ['key', tap({ settings: { row: 'back', side: 'left' } })] as const) {
       expect(frame(OPEN, [leave]), JSON.stringify(leave)).toEqual({ ...TITLE, choice: 'settings' });
     }
-    expect(frame(OPEN, ['menuDown', 'menuDown', 'menuDown', 'menuDown', 'pick'])).toEqual({ ...TITLE, choice: 'settings' });
+    expect(frame(OPEN, ['menuDown', 'menuDown', 'menuDown', 'menuDown', 'menuDown', 'pick'])).toEqual({ ...TITLE, choice: 'settings' });
     // Opened by a tap on its row while Start was chosen, it still comes back with Settings chosen.
     expect(frame(TITLE, [tap({ title: 'settings' }), 'key'])).toEqual({ ...TITLE, choice: 'settings' });
     // The start item was chosen before? Opening it needed Settings chosen.
@@ -239,19 +239,19 @@ describe('GDD-UI-02 title menu', () => {
   it("Escape, P and the pause button's place on the title's settings screen", () => {
     expect(frame(OPEN, ['key'])).toMatchObject({ shown: true, settings: null, choice: 'settings' });
     expect(frame(OPEN, ['button'])).toMatchObject({ shown: true, settings: 'master' }); // a plain spot: nothing happens
-    expect(titleFrame(OPEN, ['button'], 0, { master: 3, effects: 4, language: 'en', buttonOpacity: 'medium' }).settings).toEqual({ master: 3, effects: 4, language: 'en', buttonOpacity: 'medium' });
+    expect(titleFrame(OPEN, ['button'], 0, { master: 3, effects: 4, language: 'en', buttonOpacity: 'medium', layout: 'standard' }).settings).toEqual({ master: 3, effects: 4, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
   });
 
   it("the volumes change on the title's settings screen", () => {
-    const r = titleFrame(TITLE, ['menuDown', 'menuDown', 'pick', 'menuRight', 'menuLeft', 'menuLeft'], 0, { master: 10, effects: 10, language: 'en', buttonOpacity: 'medium' });
-    expect(r.settings).toEqual({ master: 8, effects: 10, language: 'en', buttonOpacity: 'medium' }); // Right at 10 stays 10, then two Lefts
-    const s = titleFrame(TITLE, ['menuDown', 'menuDown', 'pick', 'menuDown', 'menuLeft'], 0, { master: 9, effects: 10, language: 'en', buttonOpacity: 'medium' });
-    expect(s.settings).toEqual({ master: 9, effects: 9, language: 'en', buttonOpacity: 'medium' });
+    const r = titleFrame(TITLE, ['menuDown', 'menuDown', 'pick', 'menuRight', 'menuLeft', 'menuLeft'], 0, { master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+    expect(r.settings).toEqual({ master: 8, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' }); // Right at 10 stays 10, then two Lefts
+    const s = titleFrame(TITLE, ['menuDown', 'menuDown', 'pick', 'menuDown', 'menuLeft'], 0, { master: 9, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+    expect(s.settings).toEqual({ master: 9, effects: 9, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
     expect(s.state.settings).toBe('effects');
-    const t = titleFrame(OPEN, [tap({ settings: { row: 'effects', side: 'left' } })], 0, { master: 3, effects: 4, language: 'en', buttonOpacity: 'medium' });
-    expect(t).toMatchObject({ settings: { master: 3, effects: 3, language: 'en', buttonOpacity: 'medium' }, state: { settings: 'effects' } });
-    const u = titleFrame(TITLE, ['menuDown', 'menuDown', 'pick', 'menuRight'], 0, { master: 9, effects: 10, language: 'en', buttonOpacity: 'medium' });
-    expect(u.settings).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium' });
+    const t = titleFrame(OPEN, [tap({ settings: { row: 'effects', side: 'left' } })], 0, { master: 3, effects: 4, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+    expect(t).toMatchObject({ settings: { master: 3, effects: 3, language: 'en', buttonOpacity: 'medium', layout: 'standard' }, state: { settings: 'effects' } });
+    const u = titleFrame(TITLE, ['menuDown', 'menuDown', 'pick', 'menuRight'], 0, { master: 9, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+    expect(u.settings).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
   });
 
   it('upright, nothing is chosen or picked; sideways again the choice is kept', () => {
@@ -265,7 +265,7 @@ describe('GDD-UI-02 title menu', () => {
     // Upright, the settings screen takes nothing either.
     const screenUp = frame(OPEN, ['portrait']);
     expect(screenUp).toMatchObject({ settings: 'master', portrait: true });
-    expect(titleFrame(screenUp, ['menuDown', 'menuLeft', 'key'], 0, { master: 5, effects: 5, language: 'en', buttonOpacity: 'medium' })).toEqual({ state: screenUp, settings: { master: 5, effects: 5, language: 'en', buttonOpacity: 'medium' }, start: null });
+    expect(titleFrame(screenUp, ['menuDown', 'menuLeft', 'key'], 0, { master: 5, effects: 5, language: 'en', buttonOpacity: 'medium', layout: 'standard' })).toEqual({ state: screenUp, settings: { master: 5, effects: 5, language: 'en', buttonOpacity: 'medium', layout: 'standard' }, start: null });
     expect(frame(screenUp, ['landscape', 'menuDown'])).toMatchObject({ settings: 'effects', portrait: false });
   });
 

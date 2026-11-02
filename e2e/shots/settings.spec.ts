@@ -47,8 +47,10 @@ test('GDD-UI-02 the settings screen from the pause menu, after changes, and Back
   await press(page, 'ArrowDown', 40);
   await chosen(page, 'buttonOpacity');
   await press(page, 'ArrowDown', 40);
+  await chosen(page, 'layout');
+  await press(page, 'ArrowDown', 40);
   await chosen(page, 'back');
-  expect(await page.evaluate(() => window.__PONCHO__!.settings())).toEqual({ master: 6, effects: 10, language: 'en', buttonOpacity: 'medium' });
+  expect(await page.evaluate(() => window.__PONCHO__!.settings())).toEqual({ master: 6, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
   await shot(page, info, 'settings-pause-back');
 });
 
@@ -181,4 +183,29 @@ test('GDD-CTL-03 the touch buttons at Low and at High opacity', async ({ page, i
     expect(await page.evaluate(() => window.__PONCHO__!.tip())).toMatchObject({ device: 'touch' });
     await shot(page, info, shotName);
   }
+});
+
+// GDD-CTL-03 the mirrored layout in play: jump bottom-left with the claw beside it, the move buttons (then the slide stick) bottom-right,
+// the pause button still top-right. The save is seeded with the Layout, as the language shots do, and the level is started and the mode
+// switched by touch, as a phone player does (L-045). The desktop draws no touch buttons, so only the phone takes it.
+test('GDD-CTL-03 the mirrored layout in play', async ({ page, isMobile }, info) => {
+  test.skip(!isMobile, 'the desktop draws no touch buttons');
+  await page.addInitScript(
+    ([key, text]) => localStorage.setItem(key!, text!),
+    ['poncho-siete-vidas', '{"version":1,"settings":{"master":10,"effects":10,"language":"en","buttonOpacity":"medium","layout":"mirrored"},"progress":{"tutorialPlayed":false}}'],
+  );
+  await start(page, isMobile);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
+  expect(await page.evaluate(() => window.__PONCHO__!.touch())).toMatchObject({ visible: true, layout: 'mirrored', mode: 'buttons' });
+  await shot(page, info, 'touch-mirrored-1-buttons');
+  const mode = (await page.evaluate(() => window.__PONCHO__!.touch())).buttons.find((x) => x.id === 'mode')!;
+  // A finger kept on the switch until the mode has flipped: the switch reads the fingers down each frame, and page.touchscreen.tap lifts within one.
+  const box = (await page.locator('canvas').boundingBox())!;
+  const k = box.width / 480;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 9, x: box.x + (mode.x + mode.w / 2) * k, y: box.y + (mode.y + mode.h / 2) * k }] });
+  await page.waitForFunction(() => window.__PONCHO__!.touch().mode === 'stick');
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  expect(await page.evaluate(() => window.__PONCHO__!.touch())).toMatchObject({ visible: true, layout: 'mirrored', mode: 'stick' });
+  await shot(page, info, 'touch-mirrored-2-stick');
 });
