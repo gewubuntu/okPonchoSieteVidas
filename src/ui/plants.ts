@@ -32,13 +32,15 @@ function thingTiles(level: Level): { col: number; row: number }[] {
 }
 
 /**
- * GDD-ART-06: the plants of a level, sorted by column then row. A top tile at (column, row) gets a plant when (37 x column + 11 x row)
+ * GDD-ART-06: the plants of a level, sorted by column then row. A top tile (no level tile or slope directly above it) at (column, row) gets a plant when (37 x column + 11 x row)
  * mod 9 is 0 or 1; its kind is (3 x column + 5 x row) mod 7. It gets none when a tile above it, up to the plant's height, is solid or holds a fragile wall, a crumbling tile, a piñata or a door, or
  * when a spawn, ofrenda, exit, spike, spring, door, key, piñata, taco, veladora or enemy start stands within 2 columns on its row or
  * the row above.
  */
 export function plantSpots(level: Level): PlantSpot[] {
   const solid = (tx: number, ty: number) => level.world.solidTile(tx, ty);
+  // GDD-ART-06, GDD-MOV-09: a level tile under a sand slope is no top tile.
+  const ground = (tx: number, ty: number) => solid(tx, ty) || level.world.slopeAt(tx, ty) !== null;
   // What a plant must not poke into: the level's tiles and the blocks that are not in them (fragile walls, crumbling tiles, piñatas, doors).
   const blocks = new Set([...level.fragiles, ...level.crumbles, ...level.pinatas, ...level.doors.flatMap((d) => Array.from({ length: d.height }, (_, i) => ({ col: d.col, row: d.row + i })))].map((t) => `${t.col},${t.row}`));
   const filled = (tx: number, ty: number) => solid(tx, ty) || blocks.has(`${tx},${ty}`);
@@ -46,7 +48,7 @@ export function plantSpots(level: Level): PlantSpot[] {
   const spots: PlantSpot[] = [];
   for (let col = 0; col < level.world.width; col++) {
     for (let row = 0; row < level.world.height; row++) {
-      if (!solid(col, row) || !isTopTile(solid, col, row)) continue;
+      if (!solid(col, row) || !isTopTile(ground, col, row)) continue;
       if ((37 * col + 11 * row) % 9 > 1) continue;
       const kind = (3 * col + 5 * row) % 7;
       const tiles = Math.ceil(PLANTS[kind]!.h / TILE);

@@ -66,6 +66,12 @@ export const GLIDE = { fallSpeed: 70, stompLockSteps: Math.round(0.15 * TICK_HZ)
  */
 export const WALL = { slideSpeed: 60, kickX: 130, kickY: 380, lockSteps: Math.round(0.12 * TICK_HZ), graceSteps: FORGIVENESS.coyoteSteps } as const;
 
+/**
+ * GDD-MOV-09: on the ground a body steps up and down a sand slope by up to `stepPx` in one step without leaving it; a higher rise is a
+ * wall (a slope's high side) and a deeper drop a fall. At the run speed a 45-degree slope rises 2 px a step.
+ */
+export const SLOPE = { stepPx: 4 } as const;
+
 /** GDD-MOV-06: body hitbox for ground and walls, hurtbox for enemies and hazards, sprite frame. */
 export const HITBOX = { width: 12, height: 32 } as const;
 export const HURTBOX = { width: 10, height: 30 } as const;

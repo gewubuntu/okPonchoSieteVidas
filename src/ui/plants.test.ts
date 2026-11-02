@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BACKDROP, PLANTS, TILE } from '../config/tuning';
 import { LEVEL_0_1 } from '../levels/level0-1';
 import { SANDBOX_LEVEL } from '../levels/sandbox';
+import { SLOPES_LEVEL } from '../levels/slopes';
 import type { Level } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import { plantSpots } from './plants';
@@ -261,5 +262,19 @@ describe('GDD-ART-06 plants', () => {
     // The cactus buddy starts at x = 184, y = 192: tile column 11, row 11, on the 2-tile wall's top (row 12). The spikes at columns 20 and 21 stand in row 13 on the floor (row 14).
     expect(spots.filter((s) => (s.row === 12 || s.row === 11) && Math.abs(s.col - 11) <= 2)).toEqual([]);
     expect(spots.filter((s) => (s.row === 14 || s.row === 13) && (Math.abs(s.col - 20) <= 2 || Math.abs(s.col - 21) <= 2))).toEqual([]);
+  });
+
+  it('GDD-ART-06 a tile under a slope is no top tile and grows no plant', () => {
+    const rows = Array.from({ length: 17 }, (_, r) => (r >= 14 ? '#'.repeat(WIDTH) : '.'.repeat(WIDTH)));
+    rows[13] = rows[13]!.slice(0, 9) + '/' + rows[13]!.slice(10);
+    const sloped: Level = { ...level(14), world: parseTiles(rows) };
+    // Column 9 is gone from the flat floor's list [0, 8, 9, 17, 18, 26, 27, 35, 36]; the rest is unchanged.
+    expect(plantSpots(sloped).map((s) => s.col)).toEqual([0, 8, 17, 18, 26, 27, 35, 36]);
+  });
+
+  it('GDD-ART-06 the slopes level grows one plant, a nopal at column 0', () => {
+    // On row 14 the formula picks columns 0, 8, 9, 17, 18, 26, 27; 8 is under the hill's tile, 9, 17, 18 and 26 are under slopes, 27 is within
+    // 2 columns of the Tlacuache's start (column 29); rows 12 and 13 give no spot on a top tile; column 0 is 3 columns from the spawn (column 3).
+    expect(plantSpots(SLOPES_LEVEL)).toEqual([{ kind: 0, col: 0, row: 14 }]);
   });
 });

@@ -5,6 +5,7 @@
 import { CACTUS, ENEMY, STEP, STOMP, TILE, TLACUACHE, ZOPILOTE } from '../config/tuning';
 import { hurtbox } from './hazards';
 import type { PlayerState } from './movement';
+import { boxBlocked, isGround, stepDown, stepUp } from './slope';
 import type { TileGrid } from './tilemap';
 
 export type EnemyKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache';
@@ -52,6 +53,8 @@ export interface EnemyState {
   readonly flight?: Flight;
   /** Only a Tlacuache has one. */
   readonly gait?: Gait;
+  /** GDD-MOV-09: the y of a walker's feet once it has walked (it follows slopes). Left out, it stands at its start's y. */
+  readonly y?: number;
 }
 
 export interface Box {
@@ -75,14 +78,8 @@ export const freshEnemies = (enemies: readonly Enemy[]): readonly EnemyState[] =
 /** The size of a box that stands on the ground. */
 const sizeOf = (def: Enemy): { width: number; height: number } => (kindOf(def) === 'cactus' ? CACTUS : kindOf(def) === 'tlacuache' ? TLACUACHE : ENEMY);
 
-/** Does a box of this size, centred on x with its feet at y, overlap a solid tile? */
-function blockedAt(world: TileGrid, x: number, y: number, size: { width: number; height: number }): boolean {
-  const half = size.width / 2;
-  for (let ty = Math.floor((y - size.height) / TILE); ty <= Math.floor((y - EDGE) / TILE); ty++) {
-    for (let tx = Math.floor((x - half) / TILE); tx <= Math.floor((x + half - EDGE) / TILE); tx++) if (world.solidTile(tx, ty)) return true;
-  }
-  return false;
-}
+/** GDD-MOV-09: where a walking enemy's (or the cactus buddy's) feet are now: where it walked to, or its start. */
+export const feetOf = (def: Enemy, state: EnemyState): number => state.y ?? def.y;
 
 const turn = (dir: 1 | -1): 1 | -1 => (dir > 0 ? -1 : 1);
 
@@ -130,19 +127,29 @@ function stepZopilote(def: Enemy, state: EnemyState, player: PlayerState): Enemy
 }
 
 /**
- * Moves a walker on the ground `speed` px/s the way it faces. It turns round when its box meets a wall (flush against it),
- * and when the ground under its leading edge ends, so it never walks off a ledge (GDD-ENM-02). `turned` says it did.
+ * Moves a walker on the ground `speed` px/s the way it faces. Its feet follow the ground up and down slopes by up to SLOPE.stepPx a
+ * step (GDD-MOV-09); a higher rise (a slope's high side) turns it like a wall. It turns round when its box meets a wall (flush against
+ * it), and when the ground under its leading edge ends (no level tile and no slope in the row of its feet or the row below), so it
+ * never walks off a ledge (GDD-ENM-02). `turned` says it did.
  */
 function walk(def: Enemy, state: EnemyState, world: TileGrid, speed: number): { state: EnemyState; turned: boolean } {
   const size = sizeOf(def);
   const half = size.width / 2;
+  const feet = feetOf(def, state);
   const x = state.x + state.dir * speed * STEP;
-  if (blockedAt(world, x, def.y, size)) {
+  // GDD-MOV-09: its feet follow the ground up and down slopes by up to SLOPE.stepPx a step; a higher rise (a slope's high side) turns it like a wall.
+  const up = stepUp(world, x, feet);
+  if (up === 'wall') return { state: { ...state, dir: turn(state.dir) }, turned: true };
+  const y = up ?? stepDown(world, x, feet) ?? feet;
+  if (boxBlocked(world, x, y, size.width, size.height)) {
     const flush = state.dir > 0 ? Math.floor((x + half - EDGE) / TILE) * TILE - half : (Math.floor((x - half) / TILE) + 1) * TILE + half;
     return { state: { ...state, x: flush, dir: turn(state.dir) }, turned: true };
   }
-  const ground = world.solidTile(Math.floor((x + state.dir * (half - EDGE)) / TILE), Math.floor(def.y / TILE));
-  return ground ? { state: { ...state, x }, turned: false } : { state: { ...state, dir: turn(state.dir) }, turned: true };
+  // The ground under its leading edge: a level tile or a slope in the row of its feet or the row below (GDD-MOV-09).
+  const col = Math.floor((x + state.dir * (half - EDGE)) / TILE);
+  const row = Math.floor((y - EDGE) / TILE);
+  const ground = isGround(world, col, row) || isGround(world, col, row + 1);
+  return ground ? { state: { ...state, x, y }, turned: false } : { state: { ...state, dir: turn(state.dir) }, turned: true };
 }
 
 /**
@@ -161,7 +168,7 @@ function stepTlacuache(def: Enemy, state: EnemyState, world: TileGrid, player: P
   }
   const moved = walk(def, state, world, TLACUACHE.speed).state;
   const ahead = (centre(player).x - moved.x) * moved.dir;
-  const spotted = ahead > 0 && ahead <= TLACUACHE.sightX && Math.abs(player.y - def.y) <= TLACUACHE.sightY;
+  const spotted = ahead > 0 && ahead <= TLACUACHE.sightX && Math.abs(player.y - feetOf(def, moved)) <= TLACUACHE.sightY;
   return { ...moved, gait: spotted ? { ...g, phase: 'telegraph', age: 0 } : { ...g, age } };
 }
 
@@ -183,14 +190,15 @@ export const stompPlaysDead = (def: Enemy, state: EnemyState): boolean => kindOf
 /** Is it in play? A defeated enemy is not, nor a Tlacuache playing dead: only the claw reaches it, and it touches nothing. */
 const inPlay = (state: EnemyState): boolean => state.alive && state.gait?.phase !== 'dead';
 
-/** The enemy's box: an Alacrán's is ENEMY.width x ENEMY.height standing on y (likewise a cactus buddy's and a Tlacuache's), a Zopilote's ZOPILOTE.width x ZOPILOTE.height centred on its flight y. */
+/** The enemy's box: an Alacrán's is ENEMY.width x ENEMY.height standing on its feet, where it walked to (likewise a cactus buddy's and a Tlacuache's), a Zopilote's ZOPILOTE.width x ZOPILOTE.height centred on its flight y. */
 export function enemyBox(def: Enemy, state: EnemyState): Box {
   if (kindOf(def) === 'zopilote') {
     const y = state.flight!.y;
     return { x0: state.x - ZOPILOTE.width / 2, x1: state.x + ZOPILOTE.width / 2, y0: y - ZOPILOTE.height / 2, y1: y + ZOPILOTE.height / 2 };
   }
   const size = sizeOf(def);
-  return { x0: state.x - size.width / 2, x1: state.x + size.width / 2, y0: def.y - size.height, y1: def.y };
+  const feet = feetOf(def, state);
+  return { x0: state.x - size.width / 2, x1: state.x + size.width / 2, y0: feet - size.height, y1: feet };
 }
 
 /** Can the claw, a fireball or a stomp defeat it? The cactus buddy cannot be defeated at all, only avoided (GDD-ENM-02). */

@@ -1,5 +1,5 @@
-// GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have, so a level that
-// breaks a rule fails a test instead of being found in play.
+// GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have (GDD-MOV-09: its sand slopes
+// have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
 import { BASE_WIDTH, LEVEL_RULES, TILE } from '../config/tuning';
 import { kindOf } from '../sim/enemy';
 import type { TileGrid } from '../sim/tilemap';
@@ -59,6 +59,24 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
     for (const r of respawns) {
       const d = Math.hypot(e.x - r.x, e.y - r.y);
       if (d < LEVEL_RULES.enemyClearance) problems.push(`${kindOf(e)} at ${e.x},${e.y} is ${Math.floor(d)} px from the respawn at ${r.x},${r.y}, under ${LEVEL_RULES.enemyClearance}`);
+    }
+  }
+
+  // GDD-MOV-09: every sand slope tile has a level tile directly under it (so none hangs in the air or sits in the bottom row) and holds
+  // none of the level's other tiles.
+  const held: (readonly [string, { readonly col: number; readonly row: number }])[] = [
+    ...level.spikes.map((t) => ['spike', t] as const),
+    ...level.springs.map((t) => ['spring', t] as const),
+    ...level.crumbles.map((t) => ['crumbling tile', t] as const),
+    ...level.pinatas.map((t) => ['piñata', t] as const),
+    ...level.fragiles.map((t) => ['fragile wall', t] as const),
+    ...level.doors.flatMap((d) => Array.from({ length: d.height }, (_, i) => ['door', { col: d.col, row: d.row + i }] as const)),
+  ];
+  for (let row = 0; row < level.world.height; row++) {
+    for (let col = 0; col < level.world.width; col++) {
+      if (level.world.slopeAt(col, row) === null) continue;
+      if (!level.world.solidTile(col, row + 1)) problems.push(`slope at ${col},${row} has no level tile under it`);
+      for (const [name, t] of held) if (t.col === col && t.row === row) problems.push(`${name} at ${col},${row} stands in a slope tile`);
     }
   }
   return problems;

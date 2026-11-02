@@ -1,10 +1,11 @@
-// GDD-TEC-04: every level in the game, for the validator. A test level (the sandbox) skips the exit and length checks.
+// GDD-TEC-04: every level in the game, for the validator. A test level (the sandbox, the slopes level) skips the exit and length checks.
 // GDD-UI-02: which one is played, and which one comes after it.
 import type { Level } from '../sim/run';
 import type { Tip } from '../ui/tips';
 import { LEVEL_0_1, TIPS_0_1 } from './level0-1';
 import { LEVEL_1_1 } from './level1-1';
 import { SANDBOX_LEVEL } from './sandbox';
+import { SLOPES_LEVEL } from './slopes';
 
 export interface LevelEntry {
   readonly id: string;
@@ -27,6 +28,7 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: TUTORIAL_ID, world: 0, test: false, level: LEVEL_0_1, tips: TIPS_0_1, next: '1-1' },
   { id: '1-1', world: 1, test: false, level: LEVEL_1_1 },
   SANDBOX,
+  { id: 'slopes', world: 1, test: true, level: SLOPES_LEVEL },
 ];
 
 /** GDD-PRG-02: the levels whose progress is saved (the real ones, not the test level), by id, with their hilo counts: what `readSave` needs to read their entries. */
@@ -39,11 +41,11 @@ export const SAVED_OFRENDAS: Readonly<Record<string, number>> = Object.fromEntri
 export const levelById = (id: string): LevelEntry | undefined => LEVELS.find((e) => e.id === id);
 
 /**
- * GDD-UI-02: what "Start" plays. An address (`location.search`) wins, whatever was played: `level=sandbox`, `level=1-1` or
+ * GDD-UI-02: what "Start" plays. An address (`location.search`) wins, whatever was played: `level=sandbox`, `level=slopes`, `level=1-1` or
  * `level=0-1` gives that level. Anything else gives 1-1 once the tutorial has started (GDD-PRG-02), else the tutorial.
  */
 export function startLevel(search: string, tutorialPlayed: boolean): LevelEntry {
   const id = new URLSearchParams(search).get('level');
-  const addressed = id === 'sandbox' || id === '1-1' || id === TUTORIAL_ID ? levelById(id) : undefined;
+  const addressed = id === 'sandbox' || id === 'slopes' || id === '1-1' || id === TUTORIAL_ID ? levelById(id) : undefined;
   return addressed ?? levelById(tutorialPlayed ? '1-1' : TUTORIAL_ID)!;
 }

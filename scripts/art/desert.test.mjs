@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { BACKDROP, BACKDROP_ART, PLANTS } from '../../src/config/tuning';
-import { CLOUD_BOXES, drawCloudImages, drawClouds, drawFarDesert, drawGround, drawMountains, drawMountainsFull, drawPlants, drawSky, drawSkyStrips, drawSun, FAR_DESERT, FOOT_ROW, PALETTE, PLANT_FRAME, PLANT_SIZES, SKY_ENDS, STRIP, SUN as SUN_ART } from './desert.mjs';
+import { SLOPE_CHARS, SLOPE_HEIGHTS } from '../../src/sim/tilemap';
+import { CLOUD_BOXES, drawCloudImages, drawClouds, drawFarDesert, drawGround, drawMountains, drawMountainsFull, drawPlants, drawSky, drawSkyStrips, drawSun, FAR_DESERT, FOOT_ROW, PALETTE, PLANT_FRAME, PLANT_SIZES, SKY_ENDS, SLOPE_ORDER, slopeTopRow, STRIP, SUN as SUN_ART } from './desert.mjs';
 import { buildDesert } from './make-desert.mjs';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'sprites', 'desierto');
@@ -37,7 +39,7 @@ describe('GDD-ART-06 desert art', () => {
     expect([drawSun().width, drawSun().height]).toEqual([152, 152]);
     expect(drawCloudImages().map((g) => [g.width, g.height])).toEqual(CLOUD_BOXES.map((b) => [b.w * 4, b.h * 4]));
     expect([drawMountains().width, drawMountains().height]).toEqual([1920, 488]);
-    expect([drawGround().width, drawGround().height]).toEqual([256, 64]);
+    expect([drawGround().width, drawGround().height]).toEqual([1792, 64]); // 28 frames: 4 tiles, 12 slopes, 12 tiles under them (GDD-MOV-09)
     expect([drawPlants().width, drawPlants().height]).toEqual([448, 160]); // seven frames of 64 x 160
     expect([drawFarDesert().width, drawFarDesert().height]).toEqual([1920, 176]);
     // The whole pictures the pieces make.
@@ -201,7 +203,10 @@ describe('GDD-ART-06 desert art', () => {
 
   it('GDD-ART-06 the ground sheet has two top tiles and two earth tiles', () => {
     const g = drawGround();
-    expect(g.cells.every((c) => c !== null)).toBe(true);
+    // The first four frames (x < 256) are whole tiles; the slope frames after them are empty above their surface (GDD-MOV-09).
+    let hollow = 0;
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 256; x++) if (g.get(x, y) === null) hollow++;
+    expect(hollow).toBe(0);
     for (const n of [0, 1]) {
       const at = tile(g, n);
       const topRows = new Set();
@@ -232,10 +237,75 @@ describe('GDD-ART-06 desert art', () => {
     }
   });
 
+  it('GDD-ART-06 the first four ground frames are the approved tiles, unchanged', () => {
+    const g = drawGround();
+    const cells = [];
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 256; x++) cells.push(g.get(x, y));
+    expect(createHash('sha256').update(cells.join(',')).digest('hex')).toBe('ac1e56cc85b657e1637eba4d3b1345b7b6d45e5b72fc14341b358bcdf6112c52');
+  });
+
+  // GDD-MOV-09 slope frames: frame 4 + 2k + v is slope k (in the order / \ r R F f) in version v, frame 16 + 2k + v the tile under it. The
+  // surface heights are the GDD's table, written here; the surface passes through cell column x at row floor(16 - (left + (right - left) (x + 0.5) / 16)).
+  const SLOPES = [['/', 0, 16], ['\\', 16, 0], ['r', 0, 8], ['R', 8, 16], ['F', 16, 8], ['f', 8, 0]];
+  const topOf = (left, right, x) => Math.floor(16 - (left + ((right - left) * (x + 0.5)) / 16));
+  /** The cell at column x, row r (0 to 15) of frame n. */
+  const cell = (g, n, x, r) => g.get(n * 64 + 4 * x, 4 * r);
+  /** Is the cell empty: all 16 of its art pixels null? */
+  const empty = (g, n, x, r) => {
+    for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) if (g.get(n * 64 + 4 * x + dx, 4 * r + dy) !== null) return false;
+    return true;
+  };
+
+  it('GDD-ART-06 each slope frame is empty above its surface and ground from it down', () => {
+    const g = drawGround();
+    SLOPES.forEach(([c, left, right], k) => {
+      for (const v of [0, 1]) {
+        const n = 4 + 2 * k + v;
+        for (let x = 0; x < 16; x++) {
+          const top = topOf(left, right, x);
+          for (let r = 0; r < 16; r++) {
+            if (r < top) expect(empty(g, n, x, r), `${c} v${v} x${x} r${r} empty`).toBe(true);
+            else expect(cell(g, n, x, r) !== null, `${c} v${v} x${x} r${r} painted`).toBe(true);
+          }
+          if (top < 16) expect(kind(cell(g, n, x, top)), `${c} v${v} x${x} surface`).toBe('grass');
+        }
+      }
+    });
+  });
+
+  it('GDD-ART-06 a slope tile and the tile under it are the top tile over the earth tile moved down to the slope', () => {
+    const g = drawGround();
+    SLOPES.forEach(([c, left, right], k) => {
+      for (const v of [0, 1]) {
+        for (let x = 0; x < 16; x++) {
+          const top = topOf(left, right, x);
+          const strip = (r) => (r < 16 ? cell(g, 4 + 2 * k + v, x, r) : cell(g, 16 + 2 * k + v, x, r - 16));
+          const tile = (r) => (r < 16 ? cell(g, v, x, r) : cell(g, 2 + v, x, r - 16));
+          for (let r = top; r < 32; r++) expect(strip(r), `${c} v${v} x${x} strip row ${r}`).toBe(tile(r - top));
+        }
+      }
+    });
+  });
+
+  it('GDD-ART-06 the art slopes are the GDD-MOV-09 slopes in frame order', () => {
+    expect(SLOPE_ORDER).toEqual(SLOPE_CHARS.map((c) => [c, SLOPE_HEIGHTS[c].left, SLOPE_HEIGHTS[c].right]));
+    expect(SLOPE_ORDER).toEqual(SLOPES);
+    expect(slopeTopRow(0, 16, 3)).toBe(topOf(0, 16, 3));
+  });
+
+  it('GDD-ART-06 a slope meets the flat ground at its high end without a seam', () => {
+    const g = drawGround();
+    for (const v of [0, 1]) {
+      // `/` (frame 4 + v) and `R` (4 + 6 + v) end at the full height in column 15, like the top tile's column 0; `\` (4 + 2 + v) and `F` (4 + 8 + v) start so in column 0, like its column 15.
+      for (const n of [4 + v, 4 + 6 + v]) for (let r = 0; r < 16; r++) expect(kind(cell(g, n, 15, r)), `rising frame ${n} row ${r}`).toBe(kind(cell(g, v, 0, r)));
+      for (const n of [4 + 2 + v, 4 + 8 + v]) for (let r = 0; r < 16; r++) expect(kind(cell(g, n, 0, r)), `falling frame ${n} row ${r}`).toBe(kind(cell(g, v, 15, r)));
+    }
+  });
+
   it('GDD-ART-06 the ground is drawn in whole game pixels, 4 x 4 art pixels', () => {
     const g = drawGround();
     const off = [];
-    for (let y = 0; y < 64; y++) for (let x = 0; x < 256; x++) if (g.get(x, y) !== g.get(x - (x % 4), y - (y % 4))) off.push(`${x},${y}`);
+    for (let y = 0; y < 64; y++) for (let x = 0; x < g.width; x++) if (g.get(x, y) !== g.get(x - (x % 4), y - (y % 4))) off.push(`${x},${y}`);
     expect(off).toEqual([]);
   });
 
