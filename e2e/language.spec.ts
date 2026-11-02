@@ -65,17 +65,19 @@ test('GDD-UI-02 the Language row switches every settings text at once', async ({
   await change(page, 'ArrowRight', 'es');
   const es = await settingsDrawn(page);
   expect(es.title).toBe('Configuración');
-  expect(es.rows.map((r) => r.label)).toEqual(['Volumen general', 'Volumen de efectos', 'Idioma', 'Opacidad de botones', 'Volver']);
+  expect(es.rows.map((r) => r.label)).toEqual(['Volumen general', 'Volumen de efectos', 'Idioma', 'Opacidad de botones', 'Disposición', 'Volver']);
   expect(es.rows[2]).toMatchObject({ item: 'language', value: 'Español' });
   expect(es.rows[3]).toMatchObject({ item: 'buttonOpacity', value: 'Media', valueX: 316 });
+  expect(es.rows[4]).toMatchObject({ item: 'layout', label: 'Disposición', value: 'Estándar', valueX: 316 });
   // The name stands where a volume row's bars are: the middle of the 68 px span that ends 20 px inside a row at x 110 and 260 wide.
   expect(es.rows[2]!.valueX).toBe(316);
   expect(es.chosen).toBe('language');
   await change(page, 'ArrowRight', 'de');
   const de = await settingsDrawn(page);
   expect(de.title).toBe('Einstellungen');
-  expect(de.rows.map((r) => r.label)).toEqual(['Gesamtlautstärke', 'Effektlautstärke', 'Sprache', 'Tastendeckkraft', 'Zurück']);
+  expect(de.rows.map((r) => r.label)).toEqual(['Gesamtlautstärke', 'Effektlautstärke', 'Sprache', 'Tastendeckkraft', 'Anordnung', 'Zurück']);
   expect(de.rows[3]).toMatchObject({ item: 'buttonOpacity', value: 'Mittel' });
+  expect(de.rows[4]).toMatchObject({ item: 'layout', label: 'Anordnung', value: 'Standard', valueX: 316 });
   expect(de.rows[2]).toMatchObject({ value: 'Deutsch', valueX: 316 });
   expect(de.chosen).toBe('language');
   await press(page, 'ArrowRight'); // Deutsch is the last: no wrap-around
@@ -87,8 +89,9 @@ test('GDD-UI-02 the Language row switches every settings text at once', async ({
   await change(page, 'ArrowLeft', 'en');
   const en = await settingsDrawn(page);
   expect(en.title).toBe('Settings');
-  expect(en.rows.map((r) => r.label)).toEqual(['Master volume', 'Effects volume', 'Language', 'Button opacity', 'Back']);
+  expect(en.rows.map((r) => r.label)).toEqual(['Master volume', 'Effects volume', 'Language', 'Button opacity', 'Layout', 'Back']);
   expect(en.rows[3]).toMatchObject({ item: 'buttonOpacity', value: 'Medium' });
+  expect(en.rows[4]).toMatchObject({ item: 'layout', label: 'Layout', value: 'Standard', valueX: 316 });
   expect(en.rows[2]).toMatchObject({ value: 'English', valueX: 316 });
 });
 
@@ -150,7 +153,7 @@ test.describe('GDD-UI-02 the first visit takes the browser\'s language', () => {
       await page.addInitScript(([key, text]) => localStorage.setItem(key!, text!), [SAVE_KEY, '{"version":1,"settings":{"master":4,"effects":6,"language":"es"}}']);
       await openGame(page);
       expect(await titleItems(page)).toEqual(['Jugar', 'Tutorial', 'Configuración']);
-      expect(await api(page, () => window.__PONCHO__!.settings())).toEqual({ master: 4, effects: 6, language: 'es', buttonOpacity: 'medium' });
+      expect(await api(page, () => window.__PONCHO__!.settings())).toEqual({ master: 4, effects: 6, language: 'es', buttonOpacity: 'medium', layout: 'standard' });
     });
   });
   test.describe('es-MX', () => {
@@ -340,7 +343,7 @@ test('GDD-UI-02 a finger held on the Language row moves the language once and st
   const x0 = (await api(page, () => window.__PONCHO__!.state())).x;
   // On the Language row's left half, inside the lower left quarter the slide stick reads (x < 240, y >= 135 on the phone's rows).
   const row = await languageRow(page);
-  expect(row.y).toBeGreaterThanOrEqual(135);
+  expect(row.y + row.h / 2).toBeGreaterThanOrEqual(135); // the finger's height: with six rows the row's top (130) is above the quarter, its middle (147) in it
   await touchAt(page, cdp, 'touchStart', [{ x: 150, y: row.y + row.h / 2, id: 1 }]);
   await page.waitForFunction(() => window.__PONCHO__!.settings().language === 'es'); // de to es: a tap on the row
   for (let i = 0; i < 10; i++) await frames(page);

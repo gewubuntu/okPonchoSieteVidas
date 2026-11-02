@@ -235,3 +235,100 @@ describe('GDD-CTL-03 slide stick', () => {
     expect([...pressedButtons(stick, [centre(mode)])]).toEqual(['mode']);
   });
 });
+
+const standardSet = (scale: number, mode: 'buttons' | 'stick', fuego: boolean) => layoutTouchButtons(scale, mode, fuego, 'standard');
+const mirroredSet = (scale: number, mode: 'buttons' | 'stick', fuego: boolean) => layoutTouchButtons(scale, mode, fuego, 'mirrored');
+
+describe('GDD-CTL-03 mirrored layout', () => {
+  it('every button but pause is at its mirror image', () => {
+    for (const scale of [1, PHONE]) {
+      for (const [mode, fuego] of [['buttons', true], ['stick', true], ['buttons', false], ['stick', false]] as const) {
+        const std = standardSet(scale, mode, fuego);
+        const mir = mirroredSet(scale, mode, fuego);
+        expect(mir.map((b) => b.id), `scale ${scale} ${mode} fuego ${fuego}`).toEqual(std.map((b) => b.id));
+        for (const b of mir.filter((x) => x.id !== 'pause')) {
+          // The left and right buttons trade mirrored places, so left stays left of right.
+          const s = find(std, b.id === 'left' ? 'right' : b.id === 'right' ? 'left' : b.id);
+          const label = `scale ${scale} ${mode} fuego ${fuego}: ${b.id}`;
+          expect(b.x, label).toBe(BASE_WIDTH - s.x - s.w);
+          expect([b.y, b.w, b.h], label).toEqual([s.y, s.w, s.h]);
+        }
+      }
+    }
+    // spot values at scale 1 (every button is 48 px there): standard left 6 and right 58; mirrored, the pair sits at 374 and 426, left first
+    const spot = mirroredSet(1, 'buttons', false);
+    expect([find(spot, 'left').x, find(spot, 'right').x]).toEqual([374, 426]);
+  });
+
+  it('pause stays top-right in both layouts', () => {
+    for (const scale of [1, PHONE]) {
+      for (const mode of ['buttons', 'stick'] as const) {
+        const pause = find(standardSet(scale, mode, false), 'pause');
+        expect(find(mirroredSet(scale, mode, false), 'pause'), `scale ${scale} ${mode}`).toEqual(pause);
+        expect(pause.x + pause.w).toBe(BASE_WIDTH - TOUCH.margin);
+        expect(pause.y).toBe(TOUCH.margin);
+      }
+    }
+  });
+
+  it('standard is the layout as it was', () => {
+    for (const scale of [1, PHONE]) {
+      for (const mode of ['buttons', 'stick'] as const) {
+        for (const fuego of [false, true]) {
+          const std = standardSet(scale, mode, fuego);
+          expect(layoutTouchButtons(scale, mode, fuego), `scale ${scale} ${mode} fuego ${fuego}`).toEqual(std);
+          const jump = find(std, 'jump');
+          expect(jump.x + jump.w).toBe(BASE_WIDTH - TOUCH.margin);
+        }
+      }
+    }
+  });
+
+  it('mirrored keeps the left button left of the right button', () => {
+    for (const scale of [1, PHONE]) {
+      const mir = mirroredSet(scale, 'buttons', false);
+      const l = find(mir, 'left');
+      const r = find(mir, 'right');
+      expect(l.x + l.w + TOUCH.gap, `scale ${scale}`).toBe(r.x); // left, the gap, then right
+      expect(r.x + r.w).toBe(BASE_WIDTH - TOUCH.margin); // the pair ends at the right margin
+    }
+  });
+
+  it('mirrored puts jump bottom-left', () => {
+    for (const scale of [1, PHONE]) {
+      const jump = find(mirroredSet(scale, 'buttons', false), 'jump');
+      expect(jump.x).toBe(TOUCH.margin);
+      expect(jump.y + jump.h).toBe(BASE_HEIGHT - TOUCH.margin);
+    }
+  });
+
+  it('mirrored stick: a finger in the lower right quarter steers, the lower left does nothing', () => {
+    const stick = mirroredSet(1, 'stick', false);
+    const track = find(stick, 'stick');
+    const mode = find(stick, 'mode');
+    expect([track.x, track.w]).toEqual([374, 100]); // 480 - 6 - 100, as wide as both buttons (48 + 4 + 48)
+    const mid = track.x + track.w / 2;
+    const half = track.w / 2;
+    const y = track.y + track.h / 2;
+    expect(stickMove(stick, [{ x: track.x + track.w, y }])).toBe(1); // the track's right end
+    expect(stickMove(stick, [{ x: track.x, y }])).toBe(-1); // its left end
+    expect(stickMove(stick, [{ x: mid, y }])).toBe(0); // its centre
+    expect(stickMove(stick, [{ x: 100, y: 200 }])).toBe(0); // the lower left quarter
+    // GDD: out = (|d| - 0.2) / 0.8 with d the finger's distance from the centre in half-tracks, capped at 1
+    expect(stickMove(stick, [{ x: mid + 0.6 * half, y }])).toBeCloseTo(0.5, 5);
+    expect(stickMove(stick, [{ x: mid - 0.6 * half, y }])).toBeCloseTo(-0.5, 5);
+    // (300, 140): 124 px left of the centre, 2.48 half-tracks, so full speed to the left
+    expect(stickMove(stick, [{ x: 300, y: 140 }])).toBe(-1);
+    expect(stickMove(stick, [{ x: 300, y: 120 }])).toBe(0); // above the middle
+    expect(stickMove(stick, [{ x: BASE_WIDTH / 2 - 1, y: 200 }])).toBe(0); // the quarter starts at mid width
+    expect(stickMove(stick, [{ x: BASE_WIDTH / 2, y: 200 }])).toBe(-1);
+    expect(stickMove(stick, [centre(mode)])).toBe(0); // the mirrored mode switch
+  });
+
+  it('standard stick still reads only the lower left quarter', () => {
+    const stick = layoutTouchButtons(1, 'stick');
+    expect(stickMove(stick, [{ x: 300, y: 200 }])).toBe(0);
+    expect(stickMove(stick, [{ x: 100, y: 200 }])).toBeGreaterThan(0); // 6 + 50 = 56 is the centre, 44 px right of it: (0.88 - 0.2) / 0.8 = 0.85
+    expect(stickMove(stick, [{ x: 100, y: 200 }])).toBeCloseTo(0.85, 5);
+  });
+});
