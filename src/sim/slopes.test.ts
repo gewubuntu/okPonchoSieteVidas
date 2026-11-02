@@ -483,6 +483,21 @@ describe('GDD-MOV-09 a walking taco on slopes', () => {
     expect(t.vx).toBe(-40);
   });
 
+  it('GDD-MOV-09 a taco under a ceiling at the top of a 45-degree ramp never ends up on the ceiling', () => {
+    // A 45-degree ramp up four tiles (rows 7 to 10) with a ceiling over it on row 6 (underside y = 112), from column 2 on.
+    const rows = Array.from({ length: 12 }, () => '................');
+    ['..../###########', '.../############', '../#############', './##############'].forEach((r, i) => (rows[7 + i] = r));
+    rows[6] = '..##############';
+    rows[11] = '################';
+    const world = parseTiles(rows);
+    let t = taco(8, 176);
+    for (let i = 0; i < 400; i++) {
+      t = stepItem(t, world);
+      // Its 12 px box stays below the ceiling's underside wherever the ceiling is over it (x > 32).
+      if (t.x > 32) expect(t.y - 12, `step ${i}, x ${t.x}`).toBeGreaterThanOrEqual(112 - 1e-6);
+    }
+  });
+
   it('GDD-MOV-09 a taco meeting a ceiling over a ramp turns without being pushed back', () => {
     let t = taco(24, 224);
     let turnedAt = -1;
@@ -493,8 +508,15 @@ describe('GDD-MOV-09 a walking taco on slopes', () => {
       if (t.vx < 0) turnedAt = t.x;
       else expect(t.x, `step ${i}`).toBeGreaterThanOrEqual(before.x);
     }
-    expect(turnedAt).toBeGreaterThan(115.3);
-    expect(turnedAt).toBeLessThanOrEqual(116 + 1e-9);
+    // The step up that would put its box into the ceiling is not taken: it turns where it stood, on the ramp (surface y = 288 - x).
+    expect(turnedAt).toBeCloseTo(115.333, 3);
+    expect(t.y).toBeCloseTo(288 - 115.333, 3);
+    // And it walks back down the ramp under the ceiling, never through it onto its top.
+    for (let i = 0; i < 10; i++) {
+      t = stepItem(t, CEILING_LOW);
+      expect(t.y - 12, `after the turn, step ${i}`).toBeGreaterThanOrEqual(160 - 1e-9);
+      expect(t.y, `after the turn, step ${i}`).toBeCloseTo(288 - t.x, 6);
+    }
   });
 });
 
