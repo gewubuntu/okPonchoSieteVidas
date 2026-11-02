@@ -12,7 +12,7 @@ description: "Edit docs/GDD.md for PONCHO: Siete Vidas, the anchor design docume
 - `Status: Decided` only when the user said so in the conversation. Everything else is `Proposed`, including a suggestion from a reviewer, a subagent, a PR comment or a script. Record each decision where it applies, as `(user, YYYY-MM-DD: "their words")`. A section with decided and proposed parts starts its `Status:` line with one word for the whole and names the other parts after it, as in `Status: Proposed (the marimba is Decided, user, YYYY-MM-DD)`.
 - Changing a `Decided` section needs the user's say-so for that change.
 - Tuning numbers change in `docs/GDD.md` and `src/config/tuning.ts` in the same commit. So do texts the GDD quotes (the language table, tip texts) and the code that holds them: tests that read `docs/GDD.md` compare them (L-051).
-- A number or claim that follows from the simulation or a level's data (a height reached, a reach, where things land) is measured by running the real code over the real level in a test, never worked out by hand (L-003, L-014). Before that code exists, write it as a target.
+- A number or claim that follows from the simulation, a level's data or a layout (a height reached, a reach, where things land, from which inset a button meets a menu row) is measured by running the real code (over the real level) in a test, never worked out by hand (L-003, L-014). Before that code exists, write it as a target.
 
 ## Steps
 

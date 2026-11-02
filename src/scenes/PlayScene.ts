@@ -1897,6 +1897,9 @@ export class PlayScene extends Phaser.Scene {
     }
 
     this.touch.setFuego(this.run.power === 'fuego'); // the Fuego button is there only in the Fuego state (GDD-CTL-03)
+    // GDD-CTL-03: the buttons kept clear of the safe-area insets first, so this frame's fingers and everything drawn by the buttons'
+    // places (the hilo counter goes by the pause button, GDD-UI-01) use where they are now (L-033).
+    this.touch.updateSafeArea();
     // GDD-CTL-02: the gamepads, read once per frame (browsers report them only when asked, so they cannot be latched, GDD-CTL-04).
     this.pauseEvents.push(...this.pad.poll(readGamepads()));
     if (this.pad.active()) this.device = 'pad'; // GDD-UI-05
@@ -2027,8 +2030,6 @@ export class PlayScene extends Phaser.Scene {
     this.touch.setOpacity(this.settings.buttonOpacity);
     // GDD-CTL-03: and laid out at the Layout in use from this frame.
     this.touch.setLayout(this.settings.layout);
-    // GDD-CTL-03: and kept clear of the safe-area insets from this frame.
-    this.touch.updateSafeArea();
     this.drawGameOver();
     this.drawClear();
     this.drawTip();

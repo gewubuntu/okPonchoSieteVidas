@@ -7,7 +7,7 @@ import type { ButtonOpacity, TouchLayout } from '../sim/settings';
 import { dashedRect } from './dashed';
 import { gamePoint } from './gamePoint';
 import { effectiveHeld, InputLatch } from './inputLatch';
-import { canvasInsets, NO_INSETS, readSafeRect, type Insets } from './safeArea';
+import { canvasInsets, NO_INSETS, readSafeRect, sameInsets, type Insets } from './safeArea';
 import { touchAlpha } from './touchOpacity';
 import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchButton, type TouchButtonId, type TouchMode } from './touchLayout';
 
@@ -274,7 +274,7 @@ export class TouchControls {
   updateSafeArea(): void {
     if (!this.enabled) return;
     const insets = canvasInsets(readSafeRect(), this.scene.game.canvas.getBoundingClientRect());
-    if (insets.left === this.insets.left && insets.right === this.insets.right && insets.top === this.insets.top && insets.bottom === this.insets.bottom) return;
+    if (sameInsets(insets, this.insets)) return;
     this.insets = insets;
     this.relayout();
   }

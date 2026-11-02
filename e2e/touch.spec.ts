@@ -277,6 +277,13 @@ test('GDD-CTL-03 safe area: the buttons move in the frames after the insets chan
   expect([(await box('mode')).x, (await box('claw')).x, (await box('jump')).x]).toEqual([30, 374, 418]);
 
   await insetsTo(cdp, { right: 40 });
+  // L-033: from the first frame the moved buttons show, the hilo counter already ends 6 px left of the moved pause button (GDD-UI-01).
+  const first = await page.waitForFunction(() => {
+    const t = window.__PONCHO__!.touch();
+    if (t.insets.right !== 24) return null;
+    return { counter: window.__PONCHO__!.hudHilos().right, pause: t.buttons.find((b) => b.id === 'pause')!.x };
+  });
+  expect(await first.jsonValue()).toEqual({ counter: 415, pause: 421 });
   await page.waitForFunction(() => {
     const t = window.__PONCHO__!.touch();
     return t.insets.right === 24 && t.insets.left === 0 && t.buttons.find((b) => b.id === 'left')!.x === 6;

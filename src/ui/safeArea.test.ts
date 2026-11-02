@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canvasInsets, NO_INSETS } from './safeArea';
+import { canvasInsets, NO_INSETS, sameInsets } from './safeArea';
 
 /** An 844 x 390 landscape phone, as Chromium lays the 480 x 270 canvas out: 693.33 x 390 CSS px at x 75. */
 const PHONE_CANVAS = { left: 75, right: 768.328125, top: 0, bottom: 390, width: 693.328125 };
@@ -29,6 +29,13 @@ describe('GDD-CTL-03 safe-area insets in the canvas', () => {
       top: 2,
       bottom: 0,
     });
+  });
+
+  it('GDD-CTL-03 insets are the same only when every side is', () => {
+    // The buttons are laid out again when any one side changes, the others staying as they were.
+    const a = { left: 1, right: 2, top: 3, bottom: 4 };
+    expect(sameInsets(a, { ...a })).toBe(true);
+    for (const side of ['left', 'right', 'top', 'bottom'] as const) expect(sameInsets(a, { ...a, [side]: a[side] + 1 }), side).toBe(false);
   });
 
   it('GDD-CTL-03 an inset of a whole number of game px is not rounded past it', () => {

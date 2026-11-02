@@ -35,6 +35,9 @@ export function canvasInsets(safe: Box, canvas: Box & { width: number }): Insets
   };
 }
 
+/** Whether two sets of insets are the same on every side. */
+export const sameInsets = (a: Insets, b: Insets): boolean => a.left === b.left && a.right === b.right && a.top === b.top && a.bottom === b.bottom;
+
 /** The one probe of the page, made on the first read and reused by every later scene. */
 let probe: HTMLDivElement | undefined;
 
