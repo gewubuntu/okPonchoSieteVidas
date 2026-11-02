@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SETTINGS_MENU } from '../config/tuning';
+import type { Insets } from './safeArea';
 import { languageValueX, layoutSettingsMenu, settingsTapAt, volumeBars } from './settingsMenu';
+import { layoutTouchButtons } from './touchLayout';
 
 describe('GDD-UI-02 settings rows', () => {
   it('six rows, Master volume, Effects volume, Language, Button opacity, Layout and Back, 260 by 28, centred, the first at 62, each next right below', () => {
@@ -114,5 +116,33 @@ describe('GDD-UI-02 the settings title makes room for the sixth row', () => {
     expect(SETTINGS_MENU.titleY).toBe(44);
     expect(SETTINGS_MENU.top).toBe(62);
     expect(layoutSettingsMenu(2)[0]!.y).toBe(62);
+  });
+});
+
+/** Whether a touch button, in any mode and with or without Fuego, lies over a settings row (opened from the pause menu, both are drawn). */
+const meet = (css: number, layout: 'standard' | 'mirrored', side: Partial<Insets>): boolean => {
+  const insets = { left: 0, right: 0, top: 0, bottom: 0, ...side };
+  const rows = layoutSettingsMenu(css);
+  return (['buttons', 'stick'] as const).some((mode) =>
+    [false, true].some((fuego) =>
+      layoutTouchButtons(css, mode, fuego, layout, insets).some((b) => rows.some((r) => !(r.x + r.w <= b.x || b.x + b.w <= r.x || r.y + r.h <= b.y || b.y + b.h <= r.y))),
+    ),
+  );
+};
+
+describe('GDD-CTL-03 the settings rows and the touch buttons with safe-area insets', () => {
+  it('GDD-CTL-03 a side inset brings a button over the rows from 5 px on the claw side and from 21 px on the move side', () => {
+    // A landscape phone (390 CSS px tall), a 16:9 one (800 x 450) and a large screen: none of them grows the buttons.
+    for (const css of [390 / 270, 800 / 480, 2]) {
+      for (const layout of ['standard', 'mirrored'] as const) {
+        const [claw, move] = layout === 'standard' ? (['right', 'left'] as const) : (['left', 'right'] as const);
+        expect(meet(css, layout, {}), `${css} ${layout} no insets`).toBe(false);
+        expect(meet(css, layout, { [claw]: 4 }), `${css} ${layout} claw side 4`).toBe(false);
+        expect(meet(css, layout, { [claw]: 5 }), `${css} ${layout} claw side 5`).toBe(true);
+        expect(meet(css, layout, { [move]: 20 }), `${css} ${layout} move side 20`).toBe(false);
+        expect(meet(css, layout, { [move]: 21 }), `${css} ${layout} move side 21`).toBe(true);
+        expect(meet(css, layout, { bottom: 15 }), `${css} ${layout} bottom 15`).toBe(false);
+      }
+    }
   });
 });

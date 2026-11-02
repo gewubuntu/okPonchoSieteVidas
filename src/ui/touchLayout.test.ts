@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BASE_HEIGHT, BASE_WIDTH, TOUCH } from '../config/tuning';
+import { NO_INSETS } from './safeArea';
 import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchButton } from './touchLayout';
 
 /** CSS px per game px on an 844 x 390 landscape phone: the 480 x 270 canvas is limited by the height, 390 / 270. */
@@ -330,5 +331,77 @@ describe('GDD-CTL-03 mirrored layout', () => {
     expect(stickMove(stick, [{ x: 300, y: 200 }])).toBe(0);
     expect(stickMove(stick, [{ x: 100, y: 200 }])).toBeGreaterThan(0); // 6 + 50 = 56 is the centre, 44 px right of it: (0.88 - 0.2) / 0.8 = 0.85
     expect(stickMove(stick, [{ x: 100, y: 200 }])).toBeCloseTo(0.85, 5);
+  });
+});
+
+const box = (id: string, x: number, y: number, w: number, h: number) => ({ id, x, y, w, h });
+
+describe('GDD-CTL-03 safe-area insets', () => {
+  const INSETS = { left: 11, right: 3, top: 2, bottom: 15 };
+  it('GDD-CTL-03 without insets the layout is unchanged', () => {
+    for (const mode of ['buttons', 'stick'] as const) {
+      for (const fuego of [false, true]) {
+        for (const layout of ['standard', 'mirrored'] as const) {
+          expect(layoutTouchButtons(2, mode, fuego, layout, NO_INSETS), `${mode} fuego ${fuego} ${layout}`).toEqual(layoutTouchButtons(2, mode, fuego, layout));
+        }
+      }
+    }
+  });
+
+  it('GDD-CTL-03 standard: each button moves in by the insets of the sides it is near, sizes and gaps kept', () => {
+    const buttons = layoutTouchButtons(2, 'buttons', true, 'standard', INSETS);
+    expect(buttons).toHaveLength(7);
+    expect(find(buttons, 'left')).toEqual(box('left', 17, 209, 40, 40));
+    expect(find(buttons, 'right')).toEqual(box('right', 61, 209, 40, 40));
+    expect(find(buttons, 'mode')).toEqual(box('mode', 17, 165, 40, 40));
+    expect(find(buttons, 'claw')).toEqual(box('claw', 371, 209, 40, 40));
+    expect(find(buttons, 'fuego')).toEqual(box('fuego', 371, 165, 40, 40));
+    expect(find(buttons, 'jump')).toEqual(box('jump', 415, 193, 56, 56));
+    expect(find(buttons, 'pause')).toEqual(box('pause', 447, 8, 24, 24));
+  });
+
+  it('GDD-CTL-03 on a tiny screen the grown mode switch and Fuego button still move up by the bottom inset', () => {
+    const buttons = layoutTouchButtons(0.5, 'buttons', true, 'standard', { left: 0, right: 0, top: 2, bottom: 15 });
+    expect(find(buttons, 'mode')).toEqual(box('mode', 6, 53, 96, 96));
+    expect(find(buttons, 'fuego')).toEqual(box('fuego', 278, 53, 96, 96));
+    expect(find(buttons, 'pause')).toEqual(box('pause', 378, 8, 96, 96));
+  });
+
+  it('GDD-CTL-03 standard stick: the track moves in like the buttons it replaces', () => {
+    const buttons = layoutTouchButtons(2, 'stick', false, 'standard', INSETS);
+    expect(find(buttons, 'stick')).toEqual(box('stick', 17, 209, 84, 40));
+    expect(find(buttons, 'mode')).toEqual(box('mode', 17, 165, 40, 40));
+  });
+
+  it('GDD-CTL-03 mirrored: each button moves by the inset of the side it ends up on', () => {
+    const buttons = layoutTouchButtons(2, 'buttons', true, 'mirrored', INSETS);
+    expect(find(buttons, 'jump')).toEqual(box('jump', 17, 193, 56, 56));
+    expect(find(buttons, 'claw')).toEqual(box('claw', 77, 209, 40, 40));
+    expect(find(buttons, 'fuego')).toEqual(box('fuego', 77, 165, 40, 40));
+    expect(find(buttons, 'left')).toEqual(box('left', 387, 209, 40, 40));
+    expect(find(buttons, 'right')).toEqual(box('right', 431, 209, 40, 40));
+    expect(find(buttons, 'mode')).toEqual(box('mode', 431, 165, 40, 40));
+    expect(find(buttons, 'pause')).toEqual(box('pause', 447, 8, 24, 24));
+    expect(find(buttons, 'left').x).toBeLessThan(find(buttons, 'right').x); // L-056
+    expect(find(layoutTouchButtons(2, 'stick', false, 'mirrored', INSETS), 'stick')).toEqual(box('stick', 387, 209, 84, 40));
+  });
+
+  it('GDD-CTL-03 the slide stick steers from the moved track and reads the whole lower quarter of its side', () => {
+    const stick = layoutTouchButtons(2, 'stick', false, 'standard', INSETS); // track middle x 59, half-track 42
+    expect(stickMove(stick, [{ x: 59, y: 229 }])).toBe(0);
+    expect(stickMove(stick, [{ x: 80, y: 229 }])).toBeCloseTo(0.375, 5); // (21 / 42 - 0.2) / 0.8
+    expect(stickMove(stick, [{ x: 2, y: 260 }])).toBe(-1); // the inset strip, left of the track
+    expect(stickMove(stick, [{ x: 37, y: 185 }])).toBe(0); // on the moved mode switch
+    expect(stickMove(stick, [{ x: 10, y: 210 }])).toBe(-1); // where the mode switch was, not on it now
+    const mirrored = layoutTouchButtons(2, 'stick', false, 'mirrored', INSETS); // track middle x 429
+    expect(stickMove(mirrored, [{ x: 429, y: 229 }])).toBe(0);
+    expect(stickMove(mirrored, [{ x: 300, y: 200 }])).toBe(-1);
+    expect(stickMove(mirrored, [{ x: 100, y: 200 }])).toBe(0); // the other quarter
+  });
+
+  it('GDD-CTL-03 a finger presses a moved button where it is, not where it was', () => {
+    const buttons = layoutTouchButtons(2, 'buttons', false, 'standard', INSETS);
+    expect([...pressedButtons(buttons, [{ x: 446, y: 256 }])]).toEqual([]);
+    expect([...pressedButtons(buttons, [{ x: 446, y: 220 }])]).toEqual(['jump']);
   });
 });

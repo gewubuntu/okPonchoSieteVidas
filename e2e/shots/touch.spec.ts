@@ -1,6 +1,6 @@
 // Screenshots of the touch controls for visual review. Run with `npm run shots`; images land in shots/ (not committed).
-import { test, type Page, type TestInfo } from '@playwright/test';
-import { boot } from '../helpers';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { boot, start } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
   await page.waitForTimeout(150); // let the frame render
@@ -53,4 +53,50 @@ test('GDD-CTL-03 touch: slide stick idle, then pushed right with jump held', asy
   await page.waitForFunction(() => window.__PONCHO__!.touch().stick > 0.5 && !window.__PONCHO__!.state().grounded);
   await shot(page, info, 'touch-stick-right-and-jump');
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+});
+
+/** A translucent magenta strip over each non-zero inset (CSS px) of the viewport, so the reviewer sees where the safe area ends. A page overlay only, not game code. */
+const markInsets = (page: Page, insets: { left?: number; right?: number; top?: number; bottom?: number }) =>
+  page.evaluate((i) => {
+    const strips = [
+      [i.left, 'left:0;top:0;bottom:0;width'],
+      [i.right, 'right:0;top:0;bottom:0;width'],
+      [i.top, 'left:0;right:0;top:0;height'],
+      [i.bottom, 'left:0;right:0;bottom:0;height'],
+    ] as const;
+    for (const [css, place] of strips) {
+      if (!css) continue;
+      const d = document.createElement('div');
+      d.style.cssText = `position:fixed;pointer-events:none;background:rgba(255,0,255,0.35);z-index:10;${place}:${css}px`;
+      document.body.appendChild(d);
+    }
+  }, insets);
+
+test('GDD-CTL-03 touch: the buttons kept clear of the safe-area insets', async ({ page, isMobile }, info) => {
+  test.skip(!isMobile, 'the desktop draws no touch buttons');
+  const cdp = await page.context().newCDPSession(page);
+  const touch = () => page.evaluate(() => window.__PONCHO__!.touch());
+
+  // An iPhone in landscape: the side insets lie in the letterbox bars, the home indicator reaches into the canvas.
+  const iphone = { left: 47, right: 47, top: 0, bottom: 21 };
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: iphone });
+  await start(page, isMobile, '/?level=sandbox');
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded && window.__PONCHO__!.touch().insets.bottom === 15);
+  await markInsets(page, iphone);
+  const jump = (await touch()).buttons.find((b) => b.id === 'jump')!;
+  expect(jump.y + jump.h).toBe(249); // 270 - 6 - 15
+  expect((await touch()).insets.bottom).toBe(15);
+  await shot(page, info, 'touch-safe-area-1-iphone');
+
+  // A 16:9 phone with a cutout on the left: the inset reaches into the canvas, so the left buttons move in. A new page load
+  // (the overlay goes with it), the override set before the level starts.
+  await page.setViewportSize({ width: 800, height: 450 });
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { left: 40 } });
+  await start(page, isMobile, '/?level=sandbox');
+  await page.waitForFunction(() => window.__PONCHO__!.state().grounded && window.__PONCHO__!.touch().insets.left === 24);
+  await markInsets(page, { left: 40 });
+  const left = (await touch()).buttons.find((b) => b.id === 'left')!;
+  expect(left.x).toBe(30); // 6 + 24
+  expect((await touch()).insets.left).toBe(24);
+  await shot(page, info, 'touch-safe-area-2-cutout-left');
 });

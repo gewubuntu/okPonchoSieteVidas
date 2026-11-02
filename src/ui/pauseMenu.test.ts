@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NO_INSETS } from './safeArea';
 import { layoutTouchButtons } from './touchLayout';
 import { layoutPauseMenu, layoutResultsMenu, layoutTitleMenu, pauseMenuItemAt, resultsMenuItemAt, titleMenuItemAt } from './pauseMenu';
 
@@ -39,12 +40,16 @@ describe('GDD-UI-02 pause menu rows', () => {
   it('the rows never overlap a touch button or the pause button, and stay below "Paused" and inside the screen', () => {
     for (const css of [1.1, 1.2, 1.44, 1.6, 2, 3]) {
       const rows = layoutPauseMenu(css);
-      for (const mode of ['buttons', 'stick'] as const) {
-        for (const fuego of [false, true]) {
-          for (const b of layoutTouchButtons(css, mode, fuego)) {
-            for (const r of rows) {
-              const apart = r.x + r.w <= b.x || b.x + b.w <= r.x || r.y + r.h <= b.y || b.y + b.h <= r.y;
-              expect(apart, `css ${css} ${mode} fuego ${fuego}: ${r.item} row against ${b.id}`).toBe(true);
+      for (const insets of [NO_INSETS, { left: 20, right: 20, top: 0, bottom: 15 }]) {
+        for (const layout of ['standard', 'mirrored'] as const) {
+          for (const mode of ['buttons', 'stick'] as const) {
+            for (const fuego of [false, true]) {
+              for (const b of layoutTouchButtons(css, mode, fuego, layout, insets)) {
+                for (const r of rows) {
+                  const apart = r.x + r.w <= b.x || b.x + b.w <= r.x || r.y + r.h <= b.y || b.y + b.h <= r.y;
+                  expect(apart, `css ${css} ${mode} fuego ${fuego} ${layout} insets ${JSON.stringify(insets)}: ${r.item} row against ${b.id}`).toBe(true);
+                }
+              }
             }
           }
         }

@@ -7,6 +7,7 @@ import type { ButtonOpacity, TouchLayout } from '../sim/settings';
 import { dashedRect } from './dashed';
 import { gamePoint } from './gamePoint';
 import { effectiveHeld, InputLatch } from './inputLatch';
+import { canvasInsets, NO_INSETS, readSafeRect, sameInsets, type Insets } from './safeArea';
 import { touchAlpha } from './touchOpacity';
 import { layoutTouchButtons, pressedButtons, stickMove, touchInput, type TouchButton, type TouchButtonId, type TouchMode } from './touchLayout';
 
@@ -54,6 +55,10 @@ export interface TouchDebug {
   styleAlphas: readonly number[];
   /** GDD-UI-05: the alpha of a tutorial tip's dashed outline as drawn, 0 while none is; the Button opacity does not change it. */
   highlightAlpha: number;
+  /** GDD-CTL-03: how far the safe area reaches into the canvas on each side, in game px, as the buttons were last laid out. */
+  insets: Insets;
+  /** How many times the buttons have been laid out since the controls were made; it stays the same on frames where nothing that places them changed. */
+  layouts: number;
 }
 
 export class TouchControls {
@@ -73,6 +78,9 @@ export class TouchControls {
   /** GDD-CTL-03: the Layout, standard or mirrored. */
   private layout: TouchLayout = 'standard';
   private styleAlphas: number[] = [];
+  /** GDD-CTL-03: the safe-area insets the buttons were last laid out with, and how many layouts there have been. */
+  private insets: Insets = NO_INSETS;
+  private layouts = 0;
   /** L-006: a tap on Jump or Claw that is over before the next poll still counts for one step. Left and right too: a tap of
    * either ends the Siete vidas gastadas screen (GDD-LIFE-05). */
   private readonly jumpLatch = new InputLatch();
@@ -243,7 +251,7 @@ export class TouchControls {
   }
 
   debug(): TouchDebug {
-    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick, highlighted: this.highlighted, opacity: this.opacity, layout: this.layout, alphas: this.drawnAlphas, styleAlphas: this.styleAlphas, highlightAlpha: this.drawnHighlightAlpha() };
+    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick, highlighted: this.highlighted, opacity: this.opacity, layout: this.layout, alphas: this.drawnAlphas, styleAlphas: this.styleAlphas, highlightAlpha: this.drawnHighlightAlpha(), insets: this.insets, layouts: this.layouts };
   }
 
   /** GDD-CTL-03: the Button opacity step; the buttons are drawn again when it changes. */
@@ -260,6 +268,17 @@ export class TouchControls {
     if (this.enabled) this.relayout(); // without touch there are no buttons to lay out
   }
 
+  /**
+   * GDD-CTL-03: reads the safe-area insets and lays the buttons out again when they changed. Called every frame. Nothing without touch.
+   */
+  updateSafeArea(): void {
+    if (!this.enabled) return;
+    const insets = canvasInsets(readSafeRect(), this.scene.game.canvas.getBoundingClientRect());
+    if (sameInsets(insets, this.insets)) return;
+    this.insets = insets;
+    this.relayout();
+  }
+
   private setMode(mode: TouchMode): void {
     this.mode = mode;
     saveMode(mode);
@@ -267,7 +286,8 @@ export class TouchControls {
   }
 
   private relayout(): void {
-    this.buttons = layoutTouchButtons(this.scene.scale.displaySize.width / BASE_WIDTH, this.mode, this.fuego, this.layout);
+    this.buttons = layoutTouchButtons(this.scene.scale.displaySize.width / BASE_WIDTH, this.mode, this.fuego, this.layout, this.insets);
+    this.layouts++;
     this.draw();
   }
 
