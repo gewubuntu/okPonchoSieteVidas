@@ -4,7 +4,7 @@ import { loseLife } from './lives';
 import { medal } from './results';
 import { spawn, type PlayerInput } from './movement';
 import { NO_COMBO, stepSounds } from './sfx';
-import { isInPit, resumeRun, startRun, stepRun, touchesOfrenda, type Level, type Ofrenda, type RunState } from './run';
+import { isInPit, restartRun, restarts, resumeRun, startRun, stepRun, touchesOfrenda, type Level, type Ofrenda, type RunState } from './run';
 import type { SavedRun } from './save';
 import { parseTiles } from './tilemap';
 
@@ -472,7 +472,7 @@ describe('GDD-PRG-02 resume', () => {
   const far: Ofrenda = { id: 'far', x: 152, y: 4 * TILE };
   const later: Ofrenda = { id: 'later', x: 200, y: 4 * TILE };
   const resumable: Level = { ...level, ofrendas: [near, far, later], hilos: [0, 1, 2].map((col) => ({ col, row: 0 })) };
-  const saved: SavedRun = { level: '0-1', checkpoint: 1, lives: 4, used: ['ofrenda:near', 'ofrenda:far'], hilos: [true, false, false], clock: 1800 };
+  const saved: SavedRun = { level: '0-1', checkpoint: 1, lives: 4, livesIn: 5, used: ['ofrenda:near', 'ofrenda:far'], hilos: [true, false, false], clock: 1800 };
   const go = (r: RunState, input: PlayerInput, steps: number): RunState => {
     for (let i = 0; i < steps; i++) r = stepRun(r, input, resumable);
     return r;
@@ -486,6 +486,7 @@ describe('GDD-PRG-02 resume', () => {
     expect(r.checkpoint).toEqual({ x: 152, y: 64 });
     expect(r.lives.lives).toBe(4);
     expect(r.lives.used).toEqual(new Set(['ofrenda:near', 'ofrenda:far']));
+    expect(r.livesIn).toBe(5);
   });
 
   it('GDD-PRG-02 resume: the checkpoint is the saved ofrenda, the first one too', () => {
@@ -555,5 +556,119 @@ describe('GDD-PRG-02 resume', () => {
     expect(r.platformTick).toBe(0);
     expect(r.items).toEqual([]);
     expect(r.fireballs).toEqual([]);
+  });
+});
+
+/** From `r`, the lives down to one, the last lost in the pit, and the Siete vidas gastadas screen up for 60 steps (GDD-LIFE-05). */
+const toScreen = (r: RunState): RunState => {
+  for (let i = r.lives.lives; i > 1; i--) r = { ...r, lives: loseLife(r.lives) };
+  return run(run(fallIn(r), idle, RESPAWN.delaySteps), idle, 60);
+};
+
+describe('GDD-LIFE-05 lives through a world', () => {
+  // Out of reach, as in the resume tests.
+  const withHilos: Level = { ...level, hilos: [0, 1, 2].map((col) => ({ col, row: 0 })) };
+  const FLIP_WAIT = FLIP.steps + 1;
+
+  it('GDD-LIFE-05 startRun with carried lives starts with them, every ofrenda and the veladora unused', () => {
+    expect(startRun(level, undefined, 3).lives).toEqual({ lives: 3, used: new Set() });
+    expect(startRun(level, undefined, 1).lives.lives).toBe(1);
+    expect(startRun(level).lives).toEqual({ lives: 7, used: new Set() });
+    expect(startRun(level, undefined, 3).livesIn).toBe(3);
+    expect(startRun(level).livesIn).toBe(7);
+  });
+
+  it('GDD-LIFE-05 restartRun starts the flip of a restart at the level start with seven lives', () => {
+    let r = restartRun(level);
+    expect(r).toMatchObject({ phase: 'respawning', wait: FLIP_WAIT, restarting: true, checkpointIndex: -1, clock: 0, power: 'base', invulnerable: 0, livesIn: 7 });
+    expect(r.lives).toEqual({ lives: 7, used: new Set() });
+    expect(r.checkpoint).toEqual({ x: 24, y: 64 });
+    for (let i = 1; i < FLIP_WAIT; i++) {
+      r = stepRun(r, idle, level);
+      expect(r.phase, `step ${i}`).toBe('respawning');
+    }
+    r = stepRun(r, idle, level);
+    expect(r.phase).toBe('playing');
+    expect(r.player).toMatchObject({ x: 24, y: 64, grounded: true });
+    // The waits are on the clock (GDD-UI-02).
+    expect(r).toMatchObject({ invulnerable: RESPAWN.invulnerableSteps, restarting: false, clock: FLIP_WAIT });
+    expect(r.lives.lives).toBe(7);
+  });
+
+  it('GDD-LIFE-05 restartRun: its first step shows Poncho and plays the meow', () => {
+    const r = restartRun(level);
+    // GDD-AUD-02, as on a respawn.
+    expect(stepSounds(r, stepRun(r, idle, level), NO_COMBO).sounds.map((s) => s.name)).toContain('meow');
+  });
+
+  it('GDD-LIFE-05 restartRun: a button held through the flip neither skips it nor jumps', () => {
+    const held: PlayerInput = { move: 1, jumpHeld: true, claw: true };
+    let r = restartRun(level);
+    for (let i = 1; i < FLIP_WAIT; i++) {
+      r = stepRun(r, held, level);
+      expect(r.phase, `step ${i}`).toBe('respawning');
+    }
+    r = stepRun(r, held, level);
+    expect(r.phase).toBe('playing');
+    // The respawn marks jump as held (GDD-LIFE-02), so no jump and no swing.
+    r = stepRun(r, held, level);
+    expect(r.player.grounded).toBe(true);
+    expect(r.player.vy).toBe(0);
+    expect(r.claw.phase).toBe('idle');
+  });
+
+  it('GDD-LIFE-05 restartRun keeps the hilos saved for good and starts the clock at 0', () => {
+    const r = restartRun(withHilos, [true, false, true]);
+    expect(r.hilosTaken).toEqual([true, false, true]);
+    expect(r.hilosSaved).toEqual([true, false, true]);
+    expect(r.clock).toBe(0);
+    expect(restartRun(withHilos).hilosTaken).toEqual([false, false, false]);
+  });
+
+  it('GDD-LIFE-05 restarts is the step that ends the Siete vidas gastadas screen', () => {
+    const play = startRun(level);
+    const screen = { ...play, phase: 'gameover' as const };
+    const wait = { ...play, phase: 'respawning' as const };
+    expect(restarts(screen, wait)).toBe(true);
+    expect(restarts(screen, screen)).toBe(false);
+    // The screen coming up is no restart.
+    expect(restarts(wait, screen)).toBe(false);
+    expect(restarts(wait, wait)).toBe(false);
+    expect(restarts(play, play)).toBe(false);
+    let r = toScreen(startRun(level));
+    expect(r.phase).toBe('gameover');
+    for (let i = 0; i < 5; i++) {
+      const after = stepRun(r, idle, level);
+      expect(restarts(r, after), `idle step ${i}`).toBe(false);
+      r = after;
+    }
+    expect(restarts(r, stepRun(r, { move: 0, jumpHeld: true }, level))).toBe(true);
+  });
+
+  it('GDD-LIFE-05 the lives a run started with stay through a lost life', () => {
+    const r = run(fallIn(startRun(level, undefined, 4)), idle, RESPAWN.delaySteps);
+    expect(r.phase).toBe('playing');
+    expect(r.lives.lives).toBe(3);
+    expect(r.livesIn).toBe(4);
+  });
+
+  it('GDD-PRG-03 the restart after the last life counts the lives lost again from seven', () => {
+    const screen = toScreen(startRun(level, undefined, 4));
+    expect(screen.livesIn).toBe(4);
+    const after = stepRun(screen, { move: 0, jumpHeld: true }, level);
+    // A world restart, as the clock's (GDD-UI-02).
+    expect(after.lives.lives).toBe(7);
+    expect(after.livesIn).toBe(7);
+  });
+
+  it('GDD-PRG-03 the lives carried into a level count for its medal', () => {
+    const at = (livesIn: number, lives: number): RunState => ({ ...startRun(withHilos, [true, true, true], livesIn), lives: { lives, used: new Set<string>() } });
+    // Gold for at most 3 lives lost in the level, "whatever you came in with".
+    expect(medal(at(4, 1), withHilos)).toBe('gold');
+    expect(medal(at(5, 1), withHilos)).toBe('silver');
+    // A level started with 7: the old "4 lives at the exit".
+    expect(medal(at(7, 4), withHilos)).toBe('gold');
+    expect(medal(at(7, 3), withHilos)).toBe('silver');
+    expect(medal(at(1, 1), withHilos)).toBe('gold');
   });
 });

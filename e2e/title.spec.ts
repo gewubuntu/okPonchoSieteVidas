@@ -431,7 +431,8 @@ test('GDD-UI-02 with ?level=0-1, 1-1\'s results menu brings back the title over 
   await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1' && window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => window.__PONCHO__!.teleport(2780, 224));
   await waitForResults(page);
-  await page.keyboard.press('ArrowDown'); // 1-1 names no next level, so the menu opens on Retry: Down chooses Quit to title
+  await page.keyboard.press('ArrowDown'); // 1-1 names 1-2, so the menu opens on Next level: Down twice chooses Quit to title
+  await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter', { delay: 30 });
   await page.waitForFunction(() => window.__PONCHO__!.level() === '0-1' && window.__PONCHO__!.titleDrawn().shown);
   expect((await api(page, () => window.__PONCHO__!.titleDrawn())).menu.chosen).toBe('start');

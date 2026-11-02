@@ -11,14 +11,14 @@ const OFRENDA_X = [376, 792, 1224];
 /** A hilos text of 50 characters with a `1` at each index given. */
 const hilosAt = (...indexes: number[]): string => Array.from(NONE, (_, i) => (indexes.includes(i) ? '1' : '0')).join('');
 
-interface Saved {
+type Saved = {
   level: string;
   checkpoint: number;
   lives: number;
   used: string[];
   hilos: string;
   clock: number;
-}
+};
 const savedRun = (over: Partial<Saved> = {}): Saved => ({ level: '0-1', checkpoint: 1, lives: 4, used: ['ofrenda:0-1-1', 'ofrenda:0-1-2'], hilos: hilosAt(0, 1), clock: 1800, ...over });
 
 /** Saves a game with a run before the page loads (only if nothing is saved yet, so a reload keeps what the game wrote). */
@@ -225,7 +225,8 @@ test('GDD-PRG-02 Continue resumes at the ofrenda with the saved lives, hilos and
   expect(cracks.length).toBeGreaterThan(0);
   expect(Math.max(...cracks)).toBe(0);
   // The run goes on from the checkpoint: the ofrenda is the respawn point, and the saved run is still there.
-  expect(await stored(page)).toEqual(savedRun());
+  // L-054: a save the game writes again adds `livesIn`, 7 for a run saved without it (GDD-PRG-02)
+  expect(await stored(page)).toMatchObject(savedRun());
 });
 
 test('GDD-PRG-02 Continue from the title over another level starts that level at once', async ({ page, isMobile }) => {
@@ -362,7 +363,8 @@ test('GDD-PRG-02 a game over in the sandbox keeps the saved run of a real level'
   await api(page, () => window.__PONCHO__!.teleport(40, 340)); // below the level: a fall into a pit costs the last life
   await stepUntil(page, { phase: 'gameover' }, 90);
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('gameover');
-  expect(await stored(page)).toEqual(savedRun());
+  // L-054: a save the game writes again adds `livesIn`, 7 for a run saved without it (GDD-PRG-02)
+  expect(await stored(page)).toMatchObject(savedRun());
   expect(await api(page, () => window.__PONCHO__!.savedRun())).toMatchObject({ level: '0-1', checkpoint: 1, lives: 4, clock: 1800 });
 });
 
@@ -427,7 +429,8 @@ test('GDD-UI-02 on a phone a tap on the Start row starts a fresh run, not the sa
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 2);
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   expect((await api(page, () => window.__PONCHO__!.state())).x).toBeLessThan(OFRENDA_X[0]!); // the level start, not an ofrenda
-  expect(await stored(page)).toEqual(savedRun()); // starting keeps the saved run
+  // L-054: a save the game writes again adds `livesIn`, 7 for a run saved without it (GDD-PRG-02)
+  expect(await stored(page)).toMatchObject(savedRun()); // starting keeps the saved run
 });
 
 test('GDD-UI-02 a finger held on the Continue row does not make Poncho move after the flip', async ({ page, isMobile }) => {

@@ -1,7 +1,7 @@
 // GDD-LIFE-02 and GDD-LIFE-05: one play-through of a level, tying movement, lives and respawn together.
 // Pure logic, no Phaser (GDD-TEC-02). After the last life the run shows the "Siete vidas gastadas" screen until a press
 // of any button, then restarts the world. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
-import { EXIT, FIREBALL, FLIP, GAME_OVER, GLIDE, HIT, HITBOX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
+import { EXIT, FIREBALL, FLIP, GAME_OVER, GLIDE, HIT, HITBOX, LIVES_MAX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
 import { withFragiles, type Fragile } from './fragile';
@@ -74,6 +74,11 @@ export interface RunState {
   readonly player: PlayerState;
   readonly lives: LivesState;
   /**
+   * GDD-PRG-03, GDD-LIFE-05: the lives the run started with: those carried into the level, or seven (at a world's start, in the tutorial,
+   * and again from the restart after the last life). The medal counts the lives lost in the level from it.
+   */
+  readonly livesIn: number;
+  /**
    * 'gameover' is the "Siete vidas gastadas" screen after the last life (GDD-LIFE-05). 'clear' is the level clear screen after
    * the exit (GDD-WLD-03, GDD-UI-02), where nothing moves and only a pick on the results menu leaves it (the scene's business).
    */
@@ -134,10 +139,14 @@ export interface RunState {
   readonly revealAll: boolean;
 }
 
-/** `savedHilos` are the hilos saved in earlier runs (GDD-PRG-02), one flag per `Level.hilos` entry; left out means none. */
-export function startRun(level: Level, savedHilos?: readonly boolean[]): RunState {
+/**
+ * `savedHilos` are the hilos saved in earlier runs (GDD-PRG-02), one flag per `Level.hilos` entry; left out means none. `lives` are the
+ * lives it starts with (GDD-LIFE-05: carried from the level before in the same world, or World 1's saved lives); left out, all seven. Every
+ * ofrenda and the veladora are unused, whatever the lives.
+ */
+export function startRun(level: Level, savedHilos?: readonly boolean[], lives: number = LIVES_MAX): RunState {
   const hilosSaved = savedHilos ?? freshHilos(level.hilos ?? []);
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: startWorld(), phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: { ...startWorld(), lives }, livesIn: lives, phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false };
 }
 
 /**
@@ -153,6 +162,7 @@ export function resumeRun(level: Level, saved: SavedRun, savedHilos?: readonly b
   return {
     ...fresh,
     lives: { lives: saved.lives, used: new Set(saved.used) },
+    livesIn: saved.livesIn,
     checkpoint: { x: point.x, y: point.y },
     checkpointIndex: saved.checkpoint,
     hilosTaken: saved.hilos.map((taken, i) => taken || (savedHilos?.[i] ?? false)),
@@ -161,6 +171,15 @@ export function resumeRun(level: Level, saved: SavedRun, savedHilos?: readonly b
     wait: FLIP.steps + 1,
     restarting: true,
   };
+}
+
+/**
+ * GDD-LIFE-05: the restart after the last life when it plays another level than the one where the last life was lost (1-1, after 1-2):
+ * a fresh run of `level` with all seven lives, which starts with the restart's flip at the level start (it cannot be skipped). As in
+ * `resumeRun`, the wait is one step longer than the flip, so its first step shows Poncho and plays the meow. The clock starts at 0.
+ */
+export function restartRun(level: Level, savedHilos?: readonly boolean[]): RunState {
+  return { ...startRun(level, savedHilos), phase: 'respawning', wait: FLIP.steps + 1, restarting: true };
 }
 
 /** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
@@ -184,6 +203,9 @@ export function touchesOfrenda(player: PlayerState, o: Ofrenda): boolean {
 export function respawnPoint(run: RunState, level: Level): Point {
   return isOutOfLives(run.lives) ? level.spawn : run.checkpoint;
 }
+
+/** GDD-LIFE-05: whether the step from `before` to `after` was the press that ended the Siete vidas gastadas screen, which restarts the world. */
+export const restarts = (before: RunState, after: RunState): boolean => before.phase === 'gameover' && after.phase !== 'gameover';
 
 /** GDD-WLD-03: whether Poncho's body box overlaps the exit's 16 x 48 box, which stands on `exit.y`. Boxes that only share an edge do not touch. */
 export function touchesExit(player: PlayerState, exit: Point): boolean {
@@ -227,8 +249,9 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   if (run.phase === 'gameover') {
     const { down, shown, press } = screenStep(run, input);
     if (!press) return { ...run, buttonsHeld: down, wait: shown, stomped: false };
-    // The world restarts with all seven lives, the ofrendas unused, from the level start, after the respawn flip. The clock starts again (GDD-UI-02).
-    return { ...run, buttonsHeld: down, lives: startWorld(), checkpoint: level.spawn, checkpointIndex: -1, phase: 'respawning', wait: FLIP.steps, restarting: true, stomped: false, clock: 0 };
+    // The world restarts with all seven lives, the ofrendas unused, from the level start, after the respawn flip. The clock starts again
+    // (GDD-UI-02), and so does the count of lives lost for the medal (GDD-PRG-03).
+    return { ...run, buttonsHeld: down, lives: startWorld(), livesIn: LIVES_MAX, checkpoint: level.spawn, checkpointIndex: -1, phase: 'respawning', wait: FLIP.steps, restarting: true, stomped: false, clock: 0 };
   }
   if (run.phase === 'respawning') {
     // `elapsed` is the number of respawning steps taken including this one, so 0.3 s is step 18 and 0.8 s is step 48.
@@ -244,6 +267,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
       // Marked as already holding jump, so a button held through the respawn does not make Poncho jump at once.
       player: { ...spawn(back.x, back.y), jumpWasHeld: true },
       lives: run.lives,
+      livesIn: run.livesIn,
       checkpoint: back,
       checkpointIndex: run.checkpointIndex,
       phase: 'playing',

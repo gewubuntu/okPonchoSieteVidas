@@ -436,7 +436,7 @@ describe('GDD-AUD-02 tick', () => {
 
 describe('GDD-PRG-02 the resumed flip', () => {
   const resumable: Level = { ...pit, ofrendas: [{ id: 'a', x: 56, y: 64 }] };
-  const saved = { level: '0-1', checkpoint: 0, lives: 4, used: ['ofrenda:a'], hilos: [], clock: 100 };
+  const saved = { level: '0-1', checkpoint: 0, lives: 4, livesIn: 7, used: ['ofrenda:a'], hilos: [], clock: 100 };
 
   it('GDD-PRG-02 the resumed flip plays the meow once, on its first step, and nothing else', () => {
     const beats = play(resumable, resumeRun(resumable, saved), 40);

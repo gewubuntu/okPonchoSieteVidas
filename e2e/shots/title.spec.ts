@@ -86,3 +86,24 @@ test('GDD-UI-02 the title screen with a saved run on an upright phone', async ({
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().prompt === 'Turn your device sideways');
   await shot(page, info, 'title-continue-portrait');
 });
+
+test('GDD-UI-02 the title screen over 1-2 once 1-1 is cleared', async ({ page }, info) => {
+  // 1-1 cleared with five lives, a count a player can have: the title is over 1-2, its run with the lives World 1 keeps (GDD-LIFE-05).
+  await page.addInitScript(
+    ([text]) => localStorage.setItem('poncho-siete-vidas', text!),
+    [
+      JSON.stringify({
+        version: 1,
+        settings: { master: 10, effects: 10, language: 'en' },
+        progress: { tutorialPlayed: true, worldLives: { '1': 5 } },
+        levels: { '1-1': { hilos: '0'.repeat(50), medal: 'bronze', bestSteps: 9000, cleared: true } },
+      }),
+    ],
+  );
+  await openGame(page, '/');
+  expect(await page.evaluate(() => window.__PONCHO__!.level())).toBe('1-2');
+  expect(await page.evaluate(() => window.__PONCHO__!.lives())).toBe(5);
+  expect(await page.evaluate(() => window.__PONCHO__!.hudFilled())).toBe(5);
+  expect(await page.evaluate(() => window.__PONCHO__!.titleDrawn())).toMatchObject({ shown: true, menu: { shown: true, items: ['Start', 'Tutorial', 'Settings'], chosen: 'start' } });
+  await shot(page, info, 'title-over-1-2');
+});
