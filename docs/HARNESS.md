@@ -55,9 +55,10 @@ When a lesson is promoted, set its `Promoted:` field to where the rule now lives
 
 Add a function to `scripts/check.mjs` that returns a list of error strings, register it in
 the `checks` array, and make sure it fails on a bad input. Name the lesson that
-motivated the check in a comment beside it. A check with logic of its own (more than one regex) keeps that logic in a module with
-unit tests beside it, as `scripts/gdd-version.mjs` does, and gets one mutant per condition and per argument it passes on
-(`scripts/mutate.mjs`), each caught by those tests (L-010).
+motivated the check in a comment beside it. A check whose logic goes beyond one pattern match keeps that logic in a module with
+unit tests beside it, as `scripts/gdd-version.mjs` does: one mutant per condition and per argument inside that module
+(`scripts/mutate.mjs`), each caught by those tests (L-010). The lines in `scripts/check.mjs` that call the module are proved
+by the gate run on a bad input.
 
 A hook is added the same way: a script in `scripts/hooks/` that exports its decision as a pure function, a `.test.mjs`
 beside it (run by `npm test` in the gate) holding every spelling the hook must catch and the mentions it must let through, a commit message's here-document and a quoted string among them
