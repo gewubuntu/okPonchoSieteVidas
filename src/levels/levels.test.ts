@@ -46,6 +46,11 @@ describe('GDD-UI-02 which level', () => {
     }
   });
 
+  it('GDD-UI-02 which level: the slopes address opens the slopes test level', () => {
+    expect(startLevel('?level=slopes', false).id).toBe('slopes');
+    expect(startLevel('?level=slopes', true).id).toBe('slopes');
+  });
+
   it('GDD-UI-02 the level after 0-1 is 1-1, and none comes after 1-1 or the sandbox', () => {
     expect(levelById('0-1')!.next).toBe('1-1');
     expect(levelById('1-1')!.next).toBeUndefined();

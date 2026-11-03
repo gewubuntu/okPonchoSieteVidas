@@ -1,7 +1,9 @@
 // GDD-MOV-01 to GDD-MOV-04 and GDD-MOV-06: Poncho's movement and tile collision. Pure logic, no Phaser (GDD-TEC-02).
 // The stomp bounce (GDD-MOV-03) arrives with combat. GDD-MOV-07 and GDD-MOV-08: the glide and the wall cling and kick,
-// where the level allows them.
+// where the level allows them. GDD-MOV-09: he runs up and down sand slopes (see `slope.ts`).
 import { FORGIVENESS, GLIDE, GRAVITY, HITBOX, JUMP, RUN, STEP, TILE, WALL } from '../config/tuning';
+import { boxBlocked, groundTop, slopeTile, stepDown, stepUp } from './slope';
+import type { SlopeChar } from './tilemap';
 
 export interface PlayerState {
   x: number;
@@ -59,6 +61,8 @@ export interface PlayerInput {
 export interface World {
   /** Is tile (tx, ty) solid? Tile (0, 0) covers x and y from 0 to 16. */
   solidTile(tx: number, ty: number): boolean;
+  /** GDD-MOV-09: the slope in tile (tx, ty), if any. Left out, a world has no slopes. */
+  slopeAt?(tx: number, ty: number): SlopeChar | null;
 }
 
 /** An endless flat floor whose top is at y = floorY (a multiple of the tile size). */
@@ -70,17 +74,8 @@ const EDGE = 1e-6;
 /** How far beside his box a wall still counts as touching it (GDD-MOV-08), in px. */
 const WALL_PROBE = 0.01;
 
-/** Does Poncho's body box, centred on x with its feet at y (GDD-MOV-06), overlap a solid tile? */
-export function blocked(world: World, x: number, y: number): boolean {
-  const left = Math.floor((x - HALF_WIDTH) / TILE);
-  const right = Math.floor((x + HALF_WIDTH - EDGE) / TILE);
-  const top = Math.floor((y - HITBOX.height) / TILE);
-  const bottom = Math.floor((y - EDGE) / TILE);
-  for (let ty = top; ty <= bottom; ty++) {
-    for (let tx = left; tx <= right; tx++) if (world.solidTile(tx, ty)) return true;
-  }
-  return false;
-}
+/** Does Poncho's body box, centred on x with its feet at y (GDD-MOV-06), overlap a solid tile? Slopes count as GDD-MOV-09 says (see `boxBlocked`). */
+export const blocked = (world: World, x: number, y: number): boolean => boxBlocked(world, x, y, HITBOX.width, HITBOX.height);
 
 export function spawn(x: number, y: number): PlayerState {
   return { x, y, vx: 0, vy: 0, grounded: true, facing: 1, coyote: 0, jumpBuffer: 0, jumpWasHeld: false, bounced: false };
@@ -199,10 +194,33 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
   const dx = ((vx0 + s.vx) / 2) * STEP;
   const dy = ((vy0 + s.vy) / 2) * STEP;
 
+  // GDD-MOV-09: on the ground at the start of the step and not taking off.
+  const standing = s.grounded;
+  const fromX = s.x;
+  const fromY = s.y;
+
   s.x += dx;
+  // GDD-MOV-09: feet the sideways move put into the ground step up onto it by up to SLOPE.stepPx: on the ground always, in the air only
+  // out of a level tile (the tile at a slope's top), never while they are in a slope tile, so a jump from a slope rises as from flat
+  // ground. A higher rise is a wall: a slope's high side stops the middle of his feet.
+  let lifted = false;
+  const up = stepUp(world, s.x, s.y);
+  if (up === 'wall') {
+    s.x = fromX;
+    s.vx = 0;
+  } else if (up !== null && (standing || slopeTile(world, s.x, s.y) === null)) {
+    s.y = up;
+    lifted = true;
+  }
   if (blocked(world, s.x, s.y)) {
-    s.x = dx > 0 ? Math.floor((s.x + HALF_WIDTH - EDGE) / TILE) * TILE - HALF_WIDTH
-      : (Math.floor((s.x - HALF_WIDTH) / TILE) + 1) * TILE + HALF_WIDTH;
+    if (lifted) {
+      // GDD-MOV-09: a step up that puts his box into a tile (his head under a ceiling over a slope) is not taken: he stays where he was.
+      s.x = fromX;
+      s.y = fromY;
+    } else {
+      s.x = dx > 0 ? Math.floor((s.x + HALF_WIDTH - EDGE) / TILE) * TILE - HALF_WIDTH
+        : (Math.floor((s.x - HALF_WIDTH) / TILE) + 1) * TILE + HALF_WIDTH;
+    }
     s.vx = 0;
   }
 
@@ -221,6 +239,23 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
         s.y = (Math.floor((s.y - HITBOX.height) / TILE) + 1) * TILE + HITBOX.height; // bump the underside
         s.vy = 0;
       }
+    }
+  }
+  // GDD-MOV-09: feet that end the move inside the ground (below a slope's surface) are put on its top: he lands.
+  const top = groundTop(world, s.x, s.y);
+  if (top !== null) {
+    s.y = top;
+    s.vy = 0;
+    landed = true;
+  }
+  // GDD-MOV-09: standing at the start of the step, feet that left the ground by up to SLOPE.stepPx are put back on it, so he runs down a
+  // slope and over its ends on the ground.
+  if (!landed && standing) {
+    const down = stepDown(world, s.x, s.y);
+    if (down !== null) {
+      s.y = down;
+      s.vy = 0;
+      landed = true;
     }
   }
 

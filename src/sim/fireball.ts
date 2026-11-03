@@ -1,7 +1,8 @@
-// GDD-PWR-03: the salsa fireball Poncho spits in the Fuego state. Pure logic, no Phaser (GDD-TEC-02).
+// GDD-PWR-03: the salsa fireball Poncho spits in the Fuego state; it bounces up sand slopes (GDD-MOV-09). Pure logic, no Phaser (GDD-TEC-02).
 import { FIREBALL, HITBOX, STEP, TILE } from '../config/tuning';
 import { squareBlocked } from './item';
 import type { PlayerState } from './movement';
+import { groundTop, slopeTile, stepUp } from './slope';
 import type { TileGrid } from './tilemap';
 
 export interface Fireball {
@@ -37,13 +38,26 @@ export function stepFireball(fb: Fireball, world: TileGrid): Fireball | null {
   const age = fb.age + 1;
   if (age > FIREBALL.lifeSteps) return null;
   const x = fb.x + fb.vx * STEP;
-  if (squareBlocked(world, x, fb.y, FIREBALL.size)) return null;
-  const vy1 = fb.vy + FIREBALL.gravity * STEP;
-  let y = fb.y + ((fb.vy + vy1) / 2) * STEP;
+  // GDD-MOV-09: a slope's high side is a wall to it. Coming off a slope into the ground (the tile at a slope's top), it is put on top
+  // and bounces up from there. Only a slope lifts it: a fireball that meets a level tile's side from flat ground vanishes as before.
+  const up = stepUp(world, x, fb.y);
+  if (up === 'wall') return null;
+  const climbs = up !== null && slopeTile(world, fb.x, fb.y) !== null;
+  const y0 = climbs && up !== null ? up : fb.y;
+  const vy0 = climbs ? -BOUNCE_SPEED : fb.vy;
+  if (squareBlocked(world, x, y0, FIREBALL.size)) return null;
+  const vy1 = vy0 + FIREBALL.gravity * STEP;
+  let y = y0 + ((vy0 + vy1) / 2) * STEP;
   let vy = vy1;
   if (squareBlocked(world, x, y, FIREBALL.size)) {
     if (vy1 <= 0) return null; // moving up into a ceiling
     y = Math.floor((y - EDGE) / TILE) * TILE; // on top of the tile it landed on
+    vy = -BOUNCE_SPEED;
+  }
+  // GDD-MOV-09: landing on a slope it bounces straight up off its surface, as off flat ground.
+  const top = groundTop(world, x, y);
+  if (top !== null) {
+    y = top;
     vy = -BOUNCE_SPEED;
   }
   if (y - FIREBALL.size > world.height * TILE) return null;

@@ -326,10 +326,41 @@ function drawTile(top, version) {
   return c;
 }
 
-/** The ground sheet, 256 x 64: frames 0 and 1 are the top tile's two versions, frames 2 and 3 the earth tile's. */
+/** GDD-MOV-09's sand slopes in the order the ground sheet draws them, with their surface height at the tile's left and right edge in game px (cells). */
+export const SLOPE_ORDER = [['/', 0, 16], ['\\', 16, 0], ['r', 0, 8], ['R', 8, 16], ['F', 16, 8], ['f', 8, 0]];
+
+/** The row of a slope tile's top ground cell in cell column x: the cell its surface passes through at the column's middle. */
+export const slopeTopRow = (left, right, x) => Math.floor(16 - (left + ((right - left) * (x + 0.5)) / 16));
+
+/**
+ * A slope tile and the tile under it (GDD-ART-06, GDD-MOV-09): the top tile over the earth tile of the same version, a 16 x 32 cell
+ * strip, each column moved down to its `slopeTopRow`, then cut back into the two tiles. Cells moved above the surface are left empty.
+ */
+function drawSlopePair(left, right, version) {
+  const top = drawTile(true, version);
+  const earth = drawTile(false, version);
+  const slope = new Cells(16, 16);
+  const foot = new Cells(16, 16);
+  for (let x = 0; x < 16; x++) {
+    const shift = slopeTopRow(left, right, x);
+    for (let r = 0; r + shift < 32; r++) {
+      const colour = r < 16 ? top.get(x, r) : earth.get(x, r - 16);
+      if (r + shift < 16) slope.set(x, r + shift, colour);
+      else foot.set(x, r + shift - 16, colour);
+    }
+  }
+  return { slope, foot };
+}
+
+/**
+ * The ground sheet, 1792 x 64: frames 0 and 1 are the top tile's two versions, frames 2 and 3 the earth tile's, frames 4 to 15 the
+ * slopes of SLOPE_ORDER, two versions each, frames 16 to 27 the tiles under them.
+ */
 export function drawGround() {
-  const g = new Grid(256, 64);
-  [drawTile(true, 0), drawTile(true, 1), drawTile(false, 0), drawTile(false, 1)].forEach((tile, n) => {
+  const pairs = SLOPE_ORDER.flatMap(([, left, right]) => [0, 1].map((v) => drawSlopePair(left, right, v)));
+  const frames = [drawTile(true, 0), drawTile(true, 1), drawTile(false, 0), drawTile(false, 1), ...pairs.map((p) => p.slope), ...pairs.map((p) => p.foot)];
+  const g = new Grid(frames.length * 64, 64);
+  frames.forEach((tile, n) => {
     const px = tile.scaled();
     for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) g.set(n * 64 + x, y, px.get(x, y));
   });

@@ -21,6 +21,10 @@ interface Options {
   enemies?: readonly Enemy[];
   world?: number;
   test?: boolean;
+  /** GDD-MOV-09: a slope character put at [col, row] after the floor, pits and solid tiles. */
+  slopes?: readonly (readonly [number, number, string])[];
+  /** Merged into the level last. */
+  level?: Partial<Level>;
 }
 
 const onFloor = (col: number): Point => ({ x: col * TILE + TILE / 2, y: 14 * TILE });
@@ -36,6 +40,7 @@ function entry(o: Options = {}): LevelEntry {
     for (let c = 0; c < width; c++) row += (r >= HEIGHT - FLOOR_ROWS && !pits.has(c)) || solid.has(`${c},${r}`) ? '#' : '.';
     rows.push(row);
   }
+  for (const [c, r, ch] of o.slopes ?? []) rows[r] = rows[r]!.slice(0, c) + ch + rows[r]!.slice(c + 1);
   const ofrendas: Ofrenda[] = (o.ofrendas ?? [30, 50, 75]).map((col, i) => ({ id: `o${i}`, ...onFloor(col) }));
   const exit = o.exit === null ? undefined : (o.exit ?? onFloor(85));
   const level: Level = {
@@ -53,6 +58,7 @@ function entry(o: Options = {}): LevelEntry {
     fragiles: [],
     enemies: o.enemies ?? [],
     ...(exit ? { exit } : {}),
+    ...o.level,
   };
   return { id: 'synthetic', world: o.world ?? 1, test: o.test ?? false, level };
 }
@@ -168,5 +174,42 @@ describe('GDD-TEC-04 and GDD-ENM-01 enemies start 3 tiles from a respawn', () =>
     expect(validateLevel(entry({ enemies: [{ x: 468, y: 224, kind: 'zopilote' }] }))).toEqual([
       'zopilote at 468,224 is 20 px from the respawn at 488,224, under 48',
     ]);
+  });
+});
+
+describe('GDD-MOV-09 sand slopes in the validator', () => {
+  it('GDD-MOV-09 a slope tile with no level tile under it is a problem', () => {
+    expect(validateLevel(entry({ slopes: [[40, 12, '/']] }))).toContain('slope at 40,12 has no level tile under it');
+    expect(validateLevel(entry({ slopes: [[40, 13, '/']] }))).toEqual([]); // row 14 is floor
+  });
+
+  it('GDD-MOV-09 a slope in the bottom row is a problem', () => {
+    expect(validateLevel(entry({ slopes: [[40, 16, '/']] }))).toContain('slope at 40,16 has no level tile under it'); // below the level is open
+  });
+
+  it('GDD-MOV-09 a slope tile that holds a spike, spring, crumbling tile, door, fragile wall or piñata is a problem', () => {
+    const at = { col: 40, row: 13 };
+    const cases: [string, Partial<Level>][] = [
+      ['spike', { spikes: [at] }],
+      ['spring', { springs: [at] }],
+      ['crumbling tile', { crumbles: [at] }],
+      ['piñata', { pinatas: [at] }],
+      ['fragile wall', { fragiles: [at] }],
+      ['door', { doors: [{ col: 40, row: 12, height: 2 }] }],
+    ];
+    for (const [name, level] of cases) {
+      expect(validateLevel(entry({ slopes: [[40, 13, '/']], level })), name).toContain(`${name} at 40,13 stands in a slope tile`);
+    }
+  });
+
+  it('GDD-MOV-09 test levels get the slope checks too', () => {
+    expect(validateLevel(entry({ slopes: [[40, 12, '/']], test: true }))).toContain('slope at 40,12 has no level tile under it');
+    expect(validateLevel(entry({ slopes: [[40, 13, '/']], test: true, level: { spikes: [{ col: 40, row: 13 }] } }))).toContain('spike at 40,13 stands in a slope tile');
+  });
+
+  it('GDD-MOV-09 a gap between two slopes is as wide as its empty bottom columns', () => {
+    const level = entry({ pits: [41, 42, 43], slopes: [[40, 13, '\\'], [44, 13, '/']] });
+    expect(gaps(level.level.world)).toContainEqual({ col: 41, width: 3 });
+    expect(validateLevel(level)).toEqual([]);
   });
 });

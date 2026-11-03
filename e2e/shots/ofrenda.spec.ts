@@ -15,7 +15,9 @@ test('GDD-WLD-05 ofrendas: unused, first one used, and after a respawn at it', a
   await shot(page, info, 'ofrenda-unused');
   await page.evaluate(() => window.__PONCHO__!.teleport(120, 224));
   await page.waitForFunction(() => window.__PONCHO__!.ofrendas()[0]!.used);
-  await page.evaluate(() => window.__PONCHO__!.teleport(180, 224)); // step off to the right so he is not covering it
+  // Step off to the right so he is not covering it: column 9, on the floor between the first ofrenda (column 7) and the 2-tile wall
+  // (columns 10 and 11). x = 180 was inside the wall, where only a debug teleport can put him (GDD-MOV-09 lifts feet in a tile onto it).
+  await page.evaluate(() => window.__PONCHO__!.teleport(150, 224));
   await shot(page, info, 'ofrenda-first-used');
   await page.evaluate(() => window.__PONCHO__!.teleport(312, 224));
   await page.waitForFunction(() => window.__PONCHO__!.ofrendas()[1]!.used);

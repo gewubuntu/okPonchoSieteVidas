@@ -3,7 +3,7 @@
 // (GDD-ART-06); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, PLANTS, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
-import { kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
+import { feetOf, kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { levelById, SAVED_LEVELS, SAVED_OFRENDAS, startLevel, TUTORIAL_ID, type LevelEntry } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
@@ -312,7 +312,10 @@ export interface PonchoDebug {
   spits(): number;
   fireballAt(): { x: number; y: number }[];
   fireballsDrawn(): number;
-  /** The enemies in the simulation, and where the scene painted the live ones (GDD-ENM-02). */
+  /**
+   * The enemies in the simulation, and where the scene painted the live ones (GDD-ENM-02). `y` is a Zopilote's flight y, else the feet of a
+   * walker where it walked to (GDD-MOV-09: it follows slopes), which is its start's y until it moves.
+   */
   enemies(): { x: number; y: number; alive: boolean; dir: number; phase: string }[];
   enemiesDrawn(): { x: number; y: number; kind: EnemyKind }[];
   /** GDD-MOV-07: whether the spread poncho is drawn over Poncho (gliding). Read from what was drawn. */
@@ -599,7 +602,7 @@ export class PlayScene extends Phaser.Scene {
     // GDD-ART-04: the standing frame and the four run frames, each SPRITE_FRAME game px wide (160 art px).
     this.load.spritesheet('poncho', ponchoPng, { frameWidth: SPRITE_FRAME * ART_SCALE, frameHeight: SPRITE_FRAME * ART_SCALE });
     // GDD-ART-06: World 1's backdrop (the sky's three dither strips, the sun, a picture of each cloud, the mountains' ridge band) and the
-    // ground sheet, four frames of one tile (TILE * ART_SCALE) each.
+    // ground sheet, 28 frames of one tile (TILE * ART_SCALE) each (GDD-MOV-09).
     this.load.spritesheet('sky-strips', skyStripsPng, { frameWidth: BASE_WIDTH * ART_SCALE, frameHeight: BACKDROP_ART.stripArt });
     this.load.image('sun', sunPng);
     [cloud0Png, cloud1Png, cloud2Png, cloud3Png].forEach((png, i) => this.load.image(`cloud-${i}`, png));
@@ -1076,7 +1079,7 @@ export class PlayScene extends Phaser.Scene {
         spits: () => this.spits,
         fireballAt: () => this.run.fireballs.map((f) => ({ x: f.x, y: f.y })),
         fireballsDrawn: () => this.fireballsPainted,
-        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? this.level.enemies[i]!.y, alive: e.alive, dir: e.dir, phase: e.flight?.phase ?? e.gait?.phase ?? 'walk' })),
+        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: e.flight?.phase ?? e.gait?.phase ?? 'walk' })),
         enemiesDrawn: () => this.enemiesPainted,
         glideDrawn: () => this.glideGfx.visible,
         clingDrawn: () => (this.clingGfx.visible ? this.clingPainted : 0),
@@ -1154,12 +1157,13 @@ export class PlayScene extends Phaser.Scene {
     );
   }
 
-  /** World 1's ground (GDD-ART-06): one image of the ground sheet per solid tile, a top tile or an earth tile, a version each. */
+  /** World 1's ground (GDD-ART-06): one image of the ground sheet per solid or slope tile, a top tile, an earth tile or a sand slope (GDD-MOV-09), a version each. */
   private drawTiles(): void {
     for (let ty = 0; ty < this.world.height; ty++) {
       for (let tx = 0; tx < this.world.width; tx++) {
-        if (!this.world.solidTile(tx, ty)) continue;
-        const image = this.add.image(tx * TILE, ty * TILE, 'ground', groundFrame((x, y) => this.world.solidTile(x, y), tx, ty)).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1);
+        const slope = this.world.slopeAt(tx, ty);
+        if (!this.world.solidTile(tx, ty) && slope === null) continue;
+        const image = this.add.image(tx * TILE, ty * TILE, 'ground', groundFrame((x, y) => this.world.solidTile(x, y), tx, ty, (x, y) => this.world.slopeAt(x, y))).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1);
         this.groundImages.set(`${tx},${ty}`, image);
       }
     }
@@ -1286,16 +1290,17 @@ export class PlayScene extends Phaser.Scene {
       const g = this.enemyGfx;
       if (kindOf(def) === 'zopilote') return this.drawZopilote(e);
       if (kindOf(def) === 'cactus') return this.drawCactus(e, def.y);
-      if (kindOf(def) === 'tlacuache') return this.drawTlacuache(e, def.y);
-      this.enemiesPainted.push({ x: e.x, y: def.y, kind: 'alacran' });
+      if (kindOf(def) === 'tlacuache') return this.drawTlacuache(e, feetOf(def, e));
+      const y = feetOf(def, e);
+      this.enemiesPainted.push({ x: e.x, y, kind: 'alacran' });
       const d = e.dir;
-      g.fillStyle(0x9a3a2a, 1).fillRect(e.x - 5, def.y - 6, 10, 5);
-      g.lineStyle(1, 0x4a1a12, 1).strokeRect(e.x - 4.5, def.y - 5.5, 9, 4);
-      g.fillStyle(0xe9d3a3, 1).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), def.y - 7, 3, 3).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), def.y - 3, 3, 2);
-      g.lineStyle(1, 0x9a3a2a, 1).beginPath().moveTo(e.x - d * 5, def.y - 5).lineTo(e.x - d * 7, def.y - 8).lineTo(e.x - d * 4, def.y - 10).lineTo(e.x - d * 1, def.y - 8).strokePath();
-      g.fillStyle(0xe9d3a3, 1).fillRect(e.x - d * 1 - 1, def.y - 9, 2, 2);
+      g.fillStyle(0x9a3a2a, 1).fillRect(e.x - 5, y - 6, 10, 5);
+      g.lineStyle(1, 0x4a1a12, 1).strokeRect(e.x - 4.5, y - 5.5, 9, 4);
+      g.fillStyle(0xe9d3a3, 1).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), y - 7, 3, 3).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), y - 3, 3, 2);
+      g.lineStyle(1, 0x9a3a2a, 1).beginPath().moveTo(e.x - d * 5, y - 5).lineTo(e.x - d * 7, y - 8).lineTo(e.x - d * 4, y - 10).lineTo(e.x - d * 1, y - 8).strokePath();
+      g.fillStyle(0xe9d3a3, 1).fillRect(e.x - d * 1 - 1, y - 9, 2, 2);
       g.lineStyle(1, 0x4a1a12, 1);
-      for (const lx of [-3, -1, 1, 3]) g.lineBetween(e.x + lx, def.y - 1, e.x + lx, def.y);
+      for (const lx of [-3, -1, 1, 3]) g.lineBetween(e.x + lx, y - 1, e.x + lx, y);
     });
   }
 
