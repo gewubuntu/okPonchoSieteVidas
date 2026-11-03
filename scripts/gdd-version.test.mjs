@@ -39,9 +39,10 @@ describe('gdd-version (L-057)', () => {
     expect(oneVersionErrors(base, gdd('0.9.4', '0.9.3', '0.9.2', '0.9.1'))[0]).toContain('git fetch origin main');
   });
 
-  // A fake git: `merge-base` answers with `baseSha` (or fails without one), `show` with the base's GDD (or fails without one).
+  // A fake git: `merge-base origin/main HEAD` answers with `baseSha` (or fails without one), `show` with the base's GDD (or
+  // fails without one). Any other call fails, so asking for another merge base turns the check off and the tests see it.
   const fakeGit = (baseSha, baseText) => (cmd, ...args) => {
-    if (cmd === 'merge-base') return baseSha ? { status: 0, stdout: `${baseSha}\n` } : { status: 1, stdout: '' };
+    if (cmd === 'merge-base' && args.join(' ') === 'origin/main HEAD') return baseSha ? { status: 0, stdout: `${baseSha}\n` } : { status: 1, stdout: '' };
     if (cmd === 'show' && args[0] === `${baseSha}:docs/GDD.md`) return baseText ? { status: 0, stdout: baseText } : { status: 128, stdout: '' };
     return { status: 1, stdout: '' };
   };
