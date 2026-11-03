@@ -65,7 +65,7 @@ test('GDD-UI-04 1-3 the camera stops at the right edge, 2400 px in, and the exit
   }
 });
 
-test('GDD-LIFE-05 1-3 results menu greys Next level, and Retry starts 1-3 again with the lives at its clear', async ({ page, isMobile }) => {
+test('GDD-UI-02 the results menu of 1-3 opens on Next level, which starts 1-4', async ({ page, isMobile }) => {
   await boot(page, '/?level=1-3');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await page.evaluate(() => {
@@ -77,24 +77,33 @@ test('GDD-LIFE-05 1-3 results menu greys Next level, and Retry starts 1-3 again 
   await page.evaluate(() => window.__PONCHO__!.teleport(2780, 128));
   await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear');
   await waitForResults(page);
-  // The level names no next level: "Next level" is darker, and the menu opens on Retry.
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ shown: true, items: ['Next level', 'Retry', 'Quit to title'], chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
-  // Up from Retry stays there.
-  await page.keyboard.press('ArrowUp');
-  await page.keyboard.press('KeyW');
-  const t0 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 10, t0);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
-  // A tap or click on the greyed row does nothing.
+  // 1-3 names 1-4 as its next level (GDD-UI-02): the menu opens on Next level, and none of its rows is greyed.
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ shown: true, items: ['Next level', 'Retry', 'Quit to title'], chosen: 'next', colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'] });
   const row = await resultsRowCentre(page, 'next');
   if (isMobile) await page.touchscreen.tap(row.x, row.y);
   else await page.mouse.click(row.x, row.y);
-  const t1 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 20, t1);
-  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
-  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-3');
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
-  // Enter picks Retry (user, 2026-11-02: "Lives at the clear"): a fresh run of 1-3 with the five it was cleared with, not seven.
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-4' && window.__PONCHO__!.phase() === 'playing');
+  // The lives 1-3 ended with go on into the arena (GDD-LIFE-05), and the boss bar shows his three hits.
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
+  expect(await api(page, () => window.__PONCHO__!.hudFilled())).toBe(5);
+  await page.waitForFunction(() => window.__PONCHO__!.bossBar().shown && window.__PONCHO__!.bossBar().pips === 3);
+});
+
+test('GDD-LIFE-05 1-3 Retry starts 1-3 again with the lives at its clear', async ({ page }) => {
+  await boot(page, '/?level=1-3');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => {
+    window.__PONCHO__!.loseLife();
+    window.__PONCHO__!.loseLife();
+  });
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
+  await page.evaluate(() => window.__PONCHO__!.teleport(2780, 128));
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'clear');
+  await waitForResults(page);
+  // Down from Next level to Retry; Enter picks it (user, 2026-11-02: "Lives at the clear"): a fresh run of 1-3 with the five it was cleared with, not seven.
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('next');
+  await page.keyboard.press('ArrowDown', { delay: 30 });
+  await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'retry');
   await page.keyboard.press('Enter', { delay: 30 });
   await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.state().x === 56);
   expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-3');

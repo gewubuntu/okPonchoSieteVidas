@@ -1,6 +1,7 @@
 // GDD-PWR-03: the salsa fireball Poncho spits in the Fuego state; it bounces up sand slopes (GDD-MOV-09). Pure logic, no Phaser (GDD-TEC-02).
 import { FIREBALL, HITBOX, STEP, TILE } from '../config/tuning';
 import { squareBlocked } from './item';
+import type { Box } from './enemy';
 import type { PlayerState } from './movement';
 import { groundTop, slopeTile, stepUp } from './slope';
 import type { TileGrid } from './tilemap';
@@ -63,3 +64,6 @@ export function stepFireball(fb: Fireball, world: TileGrid): Fireball | null {
   if (y - FIREBALL.size > world.height * TILE) return null;
   return { x, y, vx: fb.vx, vy, age };
 }
+
+/** The fireball's square box (GDD-PWR-03), for what it touches. */
+export const fireballBox = (f: Fireball): Box => ({ x0: f.x - FIREBALL.size / 2, x1: f.x + FIREBALL.size / 2, y0: f.y - FIREBALL.size, y1: f.y });

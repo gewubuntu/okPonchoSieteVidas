@@ -125,3 +125,22 @@ export async function resultsRowCentre(page: Page, item: 'next' | 'retry' | 'qui
   const k = box.width / 480;
   return { x: box.x + (row.x + row.w / 2) * k, y: box.y + (row.y + row.h / 2) * k };
 }
+
+/**
+ * GDD-BOS-02: steps the paused game one step at a time, in the page, until the boss is in `mode` (checked before each step) or `max` steps
+ * have run, and returns how many it took (one round trip, L-042). The caller checks the mode was reached.
+ */
+export function stepToBossMode(page: Page, mode: string, max = 1000): Promise<number> {
+  return page.evaluate(
+    ({ m, n }) => {
+      const d = window.__PONCHO__!;
+      let i = 0;
+      while (i < n && d.boss()?.mode !== m) {
+        d.step(1);
+        i++;
+      }
+      return i;
+    },
+    { m: mode, n: max },
+  );
+}

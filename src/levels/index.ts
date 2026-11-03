@@ -1,4 +1,5 @@
-// GDD-TEC-04: every level in the game, for the validator. A test level (the sandbox, the slopes level) skips the exit and length checks.
+// GDD-TEC-04: every level in the game, for the validator. A test level (the sandbox, the slopes level) skips the exit and length checks;
+// a boss level (1-4) is held to the boss-level rule instead (GDD-BOS-01).
 // GDD-UI-02: which one is played, and which one comes after it. GDD-LIFE-05: the lives a level starts with, the lives each world keeps
 // in the save, the level each world's run has reached, and where the restart after the last life plays.
 import { LIVES_MAX } from '../config/tuning';
@@ -8,6 +9,7 @@ import { LEVEL_0_1, TIPS_0_1 } from './level0-1';
 import { LEVEL_1_1 } from './level1-1';
 import { LEVEL_1_2 } from './level1-2';
 import { LEVEL_1_3 } from './level1-3';
+import { LEVEL_1_4 } from './level1-4';
 import { SANDBOX_LEVEL } from './sandbox';
 import { SLOPES_LEVEL } from './slopes';
 
@@ -32,7 +34,9 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: TUTORIAL_ID, world: 0, test: false, level: LEVEL_0_1, tips: TIPS_0_1, next: '1-1' },
   { id: '1-1', world: 1, test: false, level: LEVEL_1_1, next: '1-2' },
   { id: '1-2', world: 1, test: false, level: LEVEL_1_2, next: '1-3' },
-  { id: '1-3', world: 1, test: false, level: LEVEL_1_3 },
+  { id: '1-3', world: 1, test: false, level: LEVEL_1_3, next: '1-4' },
+  // GDD-BOS-02: World 1's boss arena. It names no next level until World 2 exists.
+  { id: '1-4', world: 1, test: false, level: LEVEL_1_4 },
   SANDBOX,
   { id: 'slopes', world: 1, test: true, level: SLOPES_LEVEL },
 ];
@@ -77,7 +81,7 @@ export interface StartSave {
 
 /**
  * GDD-UI-02, GDD-LIFE-05: what "Start" plays, and with how many lives. An address (`location.search`) wins, whatever was played or
- * cleared, with seven lives: `level=sandbox`, `level=slopes`, `level=1-1`, `level=1-2`, `level=1-3` or `level=0-1` gives that level. Anything else gives
+ * cleared, with seven lives: `level=sandbox`, `level=slopes`, `level=1-1`, `level=1-2`, `level=1-3`, `level=1-4` (the boss arena) or `level=0-1` gives that level. Anything else gives
  * the tutorial, with seven, until it has started (GDD-PRG-02); then World 1 where its run is: the level `worldAt['1']` names, if it is a
  * real World 1 level, with the saved lives (seven when none are saved), but 1-1, the world's start, always with seven. Without a run
  * saved (a save from before it, or a value naming nothing) the older rule stands: at 0 lives (the Siete vidas gastadas screen came up in
@@ -86,7 +90,7 @@ export interface StartSave {
  */
 export function startLevel(search: string, save: StartSave): StartPick {
   const id = new URLSearchParams(search).get('level');
-  const addressed = id === 'sandbox' || id === 'slopes' || id === '1-1' || id === '1-2' || id === '1-3' || id === TUTORIAL_ID ? levelById(id) : undefined;
+  const addressed = id === 'sandbox' || id === 'slopes' || id === '1-1' || id === '1-2' || id === '1-3' || id === '1-4' || id === TUTORIAL_ID ? levelById(id) : undefined;
   if (addressed) return { entry: addressed, lives: LIVES_MAX };
   if (!save.tutorialPlayed) return { entry: levelById(TUTORIAL_ID)!, lives: LIVES_MAX };
   const world1 = worldLevels(1);
@@ -100,7 +104,7 @@ export function startLevel(search: string, save: StartSave): StartPick {
 
 /**
  * GDD-LIFE-05: the lives a level picked on the results menu starts with ("Next level", or "Retry" for the same level): the lives Poncho
- * has at the clear when both are levels of the same one of the seven worlds (1-1's go on into 1-2, and 1-2's into 1-3), else seven. The tutorial, World 0, is
+ * has at the clear when both are levels of the same one of the seven worlds (1-1's go on into 1-2, 1-2's into 1-3, and 1-3's into 1-4), else seven. The tutorial, World 0, is
  * outside the seven worlds (GDD-WLD-01): its lives carry neither into 1-1 nor into its own Retry. A test level has no exit, so it never
  * comes here (GDD-TEC-04).
  */

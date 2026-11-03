@@ -267,6 +267,50 @@ export const ZOPILOTE = {
 } as const;
 
 /**
+ * GDD-BOS-02: Don Zopilote, World 1's boss, a `width` x `height` px box (three times the Zopilote). He laps an ellipse `rx` px either
+ * side and `ry` px above and below the middle the level gives in `lapSteps` (4.0 s), dropping a cactus fruit at the lap steps in `dropAt`,
+ * then freezes for his telegraph, `telegraphSteps` (0.5 s, GDD-ENM-01). Phases 1 and 3 dive at `diveSpeed` and `fastDiveSpeed` px/s and
+ * stick in the sand for `stuckSteps` (1.0 s) and `fastStuckSteps` (0.6 s); phase 2 drops at `dropSpeed` and sweeps the floor at
+ * `sweepSpeed`. He climbs back at `climbSpeed`. A hit leaves him hurt for `hurtSteps` (1.0 s); the hit that leaves him none of his
+ * `hits` defeats him: he falls at `fallSpeed` and the level is clear `defeatSteps` (1.0 s) after that hit. His body flashes (red in his
+ * telegraph, white when hurt or defeated) on for `flashSteps` and off for as many; his wings flap up for `flapSteps` and down for as many.
+ */
+export const BOSS = {
+  width: 48,
+  height: 30,
+  rx: 152,
+  ry: 16,
+  lapSteps: Math.round(4.0 * TICK_HZ),
+  dropAt: [40, 100, 160, 220],
+  telegraphSteps: Math.round(0.5 * TICK_HZ),
+  diveSpeed: 180,
+  fastDiveSpeed: 300,
+  stuckSteps: Math.round(1.0 * TICK_HZ),
+  fastStuckSteps: Math.round(0.6 * TICK_HZ),
+  dropSpeed: 180,
+  sweepSpeed: 150,
+  climbSpeed: 120,
+  hurtSteps: Math.round(1.0 * TICK_HZ),
+  defeatSteps: Math.round(1.0 * TICK_HZ),
+  fallSpeed: 120,
+  hits: 3,
+  flashSteps: 4,
+  flapSteps: 8,
+} as const;
+
+/** GDD-BOS-02: a cactus fruit is a `size` px square that falls at `fallSpeed` px/s; in phase 3 one that lands lies there for `lieSteps` (3.0 s). */
+export const FRUIT = { size: 8, fallSpeed: 120, lieSteps: Math.round(3.0 * TICK_HZ) } as const;
+
+/**
+ * GDD-BOS-02: a rock of a boss arena is a `size` px square. A claw swipe knocks it at `knockX` px/s across and `knockY` px/s up; it falls
+ * at `gravity` (px/s squared) and is back on its spot `backSteps` (2.0 s) after it breaks.
+ */
+export const ROCK = { size: 12, knockX: 90, knockY: 150, gravity: 1500, backSteps: Math.round(2.0 * TICK_HZ) } as const;
+
+/** GDD-UI-01: the boss bar at the top middle: the name's middle `nameY` px from the top, and pips `pipSize` px square, `pipGap` apart, their top `pipTop` px from the top. */
+export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4 } as const;
+
+/**
  * GDD-CMB-01: landing on top of a stompable enemy bounces Poncho up at `bounce` px/s, or at `boostBounce` (the jump
  * velocity) if jump is held or was pressed in the buffer window. A stomp counts if his feet were no more than `tolerance`
  * px below the enemy's top on the step before.

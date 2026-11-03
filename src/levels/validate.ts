@@ -1,6 +1,7 @@
 // GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have (GDD-MOV-09: its sand slopes
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
 import { BASE_WIDTH, LEVEL_RULES, TILE } from '../config/tuning';
+import { bossStart } from '../sim/boss';
 import { kindOf } from '../sim/enemy';
 import type { TileGrid } from '../sim/tilemap';
 import type { LevelEntry } from './index';
@@ -32,16 +33,23 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
   const problems: string[] = [];
   const screen = BASE_WIDTH / TILE;
 
-  // GDD-WLD-03: 3 ofrenda checkpoints and an exit.
-  if (level.ofrendas.length !== LEVEL_RULES.ofrendas) problems.push(`${level.ofrendas.length} ofrendas, expected ${LEVEL_RULES.ofrendas}`);
-  if (!entry.test && !level.exit) problems.push('no exit');
-
-  // GDD-WLD-03: 3 to 6 screens wide.
   const width = level.world.width;
-  const min = LEVEL_RULES.minScreens * screen;
-  const max = LEVEL_RULES.maxScreens * screen;
-  if (!entry.test && (width < min || width > max)) {
-    problems.push(`${width} tiles wide, expected ${min} to ${max} (${LEVEL_RULES.minScreens} to ${LEVEL_RULES.maxScreens} screens)`);
+  if (level.boss) {
+    // GDD-BOS-01: a boss level has no ofrendas (its checkpoint is the arena start) and no exit (beating the boss clears it), and is one screen wide.
+    if (level.ofrendas.length !== 0) problems.push(`${level.ofrendas.length} ofrendas, a boss level has none`);
+    if (level.exit) problems.push('an exit, a boss level has none');
+    if (width !== screen) problems.push(`${width} tiles wide, a boss level is one screen (${screen})`);
+  } else {
+    // GDD-WLD-03: 3 ofrenda checkpoints and an exit.
+    if (level.ofrendas.length !== LEVEL_RULES.ofrendas) problems.push(`${level.ofrendas.length} ofrendas, expected ${LEVEL_RULES.ofrendas}`);
+    if (!entry.test && !level.exit) problems.push('no exit');
+
+    // GDD-WLD-03: 3 to 6 screens wide.
+    const min = LEVEL_RULES.minScreens * screen;
+    const max = LEVEL_RULES.maxScreens * screen;
+    if (!entry.test && (width < min || width > max)) {
+      problems.push(`${width} tiles wide, expected ${min} to ${max} (${LEVEL_RULES.minScreens} to ${LEVEL_RULES.maxScreens} screens)`);
+    }
   }
 
   // GDD-WLD-03: gaps never exceed the world's limit.
@@ -60,6 +68,13 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
       const d = Math.hypot(e.x - r.x, e.y - r.y);
       if (d < LEVEL_RULES.enemyClearance) problems.push(`${kindOf(e)} at ${e.x},${e.y} is ${Math.floor(d)} px from the respawn at ${r.x},${r.y}, under ${LEVEL_RULES.enemyClearance}`);
     }
+  }
+
+  // GDD-ENM-01, GDD-BOS-01: the boss starts at least 3 tiles from the spawn, his only respawn.
+  if (level.boss) {
+    const start = bossStart(level.boss, 0);
+    const d = Math.hypot(start.x - level.spawn.x, start.y - level.spawn.y);
+    if (d < LEVEL_RULES.enemyClearance) problems.push(`the boss starts ${Math.floor(d)} px from the spawn, under ${LEVEL_RULES.enemyClearance}`);
   }
 
   // GDD-MOV-09: every sand slope tile has a level tile directly under it (so none hangs in the air or sits in the bottom row) and holds

@@ -192,8 +192,9 @@ Retired IDs: L-046
 - **Recurrence 7 (2026-10-29, PR #58, found by the review):** after the Tutorial row, GDD-UI-02, the section the PR edited, still described the title screen and "Quit to title" as before. Logged late, as recurrence 4.
 - **Recurrence 8 (2026-10-31, PR #62, found by the review):** GDD-CTL-02 listed the menus without the new results menu. Two of these five were lists of a family the new member never joined (PRs #57 and #62) and one sat inside the section the PR edited (PR #58); none was counted when it happened, since the retro ran before the review.
 - **Recurrence 9 (2026-11-01, PR #68, found by the review):** after the mirrored layout, GDD-CTL-03's slide stick and claw bullets still said Jump stays on the right, the switch sits above the left thumb zone and the claw sits left of Jump. The hunt searched for the stick's quarter but not for the words a mirror makes false: the sides ("left", "right") in the section the change edits.
-- **Recurrence:** 9
-- **Promoted:** .claude/skills/harness-feature (Update docs step, which now also searches for the path of every test file or block the feature deletes or moves, and since recurrence 8 for the lists a new member of a family must join and a full re-read of each edited section; its Push and pull request step runs the retro on the review's findings) and .claude/skills/harness-gdd-update (step 1, the same hunt for GDD edits made outside a feature). Guard: none (which sentences a change makes false takes reading the GDD; the pr-reviewer's consistency audit is the backstop).
+- **Recurrence 10 (2026-11-03, PR #74, GDD-BOS-02, found by the review):** after the boss arena 1-4 joined World 1, GDD-UI-05 still said "1-1, 1-2 and 1-3 have neither" (tips nor placeholder lines) and GDD-LIFE-03's veladora list named no boss arena; the backlog rows of PWR-03, TEC-04, CMB-01, CMB-03 and UI-01 still described the game without him. The skill's family-list search was run, but by a regex that demanded 90 characters before each match, so a list near the start of a line never showed; and `harness-gdd-update` step 1 already asked for the touched IDs' backlog rows to be searched, but I did not do it. Both skills' family-list search now names `docs/BACKLOG.md` and a plain pattern with no context length.
+- **Recurrence:** 10
+- **Promoted:** .claude/skills/harness-feature (Update docs step, which now also searches for the path of every test file or block the feature deletes or moves, and since recurrence 8 for the lists a new member of a family must join and a full re-read of each edited section, since recurrence 10 in `docs/BACKLOG.md` too, with a plain pattern; its Push and pull request step runs the retro on the review's findings) and .claude/skills/harness-gdd-update (step 1, the same hunt for GDD edits made outside a feature, with the same plain list pattern since recurrence 10). Guard: none (which sentences a change makes false takes reading the GDD; the pr-reviewer's consistency audit is the backstop).
 
 ## L-014 A claim about where things are in the sandbox level had no test
 
@@ -642,3 +643,13 @@ Retired IDs: L-046
 - **Rule:** A branch adds one changelog version since `origin/main`; the second GDD commit on it amends that version's line. The gate compares the working tree's GDD with the one at the merge base (`gdd-one-version`, `scripts/gdd-version.mjs`). CI's gate job fetches the full history so the base exists there, and under CI a missing base fails the check rather than skipping it.
 - **Recurrence:** 1
 - **Promoted:** `scripts/check.mjs` (`gdd-one-version`, Guard: `scripts/gdd-version.mjs`)
+
+## L-058 A staged feature was replayed onto the PR branch before its GDD text was ready
+
+- **Date:** 2026-11-03
+- **Area:** process, gdd
+- **What went wrong:** After #73 merged, I replayed Don Zopilote's build from its local staging branch into the main checkout, then started agents to check its GDD draft against the merged code. Waiting on them meant ending a turn, and the session's stop hook (it checks the main checkout only) asked for the uncommitted changes to be committed and pushed. So 0b80c39 pushed `BOSS`, `FRUIT`, `ROCK` and `BOSS_BAR` in `src/config/tuning.ts` with no GDD numbers for them, against the rule that a tuning number and its GDD text change in the same commit (CLAUDE.md), and the PR opened as a work in progress.
+- **Root cause:** The replay was done as the first step instead of the last: the GDD check needed the merged code, but it could have read it in the staging worktree, where uncommitted work does not trip the stop hook.
+- **Rule:** Keep a staged feature on its staging branch or worktree until its GDD text is ready; check the GDD draft against the code there, and replay code, GDD and backlog onto the PR branch together, in one commit, right before the gate and the push.
+- **Recurrence:** 1
+- **Promoted:** no
