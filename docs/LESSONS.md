@@ -631,3 +631,13 @@ Retired IDs: L-046
 - **Rule:** When a layout is mirrored, flipped or reordered, list every group whose order means something (a left and right pair, arrows, a menu's order) and keep that order; plan a test that the group reads in the right order, not only that each box moved by the formula. Look at the screenshot before the user does.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-057 Two commits of one PR each bumped the GDD version
+
+- **Date:** 2026-11-03
+- **Area:** gdd, process
+- **What went wrong:** The lift fix (GDD-WLD-05) and level 1-3 (GDD-WLD-09) were built as two commits on a staging branch while the 1-2 PR waited to merge. Each commit went through `harness-gdd-update` and bumped the version, so PR #73 carried both 0.9.3 and 0.9.4. The `pr-reviewer` found it; the gate did not.
+- **Root cause:** Step 2's "once per PR" was applied per commit: the commits were made before their PR existed, so there was no PR to count against, and nothing compared the GDD with `origin/main`'s.
+- **Rule:** A branch adds one changelog version since `origin/main`; the second GDD commit on it amends that version's line. The gate compares the working tree's GDD with the one at the merge base (`gdd-one-version`, `scripts/gdd-version.mjs`), and CI's gate job fetches the full history so the base exists there.
+- **Recurrence:** 1
+- **Promoted:** `scripts/check.mjs` (`gdd-one-version`, Guard: `scripts/gdd-version.mjs`)
