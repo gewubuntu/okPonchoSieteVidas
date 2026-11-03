@@ -243,6 +243,7 @@ test('GDD-LIFE-05 out of lives in 1-1, the restart stays in 1-1 and keeps its hi
   // The medal, the time and cleared are kept.
   expect(saved.levels['1-1']).toMatchObject({ hilos: hilosAt(0, 1, 2, 5), medal: 'silver', bestSteps: 5000, cleared: true });
   expect(saved.progress.worldLives).toEqual({ '1': 0 });
+  expect(saved.progress.worldAt).toEqual({ '1': '1-1' });
   // The same scene restarts at once.
   expect(await pressThrough(page)).toEqual({ phase: 'respawning', level: '1-1' });
   await api(page, () => window.__PONCHO__!.step(21));

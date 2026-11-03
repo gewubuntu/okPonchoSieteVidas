@@ -255,6 +255,8 @@ describe('GDD-PRG-02 worldAtAfter', () => {
 
   it('GDD-PRG-02 a game over puts the run back at the world first level', () => {
     expect(worldAtAfter({ '1': '1-2' }, entryOf('1-2'), 'gameover')).toEqual({ '1': '1-1' });
+    // In a level that names a next one too: a game over never moves the run on (review of PR #72).
+    expect(worldAtAfter({ '1': '1-2' }, entryOf('1-1'), 'gameover')).toEqual({ '1': '1-1' });
   });
 
   it('GDD-PRG-02 the tutorial writes nothing', () => {
