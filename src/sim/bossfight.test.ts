@@ -105,6 +105,20 @@ describe('GDD-BOS-02 what hurts Poncho', () => {
     expect(at83.phase).toBe('respawning');
   });
 
+  it('GDD-BOS-02 each fruit of a lap falls in view 43 to 56 steps before it reaches a Poncho standing on the floor below it', () => {
+    // Where the lap from the right end drops its four fruit, and when.
+    let probe = fight(40, 176);
+    const drops: { x: number; step: number }[] = [];
+    for (let i = 1; i <= 240; i++) {
+      probe = stepRun(probe, STILL, ARENA);
+      for (const f of probe.fruit) if (!drops.some((d) => d.x === f.x)) drops.push({ x: f.x, step: i });
+    }
+    expect(drops.map((d) => d.step)).toEqual([40, 100, 160, 220]);
+    // Poncho standing under each one: the steps from the drop to the life it costs.
+    const lead = drops.map((d) => play(fight(Math.round(d.x), 224), 300, () => STILL, (r) => r.lives.lives < 7).steps - d.step);
+    expect(lead).toEqual([43, 46, 56, 54]);
+  });
+
   it('GDD-BOS-02 in Taco a fruit pushes him away from the fruit', () => {
     const { run } = play({ ...fight(314, 224), power: 'taco' }, 83);
     expect(run.power).toBe('base');

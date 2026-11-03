@@ -310,7 +310,9 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
       clock: run.clock,
       revealAll: false,
       // GDD-BOS-01: the boss keeps the hits he has taken and starts the phase he is in again; the restart after the last life starts
-      // the fight afresh. His fruit is gone and every rock is back on its spot.
+      // the fight afresh. His fruit is gone and every rock is back on its spot. In the game a boss level never restarts in place
+      // after the last life (World 1 restarts from 1-1, GDD-LIFE-05, so 1-4 starts afresh through startRun); `restarting` is
+      // reached here only by a direct stepRun, and keeps that restart right if a boss level ever does.
       boss: level.boss && run.boss ? bossStart(level.boss, run.restarting ? 0 : run.boss.hits) : null,
       fruit: [],
       rocks: freshRocks(level.rocks ?? []),

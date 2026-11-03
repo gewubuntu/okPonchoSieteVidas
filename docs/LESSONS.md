@@ -642,3 +642,13 @@ Retired IDs: L-046
 - **Rule:** A branch adds one changelog version since `origin/main`; the second GDD commit on it amends that version's line. The gate compares the working tree's GDD with the one at the merge base (`gdd-one-version`, `scripts/gdd-version.mjs`). CI's gate job fetches the full history so the base exists there, and under CI a missing base fails the check rather than skipping it.
 - **Recurrence:** 1
 - **Promoted:** `scripts/check.mjs` (`gdd-one-version`, Guard: `scripts/gdd-version.mjs`)
+
+## L-058 A staged feature was replayed onto the PR branch before its GDD text was ready
+
+- **Date:** 2026-11-03
+- **Area:** process, gdd
+- **What went wrong:** After #73 merged, I replayed Don Zopilote's build from its local staging branch into the main checkout, then started agents to check its GDD draft against the merged code. Waiting on them meant ending a turn, and the session's stop hook (it checks the main checkout only) asked for the uncommitted changes to be committed and pushed. So 0b80c39 pushed `BOSS`, `FRUIT`, `ROCK` and `BOSS_BAR` in `src/config/tuning.ts` with no GDD numbers for them, against the rule that a tuning number and its GDD text change in the same commit (CLAUDE.md), and the PR opened as a work in progress.
+- **Root cause:** The replay was done as the first step instead of the last: the GDD check needed the merged code, but it could have read it in the staging worktree, where uncommitted work does not trip the stop hook.
+- **Rule:** Keep a staged feature on its staging branch or worktree until its GDD text is ready; check the GDD draft against the code there, and replay code, GDD and backlog onto the PR branch together, in one commit, right before the gate and the push.
+- **Recurrence:** 1
+- **Promoted:** no
