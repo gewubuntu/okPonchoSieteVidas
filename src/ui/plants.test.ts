@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BACKDROP, PLANTS, TILE } from '../config/tuning';
 import { LEVEL_0_1 } from '../levels/level0-1';
 import { LEVEL_1_2 } from '../levels/level1-2';
+import { LEVEL_1_3 } from '../levels/level1-3';
 import { SANDBOX_LEVEL } from '../levels/sandbox';
 import { SLOPES_LEVEL } from '../levels/slopes';
 import type { Level } from '../sim/run';
@@ -288,5 +289,24 @@ describe('GDD-ART-06 plants', () => {
       expect(LEVEL_1_2.world.slopeAt(s.col, s.row), `plant at ${s.col},${s.row}`).toBeNull();
       expect(LEVEL_1_2.world.slopeAt(s.col, s.row - 1), `plant at ${s.col},${s.row}`).toBeNull();
     }
+  });
+});
+
+describe('GDD-ART-06 plants in 1-3', () => {
+  it('GDD-ART-06 1-3 grows 16 plants, none in a crusher column', () => {
+    const spots = plantSpots(LEVEL_1_3);
+    expect(spots.map((s) => [s.col, s.row, PLANTS[s.kind]!.name])).toEqual([
+      [0, 14, 'nopal'], [27, 14, 'ocotillo'], [35, 14, 'nopal'], [62, 14, 'ocotillo'], [63, 14, 'nopal'],
+      [89, 14, 'cholla'], [90, 14, 'ocotillo'], [102, 12, 'biznaga'], [103, 12, 'agave'], [112, 12, 'ocotillo'],
+      [125, 14, 'ocotillo'], [126, 14, 'nopal'],
+      [135, 9, 'biznaga'], [135, 14, 'flowers'], [136, 9, 'agave'], [147, 12, 'ocotillo'],
+    ]);
+    // GDD-WLD-09: the plant rule does not look at moving blocks, so this is a fact of the layout, checked here: every column a block sweeps.
+    const crusherCols = LEVEL_1_3.blocks!.flatMap((b) => {
+      const c0 = Math.floor(Math.min(b.x0, b.x1) / TILE);
+      const c1 = Math.floor((Math.max(b.x0, b.x1) + b.w - 1) / TILE);
+      return Array.from({ length: c1 - c0 + 1 }, (_, i) => c0 + i);
+    });
+    expect(spots.filter((s) => crusherCols.includes(s.col))).toEqual([]);
   });
 });
