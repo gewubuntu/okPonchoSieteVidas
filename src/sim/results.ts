@@ -41,10 +41,13 @@ export const betterMedal = (a: Medal | null, b: Medal | null): Medal | null => (
 /** GDD-UI-02: what the medal line adds: the new-best mark when `m` is better than a saved medal, else nothing (a first clear has none). */
 export const medalSuffix = (m: Medal, before: Medal | null, newBest: string): string => (before !== null && rank(m) > rank(before) ? newBest : '');
 
-/** GDD-PRG-03: gold for every hilo and `goldLives` lives or more left at the exit, silver for every hilo, bronze otherwise. */
+/**
+ * GDD-PRG-03: gold for every hilo and at most `goldLivesLost` lives lost in the level (the lives the run started with less those at the
+ * exit, so a life won back counts against one lost), silver for every hilo, bronze otherwise.
+ */
 export function medal(run: RunState, level: Level): Medal {
   const all = hilosCollected(run.hilosTaken) === (level.hilos?.length ?? 0);
-  if (all && run.lives.lives >= MEDAL.goldLives) return 'gold';
+  if (all && run.livesIn - run.lives.lives <= MEDAL.goldLivesLost) return 'gold';
   return all ? 'silver' : 'bronze';
 }
 

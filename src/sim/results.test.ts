@@ -134,8 +134,8 @@ describe('GDD-UI-02 tuning derived from the GDD', () => {
     expect([...RESULTS.revealSteps]).toEqual([15, 30, 45]);
   });
 
-  it('GDD-PRG-03 gold needs 4 lives', () => {
-    expect(MEDAL.goldLives).toBe(4);
+  it('GDD-PRG-03 gold allows 3 lives lost in the level', () => {
+    expect(MEDAL.goldLivesLost).toBe(3);
   });
 
   it('GDD-UI-02 the results menu rows: 160 by 28, the first at 162, the greyed colour', () => {

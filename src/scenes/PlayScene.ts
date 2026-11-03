@@ -4,7 +4,7 @@
 import Phaser from 'phaser';
 import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, PLANTS, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
 import { feetOf, kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
-import { levelById, SAVED_LEVELS, SAVED_OFRENDAS, startLevel, TUTORIAL_ID, type LevelEntry } from '../levels';
+import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
 import skyStripsPng from '../../assets/sprites/desierto/sky-strips.png';
@@ -42,10 +42,10 @@ import { FIREBALL, TLACUACHE } from '../config/tuning';
 import { flipPose } from '../sim/respawnFlip';
 import { blockAt } from '../sim/block';
 import { platformAt } from '../sim/platform';
-import { buttonsDown, respawnPoint, resumeRun, startRun, stepRun, type Level, type RunState } from '../sim/run';
+import { buttonsDown, respawnPoint, restartRun, restarts, resumeRun, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
 import { isPortrait, pauseFrame, PLAYING, resumeHeld, type MenuItem, type PauseEvent, type PauseState } from '../sim/pause';
-import { checkpointRun, mergeLevels, readSave, recordClear, SAVE_KEY, saveText, type LevelProgress, type SavedRun } from '../sim/save';
+import { checkpointRun, DEFAULT_SAVE, mergeLevels, readSave, recordClear, recordHilos, SAVE_KEY, saveText, type LevelProgress, type SavedRun } from '../sim/save';
 import { browserLanguage, DEFAULT_SETTINGS, sfxVolume, type Language, type Settings, type SettingsRow } from '../sim/settings';
 import { TITLE, titleAfterQuit, titleFrame, titleOpen, titlePonchoX, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
@@ -334,11 +334,15 @@ declare global {
 
 /** GDD-UI-02: how a scene is made. `entry` is the level it draws; `direct` skips the title (the next level, played at once); `title` replaces the opening title. */
 interface PlayOptions {
-  readonly entry?: LevelEntry;
+  readonly entry: LevelEntry;
   readonly direct?: boolean;
   readonly title?: TitleState;
   /** GDD-PRG-02: the saved run to resume, in `entry`'s level: the run starts at its ofrenda by the restart flip. */
   readonly resume?: SavedRun;
+  /** GDD-LIFE-05: the lives the run starts with (carried from the level before in the same world, or World 1's saved lives); left out, all seven. */
+  readonly lives?: number | undefined;
+  /** GDD-LIFE-05: the run is the restart after the last life, lost in another level of the world: Poncho flips in at the level start. */
+  readonly restart?: boolean;
 }
 
 /** Scenes made so far: the first is 'play', the others need keys of their own, since a removed scene's key is free only after the frame. */
@@ -356,18 +360,30 @@ let progressThisVisit: Readonly<Record<string, LevelProgress>> = {};
 /** GDD-PRG-02: the saved run as last set in this visit (undefined: not set yet, null: dropped), so a new scene has it where the browser refuses storage. It wins over the storage's. */
 let runThisVisit: SavedRun | null | undefined;
 
-/** GDD-PRG-02: whether the saved game says the tutorial was started, when the game opens; false where the browser refuses storage. */
-function savedTutorialPlayed(): boolean {
+/** GDD-LIFE-05, GDD-PRG-02: the lives saved per world as last set in this visit, so a new scene has them where the browser refuses storage. They win over the storage's. */
+let worldLivesThisVisit: Readonly<Record<string, number>> = {};
+
+/** GDD-UI-02, GDD-PRG-02: the level each world's run has reached as last set in this visit, so a new scene has it where the browser refuses storage. It wins over the storage's. */
+let worldAtThisVisit: Readonly<Record<string, string>> = {};
+
+/**
+ * GDD-UI-02, GDD-PRG-02, GDD-LIFE-05: how the game opens: on the title over the level "Start" plays, with the lives it gives (`startLevel`:
+ * the address, else the saved game: whether the tutorial was started, which levels are cleared, World 1's lives). Where the browser refuses
+ * storage nothing is saved yet.
+ */
+function opening(): PlayOptions {
+  let save = DEFAULT_SAVE;
   try {
-    return readSave(window.localStorage.getItem(SAVE_KEY)).tutorialPlayed;
+    save = readSave(window.localStorage.getItem(SAVE_KEY), 'en', SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLDS, SAVED_WORLD_LEVELS);
   } catch {
-    return false;
+    // storage refused
   }
+  return startLevel(window.location.search, save);
 }
 
 export class PlayScene extends Phaser.Scene {
   private readonly stepper = new FixedStepper();
-  // GDD-UI-02: the level played, 0-1, 1-1 or the sandbox. GDD-MOV-06: Poncho collides with its tile grid. The spawn stands on the
+  // GDD-UI-02: the level played, 0-1, 1-1, 1-2 or a test level. GDD-MOV-06: Poncho collides with its tile grid. The spawn stands on the
   // floor, so its y is the floor level.
   private readonly entry: LevelEntry;
   private readonly level: Level;
@@ -458,6 +474,15 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-PRG-02: the run this scene was made to resume (in its own level), and whether it opens the game's title, which opens on "Continue" if a run is saved. */
   private readonly resumeFrom: SavedRun | undefined;
   private readonly opensTitle: boolean;
+  /** GDD-LIFE-05: the lives this scene's run starts with (undefined: seven), and whether it is the restart after the last life lost in another level. */
+  private readonly startLives: number | undefined;
+  private readonly restartsWorld: boolean;
+  /** GDD-LIFE-05: set on the press that ends the Siete vidas gastadas screen in a level that is not its world's first: that level, which `update` starts. */
+  private restartIn: LevelEntry | null = null;
+  /** GDD-LIFE-05, GDD-PRG-02: the lives saved per world (read when the scene was made, with this visit's). */
+  private worldLives: Readonly<Record<string, number>> = {};
+  /** GDD-UI-02, GDD-PRG-02: the level each world's run has reached (read when the scene was made, with this visit's). */
+  private worldAt: Readonly<Record<string, string>> = {};
   private settingsScreen!: Phaser.GameObjects.Container;
   private settingsVeil!: Phaser.GameObjects.Rectangle;
   private settingsTitle!: Phaser.GameObjects.Text;
@@ -577,10 +602,11 @@ export class PlayScene extends Phaser.Scene {
   private clawPainted: 'none' | 'windup' | 'swing' = 'none';
 
   /**
-   * Opens on the level "Start" plays (`startLevel`: the address, else the saved game). A scene made for another level is the next
-   * level or this one again, played at once after a pick on the results menu or on the title, or the title over the level "Start" now plays.
+   * Opens on the level "Start" plays, with the lives it gives (`opening`: the address, else the saved game). A scene made for
+   * another level is the next level or this one again, played at once after a pick on the results menu or on the title, the world's first
+   * level after the last life was lost in another (GDD-LIFE-05), or the title over the level "Start" now plays.
    */
-  constructor({ entry = startLevel(window.location.search, savedTutorialPlayed()), direct = false, title, resume }: PlayOptions = {}) {
+  constructor({ entry, direct = false, title, resume, lives, restart = false }: PlayOptions = opening()) {
     super(scenesMade++ === 0 ? 'play' : `play-${entry.id}-${scenesMade}`);
     this.entry = entry;
     this.level = entry.level;
@@ -592,6 +618,8 @@ export class PlayScene extends Phaser.Scene {
     else if (title) this.title = title;
     this.resumeFrom = resume;
     this.opensTitle = !direct && !title;
+    this.startLives = lives;
+    this.restartsWorld = restart;
     this.run = startRun(this.level);
     this.prevPlayer = this.run.player;
     this.anim = startAnim(this.run.player.x);
@@ -630,7 +658,7 @@ export class PlayScene extends Phaser.Scene {
     const browser = browserLanguage(typeof navigator === 'undefined' ? [] : Array.isArray(navigator.languages) && navigator.languages.length > 0 ? navigator.languages : [navigator.language]);
     let save = readSave(null, browser, SAVED_LEVELS, SAVED_OFRENDAS);
     try {
-      save = readSave(window.localStorage.getItem(SAVE_KEY), browser, SAVED_LEVELS, SAVED_OFRENDAS);
+      save = readSave(window.localStorage.getItem(SAVE_KEY), browser, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLDS, SAVED_WORLD_LEVELS);
     } catch {
       // storage refused
     }
@@ -638,11 +666,15 @@ export class PlayScene extends Phaser.Scene {
     this.tutorialPlayed = save.tutorialPlayed || playedThisVisit;
     // GDD-PRG-02, GDD-WLD-04: the hilos saved in an earlier run count from the start. The sandbox has no saved progress.
     this.progress = mergeLevels(save.levels, progressThisVisit);
+    // GDD-LIFE-05: the lives kept per world, this visit's winning where the browser refuses storage.
+    this.worldLives = { ...save.worldLives, ...worldLivesThisVisit };
+    // GDD-UI-02, GDD-PRG-02: where each world's run is, this visit's winning where the browser refuses storage.
+    this.worldAt = { ...save.worldAt, ...worldAtThisVisit };
     // GDD-PRG-02: the saved run, this visit's winning where the browser refuses storage. The game's title opens on "Continue" if there is one.
     this.savedRun = runThisVisit === undefined ? save.run : runThisVisit;
     if (this.opensTitle) this.title = titleOpen(this.savedRun !== null);
     const savedHilos = this.progress[this.entry.id]?.hilos;
-    this.run = this.resumeFrom ? resumeRun(this.level, this.resumeFrom, savedHilos) : startRun(this.level, savedHilos);
+    this.run = this.resumeFrom ? resumeRun(this.level, this.resumeFrom, savedHilos) : this.restartsWorld ? restartRun(this.level, savedHilos) : startRun(this.level, savedHilos, this.startLives);
     this.cameras.main.setBackgroundColor('#1b2036');
     // GDD-ART-01: the canvas is ART_SCALE times larger than the game pixels everything is placed in, so the camera draws them zoomed in
     // from the top left corner, world objects and fixed ones alike.
@@ -1828,7 +1860,15 @@ export class PlayScene extends Phaser.Scene {
   /** One fixed simulation step with the given input. */
   private simStep(input: PlayerInput): void {
     const before = this.run;
-    this.run = stepRun(before, input, this.level);
+    const after = stepRun(before, input, this.level);
+    // GDD-LIFE-05: the press that ends the Siete vidas gastadas screen restarts the world at its first level. Where that is another level
+    // (1-1, after 1-2), `update` starts it as a scene of its own, and this one keeps the screen up until then, its run unchanged.
+    const start = worldStart(this.entry);
+    if (restarts(before, after) && start.id !== this.entry.id) {
+      this.restartIn = start;
+      return;
+    }
+    this.run = after;
     const { sounds, combo } = stepSounds(before, this.run, this.hiloCombo);
     this.hiloCombo = combo;
     for (const sound of sounds) this.playSfx(sound.name, sound.semitones);
@@ -1842,8 +1882,14 @@ export class PlayScene extends Phaser.Scene {
       this.results = openResults(this.hasNext());
       this.saveRun(null); // GDD-PRG-02: the saved run is dropped at the level clear, and the clear writes the save (a test level has no exit, so never clears)
       this.saveClear();
-    } else if (!this.entry.test && this.run.phase === 'gameover' && before.phase !== 'gameover') this.saveRun(null); // GDD-PRG-02: a test level never touches the saved run
-    else if (!this.entry.test && this.run.checkpointIndex > before.checkpointIndex) this.saveRun(checkpointRun(this.run, this.entry.id)); // GDD-PRG-02: the checkpoint moved on
+    } else if (!this.entry.test && this.run.phase === 'gameover' && before.phase !== 'gameover') {
+      // GDD-PRG-02, GDD-LIFE-05: the hilos the run collected are kept for good, the world's lives are spent (0: it restarts at its first
+      // level with seven, however that is reached), and the saved run is dropped. A test level touches none of them.
+      this.setProgress(recordHilos(this.progress[this.entry.id], this.run));
+      this.setWorldLives(worldLivesAfter(this.worldLives, this.entry, 0));
+      this.setWorldAt(worldAtAfter(this.worldAt, this.entry, 'gameover'));
+      this.saveRun(null);
+    } else if (!this.entry.test && this.run.checkpointIndex > before.checkpointIndex) this.saveRun(checkpointRun(this.run, this.entry.id)); // GDD-PRG-02: the checkpoint moved on
     // GDD-UI-05: the tutorial tips follow Poncho by steps, so they stand still with the game.
     const tips = this.entry.tips;
     if (tips) {
@@ -1934,7 +1980,8 @@ export class PlayScene extends Phaser.Scene {
         // level (GDD-PRG-02). 0-1 counts as played the moment it starts. A level other than the one behind the title starts at once as
         // a scene of its own, the press held.
         const saved = frame.start === 'continue' ? this.savedRun! : null;
-        const level = saved ? levelById(saved.level)! : frame.start === 'tutorial' ? levelById(TUTORIAL_ID)! : startLevel(window.location.search, this.tutorialPlayed);
+        const start = startLevel(window.location.search, this.startSave());
+        const level = saved ? levelById(saved.level)! : frame.start === 'tutorial' ? levelById(TUTORIAL_ID)! : start.entry;
         const marks = level.id === TUTORIAL_ID && !this.tutorialPlayed;
         if (marks) {
           this.tutorialPlayed = true;
@@ -1970,9 +2017,11 @@ export class PlayScene extends Phaser.Scene {
     this.pauseEvents = [];
     this.settings = frame.settings;
     if (pick === 'next' || pick === 'retry') {
-      // The next level, or this one again, as a fresh scene at once with the press held (GDD-UI-02).
+      // The next level, or this one again, as a fresh scene at once with the press held (GDD-UI-02), with the lives at the clear if it is
+      // in the same world (GDD-LIFE-05).
       if (settingsChanged()) this.writeSave();
-      this.startNext(pick === 'next' ? this.nextLevel()! : this.entry);
+      const next = pick === 'next' ? this.nextLevel()! : this.entry;
+      this.startNext(next, livesInto(this.entry, next, this.run.lives.lives));
       return;
     }
     if (frame.quit || pick === 'quit') {
@@ -1999,6 +2048,12 @@ export class PlayScene extends Phaser.Scene {
       });
     } else if (this.paused) {
       this.alpha = 1;
+    }
+    // GDD-LIFE-05: the restart after the last life lost in another level: the world's first level starts at once as a scene of its own,
+    // as the next level does (the press held, GDD-UI-02), with the restart's flip at its start.
+    if (this.restartIn) {
+      this.replaceWith({ entry: this.restartIn, direct: true, restart: true });
+      return;
     }
     const alpha = this.alpha;
     // A latched tap is spent once a step has used it; if the frame ran no step it waits for the next one.
@@ -2049,12 +2104,36 @@ export class PlayScene extends Phaser.Scene {
    * level, is never saved (GDD-PRG-02): it has no exit so it never clears, and `readSave` drops any id outside `SAVED_LEVELS`.
    */
   private saveClear(): void {
-    const id = this.entry.id;
-    this.bestBefore = this.progress[id];
-    const now = recordClear(this.bestBefore, this.run, this.level);
-    this.progress = { ...this.progress, [id]: now };
-    progressThisVisit = { ...progressThisVisit, [id]: now };
+    this.bestBefore = this.progress[this.entry.id];
+    this.setProgress(recordClear(this.bestBefore, this.run, this.level));
+    // GDD-LIFE-05: the lives at the exit are the ones World 1 keeps ("Start" plays its next level not cleared with them).
+    this.setWorldLives(worldLivesAfter(this.worldLives, this.entry, this.run.lives.lives));
+    // GDD-UI-02, GDD-PRG-02: the run goes on to the next level of the world, or starts anew after its last.
+    this.setWorldAt(worldAtAfter(this.worldAt, this.entry, 'clear'));
     this.writeSave();
+  }
+
+  /** GDD-PRG-02: this level's saved progress is now `now`, kept for the visit too, where the browser refuses storage; the caller writes the save. */
+  private setProgress(now: LevelProgress): void {
+    this.progress = { ...this.progress, [this.entry.id]: now };
+    progressThisVisit = { ...progressThisVisit, [this.entry.id]: now };
+  }
+
+  /** GDD-LIFE-05, GDD-PRG-02: the lives saved per world are now `now`, kept for the visit too, where the browser refuses storage; the caller writes the save. */
+  private setWorldLives(now: Readonly<Record<string, number>>): void {
+    this.worldLives = now;
+    worldLivesThisVisit = now;
+  }
+
+  /** GDD-UI-02, GDD-PRG-02: where each world's run is now `now`, kept for the visit too, where the browser refuses storage; the caller writes the save. */
+  private setWorldAt(now: Readonly<Record<string, string>>): void {
+    this.worldAt = now;
+    worldAtThisVisit = now;
+  }
+
+  /** GDD-UI-02, GDD-LIFE-05: what "Start" reads: whether the tutorial has started, the progress, the lives saved per world and where each world's run is. */
+  private startSave(): StartSave {
+    return { tutorialPlayed: this.tutorialPlayed, levels: this.progress, worldLives: this.worldLives, worldAt: this.worldAt };
   }
 
   /** GDD-PRG-02: the saved run is now `run` (null drops it), written at once and kept for the visit where the browser refuses storage. */
@@ -2068,7 +2147,7 @@ export class PlayScene extends Phaser.Scene {
   private writeSave(): void {
     settingsThisVisit = this.settings;
     try {
-      window.localStorage.setItem(SAVE_KEY, saveText({ settings: this.settings, tutorialPlayed: this.tutorialPlayed, levels: this.progress, run: this.savedRun }));
+      window.localStorage.setItem(SAVE_KEY, saveText({ settings: this.settings, tutorialPlayed: this.tutorialPlayed, worldLives: this.worldLives, worldAt: this.worldAt, levels: this.progress, run: this.savedRun }));
     } catch {
       // storage refused: the settings last until the page closes
     }
@@ -2170,7 +2249,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawOfrendas();
   }
 
-  /** GDD-UI-02: the level after this one (1-1 after 0-1, GDD-WLD-07), or undefined where the level names none. */
+  /** GDD-UI-02: the level after this one (1-1 after 0-1, GDD-WLD-07, and 1-2 after 1-1, GDD-WLD-08), or undefined where the level names none. */
   private nextLevel(): LevelEntry | undefined {
     return this.entry.next === undefined ? undefined : levelById(this.entry.next);
   }
@@ -2182,11 +2261,12 @@ export class PlayScene extends Phaser.Scene {
 
   /**
    * GDD-UI-02: a pick on the results menu ("Next level" or "Retry"), or a level picked over another on the title screen, starts that
-   * level at once: a fresh run with seven lives (GDD-LIFE-05) in a scene of its own, which draws that level and takes the place of this
-   * one. Its first frame counts the buttons down as already held, so the press does not jump, claw or spit there.
+   * level at once: a fresh run in a scene of its own, which draws that level and takes the place of this one, with `lives` (carried from
+   * this level in the same world, GDD-LIFE-05; left out, seven). Its first frame counts the buttons down as already held, so the press
+   * does not jump, claw or spit there.
    */
-  private startNext(next: LevelEntry): void {
-    this.replaceWith({ entry: next, direct: true });
+  private startNext(next: LevelEntry, lives?: number): void {
+    this.replaceWith({ entry: next, direct: true, lives });
   }
 
   /** This scene is removed and a fresh one, with its own key, takes its place and starts. */
@@ -2201,16 +2281,16 @@ export class PlayScene extends Phaser.Scene {
    * GDD-UI-02: Quit to title, from the pause menu or the results menu. A fresh run as when the game opens, behind the title screen
    * waiting for a press. No step runs on the title, so every latched key press is spent here, or a quick tap that picked would stay
    * latched and a new press would not be new. The buttons down now count as held on the title, so the one that picked does not start the
-   * level. When "Start" no longer plays this level (the tutorial has started, so it plays 1-1),
+   * level. When "Start" no longer plays this level (the tutorial has started, so it plays 1-1, or 1-1 has been cleared, so it plays 1-2),
    * a fresh scene of that level takes this one's place with the same title and this returns true: `update` must return at once.
    */
   private backToTitle(input: PlayerInput, portrait: boolean): boolean {
-    const startsWith = startLevel(window.location.search, this.tutorialPlayed);
-    if (startsWith.id !== this.entry.id) {
-      this.replaceWith({ entry: startsWith, title: titleAfterQuit(portrait, buttonsDown(input), this.savedRun !== null) });
+    const start = startLevel(window.location.search, this.startSave());
+    if (start.entry.id !== this.entry.id) {
+      this.replaceWith({ entry: start.entry, lives: start.lives, title: titleAfterQuit(portrait, buttonsDown(input), this.savedRun !== null) });
       return true;
     }
-    this.run = startRun(this.level, this.progress[this.entry.id]?.hilos);
+    this.run = startRun(this.level, this.progress[this.entry.id]?.hilos, start.lives);
     this.prevPlayer = this.run.player;
     this.anim = startAnim(this.run.player.x);
     this.peak = 0;
@@ -2219,8 +2299,12 @@ export class PlayScene extends Phaser.Scene {
     this.tipsDoneNow = (this.entry.tips ?? []).map(() => false);
     this.tipStep = 0;
     this.stepper.reset();
-    // The HUD's crack and last-life pulse need no reset: `updateCracks` drops a crack on a triangle that is filled again and
-    // `updatePulseStart` clears at any life count but one.
+    // GDD-LIFE-05: the fresh run can have fewer lives than the one quit (World 1's saved lives, GDD-PRG-02): those are no lives just lost,
+    // so no triangle cracks, and a last life pulses from the level's start (GDD-LIFE-04).
+    this.drawnLives = this.run.lives.lives;
+    this.cracks = [];
+    this.pulseStart = null;
+    this.drawHud();
     this.title = titleAfterQuit(portrait, buttonsDown(input), this.savedRun !== null);
     this.pauseState = PLAYING;
     this.consumeLatches();

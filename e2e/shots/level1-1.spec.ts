@@ -56,7 +56,7 @@ test('GDD-WLD-07 1-1: from 0-1 clear screen into 1-1, then its six screens, the 
   await page.evaluate(() => window.__PONCHO__!.step(61));
   await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().shown && window.__PONCHO__!.clearDrawn().menu.shown);
   expect((await page.evaluate(() => window.__PONCHO__!.clearDrawn())).hilos).toBe('Hilos 4/50'); // and the one beside the exit, at column 173
-  // 1-1 names no next level: Next level is greyed and the menu opens on Retry.
-  expect((await page.evaluate(() => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
+  // 1-1 names 1-2: the menu opens on Next level.
+  expect((await page.evaluate(() => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'next', colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'] });
   await shot(page, info, 'level1-1-clear');
 });

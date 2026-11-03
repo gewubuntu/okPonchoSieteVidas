@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BACKDROP, PLANTS, TILE } from '../config/tuning';
 import { LEVEL_0_1 } from '../levels/level0-1';
+import { LEVEL_1_2 } from '../levels/level1-2';
 import { SANDBOX_LEVEL } from '../levels/sandbox';
 import { SLOPES_LEVEL } from '../levels/slopes';
 import type { Level } from '../sim/run';
@@ -276,5 +277,16 @@ describe('GDD-ART-06 plants', () => {
     // On row 14 the formula picks columns 0, 8, 9, 17, 18, 26, 27; 8 is under the hill's tile, 9, 17, 18 and 26 are under slopes, 27 is within
     // 2 columns of the Tlacuache's start (column 29); rows 12 and 13 give no spot on a top tile; column 0 is 3 columns from the spawn (column 3).
     expect(plantSpots(SLOPES_LEVEL)).toEqual([{ kind: 0, col: 0, row: 14 }]);
+  });
+
+  it('GDD-ART-06 level 1-2 has its 11 plants, none on a slope or on the tile under one', () => {
+    // Worked out by hand from the formulas: a top tile at (c, r) with (37c + 11r) mod 9 of 0 or 1, kind (3c + 5r) mod 7; none under a slope, under a
+    // blocking tile up to the plant's height, or within 2 columns of a thing on its row or the row above. Five kinds, no biznaga and no flower clump.
+    const spots = plantSpots(LEVEL_1_2);
+    expect(spots.map((s) => [s.col, s.row, s.kind])).toEqual([[0, 14, 0], [10, 13, 4], [11, 13, 0], [53, 14, 5], [54, 14, 1], [71, 14, 3], [79, 10, 0], [116, 14, 5], [117, 14, 1], [125, 14, 4], [179, 14, 5]]);
+    for (const s of spots) {
+      expect(LEVEL_1_2.world.slopeAt(s.col, s.row), `plant at ${s.col},${s.row}`).toBeNull();
+      expect(LEVEL_1_2.world.slopeAt(s.col, s.row - 1), `plant at ${s.col},${s.row}`).toBeNull();
+    }
   });
 });

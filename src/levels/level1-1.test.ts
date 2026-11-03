@@ -23,7 +23,7 @@ const topBelow = (col: number, midY: number): boolean => {
 };
 
 describe('GDD-WLD-07 level 1-1', () => {
-  it('GDD-WLD-07 1-1 is 180 by 17 tiles, a World 1 level, no test level, and it comes after 0-1', () => {
+  it('GDD-WLD-07 1-1 is 180 by 17 tiles, a World 1 level, no test level, and it comes after 0-1 and leads on to 1-2', () => {
     expect(world.width).toBe(180);
     expect(world.height).toBe(17);
     const entry = LEVELS.find((e) => e.id === '1-1');
@@ -32,7 +32,7 @@ describe('GDD-WLD-07 level 1-1', () => {
     expect(entry!.test).toBe(false);
     expect(entry!.level).toBe(LEVEL_1_1);
     expect(entry!.tips).toBeUndefined();
-    expect(entry!.next).toBeUndefined();
+    expect(entry!.next).toBe('1-2');
     expect(LEVELS.find((e) => e.id === '0-1')!.next).toBe('1-1');
   });
 
