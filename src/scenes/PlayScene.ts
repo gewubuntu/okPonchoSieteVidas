@@ -2,7 +2,7 @@
 // Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04), and the backdrop and the ground tiles are World 1's desert art
 // (GDD-ART-06); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, BOSS_BAR, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, PLANTS, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
+import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, BOSS_ART, BOSS_BAR, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, PLANTS, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
 import { bossStart } from '../sim/boss';
 import { feetOf, kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
@@ -18,6 +18,9 @@ import mountainsPng from '../../assets/sprites/desierto/mountains.png';
 import groundPng from '../../assets/sprites/desierto/ground.png';
 import plantsPng from '../../assets/sprites/desierto/plants.png';
 import farDesertPng from '../../assets/sprites/desierto/far-desert.png';
+import donZopilotePng from '../../assets/sprites/boss/don-zopilote.png';
+import bossFruitPng from '../../assets/sprites/boss/fruit.png';
+import bossRockPng from '../../assets/sprites/boss/rock.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import jumpOgg from '../../assets/audio/sfx/jump.ogg';
@@ -71,7 +74,7 @@ import { startAnim, stepAnim, STAND, type PonchoAnim } from '../ui/ponchoAnim';
 import { layoutPauseMenu, layoutResultsMenu, layoutTitleMenu, pauseMenuItemAt, resultsMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
 import { languageValueX, layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
 import { LANGUAGE_NAMES, TEXT } from '../ui/text';
-import { bossPipBoxes, bossPips, bossPose } from '../ui/bossPose';
+import { bossFrame, bossFrameInfo, bossPipBoxes, bossPips, bossPose, type BossLook } from '../ui/bossPose';
 import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tipsDone as nextTipsDone, tipText, type Device, type TipFade } from '../ui/tips';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
@@ -326,11 +329,11 @@ export interface PonchoDebug {
    */
   boss(): { x: number; y: number; dir: number; mode: string; age: number; hits: number; tx: number; ty: number } | null;
   /**
-   * GDD-BOS-02: Don Zopilote as last drawn, or null when he was not: his middle, the way he faces, his wings as passed to Phaser ('raised' when
-   * their tips are above his middle), the body's flash as the colour passed to Phaser ('red' 0xff5030, 'white' 0xffffff, null for his own
-   * brown) and how many dazed dots were drawn over his head.
+   * GDD-BOS-02: Don Zopilote as last drawn, or null when he was not: his sprite's middle, the way it faces (-1 when it is flipped), the frame of
+   * his sheet it shows and what that frame draws: its look, the points on its crown, its wings ('raised', 'lowered' or 'tucked'), its flash
+   * ('red', 'white' or null for his own brown) and how many dazed dots it has over his head.
    */
-  bossDrawn(): { x: number; y: number; dir: number; wings: 'raised' | 'lowered'; flash: 'red' | 'white' | null; dots: number } | null;
+  bossDrawn(): { x: number; y: number; dir: number; frame: number; look: BossLook; crown: number; wings: 'raised' | 'lowered' | 'tucked'; flash: 'red' | 'white' | null; dots: number } | null;
   /** GDD-BOS-02: his cactus fruit in the run (the middle x, the bottom y, lying or falling), and the ones drawn last frame. */
   fruit(): { x: number; y: number; landed: boolean }[];
   fruitDrawn(): { x: number; y: number; landed: boolean }[];
@@ -464,9 +467,10 @@ export class PlayScene extends Phaser.Scene {
   private enemyGfx!: Phaser.GameObjects.Graphics;
   private enemiesPainted: { x: number; y: number; kind: EnemyKind }[] = [];
   /** GDD-BOS-02: Don Zopilote and his fruit, the arena's rocks, and what was last drawn of each (`PonchoDebug.bossDrawn` and the rest). */
-  private bossGfx!: Phaser.GameObjects.Graphics;
-  private rockGfx!: Phaser.GameObjects.Graphics;
-  private bossPainted: { x: number; y: number; dir: number; wings: 'raised' | 'lowered'; flash: 'red' | 'white' | null; dots: number } | null = null;
+  private bossSprite!: Phaser.GameObjects.Image;
+  private fruitImages: Phaser.GameObjects.Image[] = [];
+  private rockImages: Phaser.GameObjects.Image[] = [];
+  private bossPainted: ReturnType<PonchoDebug['bossDrawn']> = null;
   private fruitPainted: { x: number; y: number; landed: boolean }[] = [];
   private rocksPainted: { x: number; y: number }[] = [];
   /** GDD-UI-01: the boss bar's name and pips, and how many pips were last drawn filled and how many as an outline. */
@@ -677,6 +681,10 @@ export class PlayScene extends Phaser.Scene {
     this.load.image('far-desert', farDesertPng);
     this.load.spritesheet('plants', plantsPng, { frameWidth: Math.max(...PLANTS.map((p) => p.w)) * ART_SCALE, frameHeight: Math.max(...PLANTS.map((p) => p.h)) * ART_SCALE });
     // GDD-AUD-02: Ogg where it plays, MP3 elsewhere. Phaser picks the first format the browser supports.
+    // GDD-BOS-02: Don Zopilote's sheet (BOSS_ART.columns frames across, 35 in all), his cactus fruit (falling, lying) and the arena's rock.
+    this.load.spritesheet('boss', donZopilotePng, { frameWidth: BOSS_ART.frameW * ART_SCALE, frameHeight: BOSS_ART.frameH * ART_SCALE });
+    this.load.spritesheet('boss-fruit', bossFruitPng, { frameWidth: BOSS_ART.fruitFrame * ART_SCALE, frameHeight: BOSS_ART.fruitFrame * ART_SCALE });
+    this.load.image('boss-rock', bossRockPng);
     this.load.audio('sfx-ofrenda', [ofrendaOgg, ofrendaMp3]);
     this.load.audio('sfx-jump', [jumpOgg, jumpMp3]);
     this.load.audio('sfx-land', [landOgg, landMp3]);
@@ -756,8 +764,7 @@ export class PlayScene extends Phaser.Scene {
     this.heldGfx = this.add.graphics().setDepth(4);
     this.fireballGfx = this.add.graphics().setDepth(4);
     this.enemyGfx = this.add.graphics().setDepth(3);
-    this.bossGfx = this.add.graphics().setDepth(3);
-    this.rockGfx = this.add.graphics().setDepth(2);
+    this.bossSprite = this.add.image(0, 0, 'boss', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3).setVisible(false);
     this.pinataGfx = this.add.graphics().setDepth(1);
     this.drawPinatas();
     this.itemGfx = this.add.graphics().setDepth(2);
@@ -1461,58 +1468,46 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * Placeholder Don Zopilote (GDD-BOS-02): the Zopilote's drawing at three times its size, with a gold crown of three points on his pink
-   * head. His pose comes from `bossPose`: wings raised or down, the body flashing red in his telegraph and white when hurt or defeated,
-   * three pale dots over his head while he is stuck. Then his cactus fruit: red prickly pears with three pale spines.
+   * Don Zopilote (GDD-BOS-02): one image of his sheet, its middle on his box's middle and mirrored about it when he faces left (GDD-ART-05).
+   * The frame is the one `bossFrame` picks for his pose: wings up, down or tucked, a crown of a point for each hit he has left, the body
+   * flashing red in his telegraph and white when hurt or defeated, three pale dots over his head while he is stuck. Then his cactus fruit:
+   * a red tuna with pale spines, falling or lying, one image each. Nothing is drawn without a boss.
    */
   private drawBoss(): void {
-    const g = this.bossGfx.clear();
     this.bossPainted = null;
     this.fruitPainted = [];
     const b = this.run.boss;
-    if (!b) return;
-    const pose = bossPose(b);
-    const k = 3;
-    const { x, y, dir: d } = b;
-    const wingY = pose.wings === 'raised' ? y - 7 * k : y + 4 * k;
-    g.fillStyle(0x6b5340, 1).fillTriangle(x - 7 * k, y - k, x - k, y - k, x - 8 * k, wingY).fillTriangle(x + k, y - k, x + 7 * k, y - k, x + 8 * k, wingY);
-    const body = pose.flash === 'red' ? 0xff5030 : pose.flash === 'white' ? 0xffffff : 0x4a3a30;
-    g.fillStyle(body, 1).fillRect(x - 6 * k, y - 2 * k, 12 * k, 6 * k);
-    const hx = x + d * 6 * k - (d < 0 ? 3 * k : 0);
-    g.fillStyle(0xd98c7a, 1).fillRect(hx, y - 3 * k, 3 * k, 3 * k);
-    g.fillStyle(0xe9d3a3, 1).fillRect(x + d * 8 * k - (d < 0 ? 2 * k : 0), y - k, 2 * k, k);
-    g.fillStyle(0xf2c14e, 1);
-    for (const cx of [0, 3, 6]) g.fillTriangle(hx + cx, y - 3 * k, hx + cx + 3, y - 3 * k, hx + cx + 1.5, y - 3 * k - 4);
-    g.fillStyle(0xf2efe6, 1);
-    for (const tx of [-5, -1, 3]) g.fillTriangle(x + tx * k, y - 2 * k, x + (tx + 3) * k, y - 2 * k, x + (tx + 1.5) * k, y - 5 * k);
-    let dots = 0;
-    if (pose.dazed) {
-      for (const dx of [-4, 0, 4]) {
-        g.fillRect(hx + 3.5 + dx, y - 3 * k - 8, 2, 2);
-        dots++;
-      }
+    this.bossSprite.setVisible(b !== null);
+    if (!b) {
+      this.fruitImages.forEach((image) => image.setVisible(false));
+      return;
     }
-    // L-010: the wings and the flash are read back from what was handed to Phaser (the wing tips' y, the body's colour), not from the pose.
-    this.bossPainted = { x, y, dir: d, wings: wingY < y ? 'raised' : 'lowered', flash: body === 0xff5030 ? 'red' : body === 0xffffff ? 'white' : null, dots };
-    for (const f of this.run.fruit) {
-      g.fillStyle(0xd8473a, 1).fillRect(f.x - 3, f.y - FRUIT.size, 6, FRUIT.size).fillRect(f.x - FRUIT.size / 2, f.y - FRUIT.size + 1, FRUIT.size, FRUIT.size - 2);
-      g.fillStyle(0xf2efe6, 1).fillRect(f.x - 2, f.y - 6, 1, 1).fillRect(f.x + 1, f.y - 4, 1, 1).fillRect(f.x - 1, f.y - 2, 1, 1);
-      this.fruitPainted.push({ x: f.x, y: f.y, landed: f.landed });
-    }
+    this.bossSprite.setPosition(b.x, b.y).setFrame(bossFrame(bossPose(b))).setFlipX(b.dir < 0);
+    // L-010: what was drawn is read back from the sprite (its place, its mirroring, its frame), not from the pose.
+    const frame = Number(this.bossSprite.frame.name);
+    this.bossPainted = { x: this.bossSprite.x, y: this.bossSprite.y, dir: this.bossSprite.flipX ? -1 : 1, frame, ...bossFrameInfo(frame) };
+    while (this.fruitImages.length < this.run.fruit.length) this.fruitImages.push(this.add.image(0, 0, 'boss-fruit', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3));
+    this.fruitImages.forEach((image, i) => {
+      const f = this.run.fruit[i];
+      image.setVisible(f !== undefined);
+      if (!f) return;
+      image.setPosition(f.x, f.y - FRUIT.size / 2).setFrame(f.landed ? 1 : 0);
+      this.fruitPainted.push({ x: image.x, y: image.y + FRUIT.size / 2, landed: Number(image.frame.name) === 1 });
+    });
   }
 
-  /** The arena's rocks (GDD-BOS-02), resting or flying: a grey stone with a dark edge and a pale glint. A broken one is not drawn. */
+  /** The arena's rocks (GDD-BOS-02), resting or flying: a red sandstone rock, one image each. A broken one is not drawn. */
   private drawRocks(): void {
-    const g = this.rockGfx.clear();
     this.rocksPainted = [];
-    const half = ROCK.size / 2;
-    for (const r of this.run.rocks) {
-      if (r.mode === 'gone') continue;
-      g.fillStyle(0x8c8a94, 1).fillRect(r.x - half, r.y - ROCK.size, ROCK.size, ROCK.size);
-      g.lineStyle(1, 0x4a4850, 1).strokeRect(r.x - half + 0.5, r.y - ROCK.size + 0.5, ROCK.size - 1, ROCK.size - 1);
-      g.fillStyle(0xc9cfdc, 1).fillRect(r.x - half + 2, r.y - ROCK.size + 2, 3, 2);
-      this.rocksPainted.push({ x: r.x, y: r.y });
-    }
+    const rocks = this.run.rocks.filter((r) => r.mode !== 'gone');
+    while (this.rockImages.length < this.run.rocks.length) this.rockImages.push(this.add.image(0, 0, 'boss-rock').setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(2));
+    this.rockImages.forEach((image, i) => {
+      const r = rocks[i];
+      image.setVisible(r !== undefined);
+      if (!r) return;
+      image.setPosition(r.x, r.y - ROCK.size / 2);
+      this.rocksPainted.push({ x: image.x, y: image.y + ROCK.size / 2 });
+    });
   }
 
   /** GDD-UI-01: the boss bar's pips: one filled for each hit the boss has left, from the left, an outline for each one taken. None without a boss. */

@@ -318,7 +318,8 @@ Retired IDs: L-046
 - **Rule:** When a mutant of a guard survives, first ask whether another rule already covers that case. If it does, delete the guard and say in a comment which rule covers it, instead of adding a test that cannot fail for the guard alone.
 - **Recurrence 3 (2026-10-23, GDD-WLD-05 moving blocks):** a `clinging: false` on the block's side stop survived, since movement only clings to tiles; deleted with a comment naming the covering rule. The skill step worked as written.
 - **Recurrence 4 (2026-10-23, GDD-UI-02 pause menu):** the plan itself designed the redundancy: a `tapResume` event for a tap on the Resume row, which did exactly what a plain `tap` already did (resume, whichever item is chosen). Its mutant could not die. Deleted in the check step, the Resume row now sends `tap`. The rule caught it, but only after a plan, an implementation and tests had been built for it.
-- **Recurrence:** 4
+- **Recurrence 5 (2026-11-03, GDD-BOS-02 boss art):** the plan's first mutant took `'sweep'` out of the flapping modes, but the new tucked-wings rule for the sweep already won over the flap, so the mutant changed nothing; the implementer replaced it with a killable one. The plan rule names new events, states and branches, not a mutant of a rule that a newer rule in the same plan shadows. The guard (`scripts/mutate.mjs`, run in the plan's check) caught it as designed.
+- **Recurrence:** 5
 - **Promoted:** step 7 of the `harness-feature` skill (step 4 of `.claude/agents/implementer.md` too), and since recurrence 4 also step 5 (plan): a new event, state or branch must do something no existing one does. Guard: `scripts/mutate.mjs` (a guard another rule already covers survives its mutant, and the run fails).
 
 ## L-026 A test measured over a window wide enough to include a second, unrelated event
