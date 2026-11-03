@@ -307,7 +307,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   // GDD-WLD-05: a moving block carries or pushes him too, and stops him on every side. GDD-LIFE-02: a push or a carry up into a solid tile crushes him.
   const pushed = moveBlocks(carried, level.blocks ?? [], run.platformTick, solid);
   const stepped = step(pushed.player, input, solid, level.abilities);
-  const landed = collideBlocks(pushed.player, landOnPlatforms(pushed.player, stepped, level.platforms, run.platformTick), level.blocks ?? [], run.platformTick);
+  const landed = collideBlocks(pushed.player, landOnPlatforms(pushed.player, stepped, level.platforms, run.platformTick, solid), level.blocks ?? [], run.platformTick);
   const platformTick = run.platformTick + 1;
   // GDD-WLD-05: a spring throws Poncho up the step he stands on it.
   const sprung = bounce(landed, level.springs);

@@ -1,10 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
+import { LEVEL_1_2 } from '../src/levels/level1-2';
 import { boot, openGame, stepUntil, tapAt, waitForResults } from './helpers';
 
 // GDD-LIFE-05: the lives carried through World 1 (Next level, Retry), kept in the save, and the restart at 1-1 after the last life;
 // GDD-UI-02: what "Start" plays, and with how many lives, once World 1 has levels cleared; GDD-PRG-02: the hilos kept when the last life
-// is lost. These play 1-1 and 1-2: their exits are at x 2780 (y 224), the spikes at column 39 (x 632) in both, 1-1's first hilos at x 40,
-// 72 and 104 and 1-2's at x 72, 88 and 104 (the floor, y 224), 1-2's first two ofrendas at x 760 and 1592. Things are timed in
+// is lost. These play 1-1, 1-2 and 1-3: the exits of 1-1 and 1-2 are at x 2780 (y 224), 1-3's at x 2780 on its last cliff (y 128), the
+// spikes at column 39 (x 632) in 1-1 and 1-2 and at column 104 (x 1672, under 1-3's shuttle), 1-1's first hilos at x 40, 72 and 104 and
+// 1-2's at x 72, 88 and 104 (the floor, y 224), 1-3's second hilo at x 72, 1-2's first two ofrendas at x 760 and 1592. Things are timed in
 // simulation steps (L-042).
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const SAVE_KEY = 'poncho-siete-vidas';
@@ -55,18 +57,18 @@ const walkOnto = (page: Page, x: number) =>
     window.__PONCHO__!.teleport(px, 224);
     window.__PONCHO__!.step(1);
   }, x);
-/** To the exit of the level played and its clear screen with the results menu up (the menu takes keys while the debug pause is on, as in `e2e/level0-1.spec.ts`). */
-async function toExit(page: Page): Promise<void> {
+/** To the exit of the level played (on the floor, or at `y`) and its clear screen with the results menu up (the menu takes keys while the debug pause is on, as in `e2e/level0-1.spec.ts`). */
+async function toExit(page: Page, y = 224): Promise<void> {
   await api(page, () => window.__PONCHO__!.pause(true));
-  await api(page, () => window.__PONCHO__!.teleport(2780, 224));
+  await page.evaluate((py) => window.__PONCHO__!.teleport(2780, py), y);
   await stepUntil(page, { phase: 'clear' }, 30);
   await api(page, () => window.__PONCHO__!.step(61));
   await waitForResults(page);
 }
-/** From a paused game with one life left: onto the spikes at x 632, the last life lost, and the Siete vidas gastadas screen up. */
-async function outOfLives(page: Page): Promise<void> {
+/** From a paused game with one life left: onto the spikes at x 632 (or at `x`), the last life lost, and the Siete vidas gastadas screen up. */
+async function outOfLives(page: Page, x = 632): Promise<void> {
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(1);
-  await api(page, () => window.__PONCHO__!.teleport(632, 224));
+  await page.evaluate((px) => window.__PONCHO__!.teleport(px, 224), x);
   await stepUntil(page, { phase: 'respawning' }, 30);
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(0);
   await stepUntil(page, { phase: 'gameover' }, 60);
@@ -146,8 +148,10 @@ test('GDD-LIFE-05 the lives at the exit of 1-1 carry into 1-2 by Next level, and
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
   await toExit(page);
   expect((await stored(page))!.progress.worldLives).toEqual({ '1': 5 });
-  // 1-2 names no next level: the menu opens on Retry.
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
+  // 1-2 names 1-3: the menu opens on Next level, and Down picks Retry.
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('next');
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'retry');
   await page.keyboard.press('Enter', { delay: 30 });
   await playingIn(page, '1-2');
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
@@ -487,7 +491,7 @@ test('GDD-PRG-02 a clear of 1-1 saves the run at 1-2, and the Siete vidas gastad
   expect((await stored(page))!.progress).toMatchObject({ worldAt: { '1': '1-1' }, worldLives: { '1': 0 } });
 });
 
-test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1 and 1-2 cleared, a new run, then 1-1 cleared, the title is over 1-2', async ({ page, isMobile }) => {
+test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1, 1-2 and 1-3 cleared, a new run, then 1-1 cleared, the title is over 1-2', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await refuseStorage(page);
   await boot(page, '/');
@@ -499,7 +503,10 @@ test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1 an
   await page.keyboard.press('Enter', { delay: 30 }); // Next level
   await playingIn(page, '1-2');
   await toExit(page);
-  // 1-2 ends the run: a new one at 1-1 (the older rule says 1-1 too, all being cleared).
+  await page.keyboard.press('Enter', { delay: 30 }); // Next level
+  await playingIn(page, '1-3');
+  await toExit(page, 128);
+  // 1-3 ends the run (the boss is not built): a new one at 1-1 (the older rule says 1-1 too, all being cleared).
   expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
   await page.keyboard.press('ArrowDown');
   await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'quit');
@@ -512,11 +519,94 @@ test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1 an
   await page.keyboard.press('ArrowDown');
   await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'quit');
   await page.keyboard.press('Enter', { delay: 30 });
-  // The run moved on to 1-2, though both levels are cleared.
+  // The run moved on to 1-2, though all three levels are cleared.
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.level() === '1-2');
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   // The scene of that title knows the run too (this visit's, the storage refusing it): Start plays 1-2.
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5);
   expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-2');
+});
+
+test('GDD-LIFE-05 out of lives in 1-3, its hilos are saved and the press starts 1-1 at once with seven lives', async ({ page }) => {
+  await boot(page, '/?level=1-3');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await api(page, () => window.__PONCHO__!.pause(true));
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-3');
+  await walkOnto(page, 72); // the hilo at column 4, the second in 1-3's list
+  expect((await api(page, () => window.__PONCHO__!.hilos())).taken).toBe(1);
+  for (let i = 0; i < 6; i++) await api(page, () => window.__PONCHO__!.loseLife());
+  await outOfLives(page, 1672); // the spike at column 104, under the shuttle's first end
+  // Saved for good as the screen comes up (user, 2026-11-02: "Keep them"), before any press.
+  const saved = (await stored(page))!;
+  expect(saved.levels['1-3']).toMatchObject({ cleared: false });
+  expect(saved.levels['1-3']!.hilos.slice(0, 2)).toBe('01');
+  expect((await api(page, () => window.__PONCHO__!.progress()))['1-3']!.hilos.slice(0, 2)).toEqual([false, true]);
+  // The screen stays up until 1-1 starts.
+  expect(await pressThrough(page)).toEqual({ phase: 'gameover', level: '1-3' });
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1');
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing');
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  expect(await api(page, () => window.__PONCHO__!.hudFilled())).toBe(7);
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: 224 });
+  expect((await api(page, () => window.__PONCHO__!.camera())).viewX).toBe(0);
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false);
+});
+
+test('GDD-UI-02 with 1-1 and 1-2 cleared the game opens on the title over 1-3, and Start plays it', async ({ page, isMobile }) => {
+  await seed(page, { '1-1': CLEARED_1_1, '1-2': CLEARED_1_1 });
+  await openGame(page, '/');
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-3');
+  expect(await api(page, () => window.__PONCHO__!.titleDrawn())).toMatchObject({ shown: true, menu: { items: ['Start', 'Tutorial', 'Settings'], chosen: 'start' } });
+  await startFromTitle(page, isMobile);
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-3');
+  // The seeded save holds no World 1 lives: the world's seven.
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+});
+
+test('GDD-LIFE-05 the lives brought from 1-2 into 1-3 are saved, and a new visit Start plays 1-3 with them', async ({ page, isMobile }) => {
+  await seed(page, { '1-1': CLEARED_1_1 });
+  await boot(page, '/?level=1-2');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await api(page, () => {
+    window.__PONCHO__!.loseLife();
+    window.__PONCHO__!.loseLife();
+  });
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
+  const exit = LEVEL_1_2.exit!;
+  await api(page, () => window.__PONCHO__!.pause(true));
+  await page.evaluate(([x, y]) => window.__PONCHO__!.teleport(x!, y!), [exit.x, exit.y]);
+  await stepUntil(page, { phase: 'clear' }, 30);
+  await api(page, () => window.__PONCHO__!.step(61));
+  await waitForResults(page);
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('next');
+  await page.keyboard.press('Enter', { delay: 30 });
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-3' && window.__PONCHO__!.ticks() > 10);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
+  // A new visit, no address: 1-1 was seeded cleared and 1-2 was cleared just now, so the run is at 1-3, with the five.
+  await openGame(page, '/');
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-3');
+  expect(await api(page, () => window.__PONCHO__!.titleDrawn())).toMatchObject({ shown: true, menu: { chosen: 'start' } });
+  await startFromTitle(page, isMobile);
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-3');
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
+  expect(await api(page, () => window.__PONCHO__!.hudFilled())).toBe(5);
+});
+
+test('GDD-LIFE-05 after the last life in 1-3 a new visit Start plays 1-1 with seven, not 1-3', async ({ page, isMobile }) => {
+  await seed(page, { '1-1': CLEARED_1_1, '1-2': CLEARED_1_1 });
+  await openGame(page, '/');
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-3');
+  await startFromTitle(page, isMobile);
+  await api(page, () => window.__PONCHO__!.pause(true));
+  for (let i = 0; i < 6; i++) await api(page, () => window.__PONCHO__!.loseLife());
+  await outOfLives(page, 1672);
+  // Press nothing: a new visit while the screen is up, the run back at 1-1.
+  await openGame(page, '/');
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-1');
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(true);
+  await startFromTitle(page, isMobile);
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-1');
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  expect(await api(page, () => window.__PONCHO__!.hudFilled())).toBe(7);
 });

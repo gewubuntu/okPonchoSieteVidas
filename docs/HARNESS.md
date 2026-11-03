@@ -21,7 +21,7 @@ project get better at itself over time.
 
 ## What `scripts/check.mjs` enforces
 
-1. GDD has a `Version:` line and the changelog mentions that version. No `Open Question N` in the GDD (outside its changelog) or the backlog points past the end of the Open Questions list (`gdd-open-questions`): removing a question renumbers the ones after it.
+1. GDD has a `Version:` line and the changelog mentions that version. A branch adds at most one changelog version since its merge base with `origin/main` (`gdd-one-version`, L-057). Without that merge base (no `origin/main`, or a shallow clone) the check passes, except under CI, where it fails, so CI's gate job fetches the full history. A stale local `origin/main` makes main's own versions count; `git fetch origin main` first. No `Open Question N` in the GDD (outside its changelog) or the backlog points past the end of the Open Questions list (`gdd-open-questions`): removing a question renumbers the ones after it.
 2. Every `GDD-XXX-NN` heading is unique and has a valid `Status:` line.
 3. Every GDD ID mentioned anywhere in the repo (docs, source, tests, skills) exists in the GDD, and every repository path that a skill, a subagent or `CLAUDE.md` names in backticks exists (`harness-paths`); a placeholder such as `docs/screenshots/<slug>/` is skipped.
 4. `docs/BACKLOG.md` has exactly one valid row for every non-deprecated GDD ID and no unknown IDs.
@@ -55,7 +55,10 @@ When a lesson is promoted, set its `Promoted:` field to where the rule now lives
 
 Add a function to `scripts/check.mjs` that returns a list of error strings, register it in
 the `checks` array, and make sure it fails on a bad input. Name the lesson that
-motivated the check in a comment beside it.
+motivated the check in a comment beside it. A check whose logic goes beyond one pattern match keeps that logic in a module with
+unit tests beside it, as `scripts/gdd-version.mjs` does: one mutant per condition and per argument inside that module
+(`scripts/mutate.mjs`), each caught by those tests (L-010). The lines in `scripts/check.mjs` that call the module are proved
+by the gate run on a bad input.
 
 A hook is added the same way: a script in `scripts/hooks/` that exports its decision as a pure function, a `.test.mjs`
 beside it (run by `npm test` in the gate) holding every spelling the hook must catch and the mentions it must let through, a commit message's here-document and a quoted string among them

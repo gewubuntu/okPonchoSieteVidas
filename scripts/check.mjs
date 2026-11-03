@@ -9,6 +9,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { gddVersionErrors } from './gdd-version.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -86,6 +87,14 @@ function checkGdd() {
   }
   if (defs.length === 0) errors.push('GDD: no "### GDD-XXX-NN" sections found');
   return errors;
+}
+
+// L-057: one GDD version per pull request (scripts/gdd-version.mjs): the working tree's GDD against the one at the merge
+// base with origin/main. Without that base it passes, except under CI, where it fails.
+function checkOneGddVersion() {
+  if (!exists('docs/GDD.md')) return [];
+  const git = (...args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+  return gddVersionErrors(git, read('docs/GDD.md'), Boolean(process.env['CI']));
 }
 
 // Open Questions are a numbered list, so removing one renumbers the ones after it. A reference past the end of the list is
@@ -500,6 +509,7 @@ const checks = [
   ['whole-save-pins', checkWholeSavePins],
   ['phone-shots-by-touch', checkPhoneShotsByTouch],
   ['gdd', checkGdd],
+  ['gdd-one-version', checkOneGddVersion],
   ['gdd-open-questions', checkOpenQuestionRefs],
   ['gdd-references', checkReferences],
   ['backlog', checkBacklog],

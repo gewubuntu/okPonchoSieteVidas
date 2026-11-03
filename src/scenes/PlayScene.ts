@@ -383,7 +383,7 @@ function opening(): PlayOptions {
 
 export class PlayScene extends Phaser.Scene {
   private readonly stepper = new FixedStepper();
-  // GDD-UI-02: the level played, 0-1, 1-1, 1-2 or a test level. GDD-MOV-06: Poncho collides with its tile grid. The spawn stands on the
+  // GDD-UI-02: the level played, 0-1, 1-1, 1-2, 1-3 or a test level. GDD-MOV-06: Poncho collides with its tile grid. The spawn stands on the
   // floor, so its y is the floor level.
   private readonly entry: LevelEntry;
   private readonly level: Level;
@@ -2249,7 +2249,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawOfrendas();
   }
 
-  /** GDD-UI-02: the level after this one (1-1 after 0-1, GDD-WLD-07, and 1-2 after 1-1, GDD-WLD-08), or undefined where the level names none. */
+  /** GDD-UI-02: the level after this one (1-1 after 0-1, GDD-WLD-07, 1-2 after 1-1, GDD-WLD-08, and 1-3 after 1-2, GDD-WLD-09), or undefined where the level names none. */
   private nextLevel(): LevelEntry | undefined {
     return this.entry.next === undefined ? undefined : levelById(this.entry.next);
   }
@@ -2281,7 +2281,7 @@ export class PlayScene extends Phaser.Scene {
    * GDD-UI-02: Quit to title, from the pause menu or the results menu. A fresh run as when the game opens, behind the title screen
    * waiting for a press. No step runs on the title, so every latched key press is spent here, or a quick tap that picked would stay
    * latched and a new press would not be new. The buttons down now count as held on the title, so the one that picked does not start the
-   * level. When "Start" no longer plays this level (the tutorial has started, so it plays 1-1, or 1-1 has been cleared, so it plays 1-2),
+   * level. When "Start" no longer plays this level (the tutorial has started, so it plays 1-1, or 1-1 has been cleared, so it plays 1-2, or 1-1 and 1-2 have been, so it plays 1-3),
    * a fresh scene of that level takes this one's place with the same title and this returns true: `update` must return at once.
    */
   private backToTitle(input: PlayerInput, portrait: boolean): boolean {

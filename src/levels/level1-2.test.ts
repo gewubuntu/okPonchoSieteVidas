@@ -61,7 +61,7 @@ const STILL: PlayerInput = { move: 0, jumpHeld: false };
 const RIGHT: PlayerInput = { move: 1, jumpHeld: false };
 
 describe('GDD-WLD-08 level 1-2', () => {
-  it('GDD-WLD-08 1-2 is 180 by 17 tiles, a World 1 level, no test level, and it comes after 1-1', () => {
+  it('GDD-WLD-08 1-2 is 180 by 17 tiles, a World 1 level, no test level, and it comes after 1-1 and leads on to 1-3', () => {
     expect(world.width).toBe(180);
     expect(world.height).toBe(17);
     const entry = LEVELS.find((e) => e.id === '1-2');
@@ -70,7 +70,7 @@ describe('GDD-WLD-08 level 1-2', () => {
     expect(entry!.test).toBe(false);
     expect(entry!.level).toBe(LEVEL_1_2);
     expect(entry!.tips).toBeUndefined();
-    expect(entry!.next).toBeUndefined();
+    expect(entry!.next).toBe('1-3');
     expect(LEVELS.find((e) => e.id === '1-1')!.next).toBe('1-2');
   });
 
