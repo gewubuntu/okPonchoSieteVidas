@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { LEVEL_1_2 } from '../src/levels/level1-2';
-import { boot, openGame, stepUntil, tapAt, waitForResults } from './helpers';
+import { boot, openGame, stepToBossMode, stepUntil, tapAt, waitForResults } from './helpers';
 
 // GDD-LIFE-05: the lives carried through World 1 (Next level, Retry), kept in the save, and the restart at 1-1 after the last life;
 // GDD-UI-02: what "Start" plays, and with how many lives, once World 1 has levels cleared; GDD-PRG-02: the hilos kept when the last life
-// is lost. These play 1-1, 1-2 and 1-3: the exits of 1-1 and 1-2 are at x 2780 (y 224), 1-3's at x 2780 on its last cliff (y 128), the
+// is lost. These play 1-1, 1-2, 1-3 and the boss arena 1-4: the exits of 1-1 and 1-2 are at x 2780 (y 224), 1-3's at x 2780 on its last cliff (y 128), the
 // spikes at column 39 (x 632) in 1-1 and 1-2 and at column 104 (x 1672, under 1-3's shuttle), 1-1's first hilos at x 40, 72 and 104 and
 // 1-2's at x 72, 88 and 104 (the floor, y 224), 1-3's second hilo at x 72, 1-2's first two ofrendas at x 760 and 1592. Things are timed in
 // simulation steps (L-042).
@@ -112,6 +112,21 @@ async function toExit01(page: Page): Promise<void> {
 }
 /** Waits until the level is playing in a scene of `level` that has run a few steps. */
 const playingIn = (page: Page, level: string) => page.waitForFunction((l) => window.__PONCHO__!.level() === l && window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2, level);
+/**
+ * From a paused 1-4 (Poncho at its start): Don Zopilote set to two hits, stepped to his dive aimed at Poncho, Poncho moved 42 px left of
+ * where he lands, stepped to his sticking in the sand, then the claw swing that is the third hit, and the clear screen with the results menu up.
+ */
+async function beatBoss(page: Page): Promise<void> {
+  await api(page, () => window.__PONCHO__!.setBoss(2));
+  expect(await stepToBossMode(page, 'dive')).toBeLessThan(1000);
+  await api(page, () => window.__PONCHO__!.teleport(190, 224));
+  expect(await stepToBossMode(page, 'stuck')).toBeLessThan(200);
+  await api(page, () => window.__PONCHO__!.step(3, { move: 0, jumpHeld: false, claw: true }));
+  expect(await api(page, () => window.__PONCHO__!.boss())).toMatchObject({ hits: 3, mode: 'defeated' });
+  await stepUntil(page, { phase: 'clear' }, 70);
+  await api(page, () => window.__PONCHO__!.step(61));
+  await waitForResults(page);
+}
 /** From 1-1 by its address: three lives lost (four left), the exit, and Next level picked into 1-2. */
 async function intoTwoWithFour(page: Page): Promise<void> {
   await boot(page, '/?level=1-1');
@@ -491,7 +506,7 @@ test('GDD-PRG-02 a clear of 1-1 saves the run at 1-2, and the Siete vidas gastad
   expect((await stored(page))!.progress).toMatchObject({ worldAt: { '1': '1-1' }, worldLives: { '1': 0 } });
 });
 
-test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1, 1-2 and 1-3 cleared, a new run, then 1-1 cleared, the title is over 1-2', async ({ page, isMobile }) => {
+test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1, 1-2, 1-3 and 1-4 cleared, a new run, then 1-1 cleared, the title is over 1-2', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await refuseStorage(page);
   await boot(page, '/');
@@ -506,7 +521,13 @@ test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1, 1
   await page.keyboard.press('Enter', { delay: 30 }); // Next level
   await playingIn(page, '1-3');
   await toExit(page, 128);
-  // 1-3 ends the run (the boss is not built): a new one at 1-1 (the older rule says 1-1 too, all being cleared).
+  // 1-3 names 1-4 (GDD-BOS-02): the menu opens on Next level, which starts the arena.
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('next');
+  await page.keyboard.press('Enter', { delay: 30 });
+  await playingIn(page, '1-4');
+  await api(page, () => window.__PONCHO__!.pause(true));
+  await beatBoss(page);
+  // 1-4 ends the run (it is World 1's last level): a new one at 1-1 (the older rule says 1-1 too, all being cleared).
   expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
   await page.keyboard.press('ArrowDown');
   await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'quit');
@@ -519,13 +540,59 @@ test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1, 1
   await page.keyboard.press('ArrowDown');
   await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'quit');
   await page.keyboard.press('Enter', { delay: 30 });
-  // The run moved on to 1-2, though all three levels are cleared.
+  // The run moved on to 1-2, though all four levels are cleared.
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.level() === '1-2');
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   // The scene of that title knows the run too (this visit's, the storage refusing it): Start plays 1-2.
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5);
   expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-2');
+});
+
+test('GDD-LIFE-05 out of lives in 1-4, the press starts 1-1 at once with seven lives, and the arena is a fresh fight', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await boot(page, '/?level=1-4');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await api(page, () => window.__PONCHO__!.pause(true));
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-4');
+  await api(page, () => window.__PONCHO__!.setBoss(2));
+  for (let i = 0; i < 6; i++) await api(page, () => window.__PONCHO__!.loseLife());
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(1);
+  // Standing on the floor at the start, his phase 3 dive reaches Poncho: the last life is lost.
+  expect(await stepUntil(page, { phase: 'respawning' }, 700)).toBeLessThan(700);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(0);
+  await stepUntil(page, { phase: 'gameover' }, 60);
+  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('gameover');
+  // Saved as the screen comes up: the world's lives spent and its run back at 1-1.
+  expect((await stored(page))!.progress).toMatchObject({ worldLives: { '1': 0 }, worldAt: { '1': '1-1' } });
+  // The screen stays up until 1-1 starts.
+  expect(await pressThrough(page)).toEqual({ phase: 'gameover', level: '1-4' });
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '1-1');
+  await page.waitForFunction(() => window.__PONCHO__!.phase() === 'playing');
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  expect(await api(page, () => window.__PONCHO__!.hudFilled())).toBe(7);
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: 224 });
+  expect((await api(page, () => window.__PONCHO__!.bossBar())).shown).toBe(false);
+  // A later visit to the arena is a fresh fight: all three of his hits, seven lives.
+  await openGame(page, '/?level=1-4');
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  await page.waitForFunction(() => window.__PONCHO__!.bossBar().pips === 3);
+  expect(await api(page, () => window.__PONCHO__!.boss())).toMatchObject({ hits: 0, mode: 'lap' });
+});
+
+test('GDD-UI-02 Start follows the run: the run at 1-4 starts the arena with its lives and the boss bar', async ({ page, isMobile }) => {
+  await seed(page, { '1-1': CLEARED_1_1, '1-2': CLEARED_1_1, '1-3': CLEARED_1_1 }, { '1': 3 }, { '1': '1-4' });
+  await openGame(page, '/');
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-4');
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(3);
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(true);
+  // The arena is behind the title's veil, with the boss bar under it.
+  await page.waitForFunction(() => window.__PONCHO__!.bossBar().shown && window.__PONCHO__!.bossBar().pips === 3);
+  await startFromTitle(page, isMobile);
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-4');
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(3);
+  expect(await api(page, () => window.__PONCHO__!.hudFilled())).toBe(3);
+  expect(await api(page, () => window.__PONCHO__!.bossBar())).toMatchObject({ shown: true, pips: 3 });
 });
 
 test('GDD-LIFE-05 out of lives in 1-3, its hilos are saved and the press starts 1-1 at once with seven lives', async ({ page }) => {

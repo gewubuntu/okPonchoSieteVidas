@@ -1,12 +1,13 @@
 // GDD-LIFE-02 and GDD-LIFE-05: one play-through of a level, tying movement, lives and respawn together.
 // Pure logic, no Phaser (GDD-TEC-02). After the last life the run shows the "Siete vidas gastadas" screen until a press
 // of any button, then restarts the world. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
-import { EXIT, FIREBALL, FLIP, GAME_OVER, GLIDE, HIT, HITBOX, LIVES_MAX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
+import { BOSS, EXIT, FIREBALL, FLIP, GAME_OVER, GLIDE, HIT, HITBOX, LIVES_MAX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
+import { bossBox, bossHarms, bossHittable, bossStart, broken, freshRocks, fruitBox, hitBoss, knock, phaseOf, ponchoBox, rockBox, stepBoss, stepFruit, stepRock, type Boss, type BossState, type Fruit, type RockState } from './boss';
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
 import { withFragiles, type Fragile } from './fragile';
-import { boxHitsEnemy, clawHitsEnemy, defeatable, freshEnemies, harmlessFromBelow, isStomp, playDead, stepEnemy, stompBounce, stompPlaysDead, touchesEnemy, type Enemy, type EnemyState } from './enemy';
-import { spawnFireball, stepFireball, type Fireball } from './fireball';
+import { boxHitsEnemy, clawHitsEnemy, defeatable, freshEnemies, harmlessFromBelow, isStomp, overlaps, playDead, stepEnemy, stompBounce, stompPlaysDead, touchesEnemy, type Enemy, type EnemyState } from './enemy';
+import { fireballBox, spawnFireball, stepFireball, type Fireball } from './fireball';
 import { squareBlocked } from './item';
 import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } from './door';
 import { releaseFrom, stepItem, touchesItem, type Item } from './item';
@@ -68,6 +69,10 @@ export interface Level {
   readonly exit?: Point;
   /** GDD-MOV-07, GDD-PRG-01: the abilities unlocked here. Left out means none. */
   readonly abilities?: Abilities;
+  /** GDD-BOS-01, GDD-BOS-02: the level's boss (a boss level, one screen, cleared by beating him). Left out means none. */
+  readonly boss?: Boss;
+  /** GDD-BOS-02: where the rocks of a boss arena rest: the middle of each and the y of its bottom. Left out means none. */
+  readonly rocks?: readonly Point[];
 }
 
 export interface RunState {
@@ -137,6 +142,12 @@ export interface RunState {
   readonly clock: number;
   /** GDD-UI-02: a new press on the clear screen showed every line at once. */
   readonly revealAll: boolean;
+  /** GDD-BOS-02: the boss, if the level has one. */
+  readonly boss: BossState | null;
+  /** GDD-BOS-02: his cactus fruit, falling or lying. */
+  readonly fruit: readonly Fruit[];
+  /** GDD-BOS-02: one state per `Level.rocks` entry, in the same order. */
+  readonly rocks: readonly RockState[];
 }
 
 /**
@@ -146,7 +157,7 @@ export interface RunState {
  */
 export function startRun(level: Level, savedHilos?: readonly boolean[], lives: number = LIVES_MAX): RunState {
   const hilosSaved = savedHilos ?? freshHilos(level.hilos ?? []);
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: { ...startWorld(), lives }, livesIn: lives, phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: { ...startWorld(), lives }, livesIn: lives, phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false, boss: level.boss ? bossStart(level.boss, 0) : null, fruit: [], rocks: freshRocks(level.rocks ?? []) };
 }
 
 /**
@@ -298,6 +309,11 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
       stomped: false,
       clock: run.clock,
       revealAll: false,
+      // GDD-BOS-01: the boss keeps the hits he has taken and starts the phase he is in again; the restart after the last life starts
+      // the fight afresh. His fruit is gone and every rock is back on its spot.
+      boss: level.boss && run.boss ? bossStart(level.boss, run.restarting ? 0 : run.boss.hits) : null,
+      fruit: [],
+      rocks: freshRocks(level.rocks ?? []),
     };
   }
 
@@ -315,6 +331,11 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   // or was pressed just before.
   const patrolled = level.enemies.map((d, i) => stepEnemy(d, run.enemies[i]!, solid, run.player));
   const stomped = patrolled.map((e, i) => isStomp(run.player, sprung, level.enemies[i]!, e));
+  // GDD-BOS-02: the boss flies his pattern, facing and aiming at Poncho as he was at the step's start, like the Zopilote. His fruit
+  // falls (in phase 3 one that lands lies there); one he lets go of this step starts to fall on the next.
+  const flown = level.boss && run.boss ? stepBoss(level.boss, run.boss, run.player) : null;
+  let boss = flown?.boss ?? null;
+  let fruit = [...run.fruit.flatMap((f) => stepFruit(f, solid, phaseOf(run.boss!)) ?? []), ...(flown?.drop ? [flown.drop] : [])];
   const player = stomped.some(Boolean)
     ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0, gliding: false, clinging: false, glideLock: GLIDE.stompLockSteps }
     : sprung;
@@ -385,8 +406,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   // overlaps a live enemy is used up, whatever defeats the enemy that step (and even the cactus buddy, which nothing defeats).
   // GDD-ENM-02: a Tlacuache's first stomp only makes it play dead, unless the claw or a fireball defeats it the same step. The
   // claw defeats one that is playing dead too.
-  const fireballHits = (f: Fireball, i: number): boolean =>
-    boxHitsEnemy({ x0: f.x - FIREBALL.size / 2, x1: f.x + FIREBALL.size / 2, y0: f.y - FIREBALL.size, y1: f.y }, level.enemies[i]!, patrolled[i]!);
+  const fireballHits = (f: Fireball, i: number): boolean => boxHitsEnemy(fireballBox(f), level.enemies[i]!, patrolled[i]!);
   const enemies = patrolled.map((e, i) => {
     const def = level.enemies[i]!;
     if (!defeatable(def)) return e;
@@ -394,13 +414,39 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
     if (!stomped[i]) return e;
     return stompPlaysDead(def, e) ? playDead(e) : { ...e, alive: false };
   });
-  const flying = fireballs.filter((f) => !patrolled.some((_, i) => fireballHits(f, i)));
+  // GDD-BOS-02: a claw swipe knocks a resting rock it overlaps; a flying rock breaks on a tile and is back on its spot 2.0 s later.
+  let rocks = (level.rocks ?? []).map((spot, i) => {
+    const r = stepRock(run.rocks[i]!, spot, solid);
+    return r.mode === 'rest' && box !== null && overlaps(box, rockBox(r)) ? knock(r, claw.dir) : r;
+  });
+  // A flying rock that touches him breaks, and is a hit unless he is hurt or defeated. A claw swipe or a fireball is a hit only while he
+  // is stuck in the sand. The third hit defeats him, and his fruit is gone at once.
+  if (flown) {
+    const b = flown.boss;
+    let bossHit = false;
+    rocks = rocks.map((r) => {
+      if (r.mode !== 'flying' || !overlaps(rockBox(r), bossBox(b))) return r;
+      if (bossHittable(b)) bossHit = true;
+      return broken(r);
+    });
+    if (b.mode === 'stuck' && ((box !== null && overlaps(box, bossBox(b))) || fireballs.some((f) => overlaps(fireballBox(f), bossBox(b))))) bossHit = true;
+    if (bossHit) {
+      boss = hitBoss(b);
+      if (boss.mode === 'defeated') fruit = [];
+    }
+  }
+  // A fireball that touches him is used up, unless he is defeated.
+  const flying = fireballs.filter((f) => !patrolled.some((_, i) => fireballHits(f, i)) && !(flown && flown.boss.mode !== 'defeated' && overlaps(fireballBox(f), bossBox(flown.boss))));
   // GDD-WLD-05, GDD-ENM-02, GDD-CMB-03: touching a spike or an enemy is a hit, unless Poncho is invulnerable. In Base it
   // costs a life (GDD-LIFE-02); in Taco the taco is spent instead, in Fuego the Fuego, and Poncho is pushed away from what
   // hit him and invulnerable for 2.0 s.
   const spike = run.invulnerable === 0 ? level.spikes.find((s) => touchesSpike(player, s)) : undefined;
   const enemy = run.invulnerable === 0 ? enemies.findIndex((e, i) => touchesEnemy(player, level.enemies[i]!, e) && !harmlessFromBelow(run.player, player, level.enemies[i]!, e)) : -1;
-  const hitFrom = spike ? spike.col * TILE + TILE / 2 : enemy >= 0 ? enemies[enemy]!.x : undefined;
+  // GDD-BOS-02: touching the boss while he harms, or a cactus fruit, falling or lying, is a hit too. A hit on him this step is resolved
+  // first, so the step that hits him is not one he hurts Poncho in.
+  const bossTouch = run.invulnerable === 0 && boss !== null && bossHarms(boss) && overlaps(ponchoBox(player), bossBox(boss)) ? boss : null;
+  const fruitTouch = run.invulnerable === 0 ? fruit.find((f) => overlaps(ponchoBox(player), fruitBox(f))) : undefined;
+  const hitFrom = spike ? spike.col * TILE + TILE / 2 : enemy >= 0 ? enemies[enemy]!.x : bossTouch ? bossTouch.x : fruitTouch ? fruitTouch.x : undefined;
   if (hitFrom !== undefined && power === 'base') {
     return { ...run, player, crumbles, platformTick, hilosTaken, tacosTaken, pinatasOpen, items, fragilesBroken, enemies, lives: loseLife(lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base', stomped: stomped.some(Boolean) };
   }
@@ -422,10 +468,12 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
       checkpointIndex = index;
     }
   });
-  const next: RunState = { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: flying, enemies, stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
+  const next: RunState = { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: flying, enemies, boss, fruit, rocks, stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
   // GDD-WLD-03: reaching the exit ends the level. A hit in Base, a pit and a crush returned above, so they win; a hit the taco or
   // the Fuego absorbed does not. `wait` is already 0 in play. The buttons down now are held, so one held as Poncho reaches the exit
   // is no new press for the reveal (GDD-UI-02).
   if (level.exit && touchesExit(hurt, level.exit)) return { ...next, phase: 'clear', buttonsHeld: buttonsDown(input) };
+  // GDD-BOS-01, GDD-UI-02: in a boss level the level is clear 1.0 s after the hit that defeats him, as at an exit.
+  if (boss?.mode === 'defeated' && boss.age >= BOSS.defeatSteps) return { ...next, phase: 'clear', buttonsHeld: buttonsDown(input) };
   return next;
 }

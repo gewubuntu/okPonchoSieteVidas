@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BASE_WIDTH, TILE } from '../config/tuning';
+import type { Boss } from '../sim/boss';
 import type { Enemy } from '../sim/enemy';
 import type { Level, Ofrenda, Point } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
@@ -25,6 +26,8 @@ interface Options {
   slopes?: readonly (readonly [number, number, string])[];
   /** Merged into the level last. */
   level?: Partial<Level>;
+  /** GDD-BOS-01: a boss, which makes it a boss level. */
+  boss?: Boss;
 }
 
 const onFloor = (col: number): Point => ({ x: col * TILE + TILE / 2, y: 14 * TILE });
@@ -59,6 +62,7 @@ function entry(o: Options = {}): LevelEntry {
     enemies: o.enemies ?? [],
     ...(exit ? { exit } : {}),
     ...o.level,
+    ...(o.boss ? { boss: o.boss } : {}),
   };
   return { id: 'synthetic', world: o.world ?? 1, test: o.test ?? false, level };
 }
@@ -211,5 +215,44 @@ describe('GDD-MOV-09 sand slopes in the validator', () => {
     const level = entry({ pits: [41, 42, 43], slopes: [[40, 13, '\\'], [44, 13, '/']] });
     expect(gaps(level.level.world)).toContainEqual({ col: 41, width: 3 });
     expect(validateLevel(level)).toEqual([]);
+  });
+});
+
+describe('GDD-TEC-04 and GDD-BOS-01 a boss level', () => {
+  // The spawn is at (56, 224); a boss whose lap's middle is (240, 72) starts at its right end, (392, 72), far from it.
+  const BOSS: Boss = { x: 240, y: 72, floor: 224 };
+  const arena = (o: Options = {}) => entry({ width: 30, ofrendas: [], exit: null, boss: BOSS, ...o });
+
+  it('GDD-BOS-01 a boss level of one screen with no ofrendas and no exit passes', () => {
+    expect(validateLevel(arena())).toEqual([]);
+  });
+
+  it('GDD-BOS-01 a boss level has no ofrendas', () => {
+    expect(validateLevel(arena({ ofrendas: [7] }))).toEqual(['1 ofrendas, a boss level has none']);
+    expect(validateLevel(arena({ ofrendas: [7, 15, 25] }))).toEqual(['3 ofrendas, a boss level has none']);
+  });
+
+  it('GDD-BOS-01 a boss level has no exit', () => {
+    expect(validateLevel(arena({ exit: onFloor(25) }))).toEqual(['an exit, a boss level has none']);
+  });
+
+  it('GDD-BOS-01 a boss level is one screen wide', () => {
+    expect(validateLevel(arena({ width: 29 }))).toEqual(['29 tiles wide, a boss level is one screen (30)']);
+    expect(validateLevel(arena({ width: 31 }))).toEqual(['31 tiles wide, a boss level is one screen (30)']);
+    expect(validateLevel(arena({ width: 90 }))).toEqual(['90 tiles wide, a boss level is one screen (30)']);
+  });
+
+  it('GDD-BOS-01 still checks the gaps, the enemies and his start in a boss level', () => {
+    // His lap's middle 152 px left of (76, 224), so he starts at (76, 224), 20 px from the spawn; the middle itself is 132 px away.
+    expect(validateLevel(arena({ pits: cols(10, 13), enemies: [{ x: spawnAt.x + 20, y: spawnAt.y }], boss: { x: -76, y: 224, floor: 224 } }))).toEqual([
+      'gap of 4 tiles at columns 10 to 13, World 1 allows 3',
+      'alacran at 76,224 is 20 px from the respawn at 56,224, under 48',
+      'the boss starts 20 px from the spawn, under 48',
+    ]);
+  });
+
+  it('GDD-BOS-01 his start exactly 48 px from the spawn passes, 47 px fails', () => {
+    expect(validateLevel(arena({ boss: { x: 56 + 48 - 152, y: 224, floor: 224 } }))).toEqual([]);
+    expect(validateLevel(arena({ boss: { x: 56 + 47 - 152, y: 224, floor: 224 } }))).toEqual(['the boss starts 47 px from the spawn, under 48']);
   });
 });

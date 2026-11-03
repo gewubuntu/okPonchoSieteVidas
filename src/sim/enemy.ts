@@ -89,7 +89,7 @@ const centre = (player: PlayerState): { x: number; y: number } => {
 };
 
 /** Moves from (x, y) towards (tx, ty) by at most `dist`, stopping on it. */
-function approach(x: number, y: number, tx: number, ty: number, dist: number): { x: number; y: number; arrived: boolean } {
+export function approach(x: number, y: number, tx: number, ty: number, dist: number): { x: number; y: number; arrived: boolean } {
   const d = Math.hypot(tx - x, ty - y);
   return d <= dist ? { x: tx, y: ty, arrived: true } : { x: x + ((tx - x) / d) * dist, y: y + ((ty - y) / d) * dist, arrived: false };
 }
@@ -212,7 +212,7 @@ export function harmlessFromBelow(before: PlayerState, after: PlayerState, def: 
   return kindOf(def) === 'cactus' && after.vy < 0 && hurtbox(before).y >= enemyBox(def, state).y1;
 }
 
-const overlaps = (a: Box, b: Box): boolean => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+export const overlaps = (a: Box, b: Box): boolean => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
 
 /** Does a box (a fireball, Poncho's hurtbox) overlap a live enemy in play? Boxes that only share an edge do not touch. */
 export const boxHitsEnemy = (box: Box, def: Enemy, state: EnemyState): boolean => inPlay(state) && overlaps(box, enemyBox(def, state));

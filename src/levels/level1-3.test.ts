@@ -43,7 +43,7 @@ const swept = (x0: number, x1: number, y0: number, y1: number, w: number, h: num
 };
 
 describe('GDD-WLD-09 level 1-3', () => {
-  it('GDD-WLD-09 1-3 is 180 by 17 tiles, a World 1 level, no test level, and it comes after 1-2', () => {
+  it('GDD-WLD-09 1-3 is 180 by 17 tiles, a World 1 level, no test level, it comes after 1-2 and leads on to 1-4', () => {
     expect(world.width).toBe(180);
     expect(world.height).toBe(17);
     const entry = LEVELS.find((e) => e.id === '1-3');
@@ -52,7 +52,7 @@ describe('GDD-WLD-09 level 1-3', () => {
     expect(entry!.test).toBe(false);
     expect(entry!.level).toBe(LEVEL_1_3);
     expect(entry!.tips).toBeUndefined();
-    expect(entry!.next).toBeUndefined();
+    expect(entry!.next).toBe('1-4');
     expect(LEVELS.find((e) => e.id === PREV)!.next).toBe('1-3');
   });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FIREBALL, HIT, LIVES_MAX, RESPAWN, STEP, TILE } from '../config/tuning';
-import { BOUNCE_SPEED, spawnFireball, stepFireball, type Fireball } from './fireball';
+import { BOUNCE_SPEED, fireballBox, spawnFireball, stepFireball, type Fireball } from './fireball';
 import type { Item } from './item';
 import { spawn, type PlayerInput, type PlayerState } from './movement';
 import { startRun, stepRun, type Level, type RunState } from './run';
@@ -241,5 +241,11 @@ describe('GDD-PWR-03 spitting', () => {
     let r: RunState = { ...startRun(pit), power: 'fuego', fireballs: [{ x: 50, y: 40, vx: 0, vy: 0, age: 0 }], player: at(120, 200) };
     r = run(r, spit, 1 + RESPAWN.delaySteps + 30, pit);
     expect(r).toMatchObject({ phase: 'playing', power: 'base', fireballs: [] });
+  });
+});
+
+describe('GDD-PWR-03 the fireball box', () => {
+  it('GDD-PWR-03 a fireball box is its 6 px square, standing on its y', () => {
+    expect(fireballBox({ x: 100, y: 50, vx: 180, vy: 0, age: 0 })).toEqual({ x0: 97, x1: 103, y0: 44, y1: 50 });
   });
 });

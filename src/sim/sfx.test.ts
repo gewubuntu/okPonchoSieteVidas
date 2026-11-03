@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { bossStart, type BossState } from './boss';
 import { loseLife } from './lives';
 import { spawn, type Abilities, type PlayerInput, type PlayerState } from './movement';
 import type { MovingBlock } from './block';
@@ -445,5 +446,39 @@ describe('GDD-PRG-02 the resumed flip', () => {
     expect(count(beats, 'meow')).toBe(1);
     expect(beats.slice(1).every((b) => b.names.length === 0)).toBe(true);
     expect(beats[39]!.after.phase).toBe('playing');
+  });
+});
+
+describe('GDD-AUD-02 Don Zopilote', () => {
+  // An arena laid out like 1-4 (GDD-BOS-02): floor top at y = 224, his lap's middle at (240, 72).
+  const world = parseTiles([...Array<string>(11).fill('.'.repeat(30)), ...Array<string>(3).fill('####' + '.'.repeat(22) + '####'), ...Array<string>(3).fill('#'.repeat(30))]);
+  const arena: Level = { ...base, world, spawn: { x: 232, y: 224 }, boss: { x: 240, y: 72, floor: 224 }, rocks: [] };
+  const stuck = (hits: number): BossState => ({ ...bossStart(arena.boss!, hits), mode: 'stuck', age: 0, x: 232, y: 209, tx: 232, ty: 209 });
+  const near = (boss: BossState) => withPlayer(arena, { ...spawn(200, 224), grounded: true }, { boss });
+
+  it('GDD-AUD-02 a hit on Don Zopilote plays stomp', () => {
+    const beats = play(arena, near(stuck(0)), 3, (i) => (i === 0 ? claw : idle));
+    expect(beats.map((b) => b.names)).toEqual([['claw'], [], ['stomp']]);
+  });
+
+  it('GDD-AUD-02 his landing in the sand after a dive plays land', () => {
+    const diving: BossState = { ...stuck(0), mode: 'dive', y: 207 };
+    const beats = play(arena, withPlayer(arena, { ...spawn(100, 224), grounded: true }, { boss: diving }), 2);
+    expect(beats[0]!.after.boss!.mode).toBe('stuck');
+    expect(beats.map((b) => b.names)).toEqual([['land'], []]);
+  });
+
+  it('GDD-AUD-02 his landing and Poncho landing on one step play one land', () => {
+    // Poncho half a pixel above the floor, falling at 60 px/s, touches down on the step Don Zopilote lands in the sand.
+    const diving: BossState = { ...stuck(0), mode: 'dive', y: 207 };
+    const beats = play(arena, withPlayer(arena, airborne(100, 223.5, 60), { boss: diving }), 1);
+    expect(beats[0]!.after.boss!.mode).toBe('stuck');
+    expect(beats[0]!.after.player.grounded).toBe(true);
+    expect(beats[0]!.names).toEqual(['land']);
+  });
+
+  it('GDD-AUD-02 his defeat plays the meow with the stomp', () => {
+    const beats = play(arena, near(stuck(2)), 3, (i) => (i === 0 ? claw : idle));
+    expect(beats[2]!.names).toEqual(['meow', 'stomp']);
   });
 });

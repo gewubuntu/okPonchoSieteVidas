@@ -3,6 +3,7 @@ import { BACKDROP, PLANTS, TILE } from '../config/tuning';
 import { LEVEL_0_1 } from '../levels/level0-1';
 import { LEVEL_1_2 } from '../levels/level1-2';
 import { LEVEL_1_3 } from '../levels/level1-3';
+import { LEVEL_1_4 } from '../levels/level1-4';
 import { SANDBOX_LEVEL } from '../levels/sandbox';
 import { SLOPES_LEVEL } from '../levels/slopes';
 import type { Level } from '../sim/run';
@@ -289,6 +290,12 @@ describe('GDD-ART-06 plants', () => {
       expect(LEVEL_1_2.world.slopeAt(s.col, s.row), `plant at ${s.col},${s.row}`).toBeNull();
       expect(LEVEL_1_2.world.slopeAt(s.col, s.row - 1), `plant at ${s.col},${s.row}`).toBeNull();
     }
+  });
+
+  it('GDD-ART-06 the arena 1-4 has its 4 plants on the floor at columns 8, 9, 17 and 18, none on a pillar', () => {
+    // Row 14: (c + 1) mod 9 is 0 or 1 for c = 8, 9, 17, 18 among its floor tops (columns 4 to 25); row 11, the pillar tops (columns 0 to 3
+    // and 26 to 29): (c + 4) mod 9 gives none. Kinds (3c + 5r) mod 7: 3 (palm yucca), 6 (flowers), 2 (biznaga), 5 (agave).
+    expect(plantSpots(LEVEL_1_4).map((s) => [s.col, s.row, s.kind])).toEqual([[8, 14, 3], [9, 14, 6], [17, 14, 2], [18, 14, 5]]);
   });
 });
 

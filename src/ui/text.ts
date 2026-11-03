@@ -40,6 +40,8 @@ export interface UiText {
   readonly bronze: string;
   readonly silver: string;
   readonly gold: string;
+  /** GDD-BOS-02, GDD-UI-01: the boss's name on the boss bar, the same in every language. */
+  readonly boss: string;
 }
 
 /** GDD-UI-02: the table of texts. The Spanish and German are Proposed. */
@@ -75,6 +77,7 @@ export const TEXT: Record<Language, UiText> = {
     bronze: 'Bronze medal',
     silver: 'Silver medal',
     gold: 'Gold medal',
+    boss: 'Don Zopilote',
   },
   es: {
     continue: 'Continuar',
@@ -107,6 +110,7 @@ export const TEXT: Record<Language, UiText> = {
     bronze: 'Medalla de bronce',
     silver: 'Medalla de plata',
     gold: 'Medalla de oro',
+    boss: 'Don Zopilote',
   },
   de: {
     continue: 'Weiter',
@@ -139,6 +143,7 @@ export const TEXT: Record<Language, UiText> = {
     bronze: 'Bronzemedaille',
     silver: 'Silbermedaille',
     gold: 'Goldmedaille',
+    boss: 'Don Zopilote',
   },
 };
 
