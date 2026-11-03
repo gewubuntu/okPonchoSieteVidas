@@ -166,6 +166,27 @@ describe('GDD-WLD-05 moving platform: never carries Poncho into a tile', () => {
   });
 });
 
+describe('GDD-WLD-05 moving platform: a rising platform catches him', () => {
+  // Vertical, rising first: x = 40 to 88, its top goes from y = 176 up to y = 100 (76 px, 1.9 s one way).
+  const up: MovingPlatform = { x0: 40, y0: 176, x1: 40, y1: 100, w: 48 };
+
+  it('a falling Poncho lands on a rising platform that rises past his feet in the step', () => {
+    const l = levelOf(up);
+    // At step 24 its top is at y = 160 and at step 25 at y = 159.33: his feet, 0.1 px above it, end the step below where it was.
+    const [after] = play(l, runAt(l, { ...spawn(60, 159.9), vy: 200, grounded: false }, 24), 1);
+    expect(after!.player.grounded).toBe(true);
+    expect(after!.player.y).toBeCloseTo(platformAt(up, 25).y, 9);
+  });
+
+  it('a fragile wall over a rising platform stops his head like a ceiling', () => {
+    // As the ceiling test above, with fragile tiles at row 6 (y 96 to 112) over x 32 to 80 in place of level tiles.
+    const l: Level = { ...levelOf(up), fragiles: [2, 3, 4].map((col) => ({ col, row: 6 })) };
+    const ys = play(l, runAt(l, spawn(60, 176)), 160).map((s) => s.player.y);
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(144 - 1e-6);
+    expect(Math.min(...ys)).toBeLessThan(145);
+  });
+});
+
 describe('GDD-WLD-05 moving platform: in a run', () => {
   const level = levelOf(across);
 
