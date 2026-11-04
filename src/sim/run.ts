@@ -14,7 +14,7 @@ import { releaseFrom, stepItem, touchesItem, type Item } from './item';
 import { bumpedPinata, freshPinatas, withPinatas, type Pinata } from './pinata';
 import { collideBlocks, moveBlocks, type MovingBlock } from './block';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
-import { freshAwnings, landOnAwnings, type Awning, type AwningBounce } from './awning';
+import { awningTops, freshAwnings, landOnAwnings, type Awning, type AwningBounce } from './awning';
 import { freshRollos, growRollos, stillPlatforms, stringTops, touchesBundle, unrollTouched, type Cordel, type Rollo, type RolloState } from './papel';
 import { bounce, withSprings, type Spring } from './spring';
 import { touchesSpike, type Spike } from './hazards';
@@ -353,7 +353,13 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   const awning = landOnAwnings(pushed.player, landed, input, level.awnings ?? [], run.awningsGone);
   // GDD-ENM-02: the enemies patrol. GDD-CMB-01: landing on top of one defeats it and throws Poncho up, higher if jump is held
   // or was pressed just before.
-  const patrolled = level.enemies.map((d, i) => stepEnemy(d, run.enemies[i]!, solid, run.player));
+  // GDD-ENM-03: the Paloma walks on cordeles and strung rollos, and the Chapulín bounces on the awnings still there (GDD-WLD-10, GDD-WLD-11).
+  const tops = { awnings: awningTops(level.awnings ?? [], run.awningsGone), cordeles: stringTops(level.cordeles ?? [], level.rollos ?? [], run.rollos) };
+  const patrolled = level.enemies.map((d, i) => stepEnemy(d, run.enemies[i]!, solid, run.player, tops));
+  // GDD-WLD-10: a torn awning tears under a Chapulín's bounce as under Poncho's. Its `on` counts the awnings still there, in order, and
+  // is set only on the step it bounces (`stepChapulin` drops it from the next air step), so no age check is needed (L-025).
+  const standing = (level.awnings ?? []).flatMap((_, i) => (run.awningsGone[i] ? [] : [i]));
+  const chewed = patrolled.flatMap((e) => (e.hop?.on !== undefined ? [standing[e.hop.on]!] : [])).filter((i) => level.awnings![i]!.torn);
   const stomped = patrolled.map((e, i) => isStomp(run.player, sprung, level.enemies[i]!, e));
   // GDD-BOS-02: the boss flies his pattern, facing and aiming at Poncho as he was at the step's start, like the Zopilote. His fruit
   // falls (in phase 3 one that lands lies there); one he lets go of this step starts to fall on the next.
@@ -364,7 +370,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
     ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0, gliding: false, clinging: false, glideLock: GLIDE.stompLockSteps }
     : bounce(awning.player, level.springs);
   const onAwning = !stomped.some(Boolean);
-  const awningsGone = onAwning ? run.awningsGone.map((g, i) => g || i === awning.tore) : run.awningsGone;
+  const awningsGone = run.awningsGone.map((g, i) => g || (onAwning && i === awning.tore) || chewed.includes(i));
   const awningBounce = onAwning && awning.bounce ? { ...awning.bounce, at: run.clock } : run.awningBounce;
   const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
   // GDD-WLD-04: hilos are collected by touch on any step Poncho is in play, the step he is hit or crushed included.
