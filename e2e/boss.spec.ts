@@ -189,6 +189,9 @@ test('GDD-BOS-02 phase 3: his fruit lies on the floor for 3.0 s, drawn there', a
 
 test('GDD-BOS-02 the third hit defeats him, and 1.0 s later the level clear screen comes up and 1-4 is saved', async ({ page, isMobile }) => {
   await arena(page);
+  // Two lives lost first: five are left at the clear, and Next level still starts 2-1 with seven (GDD-LIFE-05).
+  for (let i = 0; i < 2; i++) await api(page, () => window.__PONCHO__!.loseLife());
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
   await api(page, () => window.__PONCHO__!.setBoss(2));
   await stuckBeside(page);
   // Only the sounds of the hit itself: `sfx()` lists every sound since the page loaded.
@@ -206,25 +209,18 @@ test('GDD-BOS-02 the third hit defeats him, and 1.0 s later the level clear scre
   await waitForResults(page);
   const clear = await api(page, () => window.__PONCHO__!.clearDrawn());
   expect(clear).toMatchObject({ shown: true, hilos: 'Hilos 0/0', medal: 'Gold medal' });
-  // 1-4 names no next level (GDD-UI-02): "Next level" is greyed and the menu opens on Retry.
-  expect(clear.menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
-  // Up from Retry stays there.
-  await page.keyboard.press('ArrowUp');
-  await page.keyboard.press('KeyW');
-  const t0 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 10, t0);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
-  // A tap or click on the greyed row does nothing.
+  const saved: { levels: Record<string, unknown> } = JSON.parse((await page.evaluate(() => window.localStorage.getItem('poncho-siete-vidas')))!);
+  expect(saved.levels['1-4']).toMatchObject({ hilos: '', medal: 'gold', cleared: true });
+  // 1-4 names 2-1 (GDD-UI-02, user, 2026-11-04): "Next level" can be chosen and the menu opens on it.
+  expect(clear.menu).toMatchObject({ chosen: 'next', colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'] });
+  // A tap or click on it starts World 2's first level at once, with seven lives (a new world, GDD-LIFE-05), in the Mercado's look.
   const row = await resultsRowCentre(page, 'next');
   if (isMobile) await page.touchscreen.tap(row.x, row.y);
   else await page.mouse.click(row.x, row.y);
-  const t1 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 20, t1);
-  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
-  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-4');
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
-  const saved: { levels: Record<string, unknown> } = JSON.parse((await page.evaluate(() => window.localStorage.getItem('poncho-siete-vidas')))!);
-  expect(saved.levels['1-4']).toMatchObject({ hilos: '', medal: 'gold', cleared: true });
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '2-1' && window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  expect(await api(page, () => window.__PONCHO__!.bossBar())).toMatchObject({ shown: false, pips: 0 });
+  expect((await api(page, () => window.__PONCHO__!.scenery())).set).toBe('mercado');
 });
 
 test('GDD-BOS-01 a life lost mid-fight keeps his hits and starts his phase again', async ({ page }) => {

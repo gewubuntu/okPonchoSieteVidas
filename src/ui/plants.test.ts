@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { BACKDROP, PLANTS, TILE } from '../config/tuning';
+import { BACKDROP, MERCADO, PLANTS, TILE } from '../config/tuning';
 import { LEVEL_0_1 } from '../levels/level0-1';
 import { LEVEL_1_2 } from '../levels/level1-2';
 import { LEVEL_1_3 } from '../levels/level1-3';
 import { LEVEL_1_4 } from '../levels/level1-4';
+import { LEVEL_2_1 } from '../levels/level2-1';
+import { LEVEL_2_2 } from '../levels/level2-2';
+import { LEVEL_2_3 } from '../levels/level2-3';
+import { LEVEL_2_4 } from '../levels/level2-4';
 import { SANDBOX_LEVEL } from '../levels/sandbox';
 import { SLOPES_LEVEL } from '../levels/slopes';
 import type { Level } from '../sim/run';
@@ -315,5 +319,44 @@ describe('GDD-ART-06 plants in 1-3', () => {
       return Array.from({ length: c1 - c0 + 1 }, (_, i) => c0 + i);
     });
     expect(spots.filter((s) => crusherCols.includes(s.col))).toEqual([]);
+  });
+});
+
+// GDD-ART-06 World 2's decor (maceta, bugambilia, huacal, ollas, farol, rebozos, letrero de lotería) stands by World 1's plant rule,
+// with its own sizes: only the heights differ, so only the "tiles above it, up to its height" clause can place it differently.
+describe('GDD-ART-06 World 2 decor', () => {
+  it('GDD-ART-06 decor heights: a tile 3 rows up stops a palm yucca but not ollas, a tile 2 rows up stops rebozos but not an agave', () => {
+    // Row 14: column 8 is kind 3 (palm yucca 36 px, 3 tiles; ollas 14 px, 1 tile), column 18 kind 5 (agave 12 px, 1 tile; rebozos
+    // 24 px, 2 tiles). The tiles at (8, 11) and (18, 12) are no spots themselves: (8 + 22) and (18 + 24) mod 9 are 3 and 6.
+    const l = level(14, [
+      [8, 11],
+      [18, 12],
+    ]);
+    expect(cols(l, 14)).toEqual([0, 9, 17, 18, 26, 27, 35, 36]);
+    expect(plantSpots(l, MERCADO.decor).filter((s) => s.row === 14).map((s) => s.col)).toEqual([0, 8, 9, 17, 26, 27, 35, 36]);
+  });
+
+  // Each stub has its floor at row 14 but for the gap (columns 40 to 43) and the 2 x 2 block (columns 24 and 25, top at row 12), the
+  // spawn at column 2, ofrendas at 30, 55 and 75 and the exit at 87, all on row 13. Row 14: (c + 1) mod 9 is 0 or 1 for c = 0, 8, 9, 17,
+  // 18, 26, 27, 35, 36, 44, 45, 53, 54, 62, 63, 71, 72, 80, 81, 89; 0 (spawn), 53, 54 (ofrenda 55) and 89 (exit) are within 2 columns of a
+  // thing. Row 12, the block's top: (c + 6) mod 9 is 3 and 4 for 24 and 25, none. Kinds 3c mod 7.
+  for (const [id, stub] of [
+    ['2-1', LEVEL_2_1],
+    ['2-2', LEVEL_2_2],
+    ['2-3', LEVEL_2_3],
+  ] as const) {
+    it(`GDD-ART-06 decor in the stub ${id}: 16 items on the floor`, () => {
+      expect(plantSpots(stub, MERCADO.decor).map((s) => [s.col, s.row, MERCADO.decor[s.kind]!.name])).toEqual([
+        [8, 14, 'ollas'], [9, 14, 'loteria'], [17, 14, 'huacal'], [18, 14, 'rebozos'], [26, 14, 'bugambilia'], [27, 14, 'farol'],
+        [35, 14, 'maceta'], [36, 14, 'ollas'], [44, 14, 'loteria'], [45, 14, 'huacal'], [62, 14, 'farol'], [63, 14, 'maceta'],
+        [71, 14, 'ollas'], [72, 14, 'loteria'], [80, 14, 'huacal'], [81, 14, 'rebozos'],
+      ]);
+    });
+  }
+
+  it('GDD-ART-06 decor in the arena stub 2-4: 4 items on the floor at columns 8, 9, 17 and 18, as 1-4 plants', () => {
+    expect(plantSpots(LEVEL_2_4, MERCADO.decor).map((s) => [s.col, s.row, MERCADO.decor[s.kind]!.name])).toEqual([
+      [8, 14, 'ollas'], [9, 14, 'loteria'], [17, 14, 'huacal'], [18, 14, 'rebozos'],
+    ]);
   });
 });

@@ -500,3 +500,40 @@ export const BACKDROP_ART = {
   desertBandArt: 176,
   footColour: 0x3a4580,
 } as const;
+
+/**
+ * GDD-ART-06: World 2's (Mercado) backdrop and decor, from `scripts/art/mercado.mjs`, put together as World 1's: the clouds scroll at
+ * `cloudFactor` of the camera's scroll, the far hill town at `farFactor` and the mid rooftops at `midFactor` (World 1's shares). The
+ * sky's bands are flat colours (`skyBands`), the first two ending `skyEnds` art px from the top with a dither strip of `stripArt` px; the
+ * last is the camera's background. There is no sun. Each cloud is an image at `clouds` (game px). The far band is `farBandArt` art px
+ * tall from game y `farTop`, with the flat foot in `footColour` below it; the mid band (the boss arena's plaza in its place) is
+ * `midBandArt` art px tall from `midTop` (down to the floor's top at 224). `decor` are the market's seven things (maceta de talavera,
+ * bugambilia, huacal de fruta, ollas de barro, farol, rebozos, letrero de lotería), their size in game px, placed by World 1's plant rule.
+ */
+export const MERCADO = {
+  cloudFactor: 0.1,
+  farFactor: 0.3,
+  midFactor: 0.5,
+  skyBands: [0x86bee0, 0xa9d3ea, 0xcfe8f1],
+  skyEnds: [240, 440],
+  stripArt: 2,
+  clouds: [
+    { x: 72, y: 20 },
+    { x: 227, y: 20 },
+    { x: 396, y: 48 },
+  ],
+  farTop: 84,
+  farBandArt: 464,
+  midTop: 148,
+  midBandArt: 304,
+  footColour: 0x4e4a78,
+  decor: [
+    { name: 'maceta', w: 10, h: 12 },
+    { name: 'bugambilia', w: 16, h: 20 },
+    { name: 'huacal', w: 14, h: 10 },
+    { name: 'ollas', w: 14, h: 14 },
+    { name: 'farol', w: 8, h: 40 },
+    { name: 'rebozos', w: 16, h: 24 },
+    { name: 'loteria', w: 12, h: 16 },
+  ],
+} as const;

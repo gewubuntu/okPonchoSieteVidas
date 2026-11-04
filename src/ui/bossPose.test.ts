@@ -45,10 +45,15 @@ describe('GDD-UI-01 the boss bar', () => {
   });
 
   it('GDD-UI-01 three pips 6 px square, 4 px apart, centred at the top middle', () => {
-    expect(bossPipBoxes()).toEqual([
+    expect(bossPipBoxes(3)).toEqual([
       { x: 227, y: 18, w: 6, h: 6 },
       { x: 237, y: 18, w: 6, h: 6 },
       { x: 247, y: 18, w: 6, h: 6 },
     ]);
+  });
+
+  it('GDD-UI-01 a boss beaten by more hits gets a pip for each, still centred', () => {
+    // Five pips: 5 x 6 + 4 x 4 = 46 px wide, from 240 - 23 = 217.
+    expect(bossPipBoxes(5).map((p) => p.x)).toEqual([217, 227, 237, 247, 257]);
   });
 });

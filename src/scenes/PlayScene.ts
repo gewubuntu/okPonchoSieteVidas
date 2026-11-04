@@ -1,24 +1,15 @@
 // Placeholder scene: proves the loop (input, fixed-step simulation, tile collision, pits, rendering) on the sandbox level.
-// Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04), and the backdrop and the ground tiles are World 1's desert art
-// (GDD-ART-06); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
+// Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04), and the backdrop, the decor and the ground tiles are the level's
+// world's art (GDD-ART-06, `src/ui/scenery/`); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, BOSS_BAR, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, PLANTS, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
+import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, BOSS_BAR, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
 import { bossStart } from '../sim/boss';
+import { isBossLevel, levelBoss } from '../sim/bossLevel';
 import { enemyPhase, feetOf, kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { chapulinShapes, palomaShapes, trompoShapes, type Shape } from '../ui/mercadoEnemies';
 import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
-import skyStripsPng from '../../assets/sprites/desierto/sky-strips.png';
-import sunPng from '../../assets/sprites/desierto/sun.png';
-import cloud0Png from '../../assets/sprites/desierto/cloud-0.png';
-import cloud1Png from '../../assets/sprites/desierto/cloud-1.png';
-import cloud2Png from '../../assets/sprites/desierto/cloud-2.png';
-import cloud3Png from '../../assets/sprites/desierto/cloud-3.png';
-import mountainsPng from '../../assets/sprites/desierto/mountains.png';
-import groundPng from '../../assets/sprites/desierto/ground.png';
-import plantsPng from '../../assets/sprites/desierto/plants.png';
-import farDesertPng from '../../assets/sprites/desierto/far-desert.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import jumpOgg from '../../assets/audio/sfx/jump.ogg';
@@ -56,12 +47,10 @@ import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import { stepVibration } from '../sim/vibration';
 import type { Power } from '../sim/taco';
-import { parallaxOffset } from '../ui/backdrop';
 import { followCamera } from '../ui/camera';
 import { dashedRect } from '../ui/dashed';
 import { GamepadReader } from '../ui/gamepad';
-import { groundFrame } from '../ui/groundTiles';
-import { plantSpots } from '../ui/plants';
+import { sceneryFor, type Scenery } from '../ui/scenery/scenery';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
 import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
@@ -72,7 +61,8 @@ import { startAnim, stepAnim, STAND, type PonchoAnim } from '../ui/ponchoAnim';
 import { layoutPauseMenu, layoutResultsMenu, layoutTitleMenu, pauseMenuItemAt, resultsMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
 import { languageValueX, layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
 import { LANGUAGE_NAMES, TEXT } from '../ui/text';
-import { bossPipBoxes, bossPips, bossPose } from '../ui/bossPose';
+import { BOSS_NAMES, bossBar } from '../ui/bossBar';
+import { bossPipBoxes, bossPose } from '../ui/bossPose';
 import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tipsDone as nextTipsDone, tipText, type Device, type TipFade } from '../ui/tips';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 import { hasMarketThings, loadMarketThings, MarketThings, type MarketDrawn } from '../ui/MarketThings';
@@ -149,7 +139,7 @@ export interface PonchoDebug {
    * many of its lines were visible then (GDD-UI-02). Reset when a clear screen comes up.
    */
   clearReveal(): { wait: number; lines: number }[];
-  /** The id of the level played: `0-1`, `1-1`, the boss arena `1-4` or `sandbox` (GDD-UI-02). Read from the choice the scene made at load. */
+  /** The id of the level played: `0-1`, `1-1`, the boss arena `1-4`, `2-1` or `sandbox` (GDD-UI-02). Read from the choice the scene made at load. */
   level(): string;
   /**
    * The camera (GDD-UI-04): `scrollX`, the scroll the scene last passed to Phaser, and `viewX`, the level x Phaser draws at the
@@ -158,16 +148,21 @@ export interface PonchoDebug {
    */
   camera(): { scrollX: number; viewX: number };
   /**
-   * How far the backdrop's clouds, mountains and far desert strip are shifted (GDD-ART-06), in game px, read back from what was drawn: the
-   * clouds from where the first cloud's image stands against its place at the start, the mountains and the strip from their layers'
-   * `tilePositionX / ART_SCALE`.
+   * How far the backdrop's clouds, far band (`mountains`: World 1's mountains, World 2's hill town) and mid band (`desert`: the far desert
+   * strip, World 2's rooftops or its arena's plaza) are shifted (GDD-ART-06), in game px, read back from what was drawn: the clouds from
+   * where the first cloud's image stands against its place at the start, the two bands from their layers' `tilePositionX / ART_SCALE`.
    */
   backdrop(): { clouds: number; mountains: number; desert: number };
-  /** Where the backdrop's fixed parts are drawn (GDD-ART-06), in game px on the screen, read from the drawn objects: the sun's centre, the top of the mountains' ridge band and of its flat foot, the top of the far desert strip. */
-  backdropLayout(): { sunX: number; sunY: number; mountainsY: number; footY: number; desertY: number };
+  /**
+   * Where the backdrop's fixed parts are drawn (GDD-ART-06), in game px on the screen, read from the drawn objects: the sun's centre (null
+   * in a world without a sun), the top of the far band (`mountainsY`) and of its flat foot, the top of the mid band (`desertY`).
+   */
+  backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number };
+  /** The art set the scenery is drawn from (`desierto`, `mercado`) and the texture key of the drawn mid band (`mercado:plaza` in World 2's arena) (GDD-ART-06). */
+  scenery(): { set: string; midKey: string };
   /** The frame of the ground sheet drawn at tile (tx, ty), or null where no ground image is (GDD-ART-06). Read from the drawn image. */
   groundFrame(tx: number, ty: number): number | null;
-  /** The plants drawn in the level (GDD-ART-06): each one's kind (its frame in the plants' sheet), where its foot is drawn (the middle of its tile, in game px) and its depth. Read from the drawn images. */
+  /** The plants (World 2's decor) drawn in the level (GDD-ART-06): each one's kind (its frame in the sheet), where its foot is drawn (the middle of its tile, in game px) and its depth. Read from the drawn images. */
   plants(): { kind: number; x: number; y: number; depth: number }[];
   /**
    * The tutorial tip as drawn (GDD-UI-05): the index of the tip shown (null while none is, faded out included), its text, its opacity,
@@ -617,14 +612,8 @@ export class PlayScene extends Phaser.Scene {
   private placeholderLines = false;
   /** GDD-UI-04: where the camera stands, the level x at the screen's left edge. */
   private scrollX = 0;
-  /** GDD-ART-06: each cloud's two images (it and its copy one screen to the left, so it wraps), the mountains' layer and the ground images by tile (`"tx,ty"`). */
-  private cloudImages: Phaser.GameObjects.Image[][] = [];
-  private mountains!: Phaser.GameObjects.TileSprite;
-  private desert!: Phaser.GameObjects.TileSprite;
-  private plantImages: Phaser.GameObjects.Image[] = [];
-  private sun!: Phaser.GameObjects.Image;
-  private mountainFoot!: Phaser.GameObjects.Rectangle;
-  private readonly groundImages = new Map<string, Phaser.GameObjects.Image>();
+  /** GDD-ART-06: the backdrop, the decor and the ground tiles of the level's world. */
+  private readonly scenery: Scenery;
   /** GDD-LIFE-03: the veladora's graphics, whether it was last drawn as used, and whether it is painted. GDD-WLD-03: whether the exit is. */
   private veladoraGfx!: Phaser.GameObjects.Graphics;
   private veladoraUsedDrawn = false;
@@ -659,6 +648,7 @@ export class PlayScene extends Phaser.Scene {
     this.level = entry.level;
     this.world = entry.level.world;
     this.floorY = entry.level.spawn.y;
+    this.scenery = sceneryFor(entry.world, isBossLevel(entry.level));
     // GDD-UI-02: started by a pick, it plays at once, with no title screen.
     this.holdAtStart = direct;
     if (direct) this.title = { ...TITLE, shown: false };
@@ -676,16 +666,8 @@ export class PlayScene extends Phaser.Scene {
   preload(): void {
     // GDD-ART-04: the standing frame and the four run frames, each SPRITE_FRAME game px wide (160 art px).
     this.load.spritesheet('poncho', ponchoPng, { frameWidth: SPRITE_FRAME * ART_SCALE, frameHeight: SPRITE_FRAME * ART_SCALE });
-    // GDD-ART-06: World 1's backdrop (the sky's three dither strips, the sun, a picture of each cloud, the mountains' ridge band) and the
-    // ground sheet, 28 frames of one tile (TILE * ART_SCALE) each (GDD-MOV-09).
-    this.load.spritesheet('sky-strips', skyStripsPng, { frameWidth: BASE_WIDTH * ART_SCALE, frameHeight: BACKDROP_ART.stripArt });
-    this.load.image('sun', sunPng);
-    [cloud0Png, cloud1Png, cloud2Png, cloud3Png].forEach((png, i) => this.load.image(`cloud-${i}`, png));
-    this.load.image('mountains', mountainsPng);
-    this.load.spritesheet('ground', groundPng, { frameWidth: TILE * ART_SCALE, frameHeight: TILE * ART_SCALE });
-    // GDD-ART-06: the far desert strip and the plants' sheet, one frame per kind, each as large as the largest plant.
-    this.load.image('far-desert', farDesertPng);
-    this.load.spritesheet('plants', plantsPng, { frameWidth: Math.max(...PLANTS.map((p) => p.w)) * ART_SCALE, frameHeight: Math.max(...PLANTS.map((p) => p.h)) * ART_SCALE });
+    // GDD-ART-06: the backdrop, the decor and the ground sheet of the level's world, and of no other.
+    this.scenery.preload(this.load);
     // GDD-AUD-02: Ogg where it plays, MP3 elsewhere. Phaser picks the first format the browser supports.
     this.load.audio('sfx-ofrenda', [ofrendaOgg, ofrendaMp3]);
     this.load.audio('sfx-jump', [jumpOgg, jumpMp3]);
@@ -728,9 +710,8 @@ export class PlayScene extends Phaser.Scene {
     // GDD-ART-01: the canvas is ART_SCALE times larger than the game pixels everything is placed in, so the camera draws them zoomed in
     // from the top left corner, world objects and fixed ones alike.
     this.cameras.main.setOrigin(0, 0).setZoom(ART_SCALE);
-    this.drawBackdrop();
-    this.drawPlants();
-    this.drawTiles();
+    // GDD-ART-06: the world's backdrop, decor and ground tiles, under everything else.
+    this.scenery.create(this, this.level);
     // These placeholder lines are drawn in the sandbox only, a test level: the tutorial has tips in their place (GDD-UI-05).
     this.placeholderLines = this.entry.test;
     if (this.placeholderLines) {
@@ -750,7 +731,7 @@ export class PlayScene extends Phaser.Scene {
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(10);
     this.drawHud();
     // GDD-UI-01: the boss bar, top middle, in a boss level only: his name over one pip per hit he has left. Drawn with the HUD.
-    this.bossName = this.add.text(BASE_WIDTH / 2, BOSS_BAR.nameY, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff3dc' }).setOrigin(0.5).setScrollFactor(0).setDepth(10).setVisible(this.level.boss !== undefined);
+    this.bossName = this.add.text(BASE_WIDTH / 2, BOSS_BAR.nameY, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff3dc' }).setOrigin(0.5).setScrollFactor(0).setDepth(10).setVisible(isBossLevel(this.level));
     this.bossBarGfx = this.add.graphics().setScrollFactor(0).setDepth(10);
 
     this.ofrendaGfx = this.add.graphics().setDepth(2);
@@ -1049,13 +1030,11 @@ export class PlayScene extends Phaser.Scene {
         clearReveal: () => this.clearRevealLog,
         level: () => this.entry.id,
         camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x }),
-        backdrop: () => ({ clouds: (((BACKDROP_ART.clouds[0].x - this.cloudImages[0]![0]!.x) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH, mountains: this.mountains.tilePositionX / ART_SCALE, desert: this.desert.tilePositionX / ART_SCALE }),
-        backdropLayout: () => ({ sunX: this.sun.x + BACKDROP_ART.sunHalf, sunY: this.sun.y + BACKDROP_ART.sunHalf, mountainsY: this.mountains.y, footY: this.mountainFoot.y, desertY: this.desert.y }),
-        groundFrame: (tx, ty) => {
-          const image = this.groundImages.get(`${tx},${ty}`);
-          return image === undefined ? null : Number(image.frame.name);
-        },
-        plants: () => this.plantImages.map((image) => ({ kind: Number(image.frame.name), x: image.x, y: image.y, depth: image.depth })),
+        backdrop: () => this.scenery.backdrop(),
+        backdropLayout: () => this.scenery.backdropLayout(),
+        scenery: () => this.scenery.drawn(),
+        groundFrame: (tx, ty) => this.scenery.groundFrame(tx, ty),
+        plants: () => this.scenery.plants(),
         tip: () => this.tipPainted,
         tipsDone: () => this.tipsDoneNow,
         wrapTip: (text) => this.tipText.getWrappedText(text),
@@ -1224,57 +1203,6 @@ export class PlayScene extends Phaser.Scene {
       this.devKeys = { lose: kb.addKey(K.L), ofrenda: kb.addKey(K.O), veladora: kb.addKey(K.V) };
       // Centred under the controls line, clear of the title and of the hilo counter in the top right (GDD-UI-01).
       if (this.placeholderLines) this.add.text(BASE_WIDTH / 2, 58, 'dev: L lose life, O ofrenda, V veladora', { fontFamily: 'monospace', fontSize: '8px', color: '#9ba3c4' }).setOrigin(0.5);
-    }
-  }
-
-  /**
-   * World 1's backdrop (GDD-ART-06), under everything (negative depths), drawn so that little of the screen is textured: the sky's
-   * first three bands as flat colours with the dither strips and the sun over them as small images (the horizon band is the camera's
-   * background), a small image for each cloud, the mountains' ridge band as one repeating layer and its foot as a flat colour, and the far
-   * desert strip in front of them. The sky is fixed to the screen; the clouds, the mountains and the far desert each move by their share of
-   * the camera's scroll, in `followBody`.
-   */
-  private drawBackdrop(): void {
-    const art = 1 / ART_SCALE;
-    const { skyBands, skyEnds, stripArt } = BACKDROP_ART;
-    this.cameras.main.setBackgroundColor(skyBands[3]);
-    const bands = this.add.graphics().setScrollFactor(0).setDepth(-4);
-    let top = 0;
-    skyEnds.forEach((end, i) => {
-      // The band runs on to its end: the dither strip, drawn over its last rows, covers them.
-      bands.fillStyle(skyBands[i]!, 1).fillRect(0, top * art, BASE_WIDTH, (end - top) * art);
-      top = end;
-      this.add.image(0, (end - stripArt) * art, 'sky-strips', i).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3.5);
-    });
-    this.sun = this.add.image(BACKDROP.sunX - BACKDROP_ART.sunHalf, BACKDROP.sunY - BACKDROP_ART.sunHalf, 'sun').setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3);
-    this.cloudImages = BACKDROP_ART.clouds.map(({ x, y }, i) =>
-      [x, x - BASE_WIDTH].map((at) => this.add.image(at, y, `cloud-${i}`).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-2)),
-    );
-    this.mountains = this.add.tileSprite(0, BACKDROP.mountainTop, BASE_WIDTH * ART_SCALE, BACKDROP_ART.mountainBandArt, 'mountains').setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-1);
-    const foot = BACKDROP.mountainTop + BACKDROP_ART.mountainBandArt * art;
-    this.mountainFoot = this.add.rectangle(0, foot, BASE_WIDTH, BASE_HEIGHT - foot, BACKDROP_ART.footColour).setOrigin(0).setScrollFactor(0).setDepth(-1);
-    this.desert = this.add.tileSprite(0, BACKDROP.desertTop, BASE_WIDTH * ART_SCALE, BACKDROP_ART.desertBandArt, 'far-desert').setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-0.5);
-  }
-
-  /**
-   * World 1's plants (GDD-ART-06): one image per spot of `plantSpots`, rooted 1 game px into the top tile it stands on, so its base is
-   * behind the grass of the ground tile (depth 1) and in front of the backdrop; scenery only, behind everything else in the level.
-   */
-  private drawPlants(): void {
-    this.plantImages = plantSpots(this.level).map(({ kind, col, row }) =>
-      this.add.image(col * TILE + TILE / 2, row * TILE + 1, 'plants', kind).setOrigin(0.5, 1).setScale(1 / ART_SCALE).setDepth(0.5),
-    );
-  }
-
-  /** World 1's ground (GDD-ART-06): one image of the ground sheet per solid or slope tile, a top tile, an earth tile or a sand slope (GDD-MOV-09), a version each. */
-  private drawTiles(): void {
-    for (let ty = 0; ty < this.world.height; ty++) {
-      for (let tx = 0; tx < this.world.width; tx++) {
-        const slope = this.world.slopeAt(tx, ty);
-        if (!this.world.solidTile(tx, ty) && slope === null) continue;
-        const image = this.add.image(tx * TILE, ty * TILE, 'ground', groundFrame((x, y) => this.world.solidTile(x, y), tx, ty, (x, y) => this.world.slopeAt(x, y))).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1);
-        this.groundImages.set(`${tx},${ty}`, image);
-      }
     }
   }
 
@@ -1572,11 +1500,10 @@ export class PlayScene extends Phaser.Scene {
     const g = this.bossBarGfx.clear();
     this.bossPipsPainted = 0;
     this.bossOutlinesPainted = 0;
-    const b = this.run.boss;
-    if (!b) return;
-    const pips = bossPips(b);
-    bossPipBoxes().forEach((p, i) => {
-      const filled = i < pips;
+    const bar = bossBar(this.level, this.run);
+    if (!bar) return;
+    bossPipBoxes(bar.pips).forEach((p, i) => {
+      const filled = i < bar.left;
       if (filled) {
         g.fillStyle(0xb94842, 1).fillRect(p.x, p.y, p.w, p.h);
         g.lineStyle(1, 0xfff3dc, 1).strokeRect(p.x + 0.5, p.y + 0.5, p.w - 1, p.h - 1);
@@ -2032,14 +1959,7 @@ export class PlayScene extends Phaser.Scene {
     this.scrollX = followCamera(this.scrollX, this.body.visible ? this.body.x : null, this.world.width * TILE);
     this.cameras.main.setScroll(this.scrollX, 0);
     // GDD-ART-06: the far layers move at a share of the scroll, in art pixels of their textures.
-    const cloudShift = parallaxOffset(this.scrollX, BACKDROP.cloudFactor);
-    BACKDROP_ART.clouds.forEach(({ x }, i) => {
-      const at = (((x - cloudShift) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH;
-      this.cloudImages[i]![0]!.x = at;
-      this.cloudImages[i]![1]!.x = at - BASE_WIDTH;
-    });
-    this.mountains.tilePositionX = parallaxOffset(this.scrollX, BACKDROP.mountainFactor) * ART_SCALE;
-    this.desert.tilePositionX = parallaxOffset(this.scrollX, BACKDROP.desertFactor) * ART_SCALE;
+    this.scenery.follow(this.scrollX);
   }
 
   /** One fixed simulation step with the given input. */
@@ -2367,7 +2287,9 @@ export class PlayScene extends Phaser.Scene {
     this.gameOverSubtitle.setText(t.gameOver);
     this.gameOverPrompt.setText(t.retry);
     this.clearTitle.setText(t.levelClear);
-    this.bossName.setText(t.boss);
+    // GDD-UI-01: the name of the level's boss (none in a level without one, where the name is hidden).
+    const boss = levelBoss(this.level);
+    this.bossName.setText(boss === null ? '' : t[BOSS_NAMES[boss]]);
     this.resultsItems.next.setText(t.next);
     this.resultsItems.retry.setText(t.retryLevel);
     this.resultsItems.quit.setText(t.quit);
@@ -2439,7 +2361,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawOfrendas();
   }
 
-  /** GDD-UI-02: the level after this one (1-1 after 0-1, GDD-WLD-07, 1-2 after 1-1, GDD-WLD-08, 1-3 after 1-2, GDD-WLD-09, and 1-4 after 1-3, GDD-BOS-02), or undefined where the level names none. */
+  /** GDD-UI-02: the level after this one (1-1 after 0-1, GDD-WLD-07, 1-2 after 1-1, GDD-WLD-08, 1-3 after 1-2, GDD-WLD-09, 1-4 after 1-3, GDD-BOS-02, 2-1 after 1-4 and on through World 2 to 2-4), or undefined where the level names none (2-4, a test level). */
   private nextLevel(): LevelEntry | undefined {
     return this.entry.next === undefined ? undefined : levelById(this.entry.next);
   }
@@ -2471,7 +2393,7 @@ export class PlayScene extends Phaser.Scene {
    * GDD-UI-02: Quit to title, from the pause menu or the results menu. A fresh run as when the game opens, behind the title screen
    * waiting for a press. No step runs on the title, so every latched key press is spent here, or a quick tap that picked would stay
    * latched and a new press would not be new. The buttons down now count as held on the title, so the one that picked does not start the
-   * level. When "Start" no longer plays this level (the tutorial has started, so it plays 1-1, or 1-1 has been cleared, so it plays 1-2, or 1-1 and 1-2 have been, so it plays 1-3),
+   * level. When "Start" no longer plays this level (the tutorial has started, so it plays 1-1, or 1-1 has been cleared, so it plays 1-2, or 1-1 and 1-2 have been, so it plays 1-3, or 1-4 has been, so it plays World 2's run),
    * a fresh scene of that level takes this one's place with the same title and this returns true: `update` must return at once.
    */
   private backToTitle(input: PlayerInput, portrait: boolean): boolean {
