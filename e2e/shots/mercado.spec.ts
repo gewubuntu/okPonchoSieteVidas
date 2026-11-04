@@ -27,24 +27,28 @@ test('GDD-ART-06 mercado: level 2-1 at the start', async ({ page, isMobile }, in
   await shot(page, info, 'mercado-start');
 });
 
-test('GDD-ART-06 mercado: scrolled, the far town and the rooftops have moved, the first pit and awning in view', async ({ page, isMobile }, info) => {
+test('GDD-ART-06 mercado: scrolled, the far town and the rooftops have moved, the 8-tile pit with its awning in view', async ({ page, isMobile }, info) => {
   await start(page, isMobile, '/?level=2-1');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  await stand(page, 424, 224, 168); // 2-1's first pit, columns 22 to 24 (x 352 to 400), behind him and its first awning (31 to 34) ahead
+  await stand(page, 1704, 192, 1448); // on the crate at column 106, the pit at columns 111 to 118 (x 1776 to 1904) ahead
   const offsets = await page.evaluate(() => window.__PONCHO__!.backdrop());
   expect(offsets.mountains).toBeGreaterThan(0);
   expect(offsets.desert).toBeGreaterThan(offsets.mountains);
-  expect(await page.evaluate(() => [22, 23, 24].map((c) => window.__PONCHO__!.groundFrame(c, 14)))).toEqual([null, null, null]);
+  expect(await page.evaluate(() => window.__PONCHO__!.groundFrame(110, 14))).not.toBeNull();
+  for (const col of [111, 114, 118]) expect(await page.evaluate((c) => window.__PONCHO__!.groundFrame(c, 14), col)).toBeNull();
   await shot(page, info, 'mercado-mid');
 });
 
 test('GDD-ART-06 mercado: the decor close up, beside Poncho on the floor', async ({ page, isMobile }, info) => {
   await start(page, isMobile, '/?level=2-1');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  // By the plant rule, 2-1's columns 8 to 27 hold five kinds of decor (src/ui/plants.ts), one on the crate at column 10.
-  await stand(page, 360, 224, 104);
-  const inView = (await page.evaluate(() => window.__PONCHO__!.plants())).filter((p) => p.x > 104 && p.x < 584);
-  expect(new Set(inView.map((p) => p.kind)).size).toBeGreaterThanOrEqual(5);
+  // plantSpots(LEVEL_2_1, MERCADO.decor) puts five kinds within columns 8 to 27: kinds 3 and 6 at 8 and 9, 4 on the crate at 10, 2 at
+  // 17, 1 and 4 at 26 and 27 (src/ui/plants.test.ts). Poncho stands on the floor at column 20, by the 3-tile gap at 22 to 24.
+  await stand(page, 328, 224, 72);
+  expect(await page.evaluate(() => window.__PONCHO__!.groundFrame(20, 14))).not.toBeNull();
+  const inView = (await page.evaluate(() => window.__PONCHO__!.plants())).filter((p) => p.x > 72 && p.x < 552);
+  expect(inView.map((p) => p.x)).toEqual([8, 9, 10, 17, 26, 27].map((c) => c * 16 + 8));
+  expect(new Set(inView.map((p) => p.kind)).size).toBe(5);
   await shot(page, info, 'mercado-decor');
 });
 
@@ -117,6 +121,30 @@ test('GDD-BOS-03 estrella: phase 2, risen from her thud at x 160, the tejocotes 
   expect(await page.evaluate(() => window.__PONCHO__!.tejocotesDrawn().length)).toBe(2);
   await drawnAs(page, { cones: 5 });
   await shot(page, info, 'estrella-phase2-tejocotes');
+});
+
+test('GDD-BOS-03 estrella: phase 3, her drop tearing down through the middle awning, Poncho clear of it on the right cordel', async ({ page, isMobile }, info) => {
+  // As the arena's bot plays it (phase3Hit): he waits on the middle awning so she aims there; as her drop starts he is on the right
+  // cordel's end. The shot is the step her pot's bottom is 12 px through the awning's top (y 176), on her way to the floor; the
+  // awning stays whole (GDD-BOS-03).
+  await fight(page, isMobile, 2, 248, 176);
+  expect(await stepToEstrellaMode(page, 'drop')).toBeLessThan(1000);
+  const tore = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    d.teleport(275, 136);
+    let i = 0;
+    while (i < 200 && d.estrella()!.y < 188) {
+      d.step(1);
+      i++;
+    }
+    return i;
+  });
+  expect(tore).toBeLessThan(200);
+  expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'drop', tx: 248, ty: 224, hits: 2 });
+  expect((await page.evaluate(() => window.__PONCHO__!.market())).awnings[1]!.gone).toBe(false);
+  expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ y: 136, grounded: true });
+  await drawnAs(page, { cones: 3 });
+  await shot(page, info, 'estrella-phase3-tear');
 });
 
 test('GDD-BOS-03 estrella: phase 3, risen from the floor through the middle awning, two pairs of tejocotes, Poncho on the right cordel', async ({ page, isMobile }, info) => {
