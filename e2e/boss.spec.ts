@@ -279,12 +279,12 @@ test('GDD-BOS-02 the third hit defeats him, and 1.0 s later the level clear scre
   const heard = (await played(page)).slice(heardBefore);
   expect(heard).toContain('sfx-bossDefeat');
   for (const not of ['sfx-grunt', 'sfx-stomp', 'sfx-meow']) expect(heard, not).not.toContain(not);
-  // His crown pops off his head: 17 px to the side he faces, 12 px up from his middle (x, y 209), level and then spinning (GDD-BOS-02).
+  // His crown pops off his head: he lies (on the floor), so his head is 11 px behind the way he faces and its top 5 px below his middle (x 232, y 209), level and then spinning (GDD-BOS-02).
   const hit = (await api(page, () => window.__PONCHO__!.boss()))!;
   const start = (await api(page, () => window.__PONCHO__!.bossCrownDrawn()))!;
   expect(hit.tx).toBe(232);
-  expect(start.x).toBeCloseTo(hit.tx + 17 * hit.dir, 3);
-  expect(start.y).toBeCloseTo(197, 3);
+  expect(start.x).toBeCloseTo(hit.tx - 11 * hit.dir, 3);
+  expect(start.y).toBeCloseTo(214, 3);
   expect(start.tilted).toBe(false);
   // 4 steps on: the crown has risen and turned to its tilted frame, and his white flash is off, so he lies in his own colours.
   await api(page, () => window.__PONCHO__!.step(4));
@@ -296,7 +296,7 @@ test('GDD-BOS-02 the third hit defeats him, and 1.0 s later the level clear scre
   expect(await api(page, () => window.__PONCHO__!.fruit())).toEqual([]);
   await api(page, () => window.__PONCHO__!.step(4));
   await page.waitForFunction(() => window.__PONCHO__!.bossCrownDrawn()?.tilted === false);
-  // It rests on the floor on its 25th step, before the clear screen (step 60): on step 48 it lies at y 224, level, and stays.
+  // It rests on the floor on its 18th step, before the clear screen (step 60): on step 48 it lies at y 224, level, and stays.
   await api(page, () => window.__PONCHO__!.step(40));
   const rest = (await api(page, () => window.__PONCHO__!.bossCrownDrawn()))!;
   expect(rest.y).toBeCloseTo(224, 3);
@@ -359,18 +359,19 @@ test('GDD-BOS-02 in real time his crown pops off, arcs and comes to rest on the 
         tick();
       }),
   );
-  // It was drawn on frame after frame and moved: up first (above its start, 197), spinning, then down to the floor.
+  // It was drawn on frame after frame and moved: up first (above its start, 214), then down to the floor.
   expect(frames.length).toBeGreaterThan(4);
-  expect(new Set(frames.map((f) => f.y)).size).toBeGreaterThan(4);
-  expect(Math.min(...frames.map((f) => f.y))).toBeLessThan(197 - 3);
-  expect(frames.some((f) => f.tilted)).toBe(true);
-  // From its 25th step it lies on the floor, level, in one place, whatever frame shows it: the last frames are well past that.
-  const resting = frames.filter((frame) => frame.age >= 25);
+  // The arc is 18 steps long, a few frames at the headless frame rate: the crown changes from frame to frame, rises above its start (214) and
+  // comes down to the floor. (Its spin is read step by step in the test above: a frame may miss a 4-step turn.)
+  expect(new Set(frames.map((f) => f.y)).size).toBeGreaterThan(2);
+  expect(Math.min(...frames.map((f) => f.y))).toBeLessThan(214);
+  // From its 18th step it lies on the floor, level, in one place, whatever frame shows it: the last frames are well past that.
+  const resting = frames.filter((frame) => frame.age >= 18);
   expect(resting.length).toBeGreaterThan(0);
   for (const r of resting) expect(r, `age ${r.age}`).toMatchObject({ y: 224, tilted: false });
   expect(new Set(resting.map((r) => r.x)).size).toBe(1);
   // Before it, on every frame it is in the air.
-  for (const early of frames.filter((frame) => frame.age < 18)) expect(early.y, `age ${early.age}`).toBeLessThan(224);
+  for (const early of frames.filter((frame) => frame.age < 14)) expect(early.y, `age ${early.age}`).toBeLessThan(224);
 });
 
 test('GDD-BOS-01 a life lost mid-fight keeps his hits and starts his phase again', async ({ page }) => {

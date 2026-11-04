@@ -1,6 +1,6 @@
 // GDD-BOS-01, GDD-BOS-02: Don Zopilote, World 1's boss: his flight, his cactus fruit and the rocks of his arena. He follows a fixed
 // pattern, with nothing left to chance: the only thing that varies is where Poncho is. Pure logic, no Phaser (GDD-TEC-02).
-import { BOSS, BOSS_DEFEAT, FRUIT, ROCK, STEP, TILE } from '../config/tuning';
+import { BOSS, BOSS_ART, BOSS_DEFEAT, FRUIT, ROCK, STEP, TILE } from '../config/tuning';
 import { approach, type Box } from './enemy';
 import { hurtbox } from './hazards';
 import { squareBlocked } from './item';
@@ -167,15 +167,17 @@ export interface Crown {
 }
 
 /**
- * His crown once he is defeated (GDD-BOS-02), null before. It pops off his head, BOSS_DEFEAT.crownVx px/s across towards the arena's middle
- * and BOSS_DEFEAT.crownVy px/s up, falls under BOSS_DEFEAT.crownGravity and, stepped like the rocks one step at a time for `b.age` steps,
+ * His crown once he is defeated (GDD-BOS-02), null before. It pops off his head (BOSS_ART.headTumble or headLying), BOSS_DEFEAT.crownVx
+ * px/s across towards the arena's middle and BOSS_DEFEAT.crownVy px/s up, falls under BOSS_DEFEAT.crownGravity and, stepped like the rocks one step at a time for `b.age` steps,
  * bounces once on the floor at BOSS_DEFEAT.crownBounce of its speed and rests there at the second touch.
  */
 export function bossCrown(def: Boss, b: BossState): Crown | null {
   if (b.mode !== 'defeated') return null;
   const vx = (b.tx > def.x ? -1 : 1) * BOSS_DEFEAT.crownVx;
-  let x = b.tx + 17 * b.dir;
-  let y = b.ty - 12;
+  // It starts at his head in the frame he shows on the hit step (bossPose's rule): falling (tumbleA) with room above the floor, else lying.
+  const head = def.floor - (b.ty + BOSS.height / 2) >= BOSS_ART.tumbleABelow ? BOSS_ART.headTumble : BOSS_ART.headLying;
+  let x = b.tx + head.x * b.dir;
+  let y = b.ty + head.y;
   let vy = -BOSS_DEFEAT.crownVy;
   let bounced = false;
   for (let i = 0; i < b.age; i++) {

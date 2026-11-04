@@ -154,6 +154,26 @@ describe('GDD-BOS-02 Don Zopilote\'s art', { timeout: 60_000 }, () => {
     expect([BOSS_ART.tumbleABelow, BOSS_ART.tumbleBBelow]).toEqual([7, 12]);
   });
 
+  it('GDD-BOS-02 the crown starts at his head: its place in the tumbling and the lying frames is BOSS_ART.headTumble and headLying', () => {
+    // The head is the cells of the red and orange head colours: the centroid's x and the top row, in game px from his middle (the frame's
+    // middle, drawing px (75, 62), half a game px a drawing px), before the frame is mirrored.
+    const head = (look) => {
+      let sum = 0;
+      let n = 0;
+      let top = Infinity;
+      frame(look, 0).grid.cells.forEach((c, i) => {
+        if (c !== RED && c !== PLANT.orange) return;
+        sum += i % FRAME.w;
+        n++;
+        top = Math.min(top, Math.floor(i / FRAME.w));
+      });
+      return { x: Math.round((sum / n - FRAME.w / 2) / 2), y: (top - FRAME.h / 2) / 2 };
+    };
+    expect(head('tumbleA')).toEqual(BOSS_ART.headTumble);
+    expect(head('defeat')).toEqual(BOSS_ART.headLying);
+    expect([BOSS_ART.headTumble, BOSS_ART.headLying]).toEqual([{ x: 15, y: 4.5 }, { x: -11, y: 5 }]);
+  });
+
   it('GDD-BOS-02 the flashes', () => {
     for (const crown of [3, 2, 1]) {
       expect(commonest(frame('telegraphRed', crown).grid), `telegraphRed ${crown}`).toBe(RED);

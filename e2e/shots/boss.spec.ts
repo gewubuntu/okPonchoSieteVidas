@@ -72,7 +72,7 @@ test('GDD-BOS-02 1-4: the arena, his telegraph, dive, stuck, a hit, the phase 2 
   await api(page, () => window.__PONCHO__!.step(6));
   await page.waitForFunction(() => {
     const crown = window.__PONCHO__!.bossCrownDrawn();
-    return crown !== null && crown.y < 224 - 20 && window.__PONCHO__!.boss()!.age === 6 && window.__PONCHO__!.bossDrawn()?.flash === null;
+    return crown !== null && crown.y < 214 - 5 && window.__PONCHO__!.boss()!.age === 6 && window.__PONCHO__!.bossDrawn()?.flash === null;
   });
   await shot(page, info, 'boss-crown');
 

@@ -292,9 +292,9 @@ describe('GDD-BOS-02 playing 1-4', () => {
   });
 
   it('GDD-BOS-02 his crown lands and rests before the clear screen, hit stuck at the start or in the air at y 150', () => {
-    // Stuck in the sand at the start (x 232, y 209) facing right: first on the floor on its 18th step, resting on its 25th.
-    expect(measure(defeatedByRock('stuck', 232, 209, 1))).toMatchObject({ landed: 18, rested: 25, last: 224 });
-    // Hit in the air in a dive at y 150: on the floor on its 25th step, resting on its 36th.
-    expect(measure(defeatedByRock('dive', 232, 150, 1))).toMatchObject({ landed: 25, rested: 36, last: 224 });
+    // Stuck in the sand at the start (x 232, y 209) facing right: first on the floor on its 14th step, resting on its 18th.
+    expect(measure(defeatedByRock('stuck', 232, 209, 1))).toMatchObject({ landed: 14, rested: 18, last: 224 });
+    // Hit in the air in a dive at y 150: on the floor on its 24th step, resting on its 34th.
+    expect(measure(defeatedByRock('dive', 232, 150, 1))).toMatchObject({ landed: 24, rested: 34, last: 224 });
   });
 });
