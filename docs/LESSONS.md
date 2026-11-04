@@ -68,8 +68,10 @@ Retired IDs: L-046
 - **Root cause:** The numbers came from a different integrator and a different release timing than the shipped code, and nothing tied the GDD to the code until tests existed.
 - **Rule:** Derive any GDD number that depends on simulation from the real simulation code through a test, then write the measured value into the GDD. The tuning tests in `src/sim/movement.test.ts` are the source for those figures.
 - **Recurrence 2 (2026-11-02, PR #69, GDD-CTL-03, found by the review):** the known limit "a side inset of more than 4 px puts the claw button over the settings rows" was worked out by hand from the layout numbers; it named one button of three and missed the other side's 21 px. The `harness-gdd-update` rule asked for measuring only claims that follow from the simulation or a level, not from a layout. The thresholds are now measured over the real layouts in `src/ui/settingsMenu.test.ts`.
-- **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test)
+- **Recurrence 3 (2026-11-04, GDD-BOS-02 his defeat, found by the implementer):** my plan picked the crown's speed, gravity and bounce by hand and claimed it would rest before the clear screen 60 steps after the hit; measured over the real fight, a hit high in the air left it resting on step 61 to 76, frozen mid-bounce on the clear screen. The skill rule asks to measure a claim before it goes into the GDD, and it did not reach the plan, where I wrote it as a fact rather than a target. The constants are now tuned against a test that sweeps every height he can be defeated at (worst step 49).
+- **Recurrence 4 (2026-11-04, PR #77, found by the review):** my plan put the crown's start "17 px to the side he faces", worked out from the upright drawing; the frame he shows on the floor lies on his back, head on the other side, so the crown popped off his tail. The head's place is now measured from the art frames by a test (`BOSS_ART.headTumble`, `headLying`).
+- **Recurrence:** 4
+- **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test). Guard: none (no script can tell a measured claim from one worked out by hand; the implementer measures every planned number in a test before the GDD takes it, which caught this one)
 
 ## L-004 Debug hook returned the wrong value after landing
 
@@ -156,7 +158,9 @@ Retired IDs: L-046
 - **Recurrence 15 (2026-11-02, PR #71, GDD-MOV-09 sand slopes, found by the review):** the taco's "a step up into a ceiling is not taken" guard reverts two fields (`x = fromX; y = fromY;`); the plan mutated the guard into the flush beside it, but not each revert, and the test accepted a range of turn positions, so deleting the revert, or only its `y`, survived. The step named conditions over several fields, not reverts of several; it now names both, and a test over a 45-degree ramp under a low ceiling pins the `y` revert.
 - **Recurrence 16 (2026-11-03, PR #72, GDD-WLD-08 Start follows the run, found by the review):** `worldAtAfter`'s `event === 'clear' && entry.next !== undefined` had one mutant (the game-over branch writing nothing), and its only game-over test used 1-2, which names no next level, so dropping the `event` clause survived. The skill step already names conditions over several fields; my own addendum plan did not apply it to this `&&`. A game over in 1-1 is now tested in a unit test and in the playtest's saved `worldAt`.
 - **Recurrence 17 (2026-11-03, PR #73, the `gdd-one-version` gate check of L-057, found by the review):** the check was proved to fail on one bad GDD, but I ran no mutants on its own logic; its fake git answered every `merge-base` call, so asking for `merge-base HEAD HEAD` (which turns the check off) survived the unit tests. The mutation step lives in `harness-feature`, and a retro's new guard does not go through that skill; `harness-retro` step 3 and `docs/HARNESS.md` (Adding a check) now ask for one mutant per condition and per argument inside a new guard's module, and the fake git answers only `merge-base origin/main HEAD` (13 mutants, all caught).
-- **Recurrence:** 17
+- **Recurrence 18 (2026-11-04, PR #75, Don Zopilote's art, found by the review):** the crown rule ("a point for each hit he has left") is drawn in 11 looks at three crowns, but its art test counted the crown's gold in the flap frame only, so a mutant giving every hurt frame three points survived. The skill step already says a helper used at several sites needs a test that reaches every site; the plan applied it to the pose code, not to the drawing's looks. The test now covers every look that shows his colours, and its mutant is caught.
+- **Recurrence 19 (2026-11-04, PR #77, found by the review):** the crown's floor check `y < def.floor` had no mutant for its boundary (`<=`), and two reachable hit heights put the crown exactly on the floor, where the mutant moved the bounce a step later. A test now pins a landing exactly on the floor.
+- **Recurrence:** 19
 - **Promoted:** .claude/skills/harness-feature (mutation step, now one mutation per new GDD rule; a condition over several fields, or a revert of several, is one change per field), .claude/skills/harness-retro (step 3: a new guard's own mutants), pr-reviewer subagent. (Fifth time, the Tlacuache: two play-dead tests read the 2.0 s from `TLACUACHE.playDeadSteps`, so moving it did not fail them; the mutation step caught it before the commit, and the tests now say 119 and 120 steps.) (Sixth time, the same PR: the reviewer found two Tlacuache rules with no test that could fail, the claw half of "the claw or a fireball wins over a first stomp" and the wake-up twitch. My mutations went bullet by bullet and missed clauses; the feature skill now asks for one mutation per clause.) (Seventh time, PR #35: the clause "so it always starts at its normal size" was tested only for the first drop to one; resetting the start when the lives leave one had no test. The start tracking moved into a pure helper with unit tests for each path.) (Eighth time, PR #44: the hilo playback rate was computed in `PlayScene`, and the plan left the scene out of the mutants, so the reviewer could set the rate to 1 with every test green. The rate moved into a pure helper (`noteRate`) and the scene logs the rate it passes, checked in e2e; the feature skill now names numbers computed in a scene.) Guard: none (only a mutant shows that a test can fail, and no script can tell which GDD clauses a plan left without one; the pr-reviewer mutates every new rule).
 
 ## L-011 Generated audio was never listened to or measured
@@ -193,7 +197,8 @@ Retired IDs: L-046
 - **Recurrence 8 (2026-10-31, PR #62, found by the review):** GDD-CTL-02 listed the menus without the new results menu. Two of these five were lists of a family the new member never joined (PRs #57 and #62) and one sat inside the section the PR edited (PR #58); none was counted when it happened, since the retro ran before the review.
 - **Recurrence 9 (2026-11-01, PR #68, found by the review):** after the mirrored layout, GDD-CTL-03's slide stick and claw bullets still said Jump stays on the right, the switch sits above the left thumb zone and the claw sits left of Jump. The hunt searched for the stick's quarter but not for the words a mirror makes false: the sides ("left", "right") in the section the change edits.
 - **Recurrence 10 (2026-11-03, PR #74, GDD-BOS-02, found by the review):** after the boss arena 1-4 joined World 1, GDD-UI-05 still said "1-1, 1-2 and 1-3 have neither" (tips nor placeholder lines) and GDD-LIFE-03's veladora list named no boss arena; the backlog rows of PWR-03, TEC-04, CMB-01, CMB-03 and UI-01 still described the game without him. The skill's family-list search was run, but by a regex that demanded 90 characters before each match, so a list near the start of a line never showed; and `harness-gdd-update` step 1 already asked for the touched IDs' backlog rows to be searched, but I did not do it. Both skills' family-list search now names `docs/BACKLOG.md` and a plain pattern with no context length.
-- **Recurrence:** 10
+- **Recurrence 11 (2026-11-04, PR #77, found by the review):** the GDD still said "Only his lowered wings reach below his box's bottom" after the tumbling frames that also reach below it were added; the hunt for "only" was skipped because the sentence sat in a paragraph the PR edited elsewhere. Fixed in 02fae7d; the art test already pinned the frames' depths, so the code was right and only the prose went stale.
+- **Recurrence:** 11
 - **Promoted:** .claude/skills/harness-feature (Update docs step, which now also searches for the path of every test file or block the feature deletes or moves, and since recurrence 8 for the lists a new member of a family must join and a full re-read of each edited section, since recurrence 10 in `docs/BACKLOG.md` too, with a plain pattern; its Push and pull request step runs the retro on the review's findings) and .claude/skills/harness-gdd-update (step 1, the same hunt for GDD edits made outside a feature, with the same plain list pattern since recurrence 10). Guard: none (which sentences a change makes false takes reading the GDD; the pr-reviewer's consistency audit is the backstop).
 
 ## L-014 A claim about where things are in the sandbox level had no test
@@ -318,7 +323,8 @@ Retired IDs: L-046
 - **Rule:** When a mutant of a guard survives, first ask whether another rule already covers that case. If it does, delete the guard and say in a comment which rule covers it, instead of adding a test that cannot fail for the guard alone.
 - **Recurrence 3 (2026-10-23, GDD-WLD-05 moving blocks):** a `clinging: false` on the block's side stop survived, since movement only clings to tiles; deleted with a comment naming the covering rule. The skill step worked as written.
 - **Recurrence 4 (2026-10-23, GDD-UI-02 pause menu):** the plan itself designed the redundancy: a `tapResume` event for a tap on the Resume row, which did exactly what a plain `tap` already did (resume, whichever item is chosen). Its mutant could not die. Deleted in the check step, the Resume row now sends `tap`. The rule caught it, but only after a plan, an implementation and tests had been built for it.
-- **Recurrence:** 4
+- **Recurrence 5 (2026-11-03, GDD-BOS-02 boss art):** the plan's first mutant took `'sweep'` out of the flapping modes, but the new tucked-wings rule for the sweep already won over the flap, so the mutant changed nothing; the implementer replaced it with a killable one. The plan rule names new events, states and branches, not a mutant of a rule that a newer rule in the same plan shadows. The guard (`scripts/mutate.mjs`, run in the plan's check) caught it as designed.
+- **Recurrence:** 5
 - **Promoted:** step 7 of the `harness-feature` skill (step 4 of `.claude/agents/implementer.md` too), and since recurrence 4 also step 5 (plan): a new event, state or branch must do something no existing one does. Guard: `scripts/mutate.mjs` (a guard another rule already covers survives its mutant, and the run fails).
 
 ## L-026 A test measured over a window wide enough to include a second, unrelated event
@@ -654,7 +660,18 @@ Retired IDs: L-046
 - **Recurrence:** 1
 - **Promoted:** no
 
-## L-059 Parallel worktrees on one machine would run their playtests against each other's dev server
+## L-059 A sprite frame drawn without checking where the game shows it hung below the floor
+
+- **Date:** 2026-11-04
+- **Area:** art
+- **What went wrong:** Don Zopilote's hurt and defeated frames (PR #75) were drawn with his wings lowered, as in the design canvas, where he hovered in the sky. In the game he is hurt on the floor after a claw hit and lies there defeated, with his box's bottom on the floor's top, so the wings hung 12 to 16 px below it, in front of the ground tiles. The art tests checked the palette, the outline and the crown, not where each frame is shown; the reviewer found it in the screenshots.
+- **Root cause:** The frames were designed one by one as poses, not against the places the game draws them: the plan listed which mode picks each frame, but not where his box is in that mode.
+- **Rule:** When planning a sprite's frames, list for each frame every place the game shows it (in the air, resting on the floor, rising from it, against a wall), pin in an art test how far each frame reaches past its box and that none is cut off by its frame's edge, and test over the real level or fight that at every step the frame shown fits the room it has there (`scripts/art/boss.test.mjs`, `src/levels/level1-4.test.ts`).
+- **Recurrence 2 (2026-11-04, PR #75 re-review):** my fix for the first finding checked only the frames shown resting on the floor; the reviewer measured the fight and found the flap's lowered wings 2 to 14 px into the floor for the last 5 steps of every phase 2 drop and the climb's for 4 steps off the floor. The same check also showed the lowered wings had been cut off by the frame's bottom edge, which the outline test missed because it treated the edge as filled. Now: the lowered wings are shorter and fit their frame, an edge counts as empty in the outline test, the art test pins that only the lowered wings reach below his box (14 px, `BOSS_ART.wingsBelow`), `bossPose` keeps them raised within 14 px of the floor, and a test runs the bot through the whole 1-4 fight checking every frame shown against the floor.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-feature step 5 (Sprite frames). Guard for Don Zopilote: `scripts/art/boss.test.mjs` ("only his lowered wings reach below his box") and `src/levels/level1-4.test.ts` ("through the whole fight no frame of his reaches into the floor"); a new sprite gets its own from the skill step.
+
+## L-060 Parallel worktrees on one machine would run their playtests against each other's dev server
 
 - **Date:** 2026-11-04
 - **Area:** harness, playtest
@@ -664,7 +681,7 @@ Retired IDs: L-046
 - **Recurrence:** 1
 - **Promoted:** no
 
-## L-060 The swarm's worktrees were cut from main, not from the branch they were to build on
+## L-061 The swarm's worktrees were cut from main, not from the branch they were to build on
 
 - **Date:** 2026-11-04
 - **Area:** process
@@ -674,7 +691,7 @@ Retired IDs: L-046
 - **Recurrence:** 1
 - **Promoted:** no
 
-## L-061 Playtests pinned the stub levels' numbers, and the real levels broke them
+## L-062 Playtests pinned the stub levels' numbers, and the real levels broke them
 
 - **Date:** 2026-11-04
 - **Area:** playtest, level
@@ -684,17 +701,17 @@ Retired IDs: L-046
 - **Recurrence:** 1
 - **Promoted:** no
 
-## L-062 Playtests in one checkout reloaded mid-test while other worktrees ran their own
+## L-063 Playtests in one checkout reloaded mid-test while other worktrees ran their own
 
 - **Date:** 2026-11-04
 - **Area:** harness, playtest
 - **What went wrong:** During World 2's build, playtests in the main checkout failed four times with "Execution context was destroyed, most likely because of a navigation" (block, cactus, the 1-2 and settings shots), each early in a run and each passing alone. Agent worktrees were running their own dev servers at the time, every worktree with `node_modules` symlinked to the main checkout's.
 - **Root cause:** Vite keeps its optimized dependencies in `node_modules/.vite`; with `node_modules` shared, every dev server used the same cache, and one server re-optimizing it made the others reload their pages (the most likely cause: the failures stopped once only one server ran).
-- **Rule:** A dev server for playtests on its own port (`PONCHO_E2E_PORT`, L-059) also has its own Vite cache (`vite.config.ts` derives `cacheDir` from the port), so parallel worktrees never share it.
+- **Rule:** A dev server for playtests on its own port (`PONCHO_E2E_PORT`, L-060) also has its own Vite cache (`vite.config.ts` derives `cacheDir` from the port), so parallel worktrees never share it.
 - **Recurrence:** 1
 - **Promoted:** no
 
-## L-063 A mutant that loops forever hung the whole mutation run
+## L-064 A mutant that loops forever hung the whole mutation run
 
 - **Date:** 2026-11-04
 - **Area:** tests, harness

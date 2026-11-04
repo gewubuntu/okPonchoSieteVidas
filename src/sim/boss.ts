@@ -1,6 +1,6 @@
 // GDD-BOS-01, GDD-BOS-02: Don Zopilote, World 1's boss: his flight, his cactus fruit and the rocks of his arena. He follows a fixed
 // pattern, with nothing left to chance: the only thing that varies is where Poncho is. Pure logic, no Phaser (GDD-TEC-02).
-import { BOSS, FRUIT, ROCK, STEP, TILE } from '../config/tuning';
+import { BOSS, BOSS_ART, BOSS_DEFEAT, FRUIT, ROCK, STEP, TILE } from '../config/tuning';
 import { approach, type Box } from './enemy';
 import { hurtbox } from './hazards';
 import { squareBlocked } from './item';
@@ -149,8 +149,50 @@ export const bossHarms = (b: BossState): boolean => !HARMLESS.includes(b.mode);
 /** Can a rock hit him? Unless he is hurt or defeated. */
 export const bossHittable = (b: BossState): boolean => b.mode !== 'hurt' && b.mode !== 'defeated';
 
-/** A hit: hurt, or defeated by the last one (BOSS.hits). */
-export const hitBoss = (b: BossState): BossState => ({ ...b, hits: b.hits + 1, mode: b.hits + 1 >= BOSS.hits ? 'defeated' : 'hurt', age: 0 });
+/**
+ * A hit: hurt, or defeated by the last one (BOSS.hits). The hit that defeats him keeps where it hit him in `tx`, `ty`, where his crown
+ * starts (nothing else reads them once he is defeated); a hurt hit leaves them as they were.
+ */
+export const hitBoss = (b: BossState): BossState => {
+  const defeated = b.hits + 1 >= BOSS.hits;
+  return { ...b, hits: b.hits + 1, mode: defeated ? 'defeated' : 'hurt', age: 0, tx: defeated ? b.x : b.tx, ty: defeated ? b.y : b.ty };
+};
+
+/** Where his crown is and which frame it shows: its bottom middle, whether it lies on the floor for good, and whether it is turned. */
+export interface Crown {
+  readonly x: number;
+  readonly y: number;
+  readonly resting: boolean;
+  readonly tilted: boolean;
+}
+
+/**
+ * His crown once he is defeated (GDD-BOS-02), null before. It pops off his head (BOSS_ART.headTumble or headLying), BOSS_DEFEAT.crownVx
+ * px/s across towards the arena's middle and BOSS_DEFEAT.crownVy px/s up, falls under BOSS_DEFEAT.crownGravity and, stepped like the rocks one step at a time for `b.age` steps,
+ * bounces once on the floor at BOSS_DEFEAT.crownBounce of its speed and rests there at the second touch.
+ */
+export function bossCrown(def: Boss, b: BossState): Crown | null {
+  if (b.mode !== 'defeated') return null;
+  const vx = (b.tx > def.x ? -1 : 1) * BOSS_DEFEAT.crownVx;
+  // It starts at his head in the frame he shows on the hit step (bossPose's rule): falling (tumbleA) with room above the floor, else lying.
+  const head = def.floor - (b.ty + BOSS.height / 2) >= BOSS_ART.tumbleABelow ? BOSS_ART.headTumble : BOSS_ART.headLying;
+  let x = b.tx + head.x * b.dir;
+  let y = b.ty + head.y;
+  let vy = -BOSS_DEFEAT.crownVy;
+  let bounced = false;
+  for (let i = 0; i < b.age; i++) {
+    vy += BOSS_DEFEAT.crownGravity * STEP;
+    x += vx * STEP;
+    y += vy * STEP;
+    // Only a falling crown reaches the floor: it starts above it and the bounce lifts it clear on the next step (the bounce rule covers "while falling", L-025).
+    if (y < def.floor) continue;
+    y = def.floor;
+    if (bounced) return { x, y, resting: true, tilted: false };
+    vy *= -BOSS_DEFEAT.crownBounce;
+    bounced = true;
+  }
+  return { x, y, resting: false, tilted: Math.floor(b.age / BOSS_DEFEAT.crownSpinSteps) % 2 === 1 };
+}
 
 /** Poncho's hurtbox (GDD-MOV-06) as a box. */
 export function ponchoBox(player: PlayerState): Box {

@@ -427,6 +427,23 @@ export const TEJOCOTE = { size: 8, rollSpeed: 90, secondPairSteps: Math.round(0.
 export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4, nameStroke: '#2a1f2e', nameStrokePx: 2 } as const;
 
 /**
+ * GDD-BOS-02, GDD-ART-01: the size of Don Zopilote's art in game px: one frame of his sheet (`frameW` x `frameH`, `columns` across; his box's
+ * middle is the frame's middle), one frame of the fruit sheet (`fruitFrame` square, over its 8 x 8 box), the rock (`rock` square, over its 12 x 12)
+ * and one frame of the crown sheet (`crownW` x `crownH`). His head, where the crown starts, is at `headTumble` in the frame he falls in
+ * (tumbleA) and at `headLying` in the one he lies in: its middle's x towards the side he faces and its top's y below his middle, in px (an art
+ * test measures them from the frames). His lowered wings reach `wingsBelow` px below his box's bottom, his tumbling frames `tumbleABelow` and
+ * `tumbleBBelow` px (shown only while he has that much room above the floor); no other frame reaches below it.
+ */
+export const BOSS_ART = { frameW: 75, frameH: 62, columns: 7, fruitFrame: 9, rock: 13, wingsBelow: 14, tumbleABelow: 7, tumbleBBelow: 12, crownW: 12, crownH: 8, headTumble: { x: 15, y: 4.5 }, headLying: { x: -11, y: 5 } } as const;
+
+/**
+ * GDD-BOS-02: his defeat. He tumbles as he falls, turning to the other look every `tumbleSteps`. His crown pops off his head: it moves
+ * `crownVx` px/s across, towards the arena's middle, starts `crownVy` px/s up under `crownGravity` (px/s squared), bounces once at
+ * `crownBounce` of its speed and rests on the floor; it shows its tilted frame on every other `crownSpinSteps` steps while it is in the air.
+ */
+export const BOSS_DEFEAT = { tumbleSteps: 6, crownVx: 45, crownVy: 180, crownGravity: 1800, crownBounce: 0.3, crownSpinSteps: 4 } as const;
+
+/**
  * GDD-CMB-01: landing on top of a stompable enemy bounces Poncho up at `bounce` px/s, or at `boostBounce` (the jump
  * velocity) if jump is held or was pressed in the buffer window. A stomp counts if his feet were no more than `tolerance`
  * px below the enemy's top on the step before.

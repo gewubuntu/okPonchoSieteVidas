@@ -33,7 +33,7 @@ async function begin(page: Page, isMobile: boolean, x: number, y: number): Promi
   }, [x, y]);
 }
 
-/** The camera's rightmost left edge: the level's width less one screen of 480 px (L-061: read from the level). */
+/** The camera's rightmost left edge: the level's width less one screen of 480 px (L-062: read from the level). */
 const EDGE = LEVEL_2_1.world.width * 16 - 480;
 
 /** Waits until the camera has followed Poncho: its left edge 256 px left of him, inside the level (GDD-UI-04). */

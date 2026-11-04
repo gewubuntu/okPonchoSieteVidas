@@ -55,7 +55,7 @@ const jump = (page: Page, n: number, move: number, after = move) =>
     return d.state().y;
   }, [n, move, after]);
 
-/** The camera's rightmost left edge: the level's width (L-061: read from the level module) less the 480 px view (GDD-ART-01). */
+/** The camera's rightmost left edge: the level's width (L-062: read from the level module) less the 480 px view (GDD-ART-01). */
 const LAST_VIEW_X = LEVEL_2_2.world.width * TILE - 480;
 
 /** Waits until the camera has followed Poncho: its left edge 256 px left of him, inside the level (GDD-UI-04). */

@@ -7,7 +7,7 @@ import { boot, openGame, pixelsAt, resultsRowCentre, stepToBossMode, stepUntil, 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 type Colour = { r: number; g: number; b: number };
 const brightness = (c: Colour) => c.r + c.g + c.b;
-const pale = (c: Colour) => c.r > 220 && c.g > 220 && c.b > 205; // his thorns, f2efe6
+const green = (c: Colour) => c.g > c.r + 25 && c.g > c.b + 25; // a cholla joint: g clearly over r and b
 
 /** Boots 1-4 from its title screen and pauses it a few steps in, Poncho at the start (x 232). */
 async function arena(page: Page): Promise<string[]> {
@@ -16,6 +16,9 @@ async function arena(page: Page): Promise<string[]> {
   await api(page, () => window.__PONCHO__!.pause(true));
   return errors;
 }
+
+/** The keys of the sounds the audio system was given since the page loaded, in order (`sfxPlayed`). */
+const played = (page: Page) => api(page, () => window.__PONCHO__!.sfxPlayed().map((p) => p.key));
 
 /**
  * Steps (paused) until he is stuck in the sand after a dive aimed at the start (Poncho stands at x 232 until the aim is taken), Poncho
@@ -40,6 +43,10 @@ test('GDD-BOS-02 level=1-4 opens the arena on the title screen and Start plays i
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5 && window.__PONCHO__!.bossBar().pips === 3);
   expect(await api(page, () => window.__PONCHO__!.bossBar())).toEqual({ shown: true, name: 'Don Zopilote', stroke: ['#2a1f2e', 2], nameY: 10, pips: 3, outlines: 0 });
   expect(await api(page, () => window.__PONCHO__!.boss())).toMatchObject({ hits: 0, mode: 'lap' });
+  // GDD-BOS-02: three points on his crown, a flap look, and his sprite facing the way he does (left at the start), read in one go.
+  const start = await api(page, () => ({ boss: window.__PONCHO__!.boss()!, drawn: window.__PONCHO__!.bossDrawn()! }));
+  expect(start.drawn).toMatchObject({ crown: 3, dir: start.boss.dir });
+  expect(['flapUp', 'flapDown']).toContain(start.drawn.look);
   expect(await api(page, () => window.__PONCHO__!.exitDrawn())).toBe(false);
   expect(await api(page, () => window.__PONCHO__!.hilos())).toMatchObject({ taken: 0, total: 0 });
   // GDD-UI-01: with no hilos in the arena the counter reads "0/0" (an Open Question for the user).
@@ -92,6 +99,8 @@ test('GDD-BOS-02 he circles, dives and sticks in the sand, dazed, in real time',
 test('GDD-BOS-02 his body flashes red in his telegraph and white when a claw swipe hits him stuck, and the bar loses a pip', async ({ page }) => {
   await arena(page);
   expect(await stepToBossMode(page, 'telegraph')).toBeLessThan(1000);
+  // GDD-AUD-02: the step his telegraph starts plays the hiss, once; the steps after it do not play it again.
+  expect((await played(page)).filter((k) => k === 'sfx-hiss')).toHaveLength(1);
   // Red and wings raised, both read from what was handed to Phaser, in one read (L-033).
   await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.flash === 'red' && window.__PONCHO__!.bossDrawn()?.wings === 'raised');
   const b = (await api(page, () => window.__PONCHO__!.boss()))!;
@@ -100,34 +109,47 @@ test('GDD-BOS-02 his body flashes red in his telegraph and white when a claw swi
   expect(red!.r, JSON.stringify(red)).toBeGreaterThan(200);
   expect(red!.g, JSON.stringify(red)).toBeLessThan(120);
   await api(page, () => window.__PONCHO__!.step(4));
+  expect((await played(page)).filter((k) => k === 'sfx-hiss')).toHaveLength(1);
   await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.flash === null);
   const [plain] = await pixelsAt(page, [{ x: b.x, y: b.y + 3 }]);
-  expect(plain!.r, JSON.stringify(plain)).toBeLessThan(120);
+  expect(plain!.r, JSON.stringify(plain)).toBeLessThan(200); // his brown plumage, not the flash's red (r 216)
   await stuckBeside(page);
   // A press held for three steps: two of wind-up, then the swing that reaches him (GDD-CMB-02).
+  const heardBefore = (await played(page)).length;
   await api(page, () => window.__PONCHO__!.step(3, { move: 0, jumpHeld: false, claw: true }));
   // Two pips filled and the hit taken drawn as a grey outline (GDD-UI-01, GDD-UI-03), read with his flash in one read (L-033).
   await page.waitForFunction(() => {
     const d = window.__PONCHO__!;
     return d.boss()!.mode === 'hurt' && d.bossDrawn()?.flash === 'white' && d.bossBar().pips === 2 && d.bossBar().outlines === 1;
   });
-  const [white, first, last] = await pixelsAt(page, [{ x: 232, y: 212 }, { x: 230, y: 21 }, { x: 250, y: 21 }]);
-  expect(Math.min(white!.r, white!.g, white!.b), JSON.stringify(white)).toBeGreaterThan(220);
+  // One hit taken: two points left on his crown (GDD-BOS-02).
+  expect(await api(page, () => window.__PONCHO__!.bossDrawn())).toMatchObject({ crown: 2, look: 'hurtWhite', wings: 'tucked' });
+  const [white, first, last] = await pixelsAt(page, [{ x: 232, y: 208 }, { x: 230, y: 21 }, { x: 250, y: 21 }]);
+  // The flash's white is World 1's pale cream, fff6d0, sampled 1 px above his middle (232, 209), clear of his tucked wing's shaded fold.
+  expect(Math.min(white!.r, white!.g), JSON.stringify(white)).toBeGreaterThan(230);
+  expect(white!.b, JSON.stringify(white)).toBeGreaterThan(190);
   expect(first!.g, JSON.stringify(first)).toBeLessThan(110); // still filled
   expect(last!.g, JSON.stringify(last)).toBeGreaterThan(120); // an outline: the sky shows through
-  expect(await api(page, () => window.__PONCHO__!.sfx())).toContain('stomp');
+  // GDD-AUD-02: the hit grunts, and no longer thuds like a stomp; the swing's own claw sound plays before it.
+  const heard = (await played(page)).slice(heardBefore);
+  expect(heard).toContain('sfx-grunt');
+  expect(heard).not.toContain('sfx-stomp');
+  expect(heard).toEqual(['sfx-claw', 'sfx-grunt']);
 });
 
-test('GDD-CMB-01 three pale thorns on his back mark Don Zopilote as not stompable', async ({ page }) => {
+test('GDD-CMB-01 three cholla joints on his back mark Don Zopilote as not stompable', async ({ page }) => {
   await arena(page);
   expect(await stepToBossMode(page, 'telegraph')).toBeLessThan(1000);
-  // Frozen at the right end of his lap, wings raised, facing Poncho to the left. Each thorn is sampled in its middle, 3 px above its
-  // base, where it is 6 px wide: clear of his head and crown (to the left), with a raised wing behind the outer two and the sky behind
-  // the middle one, so none of them shows pale without its thorn (L-017).
-  await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.flash === 'red' && window.__PONCHO__!.bossDrawn()?.wings === 'raised');
-  const { x, y } = (await api(page, () => window.__PONCHO__!.boss()))!;
-  const thorns = await pixelsAt(page, [-11, 1, 13].map((dx) => ({ x: x + dx, y: y - 9 })));
-  expect(thorns.filter(pale).length, JSON.stringify(thorns)).toBeGreaterThanOrEqual(2);
+  // Frozen at the right end of his lap, wings raised, facing Poncho to the left, a few steps into the telegraph so that the red flash is
+  // off and the joints show their own green (the flash paints him all red). The sprite is drawn facing right and mirrored about his middle
+  // for left, so each joint's place is mirrored with it: they sit 9, 4.5 and 0 px from his middle towards his tail, 4.5 px above it. Each
+  // is sampled in its middle, where it is 4 px or more across (L-017); two of the three green is enough, as a joint can be half a
+  // pixel off where the sprite lands.
+  await api(page, () => window.__PONCHO__!.step(4));
+  await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.look === 'telegraph' && window.__PONCHO__!.bossDrawn()?.wings === 'raised');
+  const { x, y, dir } = (await api(page, () => window.__PONCHO__!.boss()))!;
+  const joints = await pixelsAt(page, [-9, -4.5, 0].map((dx) => ({ x: x + dir * dx, y: y - 4.5 })));
+  expect(joints.filter(green).length, JSON.stringify(joints)).toBeGreaterThanOrEqual(2);
 });
 
 test('GDD-BOS-02 a claw press on the keyboard or the touch Claw button hits him while he is stuck', async ({ page, isMobile }) => {
@@ -142,6 +164,60 @@ test('GDD-BOS-02 a claw press on the keyboard or the touch Claw button hits him 
   await api(page, () => window.__PONCHO__!.pause(false));
   await page.waitForFunction(() => window.__PONCHO__!.boss()!.hits === 1 && window.__PONCHO__!.bossBar().pips === 2);
   expect(await api(page, () => window.__PONCHO__!.boss()!.mode)).toBe('hurt');
+});
+
+test('GDD-BOS-02 his wings are tucked while he dives and while he sweeps', async ({ page }) => {
+  await arena(page);
+  expect(await stepToBossMode(page, 'dive')).toBeLessThan(1000);
+  await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.wings === 'tucked' && window.__PONCHO__!.bossDrawn()?.look === 'dive');
+  await api(page, () => window.__PONCHO__!.step(8));
+  expect(await api(page, () => window.__PONCHO__!.boss()!.mode)).toBe('dive');
+  await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.wings === 'tucked' && window.__PONCHO__!.bossDrawn()?.look === 'dive');
+  // Phase 2: he sweeps the floor, wings tucked and no flap.
+  await api(page, () => {
+    window.__PONCHO__!.setBoss(1);
+    window.__PONCHO__!.teleport(40, 176);
+  });
+  expect(await stepToBossMode(page, 'sweep')).toBeLessThan(1000);
+  await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.wings === 'tucked' && window.__PONCHO__!.bossDrawn()?.look === 'sweep');
+  await api(page, () => window.__PONCHO__!.step(8));
+  expect(await api(page, () => window.__PONCHO__!.boss()!.mode)).toBe('sweep');
+  await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.wings === 'tucked' && window.__PONCHO__!.bossDrawn()?.look === 'sweep');
+});
+
+test('GDD-BOS-02 near the floor at the end of a drop his wings stay raised, not lowered into the floor', async ({ page }) => {
+  await arena(page);
+  await api(page, () => {
+    window.__PONCHO__!.setBoss(1);
+    window.__PONCHO__!.teleport(40, 176);
+  });
+  expect(await stepToBossMode(page, 'drop')).toBeLessThan(1000);
+  // Step on to a step of the drop where his flap is down and his box's bottom is within BOSS_ART.wingsBelow (14) px of the floor (224).
+  const found = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    for (let i = 0; i < 200; i++) {
+      const b = d.boss()!;
+      if (b.mode !== 'drop') return false;
+      if (b.y + 15 > 224 - 14 && Math.floor(b.age / 8) % 2 === 1) return true;
+      d.step(1);
+    }
+    return false;
+  });
+  expect(found).toBe(true);
+  await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.look === 'flapUp' && window.__PONCHO__!.bossDrawn()?.wings === 'raised');
+});
+
+test('GDD-BOS-02 his sprite is drawn facing right when he faces right, and left when he faces left', async ({ page }) => {
+  await arena(page);
+  // Both ways in one lap: he starts facing left; read the sprite's way on a step where the boss faces each way.
+  for (const dir of [-1, 1]) {
+    await page.evaluate((d) => {
+      const poncho = window.__PONCHO__!;
+      for (let i = 0; i < 400 && poncho.boss()!.dir !== d; i++) poncho.step(1);
+    }, dir);
+    expect(await api(page, () => window.__PONCHO__!.boss()!.dir)).toBe(dir);
+    await page.waitForFunction((d) => window.__PONCHO__!.bossDrawn()?.dir === d, dir);
+  }
 });
 
 test('GDD-BOS-02 phase 2: a claw swipe on the pillar knocks its rock onto him as he climbs beside it', async ({ page }) => {
@@ -194,14 +270,44 @@ test('GDD-BOS-02 the third hit defeats him, and 1.0 s later the level clear scre
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
   await api(page, () => window.__PONCHO__!.setBoss(2));
   await stuckBeside(page);
-  // Only the sounds of the hit itself: `sfx()` lists every sound since the page loaded.
-  const heard = (await api(page, () => window.__PONCHO__!.sfx())).length;
+  // Only the sounds of the hit itself: `played()` lists every sound since the page loaded.
+  const heardBefore = (await played(page)).length;
+  expect(await api(page, () => window.__PONCHO__!.bossCrownDrawn())).toBeNull();
   await api(page, () => window.__PONCHO__!.step(3, { move: 0, jumpHeld: false, claw: true }));
-  expect(await api(page, () => window.__PONCHO__!.boss())).toMatchObject({ hits: 3, mode: 'defeated' });
+  expect(await api(page, () => window.__PONCHO__!.boss())).toMatchObject({ hits: 3, mode: 'defeated', age: 0, ty: 209 });
   await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.flash === 'white' && window.__PONCHO__!.bossBar().pips === 0 && window.__PONCHO__!.bossBar().outlines === 3);
+  // Defeated: no points left on his crown (GDD-BOS-02). He is on the floor, so he lies from the start.
+  expect(await api(page, () => window.__PONCHO__!.bossDrawn())).toMatchObject({ crown: 0, look: 'defeatWhite', dots: 3 });
+  // GDD-AUD-02: the defeat plays his long hiss, and neither the grunt, the stomp nor Poncho's meow.
+  const heard = (await played(page)).slice(heardBefore);
+  expect(heard).toContain('sfx-bossDefeat');
+  for (const not of ['sfx-grunt', 'sfx-stomp', 'sfx-meow']) expect(heard, not).not.toContain(not);
+  // His crown pops off his head: he lies (on the floor), so his head is 11 px behind the way he faces and its top 5 px below his middle (x 232, y 209), level and then spinning (GDD-BOS-02).
+  const hit = (await api(page, () => window.__PONCHO__!.boss()))!;
+  const start = (await api(page, () => window.__PONCHO__!.bossCrownDrawn()))!;
+  expect(hit.tx).toBe(232);
+  expect(start.x).toBeCloseTo(hit.tx - 11 * hit.dir, 3);
+  expect(start.y).toBeCloseTo(214, 3);
+  expect(start.tilted).toBe(false);
+  // 4 steps on: the crown has risen and turned to its tilted frame, and his white flash is off, so he lies in his own colours.
+  await api(page, () => window.__PONCHO__!.step(4));
+  await page.waitForFunction(() => window.__PONCHO__!.bossCrownDrawn()?.tilted === true && window.__PONCHO__!.bossDrawn()?.flash === null);
+  const rising = (await api(page, () => window.__PONCHO__!.bossCrownDrawn()))!;
+  expect(rising.y).toBeLessThan(start.y); // up first
+  expect(rising.x).toBeGreaterThan(start.x); // towards the middle of the arena (x 240), to the right of the hit at x 232
+  expect(await api(page, () => window.__PONCHO__!.bossDrawn())).toMatchObject({ crown: 0, look: 'defeat', dots: 3, wings: 'tucked' });
   expect(await api(page, () => window.__PONCHO__!.fruit())).toEqual([]);
-  expect((await api(page, () => window.__PONCHO__!.sfx())).slice(heard)).toEqual(expect.arrayContaining(['meow', 'stomp']));
-  await api(page, () => window.__PONCHO__!.step(59));
+  await api(page, () => window.__PONCHO__!.step(4));
+  await page.waitForFunction(() => window.__PONCHO__!.bossCrownDrawn()?.tilted === false);
+  // It rests on the floor on its 18th step, before the clear screen (step 60): on step 48 it lies at y 224, level, and stays.
+  await api(page, () => window.__PONCHO__!.step(40));
+  const rest = (await api(page, () => window.__PONCHO__!.bossCrownDrawn()))!;
+  expect(rest.y).toBeCloseTo(224, 3);
+  expect(rest.tilted).toBe(false);
+  expect(rest.x).toBeGreaterThan(start.x);
+  await api(page, () => window.__PONCHO__!.step(4));
+  expect(await api(page, () => window.__PONCHO__!.bossCrownDrawn())).toEqual(rest);
+  await api(page, () => window.__PONCHO__!.step(7));
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('playing');
   await api(page, () => window.__PONCHO__!.step(1));
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
@@ -221,6 +327,47 @@ test('GDD-BOS-02 the third hit defeats him, and 1.0 s later the level clear scre
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   expect(await api(page, () => window.__PONCHO__!.bossBar())).toMatchObject({ shown: false, pips: 0 });
   expect((await api(page, () => window.__PONCHO__!.scenery())).set).toBe('mercado');
+});
+
+test('GDD-BOS-02 in real time his crown pops off, arcs and comes to rest on the floor, frame after frame', async ({ page }) => {
+  await arena(page);
+  await api(page, () => window.__PONCHO__!.setBoss(2));
+  await stuckBeside(page);
+  // Slow setup first (L-042): the hit is made while paused, then the game runs through its own frames (L-021) and a sampler in the page
+  // reads what was drawn on every frame, with the boss's age beside it, so no poll lags.
+  await api(page, () => window.__PONCHO__!.step(3, { move: 0, jumpHeld: false, claw: true }));
+  expect(await api(page, () => window.__PONCHO__!.boss())).toMatchObject({ mode: 'defeated', age: 0 });
+  const frames = await page.evaluate(
+    () =>
+      new Promise<{ y: number; x: number; tilted: boolean; age: number }[]>((resolve) => {
+        const d = window.__PONCHO__!;
+        const samples: { y: number; x: number; tilted: boolean; age: number }[] = [];
+        let after = 0;
+        const tick = () => {
+          const crown = d.bossCrownDrawn();
+          if (crown) samples.push({ ...crown, age: d.boss()!.age });
+          // Three frames more once the clear screen is up.
+          if (d.phase() === 'clear') after++;
+          if (after > 3) resolve(samples);
+          else requestAnimationFrame(tick);
+        };
+        d.pause(false);
+        tick();
+      }),
+  );
+  // It was drawn on frame after frame and moved: up first (above its start, 214), then down to the floor.
+  expect(frames.length).toBeGreaterThan(4);
+  // The arc is 18 steps long, a few frames at the headless frame rate: the crown changes from frame to frame, rises above its start (214) and
+  // comes down to the floor. (Its spin is read step by step in the test above: a frame may miss a 4-step turn.)
+  expect(new Set(frames.map((f) => f.y)).size).toBeGreaterThan(2);
+  expect(Math.min(...frames.map((f) => f.y))).toBeLessThan(214);
+  // From its 18th step it lies on the floor, level, in one place, whatever frame shows it: the last frames are well past that.
+  const resting = frames.filter((frame) => frame.age >= 18);
+  expect(resting.length).toBeGreaterThan(0);
+  for (const r of resting) expect(r, `age ${r.age}`).toMatchObject({ y: 224, tilted: false });
+  expect(new Set(resting.map((r) => r.x)).size).toBe(1);
+  // Before it, on every frame it is in the air.
+  for (const early of frames.filter((frame) => frame.age < 14)) expect(early.y, `age ${early.age}`).toBeLessThan(224);
 });
 
 test('GDD-BOS-01 a life lost mid-fight keeps his hits and starts his phase again', async ({ page }) => {

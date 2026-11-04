@@ -457,9 +457,33 @@ describe('GDD-AUD-02 Don Zopilote', () => {
   const stuck = (hits: number): BossState => ({ ...bossStart(arena.boss!, hits), mode: 'stuck', age: 0, x: 232, y: 209, tx: 232, ty: 209 });
   const near = (boss: BossState) => withPlayer(arena, { ...spawn(200, 224), grounded: true }, { boss });
 
-  it('GDD-AUD-02 a hit on Don Zopilote plays stomp', () => {
-    const beats = play(arena, near(stuck(0)), 3, (i) => (i === 0 ? claw : idle));
-    expect(beats.map((b) => b.names)).toEqual([['claw'], [], ['stomp']]);
+  it('GDD-AUD-02 a hit on Don Zopilote that leaves him hurt plays grunt, no stomp', () => {
+    for (const hits of [0, 1]) {
+      const beats = play(arena, near(stuck(hits)), 3, (i) => (i === 0 ? claw : idle));
+      expect(beats[2]!.after.boss!.mode, `hits ${hits}`).toBe('hurt');
+      expect(beats.map((b) => b.names), `hits ${hits}`).toEqual([['claw'], [], ['grunt']]);
+    }
+  });
+
+  it('GDD-AUD-02 the telegraph start plays hiss once, not the steps after it', () => {
+    const lapEnd: BossState = { ...bossStart(arena.boss!, 0), age: 239 };
+    const beats = play(arena, withPlayer(arena, { ...spawn(100, 224), grounded: true }, { boss: lapEnd }), 4);
+    expect(beats.map((b) => b.after.boss!.mode)).toEqual(['telegraph', 'telegraph', 'telegraph', 'telegraph']);
+    expect(beats.map((b) => b.names)).toEqual([['hiss'], [], [], []]);
+  });
+
+  it('GDD-AUD-02 every telegraph plays hiss: the one that ends the second lap too', () => {
+    const lapEnd: BossState = { ...bossStart(arena.boss!, 1), age: 239, side: -1 };
+    expect(play(arena, withPlayer(arena, { ...spawn(100, 224), grounded: true }, { boss: lapEnd }), 1)[0]!.names).toEqual(['hiss']);
+  });
+
+  it('GDD-AUD-02 no hiss before or when he leaves the telegraph', () => {
+    const lap: BossState = { ...bossStart(arena.boss!, 0), age: 10 };
+    expect(play(arena, withPlayer(arena, { ...spawn(100, 224), grounded: true }, { boss: lap }), 2).flatMap((b) => b.names)).toEqual([]);
+    const ending: BossState = { ...bossStart(arena.boss!, 0), mode: 'telegraph', age: 29 };
+    const beats = play(arena, withPlayer(arena, { ...spawn(100, 224), grounded: true }, { boss: ending }), 2);
+    expect(beats[0]!.after.boss!.mode).toBe('dive');
+    expect(beats.flatMap((b) => b.names)).toEqual([]);
   });
 
   it('GDD-AUD-02 his landing in the sand after a dive plays land', () => {
@@ -478,9 +502,18 @@ describe('GDD-AUD-02 Don Zopilote', () => {
     expect(beats[0]!.names).toEqual(['land']);
   });
 
-  it('GDD-AUD-02 his defeat plays the meow with the stomp', () => {
+  it('GDD-AUD-02 his defeat plays bossDefeat, with no grunt, no stomp and no meow', () => {
     const beats = play(arena, near(stuck(2)), 3, (i) => (i === 0 ? claw : idle));
-    expect(beats[2]!.names).toEqual(['meow', 'stomp']);
+    expect(beats[2]!.after.boss!.mode).toBe('defeated');
+    expect(beats.map((b) => b.names)).toEqual([['claw'], [], ['bossDefeat']]);
+    // The steps after it are silent.
+    expect(play(arena, beats[2]!.after, 5).flatMap((b) => b.names)).toEqual([]);
+  });
+
+  it('GDD-AUD-02 a stomp on a plain enemy still plays stomp, and a respawn still plays meow', () => {
+    const [level, start] = stomping([{ x: 104, y: 80 }], airborne(104, 62, 150));
+    expect(play(level, start, 12).flatMap((b) => b.names)).toEqual(['stomp']);
+    expect(play(pit, fallen(), 48).flatMap((b) => b.names)).toEqual(['meow']);
   });
 });
 

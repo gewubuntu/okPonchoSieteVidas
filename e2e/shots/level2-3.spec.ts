@@ -1,7 +1,7 @@
 // Screenshots of level 2-3 "Azoteas" for visual review (GDD-WLD-14, GDD-WLD-10, GDD-WLD-11, GDD-ENM-03, GDD-CMB-02). Run with
 // `npm run shots`; images land in shots/ (not committed). Each scene is reached as src/levels/level2-3.test.ts plays it: Poncho is put on
 // the roof before the spot, then the real inputs run step by step in the paused game (L-042) until the moment the mechanic shows. Where
-// things are comes from the level module (L-061); the numbers left are the test's steering targets, commented where they are used.
+// things are comes from the level module (L-062); the numbers left are the test's steering targets, commented where they are used.
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { AWNINGS_2_3, ENEMIES_2_3, LEVEL_2_3, ROLLOS_2_3 } from '../../src/levels/level2-3';
 import { bundleBox } from '../../src/sim/papel';
