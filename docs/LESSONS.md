@@ -653,3 +653,23 @@ Retired IDs: L-046
 - **Rule:** Keep a staged feature on its staging branch or worktree until its GDD text is ready; check the GDD draft against the code there, and replay code, GDD and backlog onto the PR branch together, in one commit, right before the gate and the push.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-059 Parallel worktrees on one machine would run their playtests against each other's dev server
+
+- **Date:** 2026-11-04
+- **Area:** harness, playtest
+- **What went wrong:** For World 2, several agents built streams in parallel git worktrees on one machine. `playwright.config.ts` fixed the dev server on port 4173 with `reuseExistingServer`, so a second worktree's `npm run test:e2e` would have reused the first one's server and tested the other tree's code, passing or failing for the wrong reasons. Only one stream could be allowed to run playtests at a time, and the others shipped specs marked "not run".
+- **Root cause:** The port was a constant in the config, written when only one checkout ever ran the playtests.
+- **Rule:** Each worktree that runs playtests next to another sets its own `PONCHO_E2E_PORT` (the config reads it for the server, its URL and `baseURL`; 4173 stays the default for CI and a single checkout).
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-060 The swarm's worktrees were cut from main, not from the branch they were to build on
+
+- **Date:** 2026-11-04
+- **Area:** process
+- **What went wrong:** The agents launched with `isolation: worktree` for World 2 got worktrees at `origin/main` (b43756c), not at the session branch's head, which held the World 2 GDD sections and the Mercado art. The gate's GDD-ID check failed for them until each agent noticed and moved its tree onto the branch, and the plumbing stream wrote 27 files on the old base before the main session told it to fast-forward.
+- **Root cause:** A worktree is made from the repository's default base, not from the checkout's current branch, and the launch prompts did not say which commit to build on.
+- **Rule:** A prompt that launches an agent in a worktree starts with the exact command to put the tree on the branch head it builds on (`git fetch origin <branch> && git reset --hard origin/<branch>`, the branch pushed first), before the agent writes anything.
+- **Recurrence:** 1
+- **Promoted:** no

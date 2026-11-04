@@ -4,6 +4,8 @@ import { defineConfig } from '@playwright/test';
 // The cloud environment ships Chromium; do not download browsers there (see the harness-playtest skill).
 const preinstalled = '/opt/pw-browsers/chromium';
 const executablePath = process.env['PLAYWRIGHT_CHROMIUM_PATH'] || (existsSync(preinstalled) ? preinstalled : undefined);
+// The dev server's port: 4173 unless PONCHO_E2E_PORT names another, so two worktrees on one machine never test each other's server.
+const port = process.env['PONCHO_E2E_PORT'] || '4173';
 
 export default defineConfig({
   testDir: 'e2e',
@@ -12,14 +14,14 @@ export default defineConfig({
   fullyParallel: true,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: `http://localhost:${port}`,
     // exactOptionalPropertyTypes: only set the key when there is a value
     launchOptions: executablePath ? { executablePath } : {},
   },
   // The dev server exposes window.__PONCHO__ for the tests (GDD-TEC-06).
   webServer: {
-    command: 'npm run dev -- --port 4173 --strictPort',
-    url: 'http://localhost:4173',
+    command: `npm run dev -- --port ${port} --strictPort`,
+    url: `http://localhost:${port}`,
     reuseExistingServer: !process.env['CI'],
     timeout: 60_000,
   },
