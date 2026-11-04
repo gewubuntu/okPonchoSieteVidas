@@ -82,3 +82,10 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-PWR-06 | doing | collect by touch and no spawn inside a wall (src/sim/item.ts); the reserve-slot question stays open |
 | GDD-VIS-05 | todo |  |
 | GDD-TEC-07 | todo |  |
+| GDD-WLD-10 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
+| GDD-WLD-11 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
+| GDD-WLD-12 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
+| GDD-WLD-13 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
+| GDD-WLD-14 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
+| GDD-ENM-03 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
+| GDD-BOS-03 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
