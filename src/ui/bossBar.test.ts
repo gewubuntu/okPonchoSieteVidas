@@ -3,6 +3,7 @@ import { LEVEL_1_1 } from '../levels/level1-1';
 import { LEVEL_1_4 } from '../levels/level1-4';
 import { LEVEL_2_4 } from '../levels/level2-4';
 import { bossStart } from '../sim/boss';
+import { estrellaStart } from '../sim/estrella';
 import { startRun } from '../sim/run';
 import { BOSS_NAMES, bossBar } from './bossBar';
 import { TEXT } from './text';
@@ -18,8 +19,11 @@ describe('GDD-UI-01 boss bar per boss', () => {
     expect(bossBar(LEVEL_1_4, { ...run, boss: bossStart(LEVEL_1_4.boss!, 3) })).toEqual({ name: 'zopilote', pips: 3, left: 0 });
   });
 
-  it('GDD-UI-01 bossbar in the 2-4 stub: its stand-in boss, Don Zopilote', () => {
-    expect(bossBar(LEVEL_2_4, startRun(LEVEL_2_4))).toEqual({ name: 'zopilote', pips: 3, left: 3 });
+  it('GDD-UI-01 bossbar in 2-4: La Estrella, three pips, one fewer filled per hit she has taken', () => {
+    const run = startRun(LEVEL_2_4);
+    expect(bossBar(LEVEL_2_4, run)).toEqual({ name: 'estrella', pips: 3, left: 3 });
+    expect(bossBar(LEVEL_2_4, { ...run, estrella: estrellaStart(LEVEL_2_4.estrella!, 1) })).toEqual({ name: 'estrella', pips: 3, left: 2 });
+    expect(bossBar(LEVEL_2_4, { ...run, estrella: { ...estrellaStart(LEVEL_2_4.estrella!, 2), hits: 3, mode: 'defeated' } })).toEqual({ name: 'estrella', pips: 3, left: 0 });
   });
 
   it('GDD-UI-01 bossbar: none in a level without a boss', () => {
@@ -28,5 +32,6 @@ describe('GDD-UI-01 boss bar per boss', () => {
 
   it('GDD-UI-02 bossbar names: Don Zopilote in every language', () => {
     for (const lang of ['en', 'es', 'de'] as const) expect(TEXT[lang][BOSS_NAMES.zopilote], lang).toBe('Don Zopilote');
+    for (const lang of ['en', 'es', 'de'] as const) expect(TEXT[lang][BOSS_NAMES.estrella], lang).toBe('La Estrella');
   });
 });

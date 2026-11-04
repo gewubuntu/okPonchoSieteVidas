@@ -31,7 +31,9 @@ import tickMp3 from '../../assets/audio/sfx/tick.mp3';
 import { activateOfrenda, collectVeladora, isOutOfLives, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { clawBox } from '../sim/claw';
-import { FIREBALL, FRUIT, ROCK, TLACUACHE } from '../config/tuning';
+import { ESTRELLA, FIREBALL, FRUIT, ROCK, TLACUACHE } from '../config/tuning';
+import { estrellaStart } from '../sim/estrella';
+import { estrellaPose, tejocoteBoxes } from '../ui/estrellaPose';
 import { flipPose } from '../sim/respawnFlip';
 import { blockAt } from '../sim/block';
 import { platformAt } from '../sim/platform';
@@ -347,6 +349,22 @@ export interface PonchoDebug {
   bossBar(): { shown: boolean; name: string; nameY: number; pips: number; outlines: number };
   /** Test hook: Don Zopilote at the start of phase `hits + 1` (`bossStart`), with no fruit, as after a lost life. Nothing in a level without a boss. */
   setBoss(hits: number): void;
+  /**
+   * GDD-BOS-03: La Estrella in the run, or null in a level without her: the middle of her box across, its bottom, her mode, the steps in
+   * it, the hits she has taken and where her drop, bounce, rise or yank goes (in a hang, the x she sways about).
+   */
+  estrella(): { x: number; y: number; mode: string; age: number; hits: number; tx: number; ty: number } | null;
+  /**
+   * GDD-BOS-03: La Estrella as last drawn, or null when she was not: her middle as passed to Phaser (shaken 2 px in her telegraph), how
+   * many cones and how many pale tips were drawn, the core's flash as the colour passed to Phaser ('red' 0xff5030, 'white' 0xffffff, null
+   * for her clay), the trolley's middle and the rope's length in px (null once it snapped).
+   */
+  estrellaDrawn(): { x: number; y: number; cones: number; pale: number; flash: 'red' | 'white' | null; trolleyX: number; rope: number | null } | null;
+  /** GDD-BOS-03: her tejocotes in the run (the middle x, the bottom y, steps before it comes out), and the boxes drawn last frame (left, top). */
+  tejocotes(): { x: number; y: number; wait: number }[];
+  tejocotesDrawn(): { x: number; y: number }[];
+  /** Test hook: La Estrella at the start of phase `hits + 1` (`estrellaStart`), with no tejocotes, as after a lost life. Nothing in a level without her. */
+  setEstrella(hits: number): void;
   /** GDD-MOV-07: whether the spread poncho is drawn over Poncho (gliding). Read from what was drawn. */
   glideDrawn(): boolean;
   /** GDD-MOV-08: the side the claw marks are drawn on while sliding down a wall (-1 left, 1 right), or 0. Read from what was drawn. */
@@ -474,6 +492,10 @@ export class PlayScene extends Phaser.Scene {
   private bossPainted: { x: number; y: number; dir: number; wings: 'raised' | 'lowered'; flash: 'red' | 'white' | null; dots: number } | null = null;
   private fruitPainted: { x: number; y: number; landed: boolean }[] = [];
   private rocksPainted: { x: number; y: number }[] = [];
+  /** GDD-BOS-03: La Estrella, her rope, trolley and cable, and her tejocotes, and what was last drawn of each (`PonchoDebug.estrellaDrawn`). */
+  private estrellaGfx!: Phaser.GameObjects.Graphics;
+  private estrellaPainted: { x: number; y: number; cones: number; pale: number; flash: 'red' | 'white' | null; trolleyX: number; rope: number | null } | null = null;
+  private tejocotesPainted: { x: number; y: number }[] = [];
   /** GDD-UI-01: the boss bar's name and pips, and how many pips were last drawn filled and how many as an outline. */
   private bossName!: Phaser.GameObjects.Text;
   private bossBarGfx!: Phaser.GameObjects.Graphics;
@@ -751,6 +773,8 @@ export class PlayScene extends Phaser.Scene {
     this.enemyGfx = this.add.graphics().setDepth(3);
     this.bossGfx = this.add.graphics().setDepth(3);
     this.rockGfx = this.add.graphics().setDepth(2);
+    // GDD-UI-01: below the HUD (depth 10): she passes behind the boss bar.
+    this.estrellaGfx = this.add.graphics().setDepth(3);
     this.pinataGfx = this.add.graphics().setDepth(1);
     this.drawPinatas();
     this.itemGfx = this.add.graphics().setDepth(2);
@@ -1169,6 +1193,17 @@ export class PlayScene extends Phaser.Scene {
           if (!this.level.boss) return;
           this.run = { ...this.run, boss: bossStart(this.level.boss, hits), fruit: [] };
         },
+        estrella: () => {
+          const e = this.run.estrella;
+          return e ? { x: e.x, y: e.y, mode: e.mode, age: e.age, hits: e.hits, tx: e.tx, ty: e.ty } : null;
+        },
+        estrellaDrawn: () => this.estrellaPainted,
+        tejocotes: () => this.run.tejocotes.map((t) => ({ x: t.x, y: t.y, wait: t.wait })),
+        tejocotesDrawn: () => this.tejocotesPainted,
+        setEstrella: (hits) => {
+          if (!this.level.estrella) return;
+          this.run = { ...this.run, estrella: estrellaStart(this.level.estrella, hits), tejocotes: [] };
+        },
         glideDrawn: () => this.glideGfx.visible,
         clingDrawn: () => (this.clingGfx.visible ? this.clingPainted : 0),
         setPower: (power) => {
@@ -1478,6 +1513,57 @@ export class PlayScene extends Phaser.Scene {
       g.fillStyle(0xd8473a, 1).fillRect(f.x - 3, f.y - FRUIT.size, 6, FRUIT.size).fillRect(f.x - FRUIT.size / 2, f.y - FRUIT.size + 1, FRUIT.size, FRUIT.size - 2);
       g.fillStyle(0xf2efe6, 1).fillRect(f.x - 2, f.y - 6, 1, 1).fillRect(f.x + 1, f.y - 4, 1, 1).fillRect(f.x - 1, f.y - 2, 1, 1);
       this.fruitPainted.push({ x: f.x, y: f.y, landed: f.landed });
+    }
+  }
+
+  /**
+   * Placeholder La Estrella (GDD-BOS-03), from `estrellaPose`: the cable across the top of the arena with her trolley on it, her rope down
+   * to her top, a seven-pointed star of paper cones in piñata colours (the three top ones with pale tips: she cannot be stomped) round a
+   * round clay pot that flashes red in her telegraph and white when hurt or defeated. Then her tejocotes: small orange fruit.
+   */
+  private drawEstrella(): void {
+    const g = this.estrellaGfx.clear();
+    this.estrellaPainted = null;
+    this.tejocotesPainted = [];
+    const e = this.run.estrella;
+    if (!e) return;
+    const pose = estrellaPose(e);
+    g.lineStyle(1, 0x3a2a24, 1).lineBetween(0, ESTRELLA.cableY + 0.5, BASE_WIDTH, ESTRELLA.cableY + 0.5);
+    const tx = pose.trolley.x;
+    g.fillStyle(0x4a4850, 1).fillRect(tx - 4, pose.trolley.y - 4, 8, 4);
+    g.fillStyle(0x8c8a94, 1).fillRect(tx - 3, pose.trolley.y - 6, 2, 2).fillRect(tx + 1, pose.trolley.y - 6, 2, 2);
+    let rope: number | null = null;
+    if (pose.rope) {
+      const [top, end] = [pose.rope[0]!, pose.rope[pose.rope.length - 1]!];
+      g.lineStyle(1, 0xd9c49a, 1).lineBetween(top.x + 0.5, top.y, end.x + 0.5, end.y);
+      rope = end.y - top.y;
+    }
+    const colours = [0xe0458a, 0xf2c14e, 0x3fa7d6, 0x5cb85c, 0xe8602d, 0x9b59b6, 0x2ec4b6];
+    let pale = 0;
+    for (const c of pose.cones) {
+      // A cone: a triangle from a base across the pot to its tip; a pale cap on its last third for the three top ones.
+      const dx = c.tipX - pose.x;
+      const dy = c.tipY - pose.y;
+      const len = Math.hypot(dx, dy);
+      const [nx, ny] = [-dy / len, dx / len];
+      const [bx, by] = [pose.x + (dx / len) * 10, pose.y + (dy / len) * 10];
+      g.fillStyle(colours[c.index]!, 1).fillTriangle(bx + nx * 6, by + ny * 6, bx - nx * 6, by - ny * 6, c.tipX, c.tipY);
+      if (c.pale) {
+        const [cx, cy] = [c.tipX - (dx / len) * 9, c.tipY - (dy / len) * 9];
+        g.fillStyle(0xf2efe6, 1).fillTriangle(cx + nx * 2, cy + ny * 2, cx - nx * 2, cy - ny * 2, c.tipX, c.tipY);
+        pale++;
+      }
+    }
+    const core = pose.flash === 'red' ? 0xff5030 : pose.flash === 'white' ? 0xffffff : 0xb5653a;
+    g.fillStyle(core, 1).fillCircle(pose.x, pose.y, ESTRELLA.width / 2 - 2);
+    g.lineStyle(2, 0x7a3e22, 1).strokeCircle(pose.x, pose.y, ESTRELLA.width / 2 - 2);
+    g.fillStyle(0xf2c14e, 1).fillRect(pose.x - 8, pose.y - 2, 16, 3);
+    // L-010: what was handed to Phaser (the core's middle and colour, the trolley, the rope's ends), not the pose.
+    this.estrellaPainted = { x: pose.x, y: pose.y, cones: pose.cones.length, pale, flash: core === 0xff5030 ? 'red' : core === 0xffffff ? 'white' : null, trolleyX: tx, rope };
+    for (const t of tejocoteBoxes(this.run.tejocotes)) {
+      g.fillStyle(0xf28c28, 1).fillCircle(t.x + t.w / 2, t.y + t.h / 2, t.w / 2);
+      g.fillStyle(0x5a3a1a, 1).fillRect(t.x + t.w / 2 - 0.5, t.y, 1, 2);
+      this.tejocotesPainted.push({ x: t.x, y: t.y });
     }
   }
 
@@ -2176,6 +2262,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawFireballs();
     this.drawEnemies();
     this.drawBoss();
+    this.drawEstrella();
     this.drawRocks();
     if (this.run.crumbles.map((c) => `${c.phase}${c.steps}`).join() !== this.crumblesKey) this.drawCrumbles();
     const key = this.usedKey();

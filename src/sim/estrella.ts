@@ -1,7 +1,7 @@
 // GDD-BOS-03: La Estrella de Siete Picos, World 2's boss: a giant seven-pointed posada piñata on a trolley on a cable over the plaza, and
 // the tejocotes that roll out of her. She follows a fixed pattern, with nothing left to chance: the only thing that varies is where Poncho
 // is (her phase 3 aim). She is hit the way any piñata is, by a head bump from below or the claw (GDD-PWR-05). Pure logic, no Phaser
-// (GDD-TEC-02). Not wired into the run yet.
+// (GDD-TEC-02).
 import { ESTRELLA, HITBOX, STEP, TEJOCOTE } from '../config/tuning';
 import { ponchoBox } from './boss';
 import { overlaps, type Box } from './enemy';
@@ -174,6 +174,13 @@ export const estrellaBox = (e: EstrellaState): Box => ({ x0: e.x - ESTRELLA.widt
 /** Whether she is in play: then touching her is a hit (GDD-CMB-03) and she can be hit. Hurt or defeated she is neither. */
 export const estrellaActive = (e: EstrellaState): boolean => e.mode !== 'hurt' && e.mode !== 'defeated';
 
+/**
+ * Whether a bump or the claw can hit her: only while she hangs from the cable or low on her rope (she glides, telegraphs, hangs or is
+ * yanked), never while she drops, is thrown up by an awning, rests on the floor or rises from it, when a jump or a claw from the floor
+ * reaches her. So she is reached only from awning rebounds and cordel jumps (user, 2026-11-04).
+ */
+export const estrellaHittable = (e: EstrellaState): boolean => e.mode === 'glide' || e.mode === 'telegraph' || e.mode === 'hang' || e.mode === 'yank';
+
 /** A hit: hurt, or defeated by the last one (ESTRELLA.hits). */
 export const hitEstrella = (e: EstrellaState): EstrellaState => ({ ...e, hits: e.hits + 1, mode: e.hits + 1 >= ESTRELLA.hits ? 'defeated' : 'hurt', age: 0 });
 
@@ -228,9 +235,9 @@ export function stepEstrella(def: Estrella, fight: { readonly estrella: Estrella
   const { estrella: moved, landed } = moveEstrella(def, fight.estrella, input.before, input.awnings);
   let tejocotes = [...fight.tejocotes.flatMap((t) => stepTejocote(t, input.world) ?? []), ...(landed === 'floor' ? spill(moved, def.floor) : [])];
   const box = estrellaBox(moved);
-  // A bump or the claw hits her while she is in play. A bump stops his rise, his head flush under her, as on a piñata block.
-  const bump = estrellaActive(moved) && bumps(input.before, input.after, moved);
-  const hit = bump || (estrellaActive(moved) && input.claw !== null && overlaps(input.claw, box));
+  // A bump or the claw hits her while she can be hit. A bump stops his rise, his head flush under her, as on a piñata block.
+  const bump = estrellaHittable(moved) && bumps(input.before, input.after, moved);
+  const hit = bump || (estrellaHittable(moved) && input.claw !== null && overlaps(input.claw, box));
   const estrella = hit ? hitEstrella(moved) : moved;
   const player = bump ? { ...input.after, y: moved.y + HITBOX.height, vy: 0 } : input.after;
   // Defeated, her filling is gone at once.

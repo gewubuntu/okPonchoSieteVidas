@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BASE_WIDTH, TILE } from '../config/tuning';
 import type { Boss } from '../sim/boss';
 import type { Enemy } from '../sim/enemy';
+import type { Estrella } from '../sim/estrella';
 import type { Level, Ofrenda, Point } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import type { LevelEntry } from './index';
@@ -269,6 +270,30 @@ describe('GDD-TEC-04 and GDD-BOS-01 a boss level', () => {
   it('GDD-BOS-01 his start exactly 48 px from the spawn passes, 47 px fails', () => {
     expect(validateLevel(arena({ boss: { x: 56 + 48 - 152, y: 224, floor: 224 } }))).toEqual([]);
     expect(validateLevel(arena({ boss: { x: 56 + 47 - 152, y: 224, floor: 224 } }))).toEqual(['the boss starts 47 px from the spawn, under 48']);
+  });
+});
+
+/** GDD-BOS-03: a one-screen level with La Estrella and the spawn given. Her box's middle starts each phase at y = 24, over its first spot. */
+const star = (spots: Estrella['spots'], spawn: Point, o: Options = {}) => entry({ width: 30, ofrendas: [], exit: null, ...o, level: { spawn, estrella: { floor: 224, spots }, ...o.level } });
+
+describe('GDD-TEC-04 and GDD-BOS-03 La Estrella level', () => {
+
+  it('GDD-BOS-03 a level with La Estrella is a boss level: one screen, no ofrendas, no exit', () => {
+    expect(validateLevel(star([[400, 80], [320, 160], [400]], { x: 240, y: 224 }))).toEqual([]);
+    expect(validateLevel(star([[400, 80], [320, 160], [400]], { x: 240, y: 224 }, { ofrendas: [7], exit: onFloor(25), width: 31 }))).toEqual([
+      '1 ofrendas, a boss level has none',
+      'an exit, a boss level has none',
+      '31 tiles wide, a boss level is one screen (30)',
+    ]);
+  });
+
+  it('GDD-BOS-03 her start in each phase is at least 3 tiles from the spawn, by her box middle', () => {
+    expect(validateLevel(star([[400, 80], [440, 160], [352]], { x: 400, y: 40 }))).toEqual([
+      'La Estrella starts phase 1 16 px from the spawn, under 48',
+      'La Estrella starts phase 2 43 px from the spawn, under 48',
+    ]);
+    expect(validateLevel(star([[400], [400], [400]], { x: 448, y: 24 }))).toEqual([]);
+    expect(validateLevel(star([[400], [400], [400]], { x: 447, y: 24 }))).toEqual([1, 2, 3].map((p) => `La Estrella starts phase ${p} 47 px from the spawn, under 48`));
   });
 });
 

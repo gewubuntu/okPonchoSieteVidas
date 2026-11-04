@@ -8,6 +8,7 @@ import {
   aimAt,
   bumps,
   estrellaActive,
+  estrellaHittable,
   estrellaBox,
   estrellaCleared,
   estrellaStart,
@@ -406,10 +407,34 @@ describe('GDD-BOS-03 hitting her', () => {
     expect(fightStep(posed('defeated', 80, 112, 3), standing(240), { fireballs: [{ x0: 78, x1: 84, y0: 100, y1: 106 }] }).spent).toEqual([false]);
   });
 
-  it('GDD-BOS-03 she can be hit in every mode but hurt and defeated', () => {
-    for (const mode of ['glide', 'telegraph', 'drop', 'bounce', 'rest', 'rise', 'hang', 'yank'] as const) {
-      expect(estrellaActive(posed(mode, 80, 112)), mode).toBe(true);
-      expect(fightStep(posed(mode, 80, 112, 1), standing(240), { claw: { x0: 70, x1: 90, y0: 90, y1: 100 } }).hit, mode).toBe(true);
+  it('GDD-BOS-03 she can be hit while she glides, telegraphs, hangs or is yanked', () => {
+    // Each still in its mode after her move: a glide towards x 160, a yank up to the cable.
+    const cases = [{ ...posed('glide', 80, 40, 1), tx: 160 }, posed('telegraph', 80, 40, 1), posed('hang', 80, 72, 1), { ...posed('yank', 80, 72, 1), ty: 40 }];
+    for (const e of cases) {
+      expect(estrellaHittable(e), e.mode).toBe(true);
+      const r = fightStep(e, standing(240), { claw: { x0: 70, x1: 90, y0: e.y - 20, y1: e.y - 10 } });
+      expect([r.estrella.hits, r.hit], e.mode).toEqual([2, true]);
+      const b = fightStep(e, rising(80, e.y + 4, e.y - 6));
+      expect([b.hit, b.player.vy], e.mode).toEqual([true, 0]);
+    }
+  });
+
+  it('GDD-BOS-03 she cannot be hit while she drops, is thrown up by an awning, rests on the floor or rises from it, but her touch still hurts', () => {
+    // Each still in its mode after her move, her bottom then at y 105 (a phase 2 drop from 100), 146 (a bounce from 150), 224 (resting) and
+    // 198 (rising from 200): the claw over her and a rise through her bottom (as a bump would be) do nothing to her and he is touched.
+    const cases = [
+      [{ ...posed('drop', 80, 100, 1), ty: 224 }, 105],
+      [{ ...posed('bounce', 80, 150, 1), ty: 112 }, 146],
+      [posed('rest', 80, 224, 1), 224],
+      [{ ...posed('rise', 80, 200, 1), ty: 72 }, 198],
+    ] as const;
+    for (const [e, bottom] of cases) {
+      expect(estrellaHittable(e), e.mode).toBe(false);
+      expect(estrellaActive(e), e.mode).toBe(true);
+      const r = fightStep(e, standing(240), { claw: { x0: 70, x1: 90, y0: bottom - 20, y1: bottom - 10 } });
+      expect([r.estrella.mode, r.estrella.y, r.hit], e.mode).toEqual([e.mode, bottom, false]);
+      const b = fightStep(e, rising(80, bottom + 1, bottom - 3));
+      expect([b.hit, b.player.vy, b.touch], e.mode).toEqual([false, -220, 80]);
     }
   });
 

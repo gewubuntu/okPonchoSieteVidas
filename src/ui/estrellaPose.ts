@@ -12,14 +12,16 @@ export interface Cone {
 }
 
 export interface EstrellaPose {
-  /** The middle of her box (the clay-pot core). */
+  /** The middle of her box (the clay-pot core), shaken ESTRELLA.shakePx to either side in her telegraph. */
   readonly x: number;
   readonly y: number;
   /** The cones she has left: 7, then 5, 3 and none after each hit; the bottom ones tear off first, the pale top three last. */
   readonly cones: readonly Cone[];
   /** The body's flash: red in the telegraph (GDD-ENM-01), white hurt or defeated, on for ESTRELLA.flashSteps and off for as many. */
   readonly flash: 'red' | 'white' | null;
-  /** Her rope from the cable to her top, as a line through these points: straight, or a zigzag in her telegraph. None once defeated (it snapped). */
+  /** The trolley on the cable her rope hangs from: above her middle, shaken with her in her telegraph. It stays on the cable once she is defeated. */
+  readonly trolley: { readonly x: number; readonly y: number };
+  /** Her rope, straight from the trolley down to her top. None once defeated (it snapped). */
   readonly rope: readonly { readonly x: number; readonly y: number }[] | null;
 }
 
@@ -28,20 +30,13 @@ const TEAR_ORDER = [3, 4, 2, 5, 1, 6, 0] as const;
 const CONES = TEAR_ORDER.length;
 const PALE: readonly number[] = [0, 1, 6];
 
-/** Her rope: from the cable straight down to her top; in her telegraph a zigzag ESTRELLA.zigzagPx to either side every zigzagStepPx, flipping every flashSteps. */
-function rope(e: EstrellaState, blink: boolean): { x: number; y: number }[] {
-  const top = e.y - ESTRELLA.height;
-  if (e.mode !== 'telegraph') return [{ x: e.x, y: ESTRELLA.cableY }, { x: e.x, y: top }];
-  const points: { x: number; y: number }[] = [{ x: e.x, y: ESTRELLA.cableY }];
-  for (let k = 1, y = ESTRELLA.cableY + ESTRELLA.zigzagStepPx; y < top; k++, y += ESTRELLA.zigzagStepPx) {
-    points.push({ x: e.x + ((k % 2 === 1) === blink ? ESTRELLA.zigzagPx : -ESTRELLA.zigzagPx), y });
-  }
-  return [...points, { x: e.x, y: top }];
-}
-
+/**
+ * Her telegraph (GDD-ENM-01) shakes her: her rope has no length while she telegraphs high under the cable, so her body and the trolley
+ * jump ESTRELLA.shakePx to the right and to the left in turn, every flashSteps, in time with the red flash.
+ */
 export function estrellaPose(e: EstrellaState): EstrellaPose {
   const blink = Math.floor(e.age / ESTRELLA.flashSteps) % 2 === 0;
-  const x = e.x;
+  const x = e.mode === 'telegraph' ? e.x + (blink ? ESTRELLA.shakePx : -ESTRELLA.shakePx) : e.x;
   const y = e.y - ESTRELLA.height / 2;
   const kept: readonly number[] = TEAR_ORDER.slice(CONES - ESTRELLA.cones[Math.min(e.hits, ESTRELLA.hits)]!);
   const cones = Array.from({ length: CONES }, (_, index) => index).filter((index) => kept.includes(index)).map((index): Cone => {
@@ -54,7 +49,8 @@ export function estrellaPose(e: EstrellaState): EstrellaPose {
     y,
     cones,
     flash: e.mode === 'telegraph' && blink ? 'red' : dormant && blink ? 'white' : null,
-    rope: e.mode === 'defeated' ? null : rope(e, blink),
+    trolley: { x, y: ESTRELLA.cableY },
+    rope: e.mode === 'defeated' ? null : [{ x, y: ESTRELLA.cableY }, { x, y: e.y - ESTRELLA.height }],
   };
 }
 

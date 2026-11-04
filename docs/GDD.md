@@ -918,6 +918,7 @@ Boot, title, world map, level, pause, results, settings. Fully operable by touch
   | Silver medal | Medalla de plata | Silbermedaille |
   | Gold medal | Medalla de oro | Goldmedaille |
   | Don Zopilote | Don Zopilote | Don Zopilote |
+  | La Estrella | La Estrella | La Estrella |
 
   The tutorial's tips are listed in each language in GDD-UI-05.
 - **Button opacity (built; user, 2026-11-01: three steps, "Low / Medium / High"; details Proposed):** the "Button opacity" row is drawn like the Language row, with the step's name ("Low", "Medium" or "High", in the language chosen, 12 px, in the row's colour) centred where a volume row's bars are. The steps go in that order. Left or A, or a tap on the row's left half, chooses the step before; Right or D, or a tap on its right half, the one after; at either end nothing changes (no wrap-around), and Enter, Space or Z on it does nothing. A change plays no sound and is saved at once (see "Saving the settings"). The default is Medium. The row is there on every device; it changes the touch buttons (GDD-CTL-03), which a device without touch does not show. Opened from the pause menu, the buttons drawn above the settings screen change as the step is picked.

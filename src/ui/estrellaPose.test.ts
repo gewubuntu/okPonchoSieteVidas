@@ -47,16 +47,30 @@ describe('GDD-BOS-03 how La Estrella is drawn', () => {
     ]);
   });
 
-  it('GDD-BOS-03 in her telegraph her rope shakes in a zigzag 2 px to either side every 4 px, flipping every 4 steps', () => {
-    expect(estrellaPose(posed('telegraph', 0, 0, 240, 60)).rope).toEqual([
-      { x: 240, y: 8 },
-      { x: 242, y: 12 },
-      { x: 238, y: 16 },
-      { x: 242, y: 20 },
-      { x: 238, y: 24 },
-      { x: 240, y: 28 },
+  it('GDD-BOS-03 her trolley rides the cable at y 8 above her middle', () => {
+    for (const mode of ['glide', 'drop', 'hang', 'yank', 'hurt'] as const) expect(estrellaPose(posed(mode)).trolley, mode).toEqual({ x: 240, y: 8 });
+    expect(estrellaPose(posed('defeated', 0, 3)).trolley).toEqual({ x: 240, y: 8 });
+  });
+
+  it('GDD-BOS-03 in her telegraph her body, rope and trolley shake 2 px right then left, flipping every 4 steps', () => {
+    // High on the cable (her bottom at 40) her rope has no length, so the shake is drawn on her body and the trolley.
+    const xs = (age: number) => {
+      const p = estrellaPose(posed('telegraph', age, 0, 240, 40));
+      return [p.x, p.trolley.x, ...p.rope!.map((q) => q.x), p.cones[0]!.tipX];
+    };
+    expect([0, 3, 4, 7, 8, 29].map((a) => xs(a)[0])).toEqual([242, 242, 238, 238, 242, 238]);
+    expect(xs(0)).toEqual([242, 242, 242, 242, 242]);
+    expect(xs(4)).toEqual([238, 238, 238, 238, 238]);
+    expect(estrellaPose(posed('telegraph', 0, 0, 240, 40)).rope).toEqual([
+      { x: 242, y: 8 },
+      { x: 242, y: 8 },
     ]);
-    expect(estrellaPose(posed('telegraph', 4, 0, 240, 60)).rope!.map((p) => p.x)).toEqual([240, 238, 242, 238, 242, 240]);
+  });
+
+  it('GDD-BOS-03 outside her telegraph she does not shake', () => {
+    for (const mode of ['glide', 'drop', 'bounce', 'rest', 'rise', 'hang', 'yank', 'hurt'] as const) {
+      for (const age of [0, 4]) expect(estrellaPose(posed(mode, age)).x, `${mode} ${age}`).toBe(240);
+    }
   });
 
   it('GDD-BOS-03 defeated, her rope has snapped', () => {

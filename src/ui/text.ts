@@ -42,6 +42,8 @@ export interface UiText {
   readonly gold: string;
   /** GDD-BOS-02, GDD-UI-01: Don Zopilote's name on the boss bar, the same in every language. Each boss has its key (`BOSS_NAMES` in `bossBar.ts`). */
   readonly zopilote: string;
+  /** GDD-BOS-03, GDD-UI-01: La Estrella's name on the boss bar, the same in every language. */
+  readonly estrella: string;
 }
 
 /** GDD-UI-02: the table of texts. The Spanish and German are Proposed. */
@@ -78,6 +80,7 @@ export const TEXT: Record<Language, UiText> = {
     silver: 'Silver medal',
     gold: 'Gold medal',
     zopilote: 'Don Zopilote',
+    estrella: 'La Estrella',
   },
   es: {
     continue: 'Continuar',
@@ -111,6 +114,7 @@ export const TEXT: Record<Language, UiText> = {
     silver: 'Medalla de plata',
     gold: 'Medalla de oro',
     zopilote: 'Don Zopilote',
+    estrella: 'La Estrella',
   },
   de: {
     continue: 'Weiter',
@@ -144,6 +148,7 @@ export const TEXT: Record<Language, UiText> = {
     silver: 'Silbermedaille',
     gold: 'Goldmedaille',
     zopilote: 'Don Zopilote',
+    estrella: 'La Estrella',
   },
 };
 

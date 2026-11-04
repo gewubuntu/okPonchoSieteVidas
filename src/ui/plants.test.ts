@@ -346,7 +346,7 @@ describe('GDD-ART-06 World 2 decor', () => {
     ['2-1', LEVEL_2_1, 19, [0, 1, 2, 3, 4, 5, 6]],
     ['2-2', LEVEL_2_2, 4, [0, 3]],
     ['2-3', LEVEL_2_3, 10, [0, 1, 2, 4, 5, 6]],
-    ['2-4', LEVEL_2_4, 4, [2, 3, 5, 6]],
+    ['2-4', LEVEL_2_4, 1, [0]],
   ] as const) {
     it(`GDD-ART-06 decor in ${id}: ${count} items of ${kindsOf.length} kinds`, () => {
       const spots = plantSpots(lv, MERCADO.decor);

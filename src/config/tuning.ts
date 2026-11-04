@@ -384,8 +384,8 @@ export const ROCK = { size: 12, knockX: 90, knockY: 150, gravity: 1500, backStep
  * between `aimMinX` and `aimMaxX`. A hit leaves her hurt for `hurtSteps` (1.0 s); the last of her `hits` defeats her: she falls at
  * `fallSpeed` and the level is clear `defeatSteps` (1.0 s) after that hit. `cones` are the paper cones she has left after 0, 1, 2 and 3
  * hits. Placeholder drawing: her cones' tips `coneTip` px from her middle (a star about 56 px across), her rope hangs from the cable at
- * `cableY`, and it shakes in a zigzag `zigzagPx` to either side every `zigzagStepPx` in her telegraph; her body flashes (red in the
- * telegraph, white hurt or defeated) on for `flashSteps` and off for as many.
+ * `cableY` from a trolley; in her telegraph her body and the trolley shake `shakePx` to either side, flipping every `flashSteps` (her rope
+ * has no length up there); her body flashes (red in the telegraph, white hurt or defeated) on for `flashSteps` and off for as many.
  */
 export const ESTRELLA = {
   width: 32,
@@ -411,8 +411,7 @@ export const ESTRELLA = {
   cones: [7, 5, 3, 0],
   coneTip: 28,
   cableY: 8,
-  zigzagPx: 2,
-  zigzagStepPx: 4,
+  shakePx: 2,
   flashSteps: 4,
 } as const;
 

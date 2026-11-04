@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot, openGame, pixelsAt, resultsRowCentre, stepToBossMode, stepUntil, tapAt, waitForResults } from './helpers';
+import { boot, bumpEstrella, openGame, pixelsAt, resultsRowCentre, stepToEstrellaMode, stepUntil, tapAt, waitForResults } from './helpers';
 
 // World 2, the Mercado (user, 2026-11-04): its levels opened by their address (GDD-UI-02), drawn in the Mercado's look (GDD-ART-06),
 // "Start" following the latest world reached, the restart at 2-1 with seven after the last life (GDD-LIFE-05), and 2-4, the last level
 // built, naming no next level. 2-1 to 2-3 are stubs: the floor's top at y 224, one 4-tile gap at columns 40 to 43 (x 640 to 704), the
-// exit at x 1400; 2-4 is 1-4's arena with Don Zopilote standing in. Timed in simulation steps (L-042); pixel samples are at least 2 px
+// exit at x 1400; 2-4 is La Estrella's arena (GDD-BOS-03). Timed in simulation steps (L-042); pixel samples are at least 2 px
 // from edges and clear of the touch buttons (L-017, L-018).
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const SAVE_KEY = 'poncho-siete-vidas';
@@ -172,14 +172,16 @@ test('GDD-UI-02 2-4, the last level built, names no next level: its clear greys 
   await api(page, () => window.__PONCHO__!.pause(true));
   // GDD-ART-06: World 2's arena is drawn with the plaza in place of the rooftops; GDD-UI-01: its boss bar names its boss.
   expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'mercado', midKey: 'mercado:plaza' });
-  expect(await api(page, () => window.__PONCHO__!.bossBar())).toMatchObject({ shown: true, name: 'Don Zopilote', pips: 3 });
-  // The stand-in boss beaten as in 1-4: set to two hits, stuck beside Poncho after a dive, then the third hit, a claw swipe.
-  await api(page, () => window.__PONCHO__!.setBoss(2));
-  expect(await stepToBossMode(page, 'dive')).toBeLessThan(1000);
-  await api(page, () => window.__PONCHO__!.teleport(190, 224));
-  expect(await stepToBossMode(page, 'stuck')).toBeLessThan(200);
-  await api(page, () => window.__PONCHO__!.step(3, { move: 0, jumpHeld: false, claw: true }));
-  expect(await api(page, () => window.__PONCHO__!.boss())).toMatchObject({ hits: 3, mode: 'defeated' });
+  expect(await api(page, () => window.__PONCHO__!.bossBar())).toMatchObject({ shown: true, name: 'La Estrella', pips: 3 });
+  // La Estrella set to two hits (phase 3): she aims at Poncho on the floor under the left awning, drops onto the awning over him and
+  // hangs there; a jump held through its landing on the awning rebounds into her for the third hit (GDD-BOS-03).
+  await api(page, () => {
+    window.__PONCHO__!.setEstrella(2);
+    window.__PONCHO__!.teleport(80, 224);
+  });
+  expect(await stepToEstrellaMode(page, 'hang', 1000)).toBeLessThan(1000);
+  expect(await bumpEstrella(page)).toBe(3);
+  expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ hits: 3, mode: 'defeated' });
   await stepUntil(page, { phase: 'clear' }, 70);
   await api(page, () => window.__PONCHO__!.step(61));
   await waitForResults(page);

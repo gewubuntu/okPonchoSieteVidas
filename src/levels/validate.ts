@@ -1,7 +1,8 @@
 // GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have (GDD-MOV-09: its sand slopes
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
-import { AWNING, BASE_WIDTH, COVER, LEVEL_RULES, ROLLO, TILE } from '../config/tuning';
+import { AWNING, BASE_WIDTH, COVER, ESTRELLA, LEVEL_RULES, ROLLO, TILE } from '../config/tuning';
 import { bossStart } from '../sim/boss';
+import { estrellaStart } from '../sim/estrella';
 import { isBossLevel } from '../sim/bossLevel';
 import { kindOf } from '../sim/enemy';
 import type { Level } from '../sim/run';
@@ -115,6 +116,14 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
     const start = bossStart(level.boss, 0);
     const d = Math.hypot(start.x - level.spawn.x, start.y - level.spawn.y);
     if (d < LEVEL_RULES.enemyClearance) problems.push(`the boss starts ${Math.floor(d)} px from the spawn, under ${LEVEL_RULES.enemyClearance}`);
+  }
+  // GDD-BOS-03: La Estrella too, by her box's middle, at the start of each phase: a lost life starts her phase again (GDD-BOS-01).
+  if (level.estrella) {
+    for (const hits of [0, 1, 2]) {
+      const start = estrellaStart(level.estrella, hits);
+      const d = Math.hypot(start.x - level.spawn.x, start.y - ESTRELLA.height / 2 - level.spawn.y);
+      if (d < LEVEL_RULES.enemyClearance) problems.push(`La Estrella starts phase ${hits + 1} ${Math.floor(d)} px from the spawn, under ${LEVEL_RULES.enemyClearance}`);
+    }
   }
 
   // GDD-MOV-09: every sand slope tile has a level tile directly under it (so none hangs in the air or sits in the bottom row) and holds

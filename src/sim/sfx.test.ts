@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bossStart, type BossState } from './boss';
+import { estrellaStart, type EstrellaMode, type EstrellaState } from './estrella';
 import { loseLife } from './lives';
 import { spawn, type Abilities, type PlayerInput, type PlayerState } from './movement';
 import type { MovingBlock } from './block';
@@ -479,6 +480,41 @@ describe('GDD-AUD-02 Don Zopilote', () => {
 
   it('GDD-AUD-02 his defeat plays the meow with the stomp', () => {
     const beats = play(arena, near(stuck(2)), 3, (i) => (i === 0 ? claw : idle));
+    expect(beats[2]!.names).toEqual(['meow', 'stomp']);
+  });
+});
+
+describe('GDD-AUD-02 La Estrella', () => {
+  // An arena laid out like 2-4 (GDD-BOS-03): floor top at y = 224, the left awning's top at y = 176 (x 48 to 112).
+  const world = parseTiles([...Array<string>(14).fill('.'.repeat(30)), ...Array<string>(3).fill('#'.repeat(30))]);
+  const arena: Level = { ...base, world, spawn: { x: 240, y: 224 }, awnings: [{ x: 48, y: 176, w: 64 }], estrella: { floor: 224, spots: [[400, 80], [320, 160], [400]] } };
+  const posed = (mode: EstrellaMode, x: number, y: number, ty: number, hits = 0): EstrellaState => ({ ...estrellaStart(arena.estrella!, hits), mode, age: 0, x, y, tx: x, ty });
+  // Hanging low beside Poncho at x 60 (her box 74 to 106), where his claw's swing reaches her.
+  const near = (estrella: EstrellaState) => withPlayer(arena, { ...spawn(60, 224), grounded: true }, { estrella });
+
+  it('GDD-AUD-02 a hit on La Estrella plays stomp', () => {
+    const beats = play(arena, near(posed('hang', 90, 220, 220)), 3, (i) => (i === 0 ? claw : idle));
+    expect(beats.map((b) => b.names)).toEqual([['claw'], [], ['stomp']]);
+  });
+
+  it('GDD-AUD-02 her landing on an awning and her thud on the floor play land', () => {
+    const awning = play(arena, near(posed('drop', 80, 172, 176)), 2);
+    expect(awning[0]!.after.estrella!.mode).toBe('bounce');
+    expect(awning.map((b) => b.names)).toEqual([['land'], []]);
+    const floor = play(arena, withPlayer(arena, { ...spawn(300, 224), grounded: true }, { estrella: posed('drop', 160, 220, 224) }), 2);
+    expect(floor[0]!.after.estrella!.mode).toBe('rest');
+    expect(floor.map((b) => b.names)).toEqual([['land'], []]);
+  });
+
+  it('GDD-AUD-02 her landing and Poncho landing on one step play one land', () => {
+    const beats = play(arena, withPlayer(arena, airborne(300, 223.5, 60), { estrella: posed('drop', 160, 220, 224) }), 1);
+    expect(beats[0]!.after.player.grounded).toBe(true);
+    expect(beats[0]!.after.estrella!.mode).toBe('rest');
+    expect(beats[0]!.names).toEqual(['land']);
+  });
+
+  it('GDD-AUD-02 her defeat plays the meow with the stomp', () => {
+    const beats = play(arena, near(posed('hang', 90, 220, 220, 2)), 3, (i) => (i === 0 ? claw : idle));
     expect(beats[2]!.names).toEqual(['meow', 'stomp']);
   });
 });

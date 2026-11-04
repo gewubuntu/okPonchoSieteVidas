@@ -144,3 +144,37 @@ export function stepToBossMode(page: Page, mode: string, max = 1000): Promise<nu
     { m: mode, n: max },
   );
 }
+
+/**
+ * GDD-BOS-03: steps the paused game one step at a time, in the page, until La Estrella is in `mode` (checked before each step) or `max`
+ * steps have run, and returns how many it took (one round trip, L-042). The caller checks the mode was reached.
+ */
+export function stepToEstrellaMode(page: Page, mode: string, max = 1000): Promise<number> {
+  return page.evaluate(
+    ({ m, n }) => {
+      const d = window.__PONCHO__!;
+      let i = 0;
+      while (i < n && d.estrella()?.mode !== m) {
+        d.step(1);
+        i++;
+      }
+      return i;
+    },
+    { m: mode, n: max },
+  );
+}
+
+/**
+ * GDD-BOS-03: in the paused game, with La Estrella hanging over the left awning and Poncho on the floor under her, a jump held through its
+ * landing on the awning: the tier 1 rebound bumps her (GDD-WLD-10). One step with jump up first, so the hold is a new press (L-048).
+ * Steps until her hits go up (the step of the hit is the last) or 80 steps have run, and returns her hits.
+ */
+export function bumpEstrella(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    const before = d.estrella()!.hits;
+    d.step(1);
+    for (let i = 0; i < 80 && d.estrella()!.hits === before; i++) d.step(1, { move: 0, jumpHeld: true });
+    return d.estrella()!.hits;
+  });
+}
