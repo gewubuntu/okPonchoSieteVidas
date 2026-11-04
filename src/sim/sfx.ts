@@ -1,6 +1,6 @@
 // GDD-AUD-02: which sound effects a simulation step asks for, worked out from the states before and after it. Pure logic,
 // no Phaser (GDD-TEC-02). The scene plays them.
-import { SFX } from '../config/tuning';
+import { AWNING, SFX } from '../config/tuning';
 import { hilosCollected } from './hilo';
 import { isOutOfLives } from './lives';
 import { flipPose } from './respawnFlip';
@@ -11,7 +11,7 @@ export type SfxName = 'lifeLost' | 'meow' | 'jump' | 'land' | 'claw' | 'stomp' |
 
 export interface Sfx {
   readonly name: SfxName;
-  /** For 'hilo': semitones above the root G5. */
+  /** For 'hilo': semitones above the root G5. For 'jump' on an awning's held rebound: semitones above the jump sound (GDD-WLD-10). */
   readonly semitones?: number;
 }
 
@@ -62,10 +62,13 @@ export function stepSounds(before: RunState, after: RunState, combo: HiloCombo):
   if ((!shown(before) && shown(after)) || defeated) sounds.push({ name: 'meow' });
   if (playing) {
     if (after.player.takeoff !== undefined) sounds.push({ name: 'jump' });
+    // GDD-WLD-10: an awning's held rebound plays the jump sound, a step higher for each tier; a plain rebound the land sound (below).
+    const rebound = after.awningBounce !== null && after.awningBounce.at === before.clock ? after.awningBounce : null;
+    if (rebound !== null && rebound.tier > 0) sounds.push({ name: 'jump', semitones: AWNING.reboundSemitones[rebound.tier - 1]! });
     // From the air: a body on the ground has no downward speed, so the 60 px/s fall speed covers "was not grounded".
     // GDD-BOS-02: the boss's landing in the sand after a dive thumps too, once a step with Poncho's own.
     const slam = before.boss?.mode === 'dive' && after.boss?.mode === 'stuck';
-    if ((after.phase === 'playing' && after.player.grounded && before.player.vy >= SFX.landMinSpeed) || slam) sounds.push({ name: 'land' });
+    if ((after.phase === 'playing' && after.player.grounded && before.player.vy >= SFX.landMinSpeed) || slam || rebound?.tier === 0) sounds.push({ name: 'land' });
     if (before.claw.phase === 'idle' && after.claw.phase === 'windup') sounds.push({ name: 'claw' });
     // GDD-BOS-02: a hit on the boss thuds like a stomp, once a step.
     if (after.stomped || (after.boss?.hits ?? 0) > (before.boss?.hits ?? 0)) sounds.push({ name: 'stomp' });

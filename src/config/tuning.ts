@@ -191,6 +191,41 @@ export const SPRING = { velocity: 480, boostVelocity: 600 } as const;
 /** GDD-WLD-05: a moving platform travels back and forth along its path at this speed (px/s) and is a one-way floor. */
 export const PLATFORM = { speed: 40 } as const;
 
+/**
+ * GDD-WLD-10: awnings. Landing on one with jump held (or pressed in the jump buffer) throws Poncho up at the next of `tiers` (480 is
+ * SPRING.velocity, 600 SPRING.boostVelocity) over held rebounds in a row; without, he rebounds at `plainFactor` of his landing speed,
+ * or stands on it when that is under `settleSpeed`. A torn awning's plain rebound is at least `tornMinSpeed`. A jump pressed in the
+ * `lateSteps` (the jump buffer, 0.1 s) after a plain landing counts as held at it. The cloth is `height` px thick and its top at least
+ * `minTopY` (a tier 3 rebound stays on screen). Drawing: it sags `sagPx[tier]` px (0 is a plain rebound) for `sagSteps`, then is
+ * `liftPx` above rest for `liftSteps`; a held rebound's sound is raised `reboundSemitones[tier - 1]`.
+ */
+export const AWNING = {
+  tiers: [480, 540, 600],
+  plainFactor: 0.5,
+  settleSpeed: 150,
+  tornMinSpeed: 180,
+  lateSteps: FORGIVENESS.bufferSteps,
+  height: 8,
+  minTopY: 160,
+  sagPx: [2, 2, 4, 6],
+  sagSteps: 4,
+  liftPx: 1,
+  liftSteps: 4,
+  reboundSemitones: [0, 2, 4],
+} as const;
+
+/**
+ * GDD-WLD-11: papel picado. A rollo's bundle is a `size` px square by its post; a claw swipe or a fireball that touches it unrolls it
+ * at `unrollSpeed` px/s (above RUN.maxSpeed). A cordel's line, which is all of it that collides, is `linePx` thick.
+ */
+export const ROLLO = { size: 12, unrollSpeed: 160, linePx: 2 } as const;
+
+/**
+ * GDD-TEC-04, GDD-WLD-10, GDD-WLD-11: a pit column under a whole awning, a cordel or a rollo whose top is at most `abovePx` (3 tiles)
+ * above the ground at the pit's nearer edge does not count towards a gap.
+ */
+export const COVER = { abovePx: 3 * TILE } as const;
+
 /** GDD-WLD-05: moving blocks travel at this speed (px/s), like the platforms. */
 export const BLOCK = { speed: 40 } as const;
 
@@ -373,7 +408,7 @@ export const LEVEL_RULES = {
   minScreens: 3,
   maxScreens: 6,
   ofrendas: 3,
-  maxGapTiles: { 0: 3, 1: 3 } as Readonly<Record<number, number>>,
+  maxGapTiles: { 0: 3, 1: 3, 2: 4 } as Readonly<Record<number, number>>,
   enemyClearance: 3 * TILE,
 } as const;
 

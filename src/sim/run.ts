@@ -14,6 +14,8 @@ import { releaseFrom, stepItem, touchesItem, type Item } from './item';
 import { bumpedPinata, freshPinatas, withPinatas, type Pinata } from './pinata';
 import { collideBlocks, moveBlocks, type MovingBlock } from './block';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
+import { freshAwnings, landOnAwnings, type Awning, type AwningBounce } from './awning';
+import { freshRollos, growRollos, stillPlatforms, stringTops, touchesBundle, unrollTouched, type Cordel, type Rollo, type RolloState } from './papel';
 import { bounce, withSprings, type Spring } from './spring';
 import { touchesSpike, type Spike } from './hazards';
 import { collectHilos, freshHilos, type Hilo } from './hilo';
@@ -73,6 +75,11 @@ export interface Level {
   readonly boss?: Boss;
   /** GDD-BOS-02: where the rocks of a boss arena rest: the middle of each and the y of its bottom. Left out means none. */
   readonly rocks?: readonly Point[];
+  /** GDD-WLD-10: awnings. Left out means none. */
+  readonly awnings?: readonly Awning[];
+  /** GDD-WLD-11: cordeles, and rollos (cordeles still rolled up). Left out means none. */
+  readonly cordeles?: readonly Cordel[];
+  readonly rollos?: readonly Rollo[];
 }
 
 export interface RunState {
@@ -148,6 +155,12 @@ export interface RunState {
   readonly fruit: readonly Fruit[];
   /** GDD-BOS-02: one state per `Level.rocks` entry, in the same order. */
   readonly rocks: readonly RockState[];
+  /** GDD-WLD-10: one flag per `Level.awnings` entry: gone (a torn one after its bounce)? All back after a lost life. */
+  readonly awningsGone: readonly boolean[];
+  /** GDD-WLD-10: the latest rebound off an awning, for its sag and its sound (GDD-AUD-02). Null after a lost life. */
+  readonly awningBounce: AwningBounce | null;
+  /** GDD-WLD-11: one state per `Level.rollos` entry: rolled up or unrolling. All rolled up again after a lost life. */
+  readonly rollos: readonly RolloState[];
 }
 
 /**
@@ -157,7 +170,7 @@ export interface RunState {
  */
 export function startRun(level: Level, savedHilos?: readonly boolean[], lives: number = LIVES_MAX): RunState {
   const hilosSaved = savedHilos ?? freshHilos(level.hilos ?? []);
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: { ...startWorld(), lives }, livesIn: lives, phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false, boss: level.boss ? bossStart(level.boss, 0) : null, fruit: [], rocks: freshRocks(level.rocks ?? []) };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: { ...startWorld(), lives }, livesIn: lives, phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false, boss: level.boss ? bossStart(level.boss, 0) : null, fruit: [], rocks: freshRocks(level.rocks ?? []), awningsGone: freshAwnings(level.awnings ?? []), awningBounce: null, rollos: freshRollos(level.rollos ?? []) };
 }
 
 /**
@@ -316,6 +329,10 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
       boss: level.boss && run.boss ? bossStart(level.boss, run.restarting ? 0 : run.boss.hits) : null,
       fruit: [],
       rocks: freshRocks(level.rocks ?? []),
+      // GDD-WLD-10, GDD-WLD-11: the torn awnings are whole again and the rollos rolled up.
+      awningsGone: freshAwnings(level.awnings ?? []),
+      awningBounce: null,
+      rollos: freshRollos(level.rollos ?? []),
     };
   }
 
@@ -325,10 +342,15 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   // GDD-WLD-05: a moving block carries or pushes him too, and stops him on every side. GDD-LIFE-02: a push or a carry up into a solid tile crushes him.
   const pushed = moveBlocks(carried, level.blocks ?? [], run.platformTick, solid);
   const stepped = step(pushed.player, input, solid, level.abilities);
-  const landed = collideBlocks(pushed.player, landOnPlatforms(pushed.player, stepped, level.platforms, run.platformTick, solid), level.blocks ?? [], run.platformTick);
+  // GDD-WLD-11: the rollos that are unrolling grow, then Poncho lands on a cordel or a rollo's strung part like on a platform that stays put.
+  const grown = growRollos(run.rollos);
+  const strung = landOnPlatforms(pushed.player, stepped, stillPlatforms(stringTops(level.cordeles ?? [], level.rollos ?? [], grown)), 0, solid);
+  const landed = collideBlocks(pushed.player, landOnPlatforms(pushed.player, strung, level.platforms, run.platformTick, solid), level.blocks ?? [], run.platformTick);
   const platformTick = run.platformTick + 1;
   // GDD-WLD-05: a spring throws Poncho up the step he stands on it.
   const sprung = bounce(landed, level.springs);
+  // GDD-WLD-10: an awning throws him back up or holds him, unless a stomp (below, read before it) wins the step.
+  const awning = landOnAwnings(pushed.player, landed, input, level.awnings ?? [], run.awningsGone);
   // GDD-ENM-02: the enemies patrol. GDD-CMB-01: landing on top of one defeats it and throws Poncho up, higher if jump is held
   // or was pressed just before.
   const patrolled = level.enemies.map((d, i) => stepEnemy(d, run.enemies[i]!, solid, run.player));
@@ -340,7 +362,10 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   let fruit = [...run.fruit.flatMap((f) => stepFruit(f, solid, phaseOf(run.boss!)) ?? []), ...(flown?.drop ? [flown.drop] : [])];
   const player = stomped.some(Boolean)
     ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0, gliding: false, clinging: false, glideLock: GLIDE.stompLockSteps }
-    : sprung;
+    : bounce(awning.player, level.springs);
+  const onAwning = !stomped.some(Boolean);
+  const awningsGone = onAwning ? run.awningsGone.map((g, i) => g || i === awning.tore) : run.awningsGone;
+  const awningBounce = onAwning && awning.bounce ? { ...awning.bounce, at: run.clock } : run.awningBounce;
   const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
   // GDD-WLD-04: hilos are collected by touch on any step Poncho is in play, the step he is hit or crushed included.
   const hilosTaken = collectHilos(level.hilos ?? [], run.hilosTaken, player);
@@ -390,6 +415,8 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
     ...run.fireballs.flatMap((f) => stepFireball(f, solid) ?? []),
     ...(spat && !squareBlocked(solid, spat.x, spat.y, FIREBALL.size) ? [spat] : []),
   ];
+  // GDD-WLD-11: a claw swipe or a fireball that touches a rolled-up bundle unrolls it; the fireball is used up.
+  const rollos = unrollTouched(level.rollos ?? [], grown, [...(box ? [box] : []), ...fireballs.map(fireballBox)]);
   // GDD-WLD-05: a key is picked up by touch. Then a shut door that Poncho touches at its side opens for good and uses up
   // one key, so a key picked up the same step as a door is touched opens it.
   let keysHeld = run.keysHeld;
@@ -439,6 +466,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   }
   // A fireball that touches him is used up, unless he is defeated.
   const flying = fireballs.filter((f) => !patrolled.some((_, i) => fireballHits(f, i)) && !(flown && flown.boss.mode !== 'defeated' && overlaps(fireballBox(f), bossBox(flown.boss))));
+  const inFlight = flying.filter((f) => !touchesBundle(level.rollos ?? [], grown, fireballBox(f)));
   // GDD-WLD-05, GDD-ENM-02, GDD-CMB-03: touching a spike or an enemy is a hit, unless Poncho is invulnerable. In Base it
   // costs a life (GDD-LIFE-02); in Taco the taco is spent instead, in Fuego the Fuego, and Poncho is pushed away from what
   // hit him and invulnerable for 2.0 s.
@@ -470,7 +498,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
       checkpointIndex = index;
     }
   });
-  const next: RunState = { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: flying, enemies, boss, fruit, rocks, stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
+  const next: RunState = { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: inFlight, enemies, boss, fruit, rocks, awningsGone, awningBounce, rollos, stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
   // GDD-WLD-03: reaching the exit ends the level. A hit in Base, a pit and a crush returned above, so they win; a hit the taco or
   // the Fuego absorbed does not. `wait` is already 0 in play. The buttons down now are held, so one held as Poncho reaches the exit
   // is no new press for the reveal (GDD-UI-02).

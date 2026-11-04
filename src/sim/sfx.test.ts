@@ -482,3 +482,31 @@ describe('GDD-AUD-02 Don Zopilote', () => {
     expect(beats[2]!.names).toEqual(['meow', 'stomp']);
   });
 });
+
+describe('GDD-AUD-02 GDD-WLD-10 awning rebounds', () => {
+  // The floor's top at y = 160 (row 10) and an awning 48 px over it, at x = 64 to 128.
+  const tall = parseTiles([...Array.from({ length: 10 }, () => '.'.repeat(20)), '#'.repeat(20), '#'.repeat(20)]);
+  const awning: Level = { ...base, world: tall, spawn: { x: 24, y: 160 }, awnings: [{ x: 64, y: 112, w: 64 }] };
+  const above = (h: number): RunState => withPlayer(awning, airborne(96, 112 - h, 0));
+
+  it('a held rebound plays jump, a step higher for each tier: 0, 2 and 4 semitones', () => {
+    const beats = play(awning, above(32), 300, () => jump);
+    const rebounds = beats.filter((b, i) => b.after.awningBounce !== (beats[i - 1]?.after.awningBounce ?? null));
+    expect(rebounds.slice(0, 3).map((b) => b.sounds)).toEqual([[{ name: 'jump', semitones: 0 }], [{ name: 'jump', semitones: 2 }], [{ name: 'jump', semitones: 4 }]]);
+    expect(count(beats, 'jump')).toBe(rebounds.length); // once a rebound, on its step
+  });
+
+  it('a plain rebound plays land, and no jump', () => {
+    const beats = play(awning, above(64), 60);
+    const hop = beats.findIndex((b) => b.after.player.vy === -180);
+    expect(beats[hop]!.names).toEqual(['land']);
+    expect(count(beats, 'jump')).toBe(0);
+  });
+
+  it('a late press plays the rebound jump only, not the jump takeoff as well', () => {
+    const plain = play(awning, above(16), 30);
+    const land = plain.findIndex((b) => b.after.player.grounded);
+    const beats = play(awning, above(16), 30, (i) => ({ move: 0, jumpHeld: i === land + 2 }));
+    expect(beats[land + 2]!.sounds).toEqual([{ name: 'jump', semitones: 0 }]);
+  });
+});

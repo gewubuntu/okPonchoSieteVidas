@@ -12,6 +12,7 @@ import { LEVEL_1_3 } from './level1-3';
 import { LEVEL_1_4 } from './level1-4';
 import { SANDBOX_LEVEL } from './sandbox';
 import { SLOPES_LEVEL } from './slopes';
+import { LAB_2M_LEVEL } from './lab2m';
 
 export interface LevelEntry {
   readonly id: string;
@@ -39,6 +40,8 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: '1-4', world: 1, test: false, level: LEVEL_1_4 },
   SANDBOX,
   { id: 'slopes', world: 1, test: true, level: SLOPES_LEVEL },
+  // GDD-WLD-10, GDD-WLD-11: the Mercado lab, a World 2 test level.
+  { id: 'lab-2m', world: 2, test: true, level: LAB_2M_LEVEL },
 ];
 
 /** GDD-PRG-02: the levels whose progress is saved (the real ones, not the test level), by id, with their hilo counts: what `readSave` needs to read their entries. */
@@ -54,10 +57,10 @@ export const levelById = (id: string): LevelEntry | undefined => LEVELS.find((e)
 export const worldLevels = (world: number): readonly LevelEntry[] => LEVELS.filter((e) => e.world === world && !e.test);
 
 /**
- * GDD-LIFE-05, GDD-PRG-02: the worlds whose lives the save keeps: those of the seven worlds that have a level (World 1; the test levels are
- * World 1's too, so they add no world).
+ * GDD-LIFE-05, GDD-PRG-02: the worlds whose lives the save keeps: those of the seven worlds that have a real level (World 1; a test level,
+ * such as the World 2 lab, adds no world).
  */
-export const SAVED_WORLDS: readonly number[] = [...new Set(LEVELS.filter((e) => e.world >= 1).map((e) => e.world))];
+export const SAVED_WORLDS: readonly number[] = [...new Set(LEVELS.filter((e) => e.world >= 1 && !e.test).map((e) => e.world))];
 
 /** GDD-UI-02, GDD-PRG-02: the ids of the saved (non-test) levels of each saved world, by the world's number as text: what `readSave` reads each world's `worldAt` against. */
 export const SAVED_WORLD_LEVELS: Readonly<Record<string, readonly string[]>> = Object.fromEntries(SAVED_WORLDS.map((w) => [String(w), worldLevels(w).map((e) => e.id)]));
@@ -90,6 +93,8 @@ export interface StartSave {
  */
 export function startLevel(search: string, save: StartSave): StartPick {
   const id = new URLSearchParams(search).get('level');
+  // GDD-WLD-10, GDD-WLD-11: the Mercado lab, a test level, by its address only.
+  if (id === 'lab-2m') return { entry: levelById(id)!, lives: LIVES_MAX };
   const addressed = id === 'sandbox' || id === 'slopes' || id === '1-1' || id === '1-2' || id === '1-3' || id === '1-4' || id === TUTORIAL_ID ? levelById(id) : undefined;
   if (addressed) return { entry: addressed, lives: LIVES_MAX };
   if (!save.tutorialPlayed) return { entry: levelById(TUTORIAL_ID)!, lives: LIVES_MAX };

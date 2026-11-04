@@ -74,6 +74,7 @@ import { LANGUAGE_NAMES, TEXT } from '../ui/text';
 import { bossPipBoxes, bossPips, bossPose } from '../ui/bossPose';
 import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tipsDone as nextTipsDone, tipText, type Device, type TipFade } from '../ui/tips';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
+import { hasMarketThings, loadMarketThings, MarketThings, type MarketDrawn } from '../ui/MarketThings';
 
 /** GDD-AUD-02: the cache keys of every sound effect. */
 const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow', 'tick'].map((n) => `sfx-${n}`);
@@ -275,6 +276,12 @@ export interface PonchoDebug {
   blocks(): { x: number; y: number; w: number; h: number }[];
   /** The crumbling tiles and their state, read from the run (GDD-WLD-05). */
   crumbles(): { col: number; row: number; phase: string; steps: number }[];
+  /**
+   * GDD-WLD-10, GDD-WLD-11: the awnings, cordeles and rollos as drawn (each awning's sag and lift in px and whether it is drawn torn apart;
+   * each rollo's bundle frame, null once strung, and its line tiles), and from the run: Poncho's held rebounds in a row, the torn awnings
+   * gone, each rollo's steps of growth (null while rolled up) and the latest rebound.
+   */
+  market(): MarketDrawn & { chain: number; gone: boolean[]; unrolled: (number | null)[]; bounce: { awning: number; tier: number; at: number } | null };
   /** Where Poncho would respawn now (GDD-LIFE-02). */
   checkpoint(): { x: number; y: number };
   /** The power-up state (GDD-PWR-01), and the taco pickups the scene painted in the level (GDD-PWR-02). */
@@ -428,6 +435,8 @@ export class PlayScene extends Phaser.Scene {
   private pulseDrawn: number | null = null;
   private pulseStart: number | null = null;
   private platformGfx!: Phaser.GameObjects.Graphics;
+  /** GDD-WLD-10, GDD-WLD-11: the awnings, cordeles and rollos, in a level that has any. */
+  private market: MarketThings | null = null;
   private blockGfx!: Phaser.GameObjects.Graphics;
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
@@ -686,6 +695,8 @@ export class PlayScene extends Phaser.Scene {
     this.load.audio('sfx-lifeLost', [lifeLostOgg, lifeLostMp3]);
     this.load.audio('sfx-meow', [meowOgg, meowMp3]);
     this.load.audio('sfx-tick', [tickOgg, tickMp3]);
+    // GDD-WLD-10, GDD-WLD-11: World 2's awning, cordel and rollo sheets, only for a level that has them.
+    if (hasMarketThings(this.level)) loadMarketThings(this);
   }
 
   create(): void {
@@ -768,6 +779,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawFragiles();
     this.clawGfx = this.add.graphics().setDepth(5);
     this.platformGfx = this.add.graphics().setDepth(1);
+    this.market = hasMarketThings(this.level) ? new MarketThings(this, this.level) : null;
     this.blockGfx = this.add.graphics().setDepth(1);
     this.crumbleGfx = this.add.graphics().setDepth(1);
     this.drawCrumbles();
@@ -1127,6 +1139,7 @@ export class PlayScene extends Phaser.Scene {
           this.drawItems();
           this.drawDoorsAndKeys();
           this.renderPlatforms(1);
+          this.market?.draw(this.run);
           this.renderBlocks(1);
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
           this.followBody();
@@ -1139,6 +1152,13 @@ export class PlayScene extends Phaser.Scene {
         platforms: () => this.level.platforms.map((p) => platformAt(p, this.run.platformTick)),
         blocks: () => (this.level.blocks ?? []).map((b) => blockAt(b, this.run.platformTick)),
         crumbles: () => this.level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
+        market: () => ({
+          ...(this.market?.drawn ?? { awnings: [], rollos: [] }),
+          chain: this.run.player.awningChain ?? 0,
+          gone: [...this.run.awningsGone],
+          unrolled: this.run.rollos.map((r) => r.steps),
+          bounce: this.run.awningBounce,
+        }),
         checkpoint: () => this.run.checkpoint,
         power: () => this.run.power,
         tacosDrawn: () => this.tacosPainted,
@@ -2215,6 +2235,7 @@ export class PlayScene extends Phaser.Scene {
     }
 
     this.renderPlatforms(alpha);
+    this.market?.draw(this.run);
     this.renderBlocks(alpha);
     if (this.level.veladora && veladoraUsed(this.run.lives, this.level.veladora) !== this.veladoraUsedDrawn) this.drawVeladora();
     this.renderBody(alpha);
