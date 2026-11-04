@@ -1,11 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
+import { MERCADO, TILE } from '../src/config/tuning';
+import { LEVEL_2_1 } from '../src/levels/level2-1';
+import { LEVEL_2_2 } from '../src/levels/level2-2';
+import type { Level } from '../src/sim/run';
+import { plantSpots } from '../src/ui/plants';
 import { boot, openGame, phase3Hit, pixelsAt, resultsRowCentre, stepUntil, tapAt, waitForResults } from './helpers';
 
 // World 2, the Mercado (user, 2026-11-04): its levels opened by their address (GDD-UI-02), drawn in the Mercado's look (GDD-ART-06),
 // "Start" following the latest world reached, the restart at 2-1 with seven after the last life (GDD-LIFE-05), and 2-4, the last level
-// built, naming no next level. 2-1 to 2-3 are stubs: the floor's top at y 224, one 4-tile gap at columns 40 to 43 (x 640 to 704), the
-// exit at x 1400; 2-4 is La Estrella's arena (GDD-BOS-03). Timed in simulation steps (L-042); pixel samples are at least 2 px
-// from edges and clear of the touch buttons (L-017, L-018).
+// built, naming no next level. Pits, exits, spawns and decor are read from the level modules (GDD-WLD-12, GDD-WLD-13), so a redesign
+// of a level moves the tests with it; 2-4 is La Estrella's arena (GDD-BOS-03). Timed in simulation steps (L-042); pixel samples are at
+// least 2 px from edges and clear of the touch buttons (L-017, L-018).
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const SAVE_KEY = 'poncho-siete-vidas';
 type Colour = { r: number; g: number; b: number };
@@ -19,6 +24,23 @@ async function buttonBoxes(page: Page): Promise<{ x0: number; y0: number; x1: nu
   return touch.buttons.map((b) => ({ x0: b.x - 6, y0: b.y - 6, x1: b.x + b.w + 6, y1: b.y + b.h + 6 }));
 }
 const covered = (boxes: { x0: number; y0: number; x1: number; y1: number }[], x: number, y: number) => boxes.some((b) => x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1);
+/** The middle of tile column `col`, in px. */
+const mid = (col: number) => col * TILE + TILE / 2;
+/** The floor's top row in World 2's levels (y 224). */
+const FLOOR_ROW = 14;
+/** A level's pits, left to right, as [first column, last column]: the runs of columns whose floor rows (14 to the bottom) are all open. */
+function pits(level: Level): [number, number][] {
+  const { world } = level;
+  const open = (c: number) => Array.from({ length: world.height - FLOOR_ROW }, (_, i) => FLOOR_ROW + i).every((r) => !world.solidTile(c, r));
+  const runs: [number, number][] = [];
+  for (let c = 0; c < world.width; c++) {
+    if (!open(c)) continue;
+    const last = runs[runs.length - 1];
+    if (last && last[1] === c - 1) last[1] = c;
+    else runs.push([c, c]);
+  }
+  return runs;
+}
 
 /** A save written before the page loads, the tutorial played and 1-1 to 1-4 cleared, as a save from before World 2 has it. */
 const seedWorld1Cleared = (page: Page) => {
@@ -54,12 +76,19 @@ test('GDD-UI-02 level=2-1 opens World 2 on the title, and Start plays it in the 
   expect(await api(page, () => window.__PONCHO__!.bossBar())).toMatchObject({ shown: false, pips: 0 });
   // GDD-ART-06: no sun; the far band from y 84, its foot from y 200 (84 + 464 / 4), the rooftops from y 148.
   expect(await api(page, () => window.__PONCHO__!.backdropLayout())).toEqual({ sunX: null, sunY: null, mountainsY: 84, footY: 200, desertY: 148 });
-  // The floor: top tiles on row 14, wall tiles under them, the gap empty.
+  // The floor: top tiles on row 14, wall tiles under them, and 2-1's first pit (columns 22 to 24) empty.
   expect([0, 1]).toContain(await api(page, () => window.__PONCHO__!.groundFrame(5, 14)));
   expect([2, 3]).toContain(await api(page, () => window.__PONCHO__!.groundFrame(5, 15)));
-  expect(await api(page, () => window.__PONCHO__!.groundFrame(41, 14))).toBeNull();
+  const [pitFrom, pitTo] = pits(LEVEL_2_1)[0]!;
+  for (let c = pitFrom; c <= pitTo; c++) expect(await page.evaluate((tx) => window.__PONCHO__!.groundFrame(tx, 14), c), `pit column ${c}`).toBeNull();
   const boxes = await buttonBoxes(page);
-  const col = [9, 10, 13, 14, 15].find((c) => !covered(boxes, c * 16 + 8, 226) && !covered(boxes, c * 16 + 8, 248))!;
+  // A floor column in the first screen with nothing on it to draw over the sample: a top tile (no crate on row 13), clear of Poncho at
+  // the spawn and at least 4 columns from any enemy's start (the Alacrán walks its pen, columns 11 to 17).
+  const { world, spawn, enemies } = LEVEL_2_1;
+  const floorCols = Array.from({ length: 30 }, (_, c) => c).filter(
+    (c) => world.solidTile(c, FLOOR_ROW) && !world.solidTile(c, FLOOR_ROW - 1) && Math.abs(c - Math.floor(spawn.x / TILE)) > 2 && enemies.every((e) => Math.abs(c - Math.floor(e.x / TILE)) > 4),
+  );
+  const col = floorCols.find((c) => !covered(boxes, mid(c), 226) && !covered(boxes, mid(c), 248))!;
   expect(col).toBeDefined();
   expect(covered(boxes, 300, 6)).toBe(false);
   // The top band of the sky, the tejas of the walk line's rows 1 and 2 (y 225 to 227), the talavera band (y 232 to 237) and the plaster below.
@@ -86,10 +115,14 @@ test('GDD-ART-06 a pit in World 2 shows the dark street', async ({ page, isMobil
   await boot(page, '/?level=2-1');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await api(page, () => window.__PONCHO__!.pause(true));
-  const scrollX = await standAt(page, 560, 224);
+  // 2-1's first pit (columns 22 to 24), Poncho on the floor two columns before it, past the Alacrán's pen.
+  const [pitFrom, pitTo] = pits(LEVEL_2_1)[0]!;
+  const scrollX = await standAt(page, mid(pitFrom - 2), FLOOR_ROW * TILE);
   const boxes = await buttonBoxes(page);
-  // The gap's columns 41 and 42 (x 656 to 688), 250 px down, well below the floor's top.
-  const x = [664, 680].map((px) => px - scrollX).find((px) => !covered(boxes, px, 250))!;
+  // The pit's columns, the middle one first, at y 250, well below the floor's top.
+  const middle = Math.floor((pitFrom + pitTo) / 2);
+  const cols = [middle, ...Array.from({ length: pitTo - pitFrom + 1 }, (_, i) => pitFrom + i).filter((c) => c !== middle)];
+  const x = cols.map((c) => mid(c) - scrollX).find((px) => px > 2 && px < 478 && !covered(boxes, px, 250))!;
   expect(x, isMobile ? 'phone' : 'desktop').toBeDefined();
   const [pit] = await pixelsAt(page, [{ x, y: 250 }]);
   expect(nearAny(pit!, ['#4E4A78']), `pit ${JSON.stringify(pit)}`).toBe(true);
@@ -99,10 +132,11 @@ test('GDD-ART-06 World 2 decor stands on the ground behind everything, by the pl
   await boot(page, '/?level=2-1');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   const decor = await api(page, () => window.__PONCHO__!.plants());
-  // The same 16 items as src/ui/plants.test.ts, as [kind, x, y]: x the middle of the column, y 1 px into the floor's top (row 14).
-  const cols = [8, 9, 17, 18, 26, 27, 35, 36, 44, 45, 62, 63, 71, 72, 80, 81];
-  const kinds = [3, 6, 2, 5, 1, 4, 0, 3, 6, 2, 4, 0, 3, 6, 2, 5];
-  expect(decor.map((p) => [p.kind, p.x, p.y])).toEqual(cols.map((c, i) => [kinds[i], c * 16 + 8, 225]));
+  // What the plant rule places in 2-1 with World 2's decor sizes (src/ui/plants.test.ts holds the rule's own tests), as [kind, x, y]: x the
+  // middle of the column, y 1 px into the top of the tile it stands on.
+  const spots = plantSpots(LEVEL_2_1, MERCADO.decor);
+  expect(spots.length).toBeGreaterThan(0);
+  expect(decor.map((p) => [p.kind, p.x, p.y])).toEqual(spots.map((s) => [s.kind, mid(s.col), s.row * TILE + 1]));
   for (const p of decor) {
     expect(p.depth, `decor at ${p.x}`).toBeGreaterThan(-0.5);
     expect(p.depth, `decor at ${p.x}`).toBeLessThan(1);
@@ -115,7 +149,8 @@ test('GDD-LIFE-05 lives carry from 2-1 into 2-2 by Next level', async ({ page, i
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await api(page, () => window.__PONCHO__!.pause(true));
   for (let i = 0; i < 2; i++) await api(page, () => window.__PONCHO__!.loseLife());
-  await api(page, () => window.__PONCHO__!.teleport(1400, 224));
+  // 2-1's exit, on the last rooftop (column 174, y 80).
+  await page.evaluate(([x, y]) => window.__PONCHO__!.teleport(x!, y!), [LEVEL_2_1.exit!.x, LEVEL_2_1.exit!.y]);
   await stepUntil(page, { phase: 'clear' }, 30);
   await api(page, () => window.__PONCHO__!.step(61));
   await waitForResults(page);
@@ -132,8 +167,10 @@ test('GDD-LIFE-05 out of lives in 2-2, the press starts 2-1 at once with seven l
   await api(page, () => window.__PONCHO__!.pause(true));
   for (let i = 0; i < 6; i++) await api(page, () => window.__PONCHO__!.loseLife());
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(1);
-  // Dropped over the gap: the last life is lost in the pit.
-  await api(page, () => window.__PONCHO__!.teleport(672, 150));
+  // Dropped over the middle of 2-2's first pit (columns 49 to 54; its rollo is rolled up at its left post, so nothing bridges it, and no
+  // enemy is near): the last life is lost in the pit.
+  const [pitFrom, pitTo] = pits(LEVEL_2_2)[0]!;
+  await page.evaluate((x) => window.__PONCHO__!.teleport(x, 150), mid(Math.floor((pitFrom + pitTo) / 2)));
   expect(await stepUntil(page, { phase: 'respawning' }, 200)).toBeLessThan(200);
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(0);
   await stepUntil(page, { phase: 'gameover' }, 60);
@@ -152,7 +189,7 @@ test('GDD-LIFE-05 out of lives in 2-2, the press starts 2-1 at once with seven l
   ).toEqual({ phase: 'gameover', level: '2-2' });
   await page.waitForFunction(() => window.__PONCHO__!.level() === '2-1' && window.__PONCHO__!.phase() === 'playing');
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
-  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 40, y: 224 });
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: LEVEL_2_1.spawn.x, y: LEVEL_2_1.spawn.y });
 });
 
 test('GDD-UI-02 a save from before World 2 that cleared 1-4 opens on the title over 2-1, and Start plays it with seven', async ({ page, isMobile }) => {

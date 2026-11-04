@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { LEVEL_1_2 } from '../src/levels/level1-2';
+import { LEVEL_2_1 } from '../src/levels/level2-1';
 import { boot, openGame, stepToBossMode, stepUntil, tapAt, waitForResults } from './helpers';
 
 // GDD-LIFE-05: the lives carried through World 1 (Next level, Retry), kept in the save, and the restart at 1-1 after the last life;
@@ -538,8 +539,8 @@ test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1, 1
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5);
-  // 2-1's exit stands at x 1400 on the floor.
-  await toExit(page, 224, 1400);
+  // 2-1's exit, on its last rooftop.
+  await toExit(page, LEVEL_2_1.exit!.y, LEVEL_2_1.exit!.x);
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'quit');

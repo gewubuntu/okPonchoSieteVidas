@@ -1,4 +1,4 @@
-// Screenshots of World 2's Mercado backdrop, ground and decor for visual review (GDD-ART-06), in the stub level 2-1 and the arena 2-4,
+// Screenshots of World 2's Mercado backdrop, ground and decor for visual review (GDD-ART-06), in level 2-1 (GDD-WLD-12) and the arena 2-4,
 // and La Estrella's placeholder in each phase (GDD-BOS-03). Run with `npm run shots`; images land in shots/ (not committed).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { bumpEstrella, phase3Hit, start, stepToEstrellaMode } from '../helpers';
@@ -27,24 +27,24 @@ test('GDD-ART-06 mercado: level 2-1 at the start', async ({ page, isMobile }, in
   await shot(page, info, 'mercado-start');
 });
 
-test('GDD-ART-06 mercado: scrolled, the far town and the rooftops have moved, the 4-tile gap in view', async ({ page, isMobile }, info) => {
+test('GDD-ART-06 mercado: scrolled, the far town and the rooftops have moved, the first pit and awning in view', async ({ page, isMobile }, info) => {
   await start(page, isMobile, '/?level=2-1');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  await stand(page, 600, 224, 344); // the gap at columns 40 to 43 (x 640 to 704) ahead
+  await stand(page, 424, 224, 168); // 2-1's first pit, columns 22 to 24 (x 352 to 400), behind him and its first awning (31 to 34) ahead
   const offsets = await page.evaluate(() => window.__PONCHO__!.backdrop());
   expect(offsets.mountains).toBeGreaterThan(0);
   expect(offsets.desert).toBeGreaterThan(offsets.mountains);
-  expect(await page.evaluate(() => window.__PONCHO__!.groundFrame(41, 14))).toBeNull();
+  expect(await page.evaluate(() => [22, 23, 24].map((c) => window.__PONCHO__!.groundFrame(c, 14)))).toEqual([null, null, null]);
   await shot(page, info, 'mercado-mid');
 });
 
 test('GDD-ART-06 mercado: the decor close up, beside Poncho on the floor', async ({ page, isMobile }, info) => {
   await start(page, isMobile, '/?level=2-1');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  // Columns 17 to 36 hold a huacal, rebozos, a bugambilia, a farol, a maceta and ollas (src/ui/plants.test.ts).
+  // By the plant rule, 2-1's columns 8 to 27 hold five kinds of decor (src/ui/plants.ts), one on the crate at column 10.
   await stand(page, 360, 224, 104);
   const inView = (await page.evaluate(() => window.__PONCHO__!.plants())).filter((p) => p.x > 104 && p.x < 584);
-  expect(new Set(inView.map((p) => p.kind)).size).toBeGreaterThanOrEqual(6);
+  expect(new Set(inView.map((p) => p.kind)).size).toBeGreaterThanOrEqual(5);
   await shot(page, info, 'mercado-decor');
 });
 

@@ -673,3 +673,13 @@ Retired IDs: L-046
 - **Rule:** A prompt that launches an agent in a worktree starts with the exact command to put the tree on the branch head it builds on (`git fetch origin <branch> && git reset --hard origin/<branch>`, the branch pushed first), before the agent writes anything.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-061 Playtests pinned the stub levels' numbers, and the real levels broke them
+
+- **Date:** 2026-11-04
+- **Area:** playtest, level
+- **What went wrong:** `e2e/world2.spec.ts`, one test of `e2e/world1.spec.ts` and three scenarios of `e2e/shots/mercado.spec.ts` were written while 2-1 to 2-3 were stubs and hard-coded their numbers: the 4-tile gap at columns 40 to 43, the exit at x 1400, the spawn at x 40 and the stub's decor list. When the real levels landed, seven playtests failed on both viewports and three screenshot scenarios failed, in the full run only; each was re-anchored on the level module (`pits()` over `LEVEL_2_1.world`, `LEVEL_2_1.exit`, `LEVEL_2_1.spawn`, `plantSpots(LEVEL_2_1, MERCADO.decor)`).
+- **Root cause:** The specs copied positions out of the level by hand instead of reading them from the level data they play, and the commit that replaced the stubs ran the specs of the new features, not every spec and shot scenario that opens those levels.
+- **Rule:** A playtest reads where things are in a real level (pits, exit, spawn, decor, enemies) from the level module it plays (`import { LEVEL_x_y } from '../src/levels/...'`), and comments any number it must hard-code; a commit that changes a level's data runs every spec and shot scenario that opens it (`grep -rln "level=<id>" e2e`).
+- **Recurrence:** 1
+- **Promoted:** no

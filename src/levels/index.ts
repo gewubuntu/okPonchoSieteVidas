@@ -43,7 +43,7 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: '1-3', world: 1, test: false, level: LEVEL_1_3, next: '1-4' },
   // GDD-BOS-02: World 1's boss arena. Its Next level starts World 2 (GDD-UI-02), with seven lives (GDD-LIFE-05).
   { id: '1-4', world: 1, test: false, level: LEVEL_1_4, next: '2-1' },
-  // GDD-WLD-01: World 2, the Mercado, stubs until its levels are designed; 2-4 is its boss arena and, the last level built, names no next.
+  // GDD-WLD-01: World 2, the Mercado: 2-1 to 2-3 (GDD-WLD-12, GDD-WLD-13, GDD-WLD-14); 2-4 is its boss arena and, the last level built, names no next.
   { id: '2-1', world: 2, test: false, level: LEVEL_2_1, next: '2-2' },
   { id: '2-2', world: 2, test: false, level: LEVEL_2_2, next: '2-3' },
   { id: '2-3', world: 2, test: false, level: LEVEL_2_3, next: '2-4' },
