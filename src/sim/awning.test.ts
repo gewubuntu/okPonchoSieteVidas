@@ -377,6 +377,19 @@ describe('GDD-WLD-10 awning: a stomp in the same step wins', () => {
     expect(states[hit]!.awningBounce).toBeNull();
   });
 
+  it('a torn awning under the stomped enemy is not torn by the stomp step, and rebounds him on the way down', () => {
+    // The stomp wins its step (above), so that step is no landing on the awning: it stays whole, then catches his fall and tears then.
+    const tornLevel = levelOf([{ ...S, torn: true }], { enemies: [{ x: 128, y: FLOOR }] });
+    const states = play(tornLevel, { ...startRun(tornLevel), player: falling().player }, 60);
+    const hit = states.findIndex((s) => s.stomped);
+    expect(hit).toBeGreaterThanOrEqual(0);
+    expect(states[hit]!.awningsGone).toEqual([false]);
+    const rebound = states.findIndex((s, i) => i > hit && s.awningBounce !== null);
+    expect(rebound).toBeGreaterThan(hit);
+    expect(states[rebound]!.player.vy).toBeLessThan(0);
+    expect(states.slice(rebound).some((s) => s.awningsGone[0])).toBe(true);
+  });
+
   it('the stomp boost reads jump held, and a press in the buffer (L-024)', () => {
     const held = play(stompLevel, falling({ jumpHeldSteps: 5, jumpWasHeld: true }), 40, () => hold);
     expect(held.find((s) => s.stomped)!.player.vy).toBe(-STOMP.boostBounce);
