@@ -30,7 +30,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-MOV-08 | doing | wall cling and kick in src/sim/movement.ts behind the level ability flag (on in the sandbox until GDD-PRG-01 unlocks it), placeholder claw marks; sprite and sound pending |
 | GDD-MOV-09 | done | sand slopes in src/sim/slope.ts, src/sim/tilemap.ts and src/sim/movement.ts (the Alacrán, the Tlacuache, the walking taco and fireballs follow them), the validator's slope checks, the slope tiles of the ground sheet (scripts/art/desert.mjs, src/ui/groundTiles.ts); the slopes test level (src/levels/slopes.ts, ?level=slopes); tests in src/sim/slopes.test.ts, src/levels/slopes.test.ts and e2e/slopes.spec.ts; screenshots approved (docs/screenshots/sand-slopes) |
 | GDD-CMB-01 | doing | stomp with 260 and 410 px/s bounces in src/sim/enemy.ts and run.ts; the not-stompable marking (three pale thorns) is built for the Zopilote, the cactus buddy and Don Zopilote, whom a stomp never hits (GDD-BOS-02); the Tlacuache's first stomp makes it play dead |
-| GDD-CMB-02 | doing | claw swing, hit box, cooldown, input and touch button in src/sim/claw.ts; it opens piñatas, breaks fragile walls and defeats the Alacrán, Zopilote and Tlacuache (also while it plays dead); the swing sound plays (GDD-AUD-02); stun waits for a heavy enemy (user, 2026-10-31) |
+| GDD-CMB-02 | doing | claw swing, hit box, cooldown, input and touch button in src/sim/claw.ts; it opens piñatas, breaks fragile walls and defeats the Alacrán, Zopilote and Tlacuache (also while it plays dead); the swing sound plays (GDD-AUD-02); stun waits for a heavy enemy (user, 2026-10-31): World 2's Trompo, planned on branch ccr-edf2e20d-lk1r4u (GDD-ENM-03) |
 | GDD-CMB-03 | doing | spike, enemy, Don Zopilote and cactus fruit hits, one a step in that order (GDD-BOS-02, src/sim/bossfight.test.ts): 2.0 s invulnerability and 80 px/s knockback in Taco and Fuego; crushing by a moving block costs a life in any state, even while invulnerable (src/sim/block.ts, src/sim/run.ts) |
 | GDD-CTL-01 | doing | arrows, WASD, Space, Z, Up, W, claw (X, J), Fuego (C, K) and pause (Escape, P) wired; remap pending |
 | GDD-CTL-02 | done | south, west, east, start, D-pad and left stick in src/ui/gamepad.ts, merged with keys and touch in PlayScene; menus and the title by gamepad; held back through a pause like the keys; read once per frame (no latch); remapping comes with GDD-UI-03 |
@@ -64,7 +64,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-ART-03 | todo |  |
 | GDD-ART-04 | doing | standing frame and four run frames in the game (src/ui/ponchoAnim.ts); jump, fall, skid, land and the rest pending |
 | GDD-ART-05 | todo |  |
-| GDD-ART-06 | doing | World 1's backdrop (sky, sun, clouds, mountains with parallax, src/ui/backdrop.ts) and ground tiles (src/ui/groundTiles.ts), drawn by scripts/art/make-desert.mjs, approved 2026-10-26; the plants (src/ui/plants.ts) and the far desert strip, approved 2026-10-27; the sand slope tiles, the ground tiles cut along the slope (GDD-MOV-09), approved 2026-11-02; World 1's mood is complete, the other worlds' moods pending |
+| GDD-ART-06 | doing | World 1's backdrop (sky, sun, clouds, mountains with parallax, src/ui/backdrop.ts) and ground tiles (src/ui/groundTiles.ts), drawn by scripts/art/make-desert.mjs, approved 2026-10-26; the plants (src/ui/plants.ts) and the far desert strip, approved 2026-10-27; the sand slope tiles, the ground tiles cut along the slope (GDD-MOV-09), approved 2026-11-02; World 1's mood is complete; World 2's backdrop, ground, decor, awning, cordel, rollo and arena plaza drawn by scripts/art/make-mercado.mjs (assets/sprites/mercado/, scripts/art/mercado.test.mjs), not in the game yet, screenshots pending, on branch ccr-edf2e20d-lk1r4u; the other worlds' moods pending |
 | GDD-ART-07 | todo |  |
 | GDD-TEC-01 | done | scaffold on latest stable: Phaser 4, TS 7, Vite 8, Vitest 5, Playwright, Oxlint |
 | GDD-TEC-02 | done | src/sim/fixedStep.ts, sim has no Phaser imports |
@@ -82,10 +82,10 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-PWR-06 | doing | collect by touch and no spawn inside a wall (src/sim/item.ts); the reserve-slot question stays open |
 | GDD-VIS-05 | todo |  |
 | GDD-TEC-07 | todo |  |
-| GDD-WLD-10 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
-| GDD-WLD-11 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
-| GDD-WLD-12 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
-| GDD-WLD-13 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
-| GDD-WLD-14 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
-| GDD-ENM-03 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
-| GDD-BOS-03 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u |
+| GDD-WLD-10 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u: the hold ladder Decided (user, 2026-11-04), its rules and AWNING numbers written; the sim, the torn awning, the validator's awning checks, and the wiring of its look (drawn by scripts/art/mercado.mjs, assets/sprites/mercado/awning.png, not in the game yet) pending; screenshots pending |
+| GDD-WLD-11 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u: cordeles and rollos written (ROLLO; Open Question 23); the sim, the claw and fireball unroll, and the wiring of their look (cordel.png, rollo.png, not in the game yet) pending; screenshots pending |
+| GDD-WLD-12 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u: 2-1 "El Tianguis" planned (its place, teaching and beats, and the frame of World 2's levels); layout, level file, bot test and screenshots pending |
+| GDD-WLD-13 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u: 2-2 "Mercado Municipal" planned (its place, teaching and beats; its twist, without the Zanate, settled with the layout); layout, level file, bot test and screenshots pending |
+| GDD-WLD-14 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u: 2-3 "Azoteas" planned (its place, teaching and beats); layout, level file, bot test and screenshots pending |
+| GDD-ENM-03 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u: the Paloma, the Chapulín and the Trompo written ("Three now, Zanate later", user, 2026-11-04; PALOMA, CHAPULIN, TROMPO), the Zanate a later idea, not built; the sim, placeholder art and screenshots pending |
+| GDD-BOS-03 | doing | World 2 (Mercado), on branch ccr-edf2e20d-lk1r4u: La Estrella and her arena 2-4 written ("La Estrella", user, 2026-11-04; ESTRELLA, TEJOCOTE), the arena's plaza layer drawn (plaza.png, not in the game yet); the sim, the arena level, its bot test, her name on the boss bar and screenshots pending |
