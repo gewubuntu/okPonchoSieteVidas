@@ -74,6 +74,7 @@ test('GDD-BOS-02 1-4: the arena, his telegraph, dive, stuck, a hit, the phase 2 
 
   await api(page, () => window.__PONCHO__!.step(40 + 61));
   await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().shown && window.__PONCHO__!.clearDrawn().menu.shown);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'retry' });
+  // 1-4 names 2-1 (GDD-UI-02): the menu opens on Next level, which can be chosen.
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'next' });
   await shot(page, info, 'boss-clear');
 });

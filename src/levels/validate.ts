@@ -2,6 +2,7 @@
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
 import { AWNING, BASE_WIDTH, COVER, LEVEL_RULES, ROLLO, TILE } from '../config/tuning';
 import { bossStart } from '../sim/boss';
+import { isBossLevel } from '../sim/bossLevel';
 import { kindOf } from '../sim/enemy';
 import type { Level } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
@@ -73,7 +74,7 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
   const screen = BASE_WIDTH / TILE;
 
   const width = level.world.width;
-  if (level.boss) {
+  if (isBossLevel(level)) {
     // GDD-BOS-01: a boss level has no ofrendas (its checkpoint is the arena start) and no exit (beating the boss clears it), and is one screen wide.
     if (level.ofrendas.length !== 0) problems.push(`${level.ofrendas.length} ofrendas, a boss level has none`);
     if (level.exit) problems.push('an exit, a boss level has none');

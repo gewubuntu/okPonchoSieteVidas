@@ -42,13 +42,13 @@ function firstLoss(run: RunState, n: number): { step: number; mode: string } {
 }
 
 describe('GDD-BOS-02 level 1-4', () => {
-  it('GDD-BOS-02 1-4 is 30 by 17 tiles, a World 1 level, no test level, and comes after 1-3, naming no next level', () => {
+  it('GDD-BOS-02 1-4 is 30 by 17 tiles, a World 1 level, no test level, and comes after 1-3, naming 2-1 as its next level', () => {
     expect(world.width).toBe(30);
     expect(world.height).toBe(17);
     const entry = LEVELS.find((e) => e.id === '1-4');
     expect(entry).toMatchObject({ world: 1, test: false });
     expect(entry!.level).toBe(LEVEL_1_4);
-    expect(entry!.next).toBeUndefined();
+    expect(entry!.next).toBe('2-1');
     expect(LEVELS.find((e) => e.id === '1-3')!.next).toBe('1-4');
     expect(entry!.tips).toBeUndefined();
   });

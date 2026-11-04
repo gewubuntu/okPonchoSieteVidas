@@ -148,6 +148,14 @@ describe('GDD-TEC-04 and GDD-WLD-03 gaps', () => {
     expect(validateLevel(entry({ pits: cols(10, 13) }))).toEqual(['gap of 4 tiles at columns 10 to 13, World 1 allows 3']);
   });
 
+  it('World 2 allows a gap of 4 tiles', () => {
+    expect(validateLevel(entry({ world: 2, pits: cols(10, 13) }))).toEqual([]);
+  });
+
+  it('World 2 rejects a gap of 5 tiles', () => {
+    expect(validateLevel(entry({ world: 2, pits: cols(10, 14) }))).toEqual(['gap of 5 tiles at columns 10 to 14, World 2 allows 4']);
+  });
+
   it('a world with no gap limit is a problem', () => {
     expect(validateLevel(entry({ world: 3 }))).toEqual(['no gap limit for World 3']);
   });

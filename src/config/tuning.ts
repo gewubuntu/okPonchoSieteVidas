@@ -434,7 +434,7 @@ export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;
 
 /**
  * GDD-TEC-04: what the level validator checks. GDD-WLD-03: a level is 3 to 6 screens of BASE_WIDTH wide, has 3 ofrendas,
- * and its gaps never exceed `maxGapTiles` for its world (World 1 and World 2 have one so far, World 2's 4 tiles Proposed, and the tutorial 0-1, outside the seven worlds, follows World 1's: GDD-WLD-01). GDD-ENM-01: no enemy starts
+ * and its gaps never exceed `maxGapTiles` for its world (Worlds 1 and 2 have a limit so far, World 2 a tile more, and the tutorial 0-1, outside the seven worlds, follows World 1: GDD-WLD-01). GDD-ENM-01: no enemy starts
  * closer than 3 tiles to a respawn.
  */
 export const LEVEL_RULES = {

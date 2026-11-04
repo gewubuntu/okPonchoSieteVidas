@@ -57,10 +57,10 @@ const walkOnto = (page: Page, x: number) =>
     window.__PONCHO__!.teleport(px, 224);
     window.__PONCHO__!.step(1);
   }, x);
-/** To the exit of the level played (on the floor, or at `y`) and its clear screen with the results menu up (the menu takes keys while the debug pause is on, as in `e2e/level0-1.spec.ts`). */
-async function toExit(page: Page, y = 224): Promise<void> {
+/** To the exit of the level played (on the floor at x 2780, or at `y` and `x`) and its clear screen with the results menu up (the menu takes keys while the debug pause is on, as in `e2e/level0-1.spec.ts`). */
+async function toExit(page: Page, y = 224, x = 2780): Promise<void> {
   await api(page, () => window.__PONCHO__!.pause(true));
-  await page.evaluate((py) => window.__PONCHO__!.teleport(2780, py), y);
+  await page.evaluate(([px, py]) => window.__PONCHO__!.teleport(px!, py!), [x, y]);
   await stepUntil(page, { phase: 'clear' }, 30);
   await api(page, () => window.__PONCHO__!.step(61));
   await waitForResults(page);
@@ -506,7 +506,7 @@ test('GDD-PRG-02 a clear of 1-1 saves the run at 1-2, and the Siete vidas gastad
   expect((await stored(page))!.progress).toMatchObject({ worldAt: { '1': '1-1' }, worldLives: { '1': 0 } });
 });
 
-test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1, 1-2, 1-3 and 1-4 cleared, a new run, then 1-1 cleared, the title is over 1-2', async ({ page, isMobile }) => {
+test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1, 1-2, 1-3 and 1-4 cleared, the title is over World 2 at 2-1, then 2-1 cleared, over 2-2', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await refuseStorage(page);
   await boot(page, '/');
@@ -527,26 +527,30 @@ test('GDD-UI-02 where storage is refused, the run of this visit moves on: 1-1, 1
   await playingIn(page, '1-4');
   await api(page, () => window.__PONCHO__!.pause(true));
   await beatBoss(page);
-  // 1-4 ends the run (it is World 1's last level): a new one at 1-1 (the older rule says 1-1 too, all being cleared).
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
-  await page.keyboard.press('ArrowDown');
-  await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'quit');
-  await page.keyboard.press('Enter', { delay: 30 });
-  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.level() === '1-1');
-  await page.keyboard.press('Enter');
-  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5);
-  await toExit(page);
+  // 1-4 ends World 1's run and names 2-1 (GDD-UI-02): the menu opens on Next level. Quit to title instead.
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('next');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'quit');
   await page.keyboard.press('Enter', { delay: 30 });
-  // The run moved on to 1-2, though all four levels are cleared.
-  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.level() === '1-2');
+  // "Start" plays the latest world reached (user, 2026-11-04): World 2 from 2-1, with seven.
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.level() === '2-1');
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
-  // The scene of that title knows the run too (this visit's, the storage refusing it): Start plays 1-2.
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5);
-  expect(await api(page, () => window.__PONCHO__!.level())).toBe('1-2');
+  // 2-1's exit stands at x 1400 on the floor.
+  await toExit(page, 224, 1400);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().menu.chosen === 'quit');
+  await page.keyboard.press('Enter', { delay: 30 });
+  // World 2's run moved on to 2-2, with the lives at the clear.
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.level() === '2-2');
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  // The scene of that title knows the run too (this visit's, the storage refusing it): Start plays 2-2.
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5);
+  expect(await api(page, () => window.__PONCHO__!.level())).toBe('2-2');
 });
 
 test('GDD-LIFE-05 out of lives in 1-4, the press starts 1-1 at once with seven lives, and the arena is a fresh fight', async ({ page, isMobile }) => {
