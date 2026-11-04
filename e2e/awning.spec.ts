@@ -71,7 +71,8 @@ test('GDD-WLD-11 a claw swipe unrolls the rollo into a bridge he crosses', async
     g.step(1, { move: 0, jumpHeld: false, claw: true });
     g.step(2, { move: 1, jumpHeld: false });
     g.step(17, { move: 1, jumpHeld: true });
-    g.step(120, { move: 1, jumpHeld: false });
+    // 60 steps of running take him off the bridge onto the floor past it, short of the lab's next pit (column 36).
+    g.step(60, { move: 1, jumpHeld: false });
     return { rolled, unrolled: g.market().unrolled[0], bundle: g.market().rollos[0]!.bundle, x: g.state().x, lives: g.lives() };
   });
   expect(result.rolled).not.toBeNull();

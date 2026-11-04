@@ -421,8 +421,10 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
     ...run.fireballs.flatMap((f) => stepFireball(f, solid) ?? []),
     ...(spat && !squareBlocked(solid, spat.x, spat.y, FIREBALL.size) ? [spat] : []),
   ];
-  // GDD-WLD-11: a claw swipe or a fireball that touches a rolled-up bundle unrolls it; the fireball is used up.
-  const rollos = unrollTouched(level.rollos ?? [], grown, [...(box ? [box] : []), ...fireballs.map(fireballBox)]);
+  // GDD-WLD-11: a claw swipe or a fireball that touches a rolled-up bundle unrolls it; the fireball is used up. A swipe also unrolls a
+  // bundle Poncho's own body box overlaps, so one tied flush against a wall he stands against is batted too.
+  const body = { x0: player.x - HITBOX.width / 2, x1: player.x + HITBOX.width / 2, y0: player.y - HITBOX.height, y1: player.y };
+  const rollos = unrollTouched(level.rollos ?? [], grown, [...(box ? [box, body] : []), ...fireballs.map(fireballBox)]);
   // GDD-WLD-05: a key is picked up by touch. Then a shut door that Poncho touches at its side opens for good and uses up
   // one key, so a key picked up the same step as a door is touched opens it.
   let keysHeld = run.keysHeld;

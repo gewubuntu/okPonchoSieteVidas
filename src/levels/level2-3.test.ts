@@ -517,9 +517,9 @@ describe('GDD-WLD-14 2-3 the exam (the Ketsu)', () => {
     }
   });
 
-  it('GDD-WLD-11 2-3 pressed against the exit roof wall, the claw misses R4 bundle (its box starts at the wall); 18 px back it unrolls it', () => {
+  it('GDD-WLD-11 2-3 the claw unrolls R4 bundle pressed against the exit roof wall (his body over it) and 18 px back (the swipe over it)', () => {
     const b = bundleBox(ROLLOS_2_3[R4]!);
-    for (const [x, unrolls] of [[b.x1 - 6, false], [b.x1 - 24, true]] as const) {
+    for (const [x, unrolls] of [[b.x1 - 6, true], [b.x1 - 24, true]] as const) {
       let r: RunState = { ...startRun(quiet), player: { ...standing(x, 210), grounded: false, vy: -300 } };
       r = stepRun(r, { move: 0, jumpHeld: true, claw: true }, quiet);
       for (let i = 0; i < 6; i++) r = stepRun(r, { move: 0, jumpHeld: true }, quiet);

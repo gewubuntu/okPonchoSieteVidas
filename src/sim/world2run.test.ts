@@ -5,6 +5,8 @@ import type { PlayerInput } from './movement';
 import type { Cordel } from './papel';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { parseTiles } from './tilemap';
+import { spawn } from './movement';
+import { LAB_2M_LEVEL } from '../levels/lab2m';
 
 // The run hands the World 2 enemies the awnings and cordeles of the level (GDD-ENM-03, GDD-WLD-10, GDD-WLD-11).
 
@@ -74,5 +76,24 @@ describe('GDD-ENM-03 the run hands the Paloma the cordeles (GDD-WLD-11)', () => 
     expect(Math.max(...xs)).toBeLessThanOrEqual(C.x + C.w);
     // It walked the cordel both ways.
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(C.w / 2);
+  });
+});
+
+describe('GDD-WLD-11 the claw bats a bundle under Poncho, not his body alone', () => {
+  // lab-2m's first rollo is tied at its left post, column 27 (x 432), its line 8 px over the floor; its bundle box is x 432 to 444.
+  const lab = LAB_2M_LEVEL;
+  const over = (): RunState => ({ ...startRun(lab), player: { ...spawn(438, FLOOR), grounded: true } });
+
+  it('standing with his body over the bundle, he leaves it rolled up', () => {
+    let r = over();
+    for (let i = 0; i < 30; i++) r = stepRun(r, idle, lab);
+    expect(r.rollos[0]!.steps).toBeNull();
+  });
+
+  it('a swipe facing away from it, his body over it, unrolls it', () => {
+    let r: RunState = { ...over(), player: { ...over().player, facing: -1 } };
+    r = stepRun(r, { move: 0, jumpHeld: false, claw: true }, lab);
+    for (let i = 0; i < 6; i++) r = stepRun(r, idle, lab);
+    expect(r.rollos[0]!.steps).not.toBeNull();
   });
 });
