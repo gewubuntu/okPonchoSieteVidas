@@ -302,6 +302,32 @@ export const ZOPILOTE = {
 } as const;
 
 /**
+ * GDD-ENM-02, GDD-ART-05: World 1's enemy sprites. `frames` is each sheet's frame in game px (a walker's box's middle on the frame's middle
+ * column and its feet on the bottom row; the Zopilote's and the poof's middle on the frame's middle). A walker shows the next walk frame every
+ * `walkPx` px it walks, the Tlacuache the next run frame every `chargePx` px it charges; the Zopilote the next flap every `flapSteps` and the
+ * next climb every `climbSteps`; a telegraph flashes red for `flashSteps` and plain for as many (GDD-ENM-01). A Zopilote dives steep while its
+ * dive's drop is at least `steepRatio` times its run. The cactus buddy breathes every `dozeSteps`, peeks while Poncho's hurtbox centre is
+ * within `peek` px of its box's middle (across and up or down), is alarmed within `alarm` px, and shivers every `shiverSteps`. A defeated
+ * enemy shows its squash or hit frame for `defeatSteps`, the hit frame rising `hitRise` px, then the poof's four frames for `poofSteps` each.
+ */
+export const ENEMY_ART = {
+  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, poof: { w: 24, h: 24 } },
+  walkPx: 2,
+  chargePx: 5,
+  flapSteps: 6,
+  climbSteps: 4,
+  flashSteps: 4,
+  steepRatio: 1.3,
+  dozeSteps: 45,
+  peek: { x: 64, y: 48 },
+  alarm: { x: 28, y: 32 },
+  shiverSteps: 4,
+  defeatSteps: 8,
+  hitRise: 6,
+  poofSteps: 4,
+} as const;
+
+/**
  * GDD-ENM-03: the Paloma (pigeon) is `width` x `height` px, standing on the ground or a cordel, and walks at `speed` px/s. When Poncho's
  * hurtbox centre is within `sightX` px of it across, on either side, and his feet within `sightY` px of its own, up or down, it freezes for
  * `telegraphSteps` (0.5 s, GDD-ENM-01), flies straight up `riseHeight` px at `riseSpeed` px/s, hovers for `hoverSteps` (1.0 s) bobbing

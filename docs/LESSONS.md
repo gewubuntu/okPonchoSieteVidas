@@ -698,9 +698,9 @@ Retired IDs: L-046
 - **Area:** playtest, level
 - **What went wrong:** `e2e/world2.spec.ts`, one test of `e2e/world1.spec.ts` and three scenarios of `e2e/shots/mercado.spec.ts` were written while 2-1 to 2-3 were stubs and hard-coded their numbers: the 4-tile gap at columns 40 to 43, the exit at x 1400, the spawn at x 40 and the stub's decor list. When the real levels landed, seven playtests failed on both viewports and three screenshot scenarios failed, in the full run only; each was re-anchored on the level module (`pits()` over `LEVEL_2_1.world`, `LEVEL_2_1.exit`, `LEVEL_2_1.spawn`, `plantSpots(LEVEL_2_1, MERCADO.decor)`).
 - **Root cause:** The specs copied positions out of the level by hand instead of reading them from the level data they play, and the commit that replaced the stubs ran the specs of the new features, not every spec and shot scenario that opens those levels.
-- **Rule:** A playtest reads where things are in a real level (pits, exit, spawn, decor, enemies) from the level module it plays (`import { LEVEL_x_y } from '../src/levels/...'`), and comments any number it must hard-code; a commit that changes a level's data runs every spec and shot scenario that opens it (`grep -rln "level=<id>" e2e`).
-- **Recurrence:** 1
-- **Promoted:** no
+- **Rule:** A playtest reads where things are in a real level (pits, exit, spawn, decor, enemies) from the level module it plays (`import { LEVEL_x_y } from '../src/levels/...'`), and comments any number it must hard-code; a commit that changes a level's data runs every spec and shot scenario that opens it (`grep -rln "level=<id>" e2e`). More generally, a change that replaces a stand-in (a stub level, a placeholder drawing) plans the rewrite of every spec that pins the stand-in's details.
+- **Recurrence:** 2
+- **Promoted:** `.claude/skills/harness-feature/SKILL.md` step 5, "Stand-ins (L-062)": the plan greps the specs for the stand-in's details and lists how each is rewritten (second time, 2026-11-04: world 1's enemy sprites replaced the placeholder drawings, and ten playtests in `enemy`, `cactus`, `tlacuache` and `zopilote.spec.ts` failed on both viewports: they asserted the placeholders' colours (`#9a3a2a`, `#4f9a4a`, `#ff5030`) and fixed feet pixels. The plan said those specs "must stay green unchanged", so they surfaced only in the implementer's full run and cost a second round; the rule above covered level numbers, not placeholder looks).
 
 ## L-063 Playtests in one checkout reloaded mid-test while other worktrees ran their own
 
@@ -722,3 +722,12 @@ Retired IDs: L-046
 - **Recurrence:** 1
 - **Promoted:** no
 
+## L-065 Parallel agents overwrote each other's helper scripts in the shared scratchpad
+
+- **Date:** 2026-11-04
+- **Area:** harness, process
+- **What went wrong:** Four artist agents drew World 1's enemies in parallel and each wrote its zoom helper to the scratchpad's top level as `zoom.mjs`; they overwrote one another's, and three of them lost a review round finding out and moving their files into subfolders.
+- **Root cause:** The brief gave every agent the same scratchpad path and no folder of its own, so the same obvious file names collided.
+- **Rule:** A brief for parallel agents gives each one its own scratch folder (`<scratchpad>/<agent's task>/`) for every file it writes there, and names any shared output path (a preview image) per agent.
+- **Recurrence:** 1
+- **Promoted:** no

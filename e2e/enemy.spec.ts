@@ -15,8 +15,15 @@ const start = async (page: Page) => {
 };
 const step = (page: Page, n: number, input: { move: number; jumpHeld: boolean; claw?: boolean; fuego?: boolean } = { move: 0, jumpHeld: false }) => page.evaluate(({ k, i }) => window.__PONCHO__!.step(k, i), { k: n, i: input });
 type Colour = { r: number; g: number; b: number };
-const body = (c: Colour) => c.r > 130 && c.r < 180 && c.g < 90 && c.b < 70; // the scorpion's dark red, 154 58 42
-const pale = (c: Colour) => c.r > 200 && c.g > 190 && c.b > 140; // the claws' 233 211 163
+const near = (c: Colour, [r, g, b]: [number, number, number]) => Math.abs(c.r - r) < 14 && Math.abs(c.g - g) < 14 && Math.abs(c.b - b) < 14;
+const body = (c: Colour) => near(c, [0xa0, 0x47, 0x2f]); // the scorpion's red-brown, earth #A0472F (GDD-ART-06)
+const honey = (c: Colour) => near(c, [0xf0, 0x8a, 0x3c]); // the pincers, orange #F08A3C
+/** Points every half px over a box `dx0` to `dx1` px across from `x` and `dy0` to `dy1` px down from its feet (y = 160). */
+const area = (x: number, [dx0, dx1]: [number, number], [dy0, dy1]: [number, number]) => {
+  const out: { x: number; y: number }[] = [];
+  for (let dx = dx0; dx <= dx1; dx += 0.5) for (let dy = dy0; dy <= dy1; dy += 0.5) out.push({ x: x + dx, y: 160 + dy });
+  return out;
+};
 const enemy = async (page: Page) => (await api(page, () => window.__PONCHO__!.enemies()))[0]!;
 // The sandbox also has a Zopilote, high up (e2e/zopilote.spec.ts); the Alacrán is the one standing on y = 160.
 const scorpionsDrawn = (page: Page) => api(page, () => window.__PONCHO__!.enemiesDrawn().filter((e) => e.kind === 'alacran'));
@@ -119,15 +126,16 @@ test('GDD-LIFE-02 losing a life brings it back to life', async ({ page }) => {
 
 test('GDD-ENM-02 the pale claws are on the side it is walking towards, and swap when it turns', async ({ page }) => {
   await start(page);
+  // The pincers are 3.5 to 6 px in front of its middle, 3 to 7 px above its feet, in every walk frame.
   const clawsAt = async (side: number) => {
     const { x } = await enemy(page);
-    const cx = Math.round(x + side * 6.5);
-    return (await pixelsAt(page, [-1, 0, 1].flatMap((dx) => [154, 155, 158].map((y) => ({ x: cx + dx, y }))))).some(pale);
+    return (await pixelsAt(page, area(x, side > 0 ? [3.5, 6] : [-6, -3.5], [-7, -3]))).some(honey);
   };
   await frames(page);
   const first = (await enemy(page)).dir;
   expect(await clawsAt(first)).toBe(true);
   expect(await clawsAt(-first)).toBe(false);
+  expect((await scorpionsDrawn(page))[0]!.flip).toBe(first < 0); // its sprite mirrored when it faces left
   while ((await enemy(page)).dir === first) await step(page, 10); // walks on until it turns round
   await frames(page);
   const turned = (await enemy(page)).dir;
@@ -136,17 +144,35 @@ test('GDD-ENM-02 the pale claws are on the side it is walking towards, and swap 
   expect(await clawsAt(-turned)).toBe(false);
   const [painted] = await scorpionsDrawn(page);
   expect(painted!.y).toBe(160);
+  expect(painted!.flip).toBe(turned < 0);
 });
 
 test('GDD-ENM-02 the scorpion is painted as a dark red body, and a defeated one leaves the picture', async ({ page }) => {
   await start(page);
   await frames(page);
   const { x } = await enemy(page);
-  const around = [-1, 0, 1].flatMap((dx) => [-1, 0, 1].map((dy) => ({ x: x + dx, y: 160 - 4 + dy })));
+  const around = area(x, [-2, 2], [-7, -3]); // its body, in every walk frame
   expect((await pixelsAt(page, around)).some(body)).toBe(true);
+  expect((await scorpionsDrawn(page))[0]!.look).toMatch(/^walk[0-3]$/);
   await page.evaluate((ex) => window.__PONCHO__!.teleport(ex, 140), x);
-  await step(page, 8);
-  await page.evaluate(() => window.__PONCHO__!.teleport(300, 100)); // out of the way
-  await frames(page);
+  // Stepped until the stomp defeats it: that step is age 0 of its squash, then the poof, gone after 24 steps (0.4 s, DEFEAT_FX_STEPS).
+  const seen = await page.evaluate(async () => {
+    const d = window.__PONCHO__!;
+    for (let k = 0; k < 20 && d.enemies()[0]!.alive; k++) d.step(1);
+    d.teleport(300, 100); // out of the way
+    const looks: string[] = [];
+    for (let age = 0; age <= 24; age++) {
+      if (age > 0) d.step(1);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      looks.push(d.defeatsDrawn().map((e) => `${e.kind} ${e.look}`).join());
+    }
+    return { looks, alive: d.enemies()[0]!.alive };
+  });
+  expect(seen.alive).toBe(false);
+  expect(seen.looks[0]).toBe('alacran squash');
+  expect(seen.looks[8]).toBe('alacran poof0');
+  expect(seen.looks[23]).toBe('alacran poof3');
+  expect(seen.looks[24]).toBe(''); // nothing left of it
+  expect(await scorpionsDrawn(page)).toEqual([]);
   expect((await pixelsAt(page, around)).some(body)).toBe(false);
 });

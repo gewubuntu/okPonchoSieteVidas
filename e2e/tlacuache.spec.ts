@@ -15,9 +15,16 @@ type Input = { move: number; jumpHeld: boolean; claw?: boolean };
 const step = (page: Page, n: number, input: Input = { move: 0, jumpHeld: false }) => page.evaluate(({ k, i }) => window.__PONCHO__!.step(k, i), { k: n, i: input });
 type Colour = { r: number; g: number; b: number };
 const opossum = async (page: Page) => (await api(page, () => window.__PONCHO__!.enemies()))[3]!;
-const grey = (c: Colour) => Math.abs(c.r - 140) < 12 && Math.abs(c.g - 138) < 12 && Math.abs(c.b - 148) < 12; // the body, 8c8a94
-const dark = (c: Colour) => c.r < 100 && c.g < 100 && c.b < 110 && Math.abs(c.r - 74) < 20; // the feet, 4a4850
-const red = (c: Colour) => c.r > 220 && c.g < 120 && c.b < 90; // the telegraph flash, ff5030
+const near = (c: Colour, [r, g, b]: [number, number, number]) => Math.abs(c.r - r) < 14 && Math.abs(c.g - g) < 14 && Math.abs(c.b - b) < 14;
+const grey = (c: Colour) => near(c, [0x8e, 0x6a, 0x96]); // the grizzled fur, purple #8E6A96 (GDD-ART-06)
+const red = (c: Colour) => near(c, [0xd8, 0x47, 0x3a]); // the telegraph flash, red #D8473A (GDD-ENM-01)
+/**
+ * Points every half px over its back, where its fur is in every walk and telegraph frame: 1 to 7 px behind its middle (the way it faces
+ * decides which side is behind) and 5 to 6 px above its feet (y = 96).
+ */
+const back = (x: number, dir: number) => [-7, -6, -5, -4, -3, -2, -1].flatMap((dx) => [0, 0.5].flatMap((h) => [-6, -5.5, -5].map((dy) => ({ x: x + (dx + h) * dir, y: 96 + dy }))));
+/** The look the scene drew it with (L-010: read back from its sprite). */
+const drawnLook = async (page: Page) => (await api(page, () => window.__PONCHO__!.enemiesDrawn())).find((e) => e.kind === 'tlacuache')!.look;
 const out = (page: Page) => page.evaluate(() => window.__PONCHO__!.teleport(24, 224)); // back near the start, far from it
 const stompFrom = async (page: Page) => {
   const { x } = await opossum(page);
@@ -43,30 +50,32 @@ test('GDD-ENM-02 the Tlacuache walks its ledge and is painted where it is', asyn
   const now = await opossum(page);
   const painted = (await api(page, () => window.__PONCHO__!.enemiesDrawn())).find((e) => e.kind === 'tlacuache')!;
   expect([painted.x, painted.y]).toEqual([now.x, now.y]);
-  expect((await pixelsAt(page, [{ x: Math.round(now.x) - 2, y: 91 }, { x: Math.round(now.x), y: 92 }])).some(grey)).toBe(true);
+  expect(painted.look).toMatch(/^walk[0-3]$/);
+  expect(painted.flip).toBe(now.dir < 0);
+  expect((await pixelsAt(page, back(now.x, now.dir))).some(grey)).toBe(true);
 });
 
 test('GDD-ENM-01 it spots Poncho on its ledge, freezes and flashes for 0.5 s, then charges', async ({ page }) => {
   await start(page);
   const { x, dir } = await opossum(page);
   await page.evaluate(([ox, d]) => window.__PONCHO__!.teleport(ox! + d! * 24, 96), [x, dir]); // 24 px in front of it, clear of the level edge
-  await step(page, 1);
+  await step(page, 1); // the step it spots him: age 0 of its telegraph
   expect((await opossum(page)).phase).toBe('telegraph');
   const frozen = await opossum(page);
-  let flashed = false;
-  let plain = false;
-  for (let i = 0; i < 6; i++) {
-    await step(page, 4);
+  // It is red (teleRed) for the first 4 steps of every 8 counted from age 0, and plain (tele) for the other 4.
+  let age = 0;
+  for (const [at, look] of [[0, 'teleRed'], [3, 'teleRed'], [4, 'tele'], [7, 'tele'], [8, 'teleRed'], [12, 'tele']] as const) {
+    await step(page, at - age);
+    age = at;
     await frames(page);
     const now = await opossum(page);
     expect(now.x).toBe(frozen.x);
-    const colours = await pixelsAt(page, [{ x: Math.round(now.x) - 2, y: 91 }]);
-    flashed ||= colours.some(red);
-    plain ||= colours.some(grey);
+    expect(await drawnLook(page), `age ${at}`).toBe(look);
+    const colours = await pixelsAt(page, back(now.x, now.dir));
+    expect(colours.some(red), `age ${at} red`).toBe(look === 'teleRed');
+    if (look === 'tele') expect(colours.some(grey), `age ${at} grey`).toBe(true);
   }
-  expect(flashed).toBe(true);
-  expect(plain).toBe(true);
-  await step(page, 6);
+  await step(page, 30 - age);
   expect((await opossum(page)).phase).toBe('charge');
 });
 
@@ -94,20 +103,15 @@ test('GDD-ENM-02 playing dead, its feet twitch only in the last 0.5 s before it 
   await start(page);
   await stompFrom(page); // this step is the first of its 120 playing dead (age 0)
   await out(page);
-  const { x } = await opossum(page);
-  // Two pairs of feet, 2 px wide, at x - 4 and x + 2 (x rounded), stick up from 9 to 5 px above its feet; a twitch curls them to
-  // 6 to 5 px. The sample is 7.5 px up, in the middle of each pair.
-  const feet = [-3, 3].map((lx) => ({ x: Math.round(x) + lx, y: 96 - 7.5 }));
-  const upright = async () => (await pixelsAt(page, feet)).filter(dark).length;
-  // The twitch starts 30 steps before the end (age 90) and shows for 4 steps of every 8 counted from age 0, so ages 88 to 91 are a
-  // shown phase: age 89 must be still, age 90 must twitch.
+  // Lying on its back its feet stick up (dead); they curl (deadTwitch) in its last 30 steps (from age 90), on 4 steps of every 8 counted
+  // from age 0, so ages 88 to 91 are a shown phase: age 89 must be still, age 90 must twitch.
   let done = 0;
   for (const [age, still] of [[4, true], [60, true], [89, true], [90, false], [94, true], [96, false]] as const) {
     await step(page, age - done);
     done = age;
     await frames(page);
     expect((await opossum(page)).phase, `age ${age}`).toBe('dead');
-    expect(await upright(), `age ${age}`).toBe(still ? 2 : 0);
+    expect(await drawnLook(page), `age ${age}`).toBe(still ? 'dead' : 'deadTwitch');
   }
 });
 
