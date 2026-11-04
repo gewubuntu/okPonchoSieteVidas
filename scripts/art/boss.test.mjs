@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { BOSS_ART } from '../../src/config/tuning';
 import { BOSS_DEFEAT_LOOKS, BOSS_LOOKS } from '../../src/ui/bossPose';
-import { bossFrames, COLUMNS, DEFEAT_LOOKS, drawBossSheet, drawFruitSheet, drawRock, FRAME, LOOKS, OUTLINE, STUCK_FLOOR } from './boss.mjs';
+import { bossFrames, COLUMNS, DEFEAT_LOOKS, drawBossSheet, drawCrownSheet, drawFruitSheet, drawRock, FRAME, LOOKS, OUTLINE, STUCK_FLOOR } from './boss.mjs';
 import { buildBoss } from './make-boss.mjs';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'sprites', 'boss');
@@ -55,16 +55,18 @@ function bare(grid, x0, y0, w, h, rows = h) {
 describe('GDD-BOS-02 Don Zopilote\'s art', { timeout: 60_000 }, () => {
   it('GDD-BOS-02 the committed PNGs are the ones the script makes', () => {
     const built = buildBoss();
-    expect(Object.keys(built).sort()).toEqual(['don-zopilote.png', 'fruit.png', 'rock.png']);
+    expect(Object.keys(built).sort()).toEqual(['crown.png', 'don-zopilote.png', 'fruit.png', 'rock.png']);
     for (const [name, bytes] of Object.entries(built)) expect(bytes.equals(readFileSync(join(dir, name))), name).toBe(true);
   });
 
   it('GDD-BOS-02 the sheets have the sizes the scene loads', () => {
     const sheet = SHEET;
-    expect([sheet.width, sheet.height]).toEqual([2100, 1240]); // 7 x 5 frames of 300 x 248 art px
-    expect([sheet.width, sheet.height]).toEqual([COLUMNS * FRAME.w * 2, 5 * FRAME.h * 2]);
+    expect([sheet.width, sheet.height]).toEqual([2100, 1488]); // 7 x 6 frames of 300 x 248 art px (39 frames)
+    expect([sheet.width, sheet.height]).toEqual([COLUMNS * FRAME.w * 2, 6 * FRAME.h * 2]);
     expect([drawFruitSheet().width, drawFruitSheet().height]).toEqual([72, 36]);
     expect([drawRock().width, drawRock().height]).toEqual([52, 52]);
+    expect([drawCrownSheet().width, drawCrownSheet().height]).toEqual([96, 32]); // two frames of 48 x 32 art px
+    expect([48 / 4, 32 / 4]).toEqual([BOSS_ART.crownW, BOSS_ART.crownH]);
     expect([FRAME.w / 2, FRAME.h / 2]).toEqual([BOSS_ART.frameW, BOSS_ART.frameH]);
     expect(COLUMNS).toBe(BOSS_ART.columns);
     expect(18 / 2).toBe(BOSS_ART.fruitFrame);
@@ -75,14 +77,15 @@ describe('GDD-BOS-02 Don Zopilote\'s art', { timeout: 60_000 }, () => {
     const want = [3, 2, 1].flatMap((crown) => LOOKS.map((look) => [look, crown]));
     for (const look of DEFEAT_LOOKS) want.push([look, 0]);
     expect(FRAMES.map((f) => [f.look, f.crown])).toEqual(want);
-    expect(want).toHaveLength(35);
+    expect(want).toHaveLength(39);
     expect(LOOKS).toEqual([...BOSS_LOOKS]);
     expect(DEFEAT_LOOKS).toEqual([...BOSS_DEFEAT_LOOKS]);
+    expect(DEFEAT_LOOKS).toEqual(['tumbleA', 'tumbleAWhite', 'tumbleB', 'tumbleBWhite', 'defeat', 'defeatWhite']);
   });
 
   it('GDD-ART-06 he, his fruit and the rocks use only World 1\'s colours and the outline', () => {
     expect(WORLD_1).toHaveLength(24);
-    for (const [name, grid] of [['sheet', SHEET], ['fruit', drawFruitSheet()], ['rock', drawRock()]]) {
+    for (const [name, grid] of [['sheet', SHEET], ['fruit', drawFruitSheet()], ['rock', drawRock()], ['crown', drawCrownSheet()]]) {
       for (const c of painted(grid)) expect([...WORLD_1, OUTLINE], `${name} ${c}`).toContain(c);
     }
   });
@@ -94,6 +97,8 @@ describe('GDD-BOS-02 Don Zopilote\'s art', { timeout: 60_000 }, () => {
     for (const i of [0, 1]) expect(bare(fruit, i * 36, 0, 36, 36), `fruit ${i}`).toEqual([]);
     const rock = drawRock();
     expect(bare(rock, 0, 0, 52, 52), 'rock').toEqual([]);
+    const crown = drawCrownSheet();
+    for (const i of [0, 1]) expect(bare(crown, i * 48, 0, 48, 32), `crown ${i}`).toEqual([]);
   });
 
   it('GDD-BOS-02 his crown loses a point for each hit', () => {
@@ -104,13 +109,37 @@ describe('GDD-BOS-02 Don Zopilote\'s art', { timeout: 60_000 }, () => {
       expect(gold[1], look).toBeGreaterThan(gold[2]);
       expect(gold[2], look).toBeGreaterThan(0);
     }
-    expect(count(frame('defeat', 0).grid, GOLD)).toBe(0);
+    for (const look of DEFEAT_LOOKS) expect(count(frame(look, 0).grid, GOLD), look).toBe(0);
   });
 
-  it('GDD-BOS-02 only his lowered wings reach below his box, BOSS_ART.wingsBelow px', () => {
+  it('GDD-BOS-02 the crown is the gold band with its tuna jewel, in both frames', () => {
+    const crown = drawCrownSheet();
+    for (const i of [0, 1]) {
+      const cells = crown.cells.filter((_, k) => Math.floor((k % 96) / 48) === i);
+      expect(cells.filter((c) => c === GOLD).length, `gold ${i}`).toBeGreaterThan(50);
+      expect(cells.filter((c) => c === RED).length, `jewel ${i}`).toBeGreaterThan(10);
+    }
+  });
+
+  it('GDD-BOS-02 the crown stands on the bottom of its frame, so it rests on the floor with no gap', () => {
+    // It is drawn with its bottom middle on the frame's bottom middle (origin 0.5, 1): the lowest painted row is the frame's last (31).
+    const crown = drawCrownSheet();
+    const lowest = (i) => {
+      let low = -1;
+      crown.cells.forEach((c, k) => {
+        if (c !== null && Math.floor((k % 96) / 48) === i) low = Math.max(low, Math.floor(k / 96));
+      });
+      return low;
+    };
+    expect(lowest(0)).toBe(31);
+    expect(lowest(1)).toBe(31);
+  });
+
+  it('GDD-BOS-02 only his lowered wings and his tumbling reach below his box', () => {
     // His box's bottom is the frame's row FRAME.h / 2 + 30 (his box 60 drawing px tall), the floor line of the frames he shows resting on
-    // the floor (stuck, sweeping, hurt after a claw hit, lying defeated). Only the lowered wings (flapDown, climbDown) reach below it, and
-    // bossPose keeps them raised while that would put them in the floor; every other frame stays above it.
+    // the floor (stuck, sweeping, hurt after a claw hit, lying defeated). Only the lowered wings (flapDown, climbDown), BOSS_ART.wingsBelow px,
+    // and the two tumbling looks (and their white flashes) reach below it, bossPose keeping each where it has the room (the wings raised, a
+    // tumble swapped for a shallower look or for lying); every other frame stays above it.
     const floorRow = FRAME.h / 2 + 30;
     expect(floorRow).toBe(STUCK_FLOOR);
     const below = (grid) => {
@@ -120,7 +149,9 @@ describe('GDD-BOS-02 Don Zopilote\'s art', { timeout: 60_000 }, () => {
       });
       return Math.max(0, Math.ceil((lowest + 1 - floorRow) / 2)); // in game px, 2 drawing px each
     };
-    for (const f of FRAMES) expect(below(f.grid), `${f.look} ${f.crown}`).toBe(['flapDown', 'climbDown'].includes(f.look) ? BOSS_ART.wingsBelow : 0);
+    const expected = { flapDown: BOSS_ART.wingsBelow, climbDown: BOSS_ART.wingsBelow, tumbleA: 7, tumbleAWhite: 7, tumbleB: 12, tumbleBWhite: 12 };
+    for (const f of FRAMES) expect(below(f.grid), `${f.look} ${f.crown}`).toBe(expected[f.look] ?? 0);
+    expect([BOSS_ART.tumbleABelow, BOSS_ART.tumbleBBelow]).toEqual([7, 12]);
   });
 
   it('GDD-BOS-02 the flashes', () => {
@@ -130,8 +161,16 @@ describe('GDD-BOS-02 Don Zopilote\'s art', { timeout: 60_000 }, () => {
       expect([RED, WHITE], `telegraph ${crown}`).not.toContain(commonest(frame('telegraph', crown).grid));
       expect([RED, WHITE], `hurt ${crown}`).not.toContain(commonest(frame('hurt', crown).grid));
     }
-    expect(commonest(frame('defeatWhite', 0).grid)).toBe(WHITE);
-    expect([RED, WHITE]).not.toContain(commonest(frame('defeat', 0).grid));
+    for (const look of ['tumbleA', 'tumbleB', 'defeat']) {
+      expect(commonest(frame(`${look}White`, 0).grid), `${look}White`).toBe(WHITE);
+      expect([RED, WHITE], look).not.toContain(commonest(frame(look, 0).grid));
+    }
+  });
+
+  it('GDD-BOS-02 lying on his back he has the three dazed dots over him, and tumbling he has none', () => {
+    // The dots are cells of the cloud's cream (#FFF4DC), the beak's colour too: the lying frame has more of it than a tumble.
+    expect(count(frame('defeat', 0).grid, CLOUD.top)).toBeGreaterThan(count(frame('tumbleA', 0).grid, CLOUD.top));
+    expect(count(frame('defeat', 0).grid, CLOUD.top)).toBeGreaterThan(count(frame('tumbleB', 0).grid, CLOUD.top));
   });
 
   it('GDD-BOS-02 the stuck frame stands on its floor line', () => {

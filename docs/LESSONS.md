@@ -68,8 +68,9 @@ Retired IDs: L-046
 - **Root cause:** The numbers came from a different integrator and a different release timing than the shipped code, and nothing tied the GDD to the code until tests existed.
 - **Rule:** Derive any GDD number that depends on simulation from the real simulation code through a test, then write the measured value into the GDD. The tuning tests in `src/sim/movement.test.ts` are the source for those figures.
 - **Recurrence 2 (2026-11-02, PR #69, GDD-CTL-03, found by the review):** the known limit "a side inset of more than 4 px puts the claw button over the settings rows" was worked out by hand from the layout numbers; it named one button of three and missed the other side's 21 px. The `harness-gdd-update` rule asked for measuring only claims that follow from the simulation or a level, not from a layout. The thresholds are now measured over the real layouts in `src/ui/settingsMenu.test.ts`.
-- **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test)
+- **Recurrence 3 (2026-11-04, GDD-BOS-02 his defeat, found by the implementer):** my plan picked the crown's speed, gravity and bounce by hand and claimed it would rest before the clear screen 60 steps after the hit; measured over the real fight, a hit high in the air left it resting on step 61 to 76, frozen mid-bounce on the clear screen. The skill rule asks to measure a claim before it goes into the GDD, and it did not reach the plan, where I wrote it as a fact rather than a target. The constants are now tuned against a test that sweeps every height he can be defeated at (worst step 49).
+- **Recurrence:** 3
+- **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test). Guard: none (no script can tell a measured claim from one worked out by hand; the implementer measures every planned number in a test before the GDD takes it, which caught this one)
 
 ## L-004 Debug hook returned the wrong value after landing
 

@@ -3,7 +3,7 @@
 // (GDD-ART-06); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
 import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, BOSS_ART, BOSS_BAR, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, PLANTS, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
-import { bossStart } from '../sim/boss';
+import { bossCrown, bossStart } from '../sim/boss';
 import { feetOf, kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
@@ -21,6 +21,7 @@ import farDesertPng from '../../assets/sprites/desierto/far-desert.png';
 import donZopilotePng from '../../assets/sprites/boss/don-zopilote.png';
 import bossFruitPng from '../../assets/sprites/boss/fruit.png';
 import bossRockPng from '../../assets/sprites/boss/rock.png';
+import bossCrownPng from '../../assets/sprites/boss/crown.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import jumpOgg from '../../assets/audio/sfx/jump.ogg';
@@ -39,6 +40,12 @@ import meowOgg from '../../assets/audio/sfx/meow.ogg';
 import meowMp3 from '../../assets/audio/sfx/meow.mp3';
 import tickOgg from '../../assets/audio/sfx/tick.ogg';
 import tickMp3 from '../../assets/audio/sfx/tick.mp3';
+import hissOgg from '../../assets/audio/sfx/hiss.ogg';
+import hissMp3 from '../../assets/audio/sfx/hiss.mp3';
+import gruntOgg from '../../assets/audio/sfx/grunt.ogg';
+import gruntMp3 from '../../assets/audio/sfx/grunt.mp3';
+import bossDefeatOgg from '../../assets/audio/sfx/boss-defeat.ogg';
+import bossDefeatMp3 from '../../assets/audio/sfx/boss-defeat.mp3';
 import { activateOfrenda, collectVeladora, isOutOfLives, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { clawBox } from '../sim/claw';
@@ -79,7 +86,7 @@ import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tip
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 
 /** GDD-AUD-02: the cache keys of every sound effect. */
-const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow', 'tick'].map((n) => `sfx-${n}`);
+const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow', 'tick', 'hiss', 'grunt', 'bossDefeat'].map((n) => `sfx-${n}`);
 /** GDD-CTL-02: the pads the browser reports now. `getGamepads` can throw where a permissions policy forbids it. */
 const readGamepads = () => {
   try {
@@ -334,6 +341,11 @@ export interface PonchoDebug {
    * ('red', 'white' or null for his own brown) and how many dazed dots it has over his head.
    */
   bossDrawn(): { x: number; y: number; dir: number; frame: number; look: BossLook; crown: number; wings: 'raised' | 'lowered' | 'tucked'; flash: 'red' | 'white' | null; dots: number } | null;
+  /**
+   * GDD-BOS-02: his crown as last drawn once the last hit knocked it off, or null when none was: the bottom middle of the area its sprite
+   * covers (the y it stands on, 224 when it rests on the floor) and whether it shows the tilted frame (the one it spins through in the air).
+   */
+  bossCrownDrawn(): { x: number; y: number; tilted: boolean } | null;
   /** GDD-BOS-02: his cactus fruit in the run (the middle x, the bottom y, lying or falling), and the ones drawn last frame. */
   fruit(): { x: number; y: number; landed: boolean }[];
   fruitDrawn(): { x: number; y: number; landed: boolean }[];
@@ -470,6 +482,8 @@ export class PlayScene extends Phaser.Scene {
   private bossSprite!: Phaser.GameObjects.Image;
   private fruitImages: Phaser.GameObjects.Image[] = [];
   private rockImages: Phaser.GameObjects.Image[] = [];
+  private crownSprite!: Phaser.GameObjects.Image;
+  private crownPainted: ReturnType<PonchoDebug['bossCrownDrawn']> = null;
   private bossPainted: ReturnType<PonchoDebug['bossDrawn']> = null;
   private fruitPainted: { x: number; y: number; landed: boolean }[] = [];
   private rocksPainted: { x: number; y: number }[] = [];
@@ -685,6 +699,7 @@ export class PlayScene extends Phaser.Scene {
     this.load.spritesheet('boss', donZopilotePng, { frameWidth: BOSS_ART.frameW * ART_SCALE, frameHeight: BOSS_ART.frameH * ART_SCALE });
     this.load.spritesheet('boss-fruit', bossFruitPng, { frameWidth: BOSS_ART.fruitFrame * ART_SCALE, frameHeight: BOSS_ART.fruitFrame * ART_SCALE });
     this.load.image('boss-rock', bossRockPng);
+    this.load.spritesheet('boss-crown', bossCrownPng, { frameWidth: BOSS_ART.crownW * ART_SCALE, frameHeight: BOSS_ART.crownH * ART_SCALE });
     this.load.audio('sfx-ofrenda', [ofrendaOgg, ofrendaMp3]);
     this.load.audio('sfx-jump', [jumpOgg, jumpMp3]);
     this.load.audio('sfx-land', [landOgg, landMp3]);
@@ -694,6 +709,9 @@ export class PlayScene extends Phaser.Scene {
     this.load.audio('sfx-lifeLost', [lifeLostOgg, lifeLostMp3]);
     this.load.audio('sfx-meow', [meowOgg, meowMp3]);
     this.load.audio('sfx-tick', [tickOgg, tickMp3]);
+    this.load.audio('sfx-hiss', [hissOgg, hissMp3]);
+    this.load.audio('sfx-grunt', [gruntOgg, gruntMp3]);
+    this.load.audio('sfx-bossDefeat', [bossDefeatOgg, bossDefeatMp3]);
   }
 
   create(): void {
@@ -765,6 +783,7 @@ export class PlayScene extends Phaser.Scene {
     this.fireballGfx = this.add.graphics().setDepth(4);
     this.enemyGfx = this.add.graphics().setDepth(3);
     this.bossSprite = this.add.image(0, 0, 'boss', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3).setVisible(false);
+    this.crownSprite = this.add.image(0, 0, 'boss-crown', 0).setOrigin(0.5, 1).setScale(1 / ART_SCALE).setDepth(3).setVisible(false);
     this.pinataGfx = this.add.graphics().setDepth(1);
     this.drawPinatas();
     this.itemGfx = this.add.graphics().setDepth(2);
@@ -1167,6 +1186,7 @@ export class PlayScene extends Phaser.Scene {
           return b ? { x: b.x, y: b.y, dir: b.dir, mode: b.mode, age: b.age, hits: b.hits, tx: b.tx, ty: b.ty } : null;
         },
         bossDrawn: () => this.bossPainted,
+        bossCrownDrawn: () => this.crownPainted,
         fruit: () => this.run.fruit.map((f) => ({ x: f.x, y: f.y, landed: f.landed })),
         fruitDrawn: () => this.fruitPainted,
         rocks: () => this.run.rocks.map((r) => ({ x: r.x, y: r.y, mode: r.mode })),
@@ -1470,14 +1490,22 @@ export class PlayScene extends Phaser.Scene {
   /**
    * Don Zopilote (GDD-BOS-02): one image of his sheet, its middle on his box's middle and mirrored about it when he faces left (GDD-ART-05).
    * The frame is the one `bossFrame` picks for his pose: wings up, down or tucked, a crown of a point for each hit he has left, the body
-   * flashing red in his telegraph and white when hurt or defeated, three pale dots over his head while he is stuck. Then his cactus fruit:
+   * flashing red in his telegraph and white when hurt or defeated, three pale dots over his head while he is stuck or lies defeated. Then his crown
+   * once he is defeated, as one image of its own, and his cactus fruit:
    * a red tuna with pale spines, falling or lying, one image each. Nothing is drawn without a boss.
    */
   private drawBoss(): void {
     this.bossPainted = null;
+    this.crownPainted = null;
     this.fruitPainted = [];
     const b = this.run.boss;
     this.bossSprite.setVisible(b !== null);
+    const crown = b ? bossCrown(this.level.boss!, b) : null;
+    this.crownSprite.setVisible(crown !== null);
+    if (crown) this.crownSprite.setPosition(crown.x, crown.y).setFrame(crown.tilted ? 1 : 0);
+    // L-010: read back from the sprite: the middle and the bottom edge of what it covers (so its origin counts), and its frame.
+    const covered = this.crownSprite.getBounds();
+    this.crownPainted = this.crownSprite.visible ? { x: covered.centerX, y: covered.bottom, tilted: Number(this.crownSprite.frame.name) === 1 } : null;
     if (!b) {
       this.fruitImages.forEach((image) => image.setVisible(false));
       return;

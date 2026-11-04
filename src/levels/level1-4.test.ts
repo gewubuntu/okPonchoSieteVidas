@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BOSS, BOSS_ART } from '../config/tuning';
-import { bossStart, type BossState } from '../sim/boss';
+import { bossCrown, bossStart, type BossState, type RockState } from '../sim/boss';
 import { bossPose } from '../ui/bossPose';
 import { spawn, type PlayerInput } from '../sim/movement';
 import { medal } from '../sim/results';
@@ -201,6 +201,38 @@ function bot(level: Level, maxSteps: number, each: (run: RunState) => void = () 
   return { run, steps };
 }
 
+/** How far past his box's bottom each look reaches, in game px (`scripts/art/boss.test.mjs` measures the frames). */
+const BELOW: Partial<Record<string, number>> = { flapDown: BOSS_ART.wingsBelow, climbDown: BOSS_ART.wingsBelow, tumbleA: 7, tumbleAWhite: 7, tumbleB: 12, tumbleBWhite: 12 };
+
+/**
+ * A run of 1-4 on the step after a flying rock hit the boss, who was in phase 3 in `mode` at (x, y) facing `dir`: his third hit. His
+ * hit step is the one this returns; the steps after it have age 1, 2, and so on.
+ */
+function defeatedByRock(mode: BossState['mode'], x: number, y: number, dir: 1 | -1): RunState {
+  const rock: RockState = { x, y, vx: 0, vy: 0, mode: 'flying', age: 0 };
+  // A dive (phase 3: 300 px/s, 5 px a step) is 5 px higher when the step starts; stuck in the sand he does not move.
+  const boss: BossState = { ...bossStart(DEF, 2), mode, x, y: mode === 'dive' ? y - 5 : y, dir, age: 5, tx: x, ty: 209 };
+  const hit = stepRun({ ...standing(40, 176, boss), rocks: [rock, { x: 424, y: 176, vx: 0, vy: 0, mode: 'rest', age: 0 }] }, STILL, LEVEL_1_4);
+  expect(hit.boss).toMatchObject({ mode: 'defeated', hits: 3, age: 0, tx: x, ty: y, dir });
+  return hit;
+}
+
+/** The steps (counted from the hit) at which his crown first touches the floor and rests there, and its y at the clear screen, 60 steps after the hit, where the boss stops (age 60). */
+function measure(hit: RunState): { landed: number; rested: number; last: number } {
+  const def = LEVEL_1_4.boss!;
+  let run = hit;
+  let landed = -1;
+  let rested = -1;
+  for (let age = 0; age <= 60; age++) {
+    const crown = bossCrown(def, run.boss!)!;
+    if (landed < 0 && crown.y === def.floor) landed = age;
+    if (rested < 0 && crown.resting) rested = age;
+    if (age < 60) run = stepRun(run, STILL, LEVEL_1_4);
+  }
+  expect(run.phase).toBe('clear');
+  return { landed, rested, last: bossCrown(def, run.boss!)!.y };
+}
+
 describe('GDD-BOS-02 playing 1-4', () => {
   it('GDD-BOS-02 1-4 can be won from the start with all seven lives in under 1500 steps', () => {
     const { run, steps } = bot(LEVEL_1_4, 1500);
@@ -218,12 +250,51 @@ describe('GDD-BOS-02 playing 1-4', () => {
     bot(LEVEL_1_4, 1500, (run) => {
       const b = run.boss!;
       const look = bossPose(b, floor).look;
-      const below = look === 'flapDown' || look === 'climbDown' ? BOSS_ART.wingsBelow : 0;
+      const below = BELOW[look] ?? 0;
       worst = Math.min(worst, floor - (b.y + BOSS.height / 2 + below));
       if (below > 0) lowered.push(b.mode);
     });
     expect(worst).toBeGreaterThanOrEqual(0);
     // The fight shows the lowered wings in every flapping mode, so the check above is not empty.
     expect(new Set(lowered)).toEqual(new Set(['lap', 'drop', 'climb']));
+  });
+
+  it('GDD-BOS-02 defeated by a rock in the air he tumbles down and no look he shows reaches into the floor', () => {
+    const floor = LEVEL_1_4.boss!.floor;
+    let run = defeatedByRock('dive', 232, 140, 1);
+    const looks: string[] = [];
+    let worst = Infinity;
+    for (let i = 0; i < 60; i++) {
+      const b = run.boss!;
+      const look = bossPose(b, floor).look;
+      looks.push(look);
+      worst = Math.min(worst, floor - (b.y + BOSS.height / 2 + (BELOW[look] ?? 0)));
+      run = stepRun(run, STILL, LEVEL_1_4);
+    }
+    expect(worst).toBeGreaterThanOrEqual(0);
+    // From y 140 he has 69 px of room above the floor and lands on his 35th step, in the third turn of B (ages 30 to 35): there he shows A for
+    // two steps (7 to 11 px of room) and then lies, never the deeper B. He shows both tumbles on the way down, and ends lying.
+    const plain = looks.map((l) => l.replace('White', ''));
+    expect(new Set(plain)).toEqual(new Set(['tumbleA', 'tumbleB', 'defeat']));
+    expect(plain[0]).toBe('tumbleA');
+    expect(plain[59]).toBe('defeat');
+    // While he has 7 to 11 px of room (steps 30 and 31, in a turn of B) he is in the shallower tumble.
+    run = defeatedByRock('dive', 232, 140, 1);
+    const near: string[] = [];
+    for (let i = 0; i < 60; i++) {
+      const b = run.boss!;
+      const room = floor - (b.y + BOSS.height / 2);
+      if (room >= 7 && room < 12) near.push(bossPose(b, floor).look.replace('White', ''));
+      run = stepRun(run, STILL, LEVEL_1_4);
+    }
+    expect(near.length).toBeGreaterThan(0);
+    expect(new Set(near)).toEqual(new Set(['tumbleA']));
+  });
+
+  it('GDD-BOS-02 his crown lands and rests before the clear screen, hit stuck at the start or in the air at y 150', () => {
+    // Stuck in the sand at the start (x 232, y 209) facing right: first on the floor on its 18th step, resting on its 25th.
+    expect(measure(defeatedByRock('stuck', 232, 209, 1))).toMatchObject({ landed: 18, rested: 25, last: 224 });
+    // Hit in the air in a dive at y 150: on the floor on its 25th step, resting on its 36th.
+    expect(measure(defeatedByRock('dive', 232, 150, 1))).toMatchObject({ landed: 25, rested: 36, last: 224 });
   });
 });

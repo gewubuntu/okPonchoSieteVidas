@@ -1,4 +1,5 @@
-// GDD-AUD-02: the other sound effects (jump, land, claw, stomp, hilo pickup, life lost, meow, tick), synthesised from code as
+// GDD-AUD-02: the other sound effects (jump, land, claw, stomp, hilo pickup, life lost, meow, tick, and Don Zopilote's hiss, grunt and
+// defeat, GDD-BOS-02), synthesised from code as
 // placeholders until real audio exists (Open Question 9). Each is a mono Float64Array in -0.8 to 0.8, under a second long,
 // deterministic (noise is seeded) and fading to silence at the end. `scripts/audio/make-sfx.mjs` encodes them.
 import { SAMPLE_RATE } from './ofrenda.mjs';
@@ -14,6 +15,12 @@ export const LIFE_LOST = { duration: 0.85, plucks: 10, spacing: 0.08, hz: 659.25
 /** A short wooden tick for the level clear screen's lines (GDD-AUD-02, GDD-UI-02): a high sine that dies fast, and a click. */
 export const TICK = { duration: 0.06, hz: 1800, tau: 0.01, click: 0.002 };
 export const MEOW = { duration: 0.5, start: 450, peak: 700, peakAt: 0.15, end: 380, attack: 0.03 };
+/** Don Zopilote's own sounds (GDD-AUD-02, GDD-BOS-02); a vulture only hisses and grunts. The hiss: noise band-passed at `hz` with a rasp (amplitude modulation at `rasp` Hz), a quick `attack`, decaying with `tau`. */
+export const HISS = { duration: 0.4, hz: 3000, rasp: 35, attack: 0.02, tau: 0.12 };
+/** The grunt: a sawtooth gliding `from` to `to` Hz with `noise` of low-passed noise, decaying with `tau`. */
+export const GRUNT = { duration: 0.25, from: 95, to: 70, noise: 0.15, attack: 0.01, tau: 0.12 };
+/** His defeat, a long deflating hiss: noise whose low-pass cutoff falls `from` to `to` Hz while it fades. */
+export const BOSS_DEFEAT_SFX = { duration: 0.9, from: 4000, to: 300, attack: 0.01 };
 
 const TAU = 2 * Math.PI;
 
@@ -159,4 +166,60 @@ export function renderTick() {
     if (i < click) out[i] += 0.6 * noise() * (1 - i / click);
   }
   return finish(out, 0.01);
+}
+
+/** A raspy hiss: noise through a resonant band-pass at 3 kHz, chopped at 35 Hz, with a quick attack and a decay. */
+export function renderHiss() {
+  const out = buffer(HISS.duration);
+  const noise = noiseSource(404);
+  const f = 2 * Math.sin((Math.PI * HISS.hz) / SAMPLE_RATE);
+  const q = 1 / 4;
+  let low = 0;
+  let band = 0;
+  for (let i = 0; i < out.length; i++) {
+    const t = i / SAMPLE_RATE;
+    const high = noise() - low - q * band;
+    band += f * high;
+    low += f * band;
+    const envelope = t < HISS.attack ? t / HISS.attack : Math.exp(-(t - HISS.attack) / HISS.tau);
+    const rasp = 0.55 + 0.45 * Math.sin(TAU * HISS.rasp * t);
+    out[i] = envelope * rasp * band;
+  }
+  return finish(out, 0.05);
+}
+
+/** A low guttural grunt: a sawtooth gliding down from 95 to 70 Hz, softened by a low-pass, with a little low-passed noise. */
+export function renderGrunt() {
+  const out = buffer(GRUNT.duration);
+  const noise = noiseSource(515);
+  const ratio = GRUNT.to / GRUNT.from;
+  let cycle = 0;
+  let soft = 0;
+  let hum = 0;
+  for (let i = 0; i < out.length; i++) {
+    const t = i / SAMPLE_RATE;
+    cycle = (cycle + (GRUNT.from * ratio ** (t / GRUNT.duration)) / SAMPLE_RATE) % 1;
+    soft += 0.15 * (2 * cycle - 1 - soft);
+    hum += 0.1 * (noise() - hum);
+    out[i] = Math.min(1, t / GRUNT.attack) * Math.exp(-t / GRUNT.tau) * (soft + GRUNT.noise * hum);
+  }
+  return finish(out, 0.03);
+}
+
+/** A long deflating hiss: noise through two low-passes whose cutoff falls from 4 kHz to 300 Hz, fading out. */
+export function renderBossDefeat() {
+  const out = buffer(BOSS_DEFEAT_SFX.duration);
+  const noise = noiseSource(626);
+  const ratio = BOSS_DEFEAT_SFX.to / BOSS_DEFEAT_SFX.from;
+  let a = 0;
+  let b = 0;
+  for (let i = 0; i < out.length; i++) {
+    const t = i / SAMPLE_RATE;
+    const cutoff = BOSS_DEFEAT_SFX.from * ratio ** (t / BOSS_DEFEAT_SFX.duration);
+    const k = 1 - Math.exp((-TAU * cutoff) / SAMPLE_RATE);
+    a += k * (noise() - a);
+    b += k * (a - b);
+    out[i] = Math.min(1, t / BOSS_DEFEAT_SFX.attack) * (1 - t / BOSS_DEFEAT_SFX.duration) * b;
+  }
+  return finish(out, 0.05);
 }
