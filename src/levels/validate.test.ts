@@ -174,6 +174,13 @@ describe('GDD-TEC-04 and GDD-ENM-01 enemies start 3 tiles from a respawn', () =>
     ]);
   });
 
+  it('GDD-ENM-03 it holds for World 2\'s Paloma, Chapulín and Trompo too', () => {
+    for (const kind of ['paloma', 'chapulin', 'trompo'] as const) {
+      expect(validateLevel(entry({ enemies: [{ x: spawnAt.x + 47, y: spawnAt.y, kind }] })), kind).toEqual([`${kind} at 103,224 is 47 px from the respawn at 56,224, under 48`]);
+      expect(validateLevel(entry({ enemies: [{ x: spawnAt.x + 48, y: spawnAt.y, kind }] })), kind).toEqual([]);
+    }
+  });
+
   it('ofrendas count as respawns', () => {
     expect(validateLevel(entry({ enemies: [{ x: 468, y: 224, kind: 'zopilote' }] }))).toEqual([
       'zopilote at 468,224 is 20 px from the respawn at 488,224, under 48',

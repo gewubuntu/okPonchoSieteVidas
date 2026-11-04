@@ -1,6 +1,7 @@
 // GDD-AUD-02: which sound effects a simulation step asks for, worked out from the states before and after it. Pure logic,
 // no Phaser (GDD-TEC-02). The scene plays them.
 import { AWNING, SFX } from '../config/tuning';
+import { isStunned } from './enemy';
 import { hilosCollected } from './hilo';
 import { isOutOfLives } from './lives';
 import { flipPose } from './respawnFlip';
@@ -70,8 +71,9 @@ export function stepSounds(before: RunState, after: RunState, combo: HiloCombo):
     const slam = before.boss?.mode === 'dive' && after.boss?.mode === 'stuck';
     if ((after.phase === 'playing' && after.player.grounded && before.player.vy >= SFX.landMinSpeed) || slam || rebound?.tier === 0) sounds.push({ name: 'land' });
     if (before.claw.phase === 'idle' && after.claw.phase === 'windup') sounds.push({ name: 'claw' });
-    // GDD-BOS-02: a hit on the boss thuds like a stomp, once a step.
-    if (after.stomped || (after.boss?.hits ?? 0) > (before.boss?.hits ?? 0)) sounds.push({ name: 'stomp' });
+    // GDD-BOS-02: a hit on the boss thuds like a stomp, once a step. GDD-ENM-03: so does a Trompo the claw or a fireball topples.
+    const toppled = after.enemies.some((e, i) => isStunned(e) && !isStunned(before.enemies[i]!));
+    if (after.stomped || (after.boss?.hits ?? 0) > (before.boss?.hits ?? 0) || toppled) sounds.push({ name: 'stomp' });
     if (note.semitones !== null) sounds.push({ name: 'hilo', semitones: note.semitones });
   }
   // GDD-UI-02: a step of the clear screen that shows a new line ticks once, however many lines it shows (a skip shows several). The

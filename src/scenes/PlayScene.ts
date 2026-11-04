@@ -4,7 +4,8 @@
 import Phaser from 'phaser';
 import { ART_SCALE, BACKDROP, BACKDROP_ART, BASE_HEIGHT, BASE_WIDTH, BOSS_BAR, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, PLANTS, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
 import { bossStart } from '../sim/boss';
-import { feetOf, kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
+import { enemyPhase, feetOf, kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
+import { chapulinShapes, palomaShapes, trompoShapes, type Shape } from '../ui/mercadoEnemies';
 import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
@@ -1173,7 +1174,7 @@ export class PlayScene extends Phaser.Scene {
         spits: () => this.spits,
         fireballAt: () => this.run.fireballs.map((f) => ({ x: f.x, y: f.y })),
         fireballsDrawn: () => this.fireballsPainted,
-        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: e.flight?.phase ?? e.gait?.phase ?? 'walk' })),
+        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: enemyPhase(e) })),
         enemiesDrawn: () => this.enemiesPainted,
         boss: () => {
           const b = this.run.boss;
@@ -1385,31 +1386,62 @@ export class PlayScene extends Phaser.Scene {
     if (power === 'fuego') this.paintChile(g, cx + size * 0.55, cy - size * 0.35, size * 0.8);
   }
 
-  /**
-   * Placeholder Alacrán (GDD-ENM-02): a dark red scorpion 14 x 10 px with pale claws out in front, a tail arched over its back
-   * ending in a pale stinger, and four legs, facing the way it walks. A defeated one is not drawn.
-   */
+  /** Draws every live enemy by its kind (GDD-ENM-02, GDD-ENM-03); a defeated one is not drawn. */
   private drawEnemies(): void {
     this.enemyGfx.clear();
     this.enemiesPainted = [];
     this.level.enemies.forEach((def, i) => {
       const e = this.run.enemies[i]!;
       if (!e.alive) return;
-      const g = this.enemyGfx;
-      if (kindOf(def) === 'zopilote') return this.drawZopilote(e);
-      if (kindOf(def) === 'cactus') return this.drawCactus(e, def.y);
-      if (kindOf(def) === 'tlacuache') return this.drawTlacuache(e, feetOf(def, e));
-      const y = feetOf(def, e);
-      this.enemiesPainted.push({ x: e.x, y, kind: 'alacran' });
-      const d = e.dir;
-      g.fillStyle(0x9a3a2a, 1).fillRect(e.x - 5, y - 6, 10, 5);
-      g.lineStyle(1, 0x4a1a12, 1).strokeRect(e.x - 4.5, y - 5.5, 9, 4);
-      g.fillStyle(0xe9d3a3, 1).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), y - 7, 3, 3).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), y - 3, 3, 2);
-      g.lineStyle(1, 0x9a3a2a, 1).beginPath().moveTo(e.x - d * 5, y - 5).lineTo(e.x - d * 7, y - 8).lineTo(e.x - d * 4, y - 10).lineTo(e.x - d * 1, y - 8).strokePath();
-      g.fillStyle(0xe9d3a3, 1).fillRect(e.x - d * 1 - 1, y - 9, 2, 2);
-      g.lineStyle(1, 0x4a1a12, 1);
-      for (const lx of [-3, -1, 1, 3]) g.lineBetween(e.x + lx, y - 1, e.x + lx, y);
+      const kind = kindOf(def);
+      switch (kind) {
+        case 'alacran':
+          return this.drawAlacran(e, feetOf(def, e));
+        case 'zopilote':
+          return this.drawZopilote(e);
+        case 'cactus':
+          return this.drawCactus(e, def.y);
+        case 'tlacuache':
+          return this.drawTlacuache(e, feetOf(def, e));
+        // GDD-ENM-03: World 2's placeholders, from `src/ui/mercadoEnemies.ts`; a flying Paloma's feet are where it has flown to.
+        case 'paloma':
+          return this.paintEnemy(kind, e.x, feetOf(def, e) - e.wing!.lift, palomaShapes(e, feetOf(def, e) - e.wing!.lift));
+        case 'chapulin':
+          return this.paintEnemy(kind, e.x, feetOf(def, e), chapulinShapes(e, feetOf(def, e)));
+        case 'trompo':
+          return this.paintEnemy(kind, e.x, feetOf(def, e), trompoShapes(e, feetOf(def, e)));
+        default:
+          return kind satisfies never;
+      }
     });
+  }
+
+  /** Paints an enemy's placeholder shapes (GDD-ENM-03) and records where it was painted: its x and its feet. */
+  private paintEnemy(kind: EnemyKind, x: number, y: number, shapes: readonly Shape[]): void {
+    const g = this.enemyGfx;
+    this.enemiesPainted.push({ x, y, kind });
+    for (const s of shapes) {
+      g.fillStyle(s.colour, 1);
+      if ('rect' in s) g.fillRect(...s.rect);
+      else g.fillTriangle(...s.tri);
+    }
+  }
+
+  /**
+   * Placeholder Alacrán (GDD-ENM-02): a dark red scorpion 14 x 10 px with pale claws out in front, a tail arched over its back
+   * ending in a pale stinger, and four legs, facing the way it walks.
+   */
+  private drawAlacran(e: EnemyState, y: number): void {
+    const g = this.enemyGfx;
+    this.enemiesPainted.push({ x: e.x, y, kind: 'alacran' });
+    const d = e.dir;
+    g.fillStyle(0x9a3a2a, 1).fillRect(e.x - 5, y - 6, 10, 5);
+    g.lineStyle(1, 0x4a1a12, 1).strokeRect(e.x - 4.5, y - 5.5, 9, 4);
+    g.fillStyle(0xe9d3a3, 1).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), y - 7, 3, 3).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), y - 3, 3, 2);
+    g.lineStyle(1, 0x9a3a2a, 1).beginPath().moveTo(e.x - d * 5, y - 5).lineTo(e.x - d * 7, y - 8).lineTo(e.x - d * 4, y - 10).lineTo(e.x - d * 1, y - 8).strokePath();
+    g.fillStyle(0xe9d3a3, 1).fillRect(e.x - d * 1 - 1, y - 9, 2, 2);
+    g.lineStyle(1, 0x4a1a12, 1);
+    for (const lx of [-3, -1, 1, 3]) g.lineBetween(e.x + lx, y - 1, e.x + lx, y);
   }
 
   /**

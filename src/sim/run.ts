@@ -6,7 +6,7 @@ import { bossBox, bossHarms, bossHittable, bossStart, broken, freshRocks, fruitB
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
 import { withFragiles, type Fragile } from './fragile';
-import { boxHitsEnemy, clawHitsEnemy, defeatable, freshEnemies, harmlessFromBelow, isStomp, overlaps, playDead, stepEnemy, stompBounce, stompPlaysDead, touchesEnemy, type Enemy, type EnemyState } from './enemy';
+import { boxHitsEnemy, clawHitsEnemy, defeatable, freshEnemies, harmlessFromBelow, isStomp, overlaps, playDead, stepEnemy, stompBounce, stompPlaysDead, strike, touchesEnemy, type Enemy, type EnemyState } from './enemy';
 import { fireballBox, spawnFireball, stepFireball, type Fireball } from './fireball';
 import { squareBlocked } from './item';
 import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } from './door';
@@ -434,12 +434,12 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   // GDD-CMB-02, GDD-PWR-03: the claw and a fireball defeat the enemies they overlap, besides a stomp. Every fireball that
   // overlaps a live enemy is used up, whatever defeats the enemy that step (and even the cactus buddy, which nothing defeats).
   // GDD-ENM-02: a Tlacuache's first stomp only makes it play dead, unless the claw or a fireball defeats it the same step. The
-  // claw defeats one that is playing dead too.
+  // claw defeats one that is playing dead too. GDD-ENM-03: the claw or a fireball stuns a heavy enemy (a Trompo) instead (`strike`).
   const fireballHits = (f: Fireball, i: number): boolean => boxHitsEnemy(fireballBox(f), level.enemies[i]!, patrolled[i]!);
   const enemies = patrolled.map((e, i) => {
     const def = level.enemies[i]!;
     if (!defeatable(def)) return e;
-    if ((box !== null && clawHitsEnemy(box, def, e)) || fireballs.some((f) => fireballHits(f, i))) return { ...e, alive: false };
+    if ((box !== null && clawHitsEnemy(box, def, e)) || fireballs.some((f) => fireballHits(f, i))) return strike(def, e);
     if (!stomped[i]) return e;
     return stompPlaysDead(def, e) ? playDead(e) : { ...e, alive: false };
   });

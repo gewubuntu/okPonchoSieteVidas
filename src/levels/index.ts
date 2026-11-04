@@ -13,6 +13,7 @@ import { LEVEL_1_4 } from './level1-4';
 import { SANDBOX_LEVEL } from './sandbox';
 import { SLOPES_LEVEL } from './slopes';
 import { LAB_2M_LEVEL } from './lab2m';
+import { LAB_2E_ID, LAB_2E_LEVEL } from './lab2e';
 
 export interface LevelEntry {
   readonly id: string;
@@ -42,6 +43,7 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: 'slopes', world: 1, test: true, level: SLOPES_LEVEL },
   // GDD-WLD-10, GDD-WLD-11: the Mercado lab, a World 2 test level.
   { id: 'lab-2m', world: 2, test: true, level: LAB_2M_LEVEL },
+  { id: LAB_2E_ID, world: 2, test: true, level: LAB_2E_LEVEL },
 ];
 
 /** GDD-PRG-02: the levels whose progress is saved (the real ones, not the test level), by id, with their hilo counts: what `readSave` needs to read their entries. */
@@ -58,7 +60,7 @@ export const worldLevels = (world: number): readonly LevelEntry[] => LEVELS.filt
 
 /**
  * GDD-LIFE-05, GDD-PRG-02: the worlds whose lives the save keeps: those of the seven worlds that have a real level (World 1; a test level,
- * such as the World 2 lab, adds no world).
+ * such as the World 2 labs lab-2m and lab-2e, adds no world).
  */
 export const SAVED_WORLDS: readonly number[] = [...new Set(LEVELS.filter((e) => e.world >= 1 && !e.test).map((e) => e.world))];
 
@@ -93,8 +95,8 @@ export interface StartSave {
  */
 export function startLevel(search: string, save: StartSave): StartPick {
   const id = new URLSearchParams(search).get('level');
-  // GDD-WLD-10, GDD-WLD-11: the Mercado lab, a test level, by its address only.
-  if (id === 'lab-2m') return { entry: levelById(id)!, lives: LIVES_MAX };
+  // GDD-WLD-10, GDD-WLD-11, GDD-ENM-03: the World 2 labs (the Mercado's mechanics, its enemies), test levels, by their address only.
+  if (id === 'lab-2m' || id === LAB_2E_ID) return { entry: levelById(id)!, lives: LIVES_MAX };
   const addressed = id === 'sandbox' || id === 'slopes' || id === '1-1' || id === '1-2' || id === '1-3' || id === '1-4' || id === TUTORIAL_ID ? levelById(id) : undefined;
   if (addressed) return { entry: addressed, lives: LIVES_MAX };
   if (!save.tutorialPlayed) return { entry: levelById(TUTORIAL_ID)!, lives: LIVES_MAX };

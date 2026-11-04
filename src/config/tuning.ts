@@ -302,6 +302,39 @@ export const ZOPILOTE = {
 } as const;
 
 /**
+ * GDD-ENM-03: the Paloma (pigeon) is `width` x `height` px, standing on the ground or a cordel, and walks at `speed` px/s. When Poncho's
+ * hurtbox centre is within `sightX` px of it across, on either side, and his feet within `sightY` px of its own, up or down, it freezes for
+ * `telegraphSteps` (0.5 s, GDD-ENM-01), flies straight up `riseHeight` px at `riseSpeed` px/s, hovers for `hoverSteps` (1.0 s) bobbing
+ * `bobPx` (drawn only), and comes back down at `descendSpeed` px/s.
+ */
+export const PALOMA = {
+  width: 14,
+  height: 12,
+  speed: 20,
+  sightX: 48,
+  sightY: 24,
+  telegraphSteps: Math.round(0.5 * TICK_HZ),
+  riseHeight: 40,
+  riseSpeed: 120,
+  hoverSteps: Math.round(1.0 * TICK_HZ),
+  bobPx: 2,
+  descendSpeed: 60,
+} as const;
+
+/**
+ * GDD-ENM-03: the Chapulín (grasshopper) is `width` x `height` px. It crouches for `crouchSteps` (0.6 s), flashing in the last `flashSteps`
+ * (0.5 s, the telegraph of GDD-ENM-01), then hops `hopUp` px/s up and `hopAcross` px/s across the way it faces, falling as Poncho falls
+ * (GDD-MOV-04). An awning's top it falls onto throws it up at `awningUp` px/s (the awnings' first tier, GDD-WLD-10) without a crouch.
+ */
+export const CHAPULIN = { width: 12, height: 10, crouchSteps: Math.round(0.6 * TICK_HZ), flashSteps: Math.round(0.5 * TICK_HZ), hopUp: 300, hopAcross: 60, awningUp: 480 } as const;
+
+/**
+ * GDD-ENM-03, GDD-CMB-02: the Trompo (spinning top), the first heavy enemy, is `width` x `height` px, standing on the ground, and spins
+ * along at `speed` px/s. A claw swipe or a fireball stuns it for `stunSteps` (1.0 s); it wobbles in the last `wobbleSteps` (0.5 s).
+ */
+export const TROMPO = { width: 14, height: 14, speed: 70, stunSteps: Math.round(1.0 * TICK_HZ), wobbleSteps: Math.round(0.5 * TICK_HZ) } as const;
+
+/**
  * GDD-BOS-02: Don Zopilote, World 1's boss, a `width` x `height` px box (three times the Zopilote). He laps an ellipse `rx` px either
  * side and `ry` px above and below the middle the level gives in `lapSteps` (4.0 s), dropping a cactus fruit at the lap steps in `dropAt`,
  * then freezes for his telegraph, `telegraphSteps` (0.5 s, GDD-ENM-01). Phases 1 and 3 dive at `diveSpeed` and `fastDiveSpeed` px/s and
@@ -401,7 +434,7 @@ export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;
 
 /**
  * GDD-TEC-04: what the level validator checks. GDD-WLD-03: a level is 3 to 6 screens of BASE_WIDTH wide, has 3 ofrendas,
- * and its gaps never exceed `maxGapTiles` for its world (World 1 has a limit so far, and the tutorial 0-1, outside the seven worlds, follows it: GDD-WLD-01). GDD-ENM-01: no enemy starts
+ * and its gaps never exceed `maxGapTiles` for its world (World 1 and World 2 have one so far, World 2's 4 tiles Proposed, and the tutorial 0-1, outside the seven worlds, follows World 1's: GDD-WLD-01). GDD-ENM-01: no enemy starts
  * closer than 3 tiles to a respawn.
  */
 export const LEVEL_RULES = {
