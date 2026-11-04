@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderClaw, renderHilo, renderJump, renderLand, renderLifeLost, renderMeow, renderStomp, renderTick } from './effects.mjs';
+import { renderBossDefeat, renderClaw, renderGrunt, renderHilo, renderHiss, renderJump, renderLand, renderLifeLost, renderMeow, renderStomp, renderTick } from './effects.mjs';
 import { renderOfrenda, toWav } from './ofrenda.mjs';
 
 const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'audio', 'sfx');
@@ -20,6 +20,9 @@ const sounds = [
   ['life-lost', renderLifeLost()],
   ['meow', renderMeow()],
   ['tick', renderTick()],
+  ['hiss', renderHiss()],
+  ['grunt', renderGrunt()],
+  ['boss-defeat', renderBossDefeat()],
 ];
 
 for (const [name, samples] of sounds) {

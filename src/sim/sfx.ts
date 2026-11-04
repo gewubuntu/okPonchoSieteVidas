@@ -7,7 +7,7 @@ import { flipPose } from './respawnFlip';
 import { revealedLines } from './results';
 import type { RunState } from './run';
 
-export type SfxName = 'lifeLost' | 'meow' | 'jump' | 'land' | 'claw' | 'stomp' | 'hilo' | 'tick';
+export type SfxName = 'lifeLost' | 'meow' | 'jump' | 'land' | 'claw' | 'stomp' | 'hilo' | 'tick' | 'hiss' | 'grunt' | 'bossDefeat';
 
 export interface Sfx {
   readonly name: SfxName;
@@ -47,8 +47,8 @@ export const shown = (run: RunState): boolean =>
   run.phase === 'playing' || (run.phase === 'respawning' && !isOutOfLives(run.lives) && flipPose(run.wait).visible);
 
 /**
- * The sounds a step asks for, in the order lifeLost, meow, jump, land, claw, stomp, hilo, tick, and the combo after it. Everything
- * but the meow and the tick is for a step that starts in play (GDD-AUD-02: sounds play only while Poncho is in play).
+ * The sounds a step asks for, in the order lifeLost, meow, jump, land, hiss, claw, stomp, grunt, bossDefeat, hilo, tick, and the combo after it.
+ * Everything but the meow and the tick is for a step that starts in play (GDD-AUD-02: sounds play only while Poncho is in play).
  */
 export function stepSounds(before: RunState, after: RunState, combo: HiloCombo): { sounds: Sfx[]; combo: HiloCombo } {
   const playing = before.phase === 'playing';
@@ -56,19 +56,20 @@ export function stepSounds(before: RunState, after: RunState, combo: HiloCombo):
   const note = stepHiloCombo(combo, hilosCollected(after.hilosTaken) - hilosCollected(before.hilosTaken));
   const sounds: Sfx[] = [];
   if (after.lives.lives < before.lives.lives) sounds.push({ name: 'lifeLost' });
-  // GDD-AUD-02: Poncho meows as he appears again, and when the boss is defeated (GDD-BOS-02). A hit on the boss comes only on a step
-  // that starts in play (stepRun), so his defeat needs no gate of its own (L-025: a `playing &&` here would be a guard nothing can kill).
-  const defeated = after.boss?.mode === 'defeated' && before.boss?.mode !== 'defeated';
-  if ((!shown(before) && shown(after)) || defeated) sounds.push({ name: 'meow' });
+  if (!shown(before) && shown(after)) sounds.push({ name: 'meow' });
   if (playing) {
     if (after.player.takeoff !== undefined) sounds.push({ name: 'jump' });
     // From the air: a body on the ground has no downward speed, so the 60 px/s fall speed covers "was not grounded".
     // GDD-BOS-02: the boss's landing in the sand after a dive thumps too, once a step with Poncho's own.
     const slam = before.boss?.mode === 'dive' && after.boss?.mode === 'stuck';
     if ((after.phase === 'playing' && after.player.grounded && before.player.vy >= SFX.landMinSpeed) || slam) sounds.push({ name: 'land' });
+    // GDD-BOS-02: a hiss at the start of every telegraph of his, a warning before each attack.
+    if (before.boss?.mode !== 'telegraph' && after.boss?.mode === 'telegraph') sounds.push({ name: 'hiss' });
     if (before.claw.phase === 'idle' && after.claw.phase === 'windup') sounds.push({ name: 'claw' });
-    // GDD-BOS-02: a hit on the boss thuds like a stomp, once a step.
-    if (after.stomped || (after.boss?.hits ?? 0) > (before.boss?.hits ?? 0)) sounds.push({ name: 'stomp' });
+    if (after.stomped) sounds.push({ name: 'stomp' });
+    // GDD-BOS-02: a hit on the boss grunts, the hit that defeats him gives his long deflating hiss instead; a hit comes only on a step
+    // that starts in play (stepRun), once a step.
+    if ((after.boss?.hits ?? 0) > (before.boss?.hits ?? 0)) sounds.push({ name: after.boss?.mode === 'defeated' ? 'bossDefeat' : 'grunt' });
     if (note.semitones !== null) sounds.push({ name: 'hilo', semitones: note.semitones });
   }
   // GDD-UI-02: a step of the clear screen that shows a new line ticks once, however many lines it shows (a skip shows several). The

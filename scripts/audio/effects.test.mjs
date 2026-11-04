@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderClaw, renderHilo, renderJump, renderLand, renderLifeLost, renderMeow, renderStomp, renderTick } from './effects.mjs';
+import { renderBossDefeat, renderClaw, renderGrunt, renderHilo, renderHiss, renderJump, renderLand, renderLifeLost, renderMeow, renderStomp, renderTick } from './effects.mjs';
 import { SAMPLE_RATE, toWav } from './ofrenda.mjs';
 
 /** Measures a rendered sound. `level` is the energy of one frequency in a stretch (Goertzel), as an amplitude. */
@@ -36,6 +36,9 @@ const sounds = [
   ['life lost', renderLifeLost, 0.85],
   ['meow', renderMeow, 0.5],
   ['tick', renderTick, 0.06],
+  ['hiss', renderHiss, 0.4],
+  ['grunt', renderGrunt, 0.25],
+  ['boss defeat', renderBossDefeat, 0.9],
 ];
 
 for (const [name, render, seconds] of sounds) {
@@ -150,5 +153,82 @@ describe('GDD-AUD-02 tick sound', () => {
     const wood = Math.max(...[1600, 1800, 2000].map((hz) => p.level(hz, 0.002, 0.03)));
     expect(wood).toBeGreaterThan(0.05);
     expect(wood).toBeGreaterThan(p.level(400, 0.002, 0.03));
+  });
+});
+
+/** Zero crossings a second of `samples` between `from` and `to` seconds: a noise's brightness, a tone's pitch times two. */
+const crossingRate = (samples, from, to) => {
+  let crossings = 0;
+  for (let i = Math.floor(from * SAMPLE_RATE) + 1; i < Math.floor(to * SAMPLE_RATE); i++) if (Math.sign(samples[i]) !== Math.sign(samples[i - 1])) crossings++;
+  return crossings / (to - from);
+};
+
+describe('GDD-AUD-02 hiss sound', () => {
+  const p = probe(renderHiss());
+  it('is noisy and high, well above the stomp', () => {
+    // A band around 3 kHz crosses zero thousands of times a second; the stomp, a tone sliding from 520 to 140 Hz, about a thousand.
+    const hiss = crossingRate(p.samples, 0, 0.1);
+    expect(hiss).toBeGreaterThan(4000);
+    expect(hiss).toBeGreaterThan(3 * crossingRate(renderStomp(), 0, 0.1));
+  });
+  it('has a quick attack and dies away', () => {
+    expect(p.rms(0.02, 0.1)).toBeGreaterThan(5 * p.rms(0.3, 0.05));
+    expect(p.rms(0, 0.002)).toBeLessThan(0.3 * p.rms(0.02, 0.1));
+  });
+  it('rasps at about 35 Hz: a swell about every 29 ms', () => {
+    // The level in 5 ms windows peaks every 1 / 35 s = 5.7 windows; a window that is the loudest within 3 either side is a swell.
+    const windows = Array.from({ length: 80 }, (_, i) => p.rms(i * 0.005, 0.005));
+    const swells = windows.map((w, i) => (i >= 3 && i < 77 && windows.slice(i - 3, i + 4).every((o) => o <= w) ? i : -1)).filter((i) => i >= 0);
+    expect(swells.length).toBeGreaterThanOrEqual(9);
+    expect(swells.length).toBeLessThanOrEqual(14);
+    const gaps = swells.slice(1).map((w, i) => w - swells[i]);
+    expect(gaps.reduce((a, b) => a + b, 0) / gaps.length).toBeGreaterThan(5);
+    expect(gaps.reduce((a, b) => a + b, 0) / gaps.length).toBeLessThan(7);
+  });
+});
+
+describe('GDD-AUD-02 grunt sound', () => {
+  const p = probe(renderGrunt());
+  /** The fundamental in a stretch, from the lag at which the signal best matches itself, between 50 and 130 Hz. */
+  const pitch = (from, to) => {
+    const a = Math.floor(from * SAMPLE_RATE);
+    const b = Math.floor(to * SAMPLE_RATE);
+    let best = 0;
+    let bestLag = 0;
+    for (let lag = Math.floor(SAMPLE_RATE / 130); lag <= Math.floor(SAMPLE_RATE / 50); lag++) {
+      let c = 0;
+      for (let i = a; i + lag < b; i++) c += p.samples[i] * p.samples[i + lag];
+      if (c > best) {
+        best = c;
+        bestLag = lag;
+      }
+    }
+    return SAMPLE_RATE / bestLag;
+  };
+  it('is low: a few hundred crossings a second, not thousands', () => {
+    expect(crossingRate(p.samples, 0, 0.25)).toBeLessThan(1000);
+    expect(p.level(90, 0.01, 0.06)).toBeGreaterThan(3 * p.level(3000, 0.01, 0.06));
+  });
+  it('glides from 95 down to 70 Hz', () => {
+    expect(pitch(0.01, 0.07)).toBeGreaterThan(88);
+    expect(pitch(0.01, 0.07)).toBeLessThan(100);
+    expect(pitch(0.17, 0.23)).toBeGreaterThan(66);
+    expect(pitch(0.17, 0.23)).toBeLessThan(80);
+  });
+});
+
+describe('GDD-AUD-02 boss defeat sound', () => {
+  const p = probe(renderBossDefeat());
+  it('gets darker: its first quarter crosses zero far more often than its last', () => {
+    // The cutoff falls from 4 kHz to 300 Hz: bright noise at first (thousands of crossings a second), a low rumble at the end.
+    const first = crossingRate(p.samples, 0, 0.225);
+    const last = crossingRate(p.samples, 0.675, 0.9);
+    expect(first).toBeGreaterThan(3000);
+    expect(last).toBeLessThan(1500);
+    expect(first).toBeGreaterThan(3 * last);
+  });
+  it('fades while it falls', () => {
+    expect(p.rms(0, 0.2)).toBeGreaterThan(2 * p.rms(0.4, 0.2));
+    expect(p.rms(0.4, 0.2)).toBeGreaterThan(2 * p.rms(0.7, 0.1));
   });
 });

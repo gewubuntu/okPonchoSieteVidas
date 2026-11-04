@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseTiles } from './tilemap';
 import { spawn, type PlayerState } from './movement';
-import { bossBox, bossHarms, bossHittable, bossStart, freshRocks, fruitBox, hitBoss, knock, lapPoint, ponchoBox, rockBox, stepBoss, stepFruit, stepRock, type Boss, type BossMode, type BossState, type Fruit, type RockState } from './boss';
+import { bossBox, bossCrown, bossHarms, bossHittable, bossStart, freshRocks, fruitBox, hitBoss, knock, lapPoint, ponchoBox, rockBox, stepBoss, stepFruit, stepRock, type Boss, type BossMode, type BossState, type Fruit, type RockState } from './boss';
 
 // GDD-BOS-02: Don Zopilote's pattern in the arena of 1-4: his lap's middle at (240, 72), the floor's top at y = 224, so his middle on the
 // floor is at y = 209 (his box is 48 x 30). Expected values come from the GDD's numbers.
@@ -170,6 +170,14 @@ describe('GDD-BOS-02 hits', () => {
     expect(hitBoss({ ...b, hits: 2 })).toMatchObject({ hits: 3, mode: 'defeated', age: 0 });
   });
 
+  it('GDD-BOS-02 the hit that defeats him keeps where it hit him, a hurt hit does not change tx or ty', () => {
+    const stuck: BossState = { ...bossStart(DEF, 2), mode: 'stuck', x: 232, y: 209, tx: 100, ty: 50 };
+    expect(hitBoss(stuck)).toMatchObject({ mode: 'defeated', tx: 232, ty: 209 });
+    expect(hitBoss({ ...stuck, x: 310, y: 150 })).toMatchObject({ mode: 'defeated', tx: 310, ty: 150 });
+    expect(hitBoss({ ...stuck, hits: 0 })).toMatchObject({ mode: 'hurt', tx: 100, ty: 50 });
+    expect(hitBoss({ ...stuck, hits: 1 })).toMatchObject({ mode: 'hurt', tx: 100, ty: 50 });
+  });
+
   it('GDD-BOS-02 hurt for 1.0 s, still, then he climbs to the nearer end', () => {
     const hurt: BossState = { ...bossStart(DEF, 1), mode: 'hurt', age: 0, x: 300, y: 209 };
     const { states } = fly(hurt, 61);
@@ -280,5 +288,122 @@ describe('GDD-BOS-02 rocks', () => {
     for (let i = 0; i < 119; i++) r = stepRock(r, { x: 56, y: 176 }, ARENA);
     expect(r).toMatchObject({ mode: 'gone', age: 119 });
     expect(stepRock(r, { x: 56, y: 176 }, ARENA)).toEqual(rest());
+  });
+});
+
+/** He defeated at (x, y) facing `dir`, `age` steps after the hit (his own fall is not needed: the crown starts where the hit was). */
+const defeatedAt = (x: number, y: number, dir: 1 | -1, age: number): BossState => ({ ...bossStart(DEF, 3), mode: 'defeated', x, y, tx: x, ty: y, dir, age });
+
+const crownAt = (x: number, y: number, dir: 1 | -1, age: number) => bossCrown(DEF, defeatedAt(x, y, dir, age))!;
+
+/** Every crown from the hit's step (age 0) to age `n`. */
+const crowns = (x: number, y: number, dir: 1 | -1, n: number) => Array.from({ length: n + 1 }, (_, age) => crownAt(x, y, dir, age));
+
+describe('GDD-BOS-02 his crown pops off', () => {
+
+  it('GDD-BOS-02 there is a crown only while he is defeated', () => {
+    for (const mode of ['lap', 'telegraph', 'dive', 'stuck', 'drop', 'sweep', 'climb', 'hurt'] as const) expect(bossCrown(DEF, { ...bossStart(DEF, 2), mode }), mode).toBeNull();
+    expect(bossCrown(DEF, defeatedAt(232, 209, 1, 0))).not.toBeNull();
+  });
+
+  it('GDD-BOS-02 his crown starts at his head in the frame he shows: falling at 15 px towards his facing and 4.5 down, lying at 11 px behind and 5 down', () => {
+    // With room above the floor (def.floor - (ty + 15) >= 7) he shows tumbleA, its head 15 px towards the side he faces, its top 4.5 px below his middle.
+    expect(crownAt(232, 150, 1, 0)).toMatchObject({ x: 247, y: 154.5, resting: false });
+    expect(crownAt(232, 150, -1, 0)).toMatchObject({ x: 217, y: 154.5, resting: false });
+    // Room exactly 7 (ty 202) still shows tumbleA; room 6 (ty 203) and the floor (ty 209) show him lying, his head 11 px on the side he does not face, its top 5 down.
+    expect(crownAt(232, 202, 1, 0)).toMatchObject({ x: 247, y: 206.5 });
+    expect(crownAt(232, 203, 1, 0)).toMatchObject({ x: 221, y: 208 });
+    expect(crownAt(232, 209, 1, 0)).toMatchObject({ x: 221, y: 214, resting: false });
+    expect(crownAt(232, 209, -1, 0)).toMatchObject({ x: 243, y: 214, resting: false });
+  });
+
+  it('GDD-BOS-02 his crown rises first, 180 px/s up under 1800 px/s squared', () => {
+    const c = crowns(232, 209, 1, 8);
+    // y after k steps: 214 + sum of (-3 + 0.5 j) for j = 1..k; the apex, 7.5 px up, is on step 6.
+    [211.5, 209.5, 208, 207, 206.5, 206.5].forEach((y, i) => expect(c[i + 1]!.y, `step ${i + 1}`).toBeCloseTo(y, 6));
+    for (let a = 1; a <= 5; a++) expect(c[a]!.y, `step ${a}`).toBeLessThan(c[a - 1]!.y);
+    expect(c[8]!.y).toBeGreaterThan(c[6]!.y);
+  });
+
+  it('GDD-BOS-02 his crown moves 45 px/s towards the arena\'s middle, rightwards from the middle itself', () => {
+    expect(crownAt(232, 209, 1, 4).x).toBeCloseTo(221 + 3, 6); // hit at x 232, left of the middle 240: rightwards
+    expect(crownAt(300, 209, 1, 4).x).toBeCloseTo(289 - 3, 6); // hit at x 300, right of it: leftwards, whichever way he faces
+    expect(crownAt(300, 209, -1, 4).x).toBeCloseTo(311 - 3, 6);
+    expect(crownAt(240, 209, -1, 4).x).toBeCloseTo(251 + 3, 6); // at the middle: rightwards
+  });
+
+  it('GDD-BOS-02 his crown lands on the floor, bounces once at 0.3 of its speed and rests, hit stuck at the start', () => {
+    const c = crowns(232, 209, 1, 60);
+    // Measured: it first reaches the floor (y 224) on its 14th step, at x 231.5, and rests on its 18th, at x 234.5, for good.
+    expect(c.findIndex((k) => k.y === 224)).toBe(14);
+    for (let a = 1; a < 14; a++) expect(c[a]!.y, `step ${a}`).toBeLessThan(224);
+    expect(c[14]).toMatchObject({ y: 224, resting: false });
+    expect(c[14]!.x).toBeCloseTo(231.5, 6);
+    // After the bounce it goes up again: it lands at 240 px/s, 0.3 of that is 72 px/s up, which peaks 0.9 px above the floor.
+    expect(Math.min(...c.slice(15, 18).map((k) => k.y))).toBeCloseTo(224 - 0.9, 6);
+    for (let a = 15; a < 18; a++) expect(c[a]!.y, `step ${a}`).toBeLessThan(224);
+    expect(c.findIndex((k) => k.resting)).toBe(18);
+    expect(c[18]).toMatchObject({ y: 224, resting: true });
+    expect(c[18]!.x).toBeCloseTo(234.5, 6);
+    for (let a = 18; a <= 60; a++) expect(c[a], `step ${a}`).toEqual(c[18]);
+  });
+
+  it('GDD-BOS-02 his crown lands and rests the same way moving left from the right of the middle', () => {
+    const c = crowns(300, 209, -1, 60);
+    expect(c.findIndex((k) => k.y === 224)).toBe(14);
+    expect(c[14]!.x).toBeCloseTo(300.5, 6);
+    expect(c.findIndex((k) => k.resting)).toBe(18);
+    expect(c[18]!.x).toBeCloseTo(297.5, 6);
+    expect(c[60]).toEqual(c[18]);
+  });
+
+  it('GDD-BOS-02 hit in the air at y 150 his crown lands on its 24th step and rests on its 34th', () => {
+    const c = crowns(232, 150, 1, 70);
+    expect(c[0]).toMatchObject({ x: 247, y: 154.5 });
+    expect(c.findIndex((k) => k.y === 224)).toBe(24);
+    expect(c.findIndex((k) => k.resting)).toBe(34);
+    expect(c[34]!.x).toBeCloseTo(272.5, 6);
+  });
+
+  it('GDD-BOS-02 a step that puts his crown exactly on the floor is a landing: the first touch bounces, the second rests', () => {
+    // Hit at y 77 (in his lap): the 30th step puts the first touch at exactly y 224 (a 224 that is not clamped); it must bounce, so the
+    // 31st step is above the floor again. Hit at y 68: the 45th step puts the second touch at exactly 224, and it rests there.
+    const first = crowns(240, 77, 1, 50);
+    expect(first.findIndex((k) => k.y === 224)).toBe(30);
+    expect(first[30]).toMatchObject({ y: 224, resting: false });
+    expect(first[31]!.y).toBeLessThan(224);
+    expect(first.findIndex((k) => k.resting)).toBe(44);
+    const second = crowns(240, 68, 1, 50);
+    expect(second.findIndex((k) => k.y === 224)).toBe(31);
+    expect(second.findIndex((k) => k.resting)).toBe(45);
+    expect(second[45]).toMatchObject({ y: 224, resting: true });
+    expect(second[46]).toEqual(second[45]);
+  });
+
+  it('GDD-BOS-02 from wherever he can be defeated his crown rests on the floor before the clear screen', () => {
+    // The clear screen comes 60 steps after the hit (GDD-BOS-02, BOSS.defeatSteps). He can be hit from the top of his lap (y 56) down to
+    // stuck on the floor (y 209), at the lap's ends (x 88, 392) or the middle, facing either way.
+    let worst = 0;
+    for (let y = 56; y <= 209; y++) {
+      for (const x of [88, 240, 392]) {
+        for (const dir of [1, -1] as const) {
+          const restStep = crowns(x, y, dir, 70).findIndex((k) => k.resting);
+          expect(restStep, `hit at ${x}, ${y}, facing ${dir}`).toBeGreaterThan(0);
+          expect(restStep, `hit at ${x}, ${y}, facing ${dir}`).toBeLessThan(60);
+          worst = Math.max(worst, restStep);
+        }
+      }
+    }
+    // The worst is the highest hit, at the top of his lap: it rests on its 47th step.
+    expect(worst).toBe(47);
+  });
+
+  it('GDD-BOS-02 his crown shows its tilted frame on every other 4 steps while it is in the air, never at rest', () => {
+    const c = crowns(232, 209, 1, 60);
+    const air = c.slice(0, 18).map((k) => k.tilted);
+    expect(air.slice(0, 12)).toEqual([false, false, false, false, true, true, true, true, false, false, false, false]);
+    expect(air.slice(12, 18)).toEqual([true, true, true, true, false, false]); // steps 12 to 15 are the 4th block of 4, an odd one
+    expect(air.filter(Boolean)).toHaveLength(8);
+    for (let a = 18; a <= 60; a++) expect(c[a]!.tilted, `resting at ${a}`).toBe(false);
   });
 });

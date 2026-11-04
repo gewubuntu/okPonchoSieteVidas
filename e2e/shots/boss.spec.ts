@@ -8,7 +8,7 @@ const shot = async (page: Page, info: TestInfo, name: string) => {
 };
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 
-test('GDD-BOS-02 1-4: the arena, his telegraph, dive, stuck, a hit, the phase 2 sweep and rock, phase 3 fruit, the defeat and the clear screen', async ({ page, isMobile }, info) => {
+test('GDD-BOS-02 1-4: the arena, his telegraph, dive, stuck, a hit, the phase 2 sweep and rock, phase 3 fruit, the crown popping off, the defeat and the clear screen', async ({ page, isMobile }, info) => {
   await start(page, isMobile, '/?level=1-4'); // the device's way (L-045)
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await api(page, () => window.__PONCHO__!.pause(true));
@@ -67,12 +67,21 @@ test('GDD-BOS-02 1-4: the arena, his telegraph, dive, stuck, a hit, the phase 2 
   await api(page, () => window.__PONCHO__!.teleport(190, 224));
   expect(await stepToBossMode(page, 'stuck')).toBeLessThan(200);
   await api(page, () => window.__PONCHO__!.step(3, { move: 0, jumpHeld: false, claw: true }));
-  await api(page, () => window.__PONCHO__!.step(20));
-  expect(await api(page, () => window.__PONCHO__!.boss()!.mode)).toBe('defeated');
-  await page.waitForFunction(() => window.__PONCHO__!.bossBar().pips === 0);
+  expect(await api(page, () => window.__PONCHO__!.boss())).toMatchObject({ mode: 'defeated', age: 0 });
+  // The crown in the air just after the last hit, near its top (step 6), on a step his white flash is off so he reads (L-016).
+  await api(page, () => window.__PONCHO__!.step(6));
+  await page.waitForFunction(() => {
+    const crown = window.__PONCHO__!.bossCrownDrawn();
+    return crown !== null && crown.y < 214 - 5 && window.__PONCHO__!.boss()!.age === 6 && window.__PONCHO__!.bossDrawn()?.flash === null;
+  });
+  await shot(page, info, 'boss-crown');
+
+  // Lying on his back with the dots, the crown on the floor, his white flash off (L-016).
+  await api(page, () => window.__PONCHO__!.step(46));
+  await page.waitForFunction(() => window.__PONCHO__!.bossCrownDrawn()?.y === 224 && window.__PONCHO__!.bossDrawn()?.dots === 3 && window.__PONCHO__!.bossDrawn()?.flash === null && window.__PONCHO__!.boss()!.age === 52);
   await shot(page, info, 'boss-defeat');
 
-  await api(page, () => window.__PONCHO__!.step(40 + 61));
+  await api(page, () => window.__PONCHO__!.step(69));
   await page.waitForFunction(() => window.__PONCHO__!.clearDrawn().shown && window.__PONCHO__!.clearDrawn().menu.shown);
   expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'retry' });
   await shot(page, info, 'boss-clear');

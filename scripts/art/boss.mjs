@@ -30,7 +30,8 @@ export const STUCK_FLOOR = 92;
 export const COLUMNS = 7;
 /** The looks of each crown (3, 2, 1 points), in order; frame = (3 - crown) * LOOKS.length + index. Then DEFEAT_LOOKS, crown 0. */
 export const LOOKS = ['flapUp', 'flapDown', 'climbUp', 'climbDown', 'telegraph', 'telegraphRed', 'dive', 'stuck', 'sweep', 'hurt', 'hurtWhite'];
-export const DEFEAT_LOOKS = ['defeat', 'defeatWhite'];
+/** His defeat (crown gone): tumbling as he falls (two turns, A and B), then lying on his back with the three dots; each with its white flash. */
+export const DEFEAT_LOOKS = ['tumbleA', 'tumbleAWhite', 'tumbleB', 'tumbleBWhite', 'defeat', 'defeatWhite'];
 
 /** Paints a material: `light` along its upper left edge, `dark` along its lower right, `depth` pixels deep. */
 function shaded(g, test, [light, base, dark], { lightDepth = 1, darkDepth = 2 } = {}) {
@@ -213,7 +214,16 @@ function drawLook(look, crown) {
     case 'sweep': return drawBird({ wings: 'tucked', feet: 'out', beakOpen: true, crown });
     case 'hurt': return drawBird({ wings: 'tucked', eye: 'x', crown }); // tucked: he is hurt on the floor too, where lowered wings would hang below it
     case 'hurtWhite': return flashed(drawLook('hurt', crown), SUN_DISC, CLOUD_UNDER);
-    case 'defeat': return rotated(drawBird({ wings: 'tucked', eye: 'x', crown: 0, feet: 'out' }), Math.PI * 0.9); // he lies on the floor
+    case 'tumbleA': return rotated(drawBird({ wings: 'tucked', eye: 'x', crown: 0, feet: 'out' }), Math.PI * 0.35);
+    case 'tumbleAWhite': return flashed(drawLook('tumbleA', 0), SUN_DISC, CLOUD_UNDER);
+    case 'tumbleB': return rotated(drawBird({ wings: 'tucked', eye: 'x', crown: 0, feet: 'out' }), Math.PI * 0.65);
+    case 'tumbleBWhite': return flashed(drawLook('tumbleB', 0), SUN_DISC, CLOUD_UNDER);
+    case 'defeat': {
+      // He lies on his back on the floor, the three dots over him.
+      const g = rotated(drawBird({ wings: 'tucked', eye: 'x', crown: 0, feet: 'out' }), Math.PI * 0.9);
+      dazed(g, 17, 74); // over his head, which lies at the lower left
+      return g;
+    }
     case 'defeatWhite': return flashed(drawLook('defeat', 0), SUN_DISC, CLOUD_UNDER);
     default: throw new Error(`no look ${look}`);
   }
@@ -259,6 +269,29 @@ export function drawFruitSheet() {
     px(g, landed ? [[6, 8], [11, 9], [8, 12], [13, 12], [5, 12]] : [[6, 6], [11, 7], [8, 10], [12, 12], [5, 11], [9, 14]], CLOUD_TOP);
     g.outline(OUTLINE, 1);
     paste(sheet, g, i * 18, 0);
+  });
+  return scaled(sheet, 2);
+}
+
+/**
+ * His crown once the last hit knocks it off (GDD-BOS-02): the gold band with its tuna jewel and no points, 24 x 16 drawing px a frame, in
+ * art pixels: frame 0 level, frame 1 tilted as it spins in the air. Its bottom middle stands on the floor when it lands.
+ */
+export function drawCrownSheet() {
+  const sheet = new Grid(48, 16);
+  [0, 0.5].forEach((tilt, i) => {
+    const band = new Grid(24, 16);
+    // The band's middle to (12, 12) level and (12, 11) tilted: its lowest painted row is the frame's last, so it stands on the floor.
+    const at = (x, y) => [x - 103.5 + 12, y - 34.5 + 12 - i];
+    const turn = (test) => (x, y) => {
+      const c = Math.cos(-tilt), sn = Math.sin(-tilt), cy = 12 - i, dx = x - 12, dy = y - cy;
+      return test(12 + dx * c - dy * sn, cy + dx * sn + dy * c);
+    };
+    shaded(band, turn(polygon([[95, 34], [111, 31], [112, 35], [96, 38]].map(([x, y]) => at(x, y)))), GOLD, { darkDepth: 1 });
+    const jewel = turn(polygon([[102.5, 33.5], [104.5, 33.5], [104.5, 35.5], [102.5, 35.5]].map(([x, y]) => at(x, y))));
+    band.fill(jewel, RED, true);
+    band.outline(OUTLINE, 1);
+    paste(sheet, band, i * 24, 0);
   });
   return scaled(sheet, 2);
 }
