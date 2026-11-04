@@ -111,6 +111,17 @@ describe('GDD-TEC-04 and GDD-WLD-03 level length', () => {
     expect(validateLevel(entry({ width: 181 }))).toEqual(['181 tiles wide, expected 90 to 180 (3 to 6 screens)']);
   });
 
+  it('accepts up to 8 screens, 240 tiles, from World 2 on, and rejects 241 there (user, 2026-11-04)', () => {
+    expect(validateLevel(entry({ width: 240, world: 2 }))).toEqual([]);
+    expect(validateLevel(entry({ width: 241, world: 2 }))).toEqual(['241 tiles wide, expected 90 to 240 (3 to 8 screens)']);
+    expect(validateLevel(entry({ width: 89, world: 2 }))).toEqual(['89 tiles wide, expected 90 to 240 (3 to 8 screens)']);
+  });
+
+  it('keeps Worlds 0 and 1 at 6 screens: 181 tiles is too long there', () => {
+    expect(validateLevel(entry({ width: 181, world: 0 }))).toEqual(['181 tiles wide, expected 90 to 180 (3 to 6 screens)']);
+    expect(validateLevel(entry({ width: 181, world: 1 }))).toEqual(['181 tiles wide, expected 90 to 180 (3 to 6 screens)']);
+  });
+
   it('lets a test level be one screen', () => {
     expect(validateLevel(entry({ width: 30, ofrendas: [7, 19, 25], exit: null, test: true }))).toEqual([]);
   });
@@ -157,8 +168,8 @@ describe('GDD-TEC-04 and GDD-WLD-03 gaps', () => {
     expect(validateLevel(entry({ world: 2, pits: cols(10, 14) }))).toEqual(['gap of 5 tiles at columns 10 to 14, World 2 allows 4']);
   });
 
-  it('a world with no gap limit is a problem', () => {
-    expect(validateLevel(entry({ world: 3 }))).toEqual(['no gap limit for World 3']);
+  it('a world with no gap limit and no length limit is a problem, once for each', () => {
+    expect(validateLevel(entry({ world: 3 }))).toEqual(['no length limit for World 3', 'no gap limit for World 3']);
   });
 });
 

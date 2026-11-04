@@ -434,13 +434,14 @@ export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4, nameStro
 export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;
 
 /**
- * GDD-TEC-04: what the level validator checks. GDD-WLD-03: a level is 3 to 6 screens of BASE_WIDTH wide, has 3 ofrendas,
+ * GDD-TEC-04: what the level validator checks. GDD-WLD-03: a level is `minScreens` to `maxScreens` (for its world: 6 in Worlds 0 and 1, 8 from
+ * World 2 on, user, 2026-11-04) screens of BASE_WIDTH wide, has 3 ofrendas,
  * and its gaps never exceed `maxGapTiles` for its world (Worlds 1 and 2 have a limit so far, World 2 a tile more, and the tutorial 0-1, outside the seven worlds, follows World 1: GDD-WLD-01). GDD-ENM-01: no enemy starts
  * closer than 3 tiles to a respawn.
  */
 export const LEVEL_RULES = {
   minScreens: 3,
-  maxScreens: 6,
+  maxScreens: { 0: 6, 1: 6, 2: 8 } as Readonly<Record<number, number>>,
   ofrendas: 3,
   maxGapTiles: { 0: 3, 1: 3, 2: 4 } as Readonly<Record<number, number>>,
   enemyClearance: 3 * TILE,

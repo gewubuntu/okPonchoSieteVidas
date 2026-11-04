@@ -85,11 +85,13 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
     if (level.ofrendas.length !== LEVEL_RULES.ofrendas) problems.push(`${level.ofrendas.length} ofrendas, expected ${LEVEL_RULES.ofrendas}`);
     if (!entry.test && !level.exit) problems.push('no exit');
 
-    // GDD-WLD-03: 3 to 6 screens wide.
-    const min = LEVEL_RULES.minScreens * screen;
-    const max = LEVEL_RULES.maxScreens * screen;
-    if (!entry.test && (width < min || width > max)) {
-      problems.push(`${width} tiles wide, expected ${min} to ${max} (${LEVEL_RULES.minScreens} to ${LEVEL_RULES.maxScreens} screens)`);
+    // GDD-WLD-03: 3 screens wide at least, and at most the world's longest (6 in Worlds 0 and 1, 8 from World 2 on).
+    const most = LEVEL_RULES.maxScreens[entry.world];
+    if (most === undefined) problems.push(`no length limit for World ${entry.world}`);
+    else {
+      const min = LEVEL_RULES.minScreens * screen;
+      const max = most * screen;
+      if (!entry.test && (width < min || width > max)) problems.push(`${width} tiles wide, expected ${min} to ${max} (${LEVEL_RULES.minScreens} to ${most} screens)`);
     }
   }
 
