@@ -10,8 +10,8 @@ import { commandText } from './command-text.mjs';
 // A run of the gate, by path or by its npm alias; a mention in `echo`, `grep` or `sed` is not a run.
 const GATE = /\bnode\s+(?:-\S+\s+)*(?:[^\s;&|<>()]*\/)?scripts\/check\.mjs\b|\bnpm\s+(?:-\S+\s+)*run(?:-script)?\s+(?:-\S+\s+)*check\b/g;
 // A git command that makes a commit: `git commit`, and since L-012's third time (a `git cherry-pick --continue` after a piped gate) also
-// `cherry-pick`, `merge`, `revert`, `am` and `rebase`; also with options before it (`git -C <dir> commit`, `git -c key=value commit`).
-const COMMIT = /\bgit(?:\s+-[cC]\s+[^\s-]\S*|\s+--?[^\s-][^\s=]*(?:=\S*)?)*\s+(?:commit|cherry-pick|merge|revert|am|rebase)\b/g;
+// `cherry-pick`, `merge`, `revert`, `am` and `rebase` (not `merge-base`, which commits nothing); also with options before it (`git -C <dir> commit`, `git -c key=value commit`).
+const COMMIT = /\bgit(?:\s+-[cC]\s+[^\s-]\S*|\s+--?[^\s-][^\s=]*(?:=\S*)?)*\s+(?:commit|cherry-pick|merge|revert|am|rebase)(?![\w-])/g;
 
 /** The reason to deny a shell command, or null when it is fine. */
 export function gateProblem(command) {
