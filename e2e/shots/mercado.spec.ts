@@ -30,12 +30,12 @@ test('GDD-ART-06 mercado: level 2-1 at the start', async ({ page, isMobile }, in
 test('GDD-ART-06 mercado: scrolled, the far town and the rooftops have moved, the 8-tile pit with its awning in view', async ({ page, isMobile }, info) => {
   await start(page, isMobile, '/?level=2-1');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  await stand(page, 1704, 192, 1448); // on the crate at column 106, the pit at columns 111 to 118 (x 1776 to 1904) ahead
+  await stand(page, 2584, 192, 2328); // on the crate at column 161, the pit at columns 166 to 173 (x 2656 to 2784) ahead
   const offsets = await page.evaluate(() => window.__PONCHO__!.backdrop());
   expect(offsets.mountains).toBeGreaterThan(0);
   expect(offsets.desert).toBeGreaterThan(offsets.mountains);
-  expect(await page.evaluate(() => window.__PONCHO__!.groundFrame(110, 14))).not.toBeNull();
-  for (const col of [111, 114, 118]) expect(await page.evaluate((c) => window.__PONCHO__!.groundFrame(c, 14), col)).toBeNull();
+  expect(await page.evaluate(() => window.__PONCHO__!.groundFrame(165, 14))).not.toBeNull();
+  for (const col of [166, 169, 173]) expect(await page.evaluate((c) => window.__PONCHO__!.groundFrame(c, 14), col)).toBeNull();
   await shot(page, info, 'mercado-mid');
 });
 

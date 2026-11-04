@@ -22,14 +22,22 @@ const T1 = 1;
 const T2 = 2;
 const T3 = 3;
 const T4 = 4;
-const A2 = 5;
-const T5 = 8;
+const WA = 5;
+const TB = 6;
+const WC = 7;
+const TD = 8;
+const A2 = 9;
+const T5 = 12;
 /** The rollos: the Fuego pit's, the alley's and the exam's. */
 const R2 = 0;
 const R1 = 1;
 const R4 = 2;
+/** The Trompo on the roof L, past the mixed chain. */
+const TROMPO_L = 4;
 /** The high roof F1's top and the exit roof's top (row 8). */
 const HIGH = 8 * TILE;
+/** The mixed chain's tall chimney, column 101: its top read from the level, and its left and right edges. */
+const TALL = { top: (() => { let row = 0; while (!world.solidTile(101, row)) row++; return row * TILE; })(), x0: 101 * TILE, x1: 102 * TILE } as const;
 
 /** Plays `steps` steps from `run` with `input(run, i)`, returning every state. */
 function play(lv: Level, run: RunState, steps: number, input: (r: RunState, i: number) => PlayerInput): RunState[] {
@@ -44,6 +52,10 @@ function play(lv: Level, run: RunState, steps: number, input: (r: RunState, i: n
 
 /** The rebound speeds, in order: the vy of each step on which a new awning rebound began. */
 const rebounds = (states: readonly RunState[]): number[] => states.flatMap((s, i) => (i > 0 && s.awningBounce !== states[i - 1]!.awningBounce && s.awningBounce ? [s.player.vy] : []));
+/** The awnings rebounded on, in order (-1 for a late press in the air). */
+const bouncedOn = (states: readonly RunState[]): number[] =>
+  states.flatMap((s, i) => (i > 0 && s.awningBounce !== states[i - 1]!.awningBounce && s.awningBounce ? [s.awningBounce.awning] : []));
+const taken = (r: RunState, col: number, row: number): boolean => r.hilosTaken[level.hilos!.findIndex((h) => h.col === col && h.row === row)]!;
 
 /** Holds right while left of `target` (counting the braking distance in the air), else lets go: never presses left, so he keeps facing right. */
 const towards = (p: PlayerState, target: number): number => (p.x + (p.vx * Math.abs(p.vx)) / 600 < target ? 1 : 0);
@@ -58,22 +70,32 @@ interface Crossing {
 
 /** The two far-post rollo crossings of 2-3: the alley's (R1) and the exam's (R4). */
 const CROSSINGS: readonly Crossing[] = [
-  { from: 1672, to: 1800, aim: 1786, rollo: R1 },
-  { from: 2600, to: 2700, aim: 2680, rollo: R4 },
+  { from: 2488, to: 2616, aim: 2602, rollo: R1 },
+  { from: 3416, to: 3516, aim: 3496, rollo: R4 },
 ];
+
+/** The bot goes on from Wa once the Trompo on L heads right short of this x: it has turned at the pit's edge. */
+const TROMPO_TURNED = 1840;
 
 /**
  * The bot (L-048: it lets go of jump for at least a step before pressing it again). It holds right and:
- * - jumps (held 20 steps) at a wall in the row of its feet within 14 px of its front, at a drop of three tiles or more within 10 px of
- *   it, and under a closed piñata 48 px over its feet; before such a jump it waits while an Alacrán, a Tlacuache or a spinning Trompo at
- *   its height is ahead within 90 px, or coming its way within 160 px;
- * - claws an Alacrán, a Tlacuache, a Paloma, a Chapulín or a spinning Trompo on its level whose near edge is within 26 px of its front,
- *   and hops (held 4 steps) onto a stunned Trompo within 18 px of its front, which stomps it;
+ * - jumps (held 20 steps) at a wall in the row of its feet within 14 px of its front, when the ground under the back of its body ends at a
+ *   drop of three tiles or more (standing on a level tile; never off an awning or a cordel), and under a closed piñata 48 px over its feet;
+ *   before such a jump, or a step down off a wall, it waits while an Alacrán, a Tlacuache or a spinning Trompo is where it would come down:
+ *   for a jump at a wall at its height within 90 px ahead or 160 px coming its way, for a drop up to 112 px below within 110 or 200 px, for a
+ *   step down up to 40 px below within 30 or 160 px;
+ * - claws an Alacrán, a Tlacuache, a Paloma, a Chapulín (also in the air, up to 32 px above) or a spinning Trompo on its level whose near
+ *   edge is within 26 px of its front, stands still while a spinning Trompo on its level heads away from it within 60 px, and hops (held 4
+ *   steps) onto a stunned Trompo within 18 px of its front, which stomps it;
  * - over the torn chain, from the roof's edge (x 1004 to 1030), holds jump and right until it stands anywhere past x = 1240;
+ * - in the air, holds jump while it rises from a held rebound and while it falls onto a torn awning within 48 px below;
+ * - in the mixed chain: on Wa (landed or on its plain rebound) it hops in place holding jump; once a held rebound has begun it steers onto
+ *   Tb's middle (x = 1592) holding jump, then holds right; falling past x = 1632 it lets go and steers onto Wc's middle, where it settles;
+ *   standing on Wc it waits until the Trompo on L heads right short of x = 1840, having turned at the pit's edge;
  * - at each far-post rollo, from `from`: holds jump, steers its rebounds to `aim` (never pressing left), claws once while rising with its
  *   claw's reach over the bundle and its feet 20 to 56 px under the line's top, and once it stands on the strung line walks right, where
  *   the wall rule jumps it onto the roof;
- * - on the roof before the cordel's pit it waits at x = 2304, out of the Paloma's sight, until the Paloma walks back towards the roof (or
+ * - on the roof before the cordel's pit it waits at x = 3120, out of the Paloma's sight, until the Paloma walks back towards the roof (or
  *   telegraphs), then walks up to the edge, where the claw rule claws it.
  * It returns the run, the steps it took, the lives lost (step and place) and every state.
  */
@@ -83,13 +105,19 @@ function bot(lv: Level, maxSteps: number, wait = 0): { run: RunState; steps: num
   const states: RunState[] = [];
   const lost: { step: number; x: number; y: number }[] = [];
   const w = lv.world;
+  const wa = lv.awnings![WA]!;
+  const wc = lv.awnings![WC]!;
   let hold = 0;
   let jumpBefore = false;
   let clawBefore = false;
   let steps = 0;
   let chain = false;
+  let mixed: 'off' | 'hop' | 'go' | 'settle' = 'off';
   while (run.phase !== 'clear' && steps < maxSteps) {
-    if (run.phase !== 'playing') chain = false;
+    if (run.phase !== 'playing') {
+      chain = false;
+      mixed = 'off';
+    }
     const p = run.player;
     const { x, y, grounded } = p;
     const front = x + 6;
@@ -99,22 +127,44 @@ function bot(lv: Level, maxSteps: number, wait = 0): { run: RunState; steps: num
     let hop = false;
     let held: boolean | null = null;
     if (run.phase === 'playing') {
+      let trompoAhead = false;
       lv.enemies.forEach((e, i) => {
         const s = run.enemies[i]!;
         if (!s.alive) return;
         const k = kindOf(e);
         const box = enemyBox(e, s);
         const near = box.x0 - front;
-        const onLevel = Math.abs(feetOf(e, s) - y) <= 20 && box.y1 > y - 32 && box.y0 < y;
+        const onLevel = Math.abs(feetOf(e, s) - y) <= (k === 'chapulin' ? 32 : 20) && box.y1 > y - 32 && box.y0 < y;
         if (k !== 'trompo' || !isStunned(s)) {
           if (onLevel && near >= -6 && near <= 26 && p.facing === 1) claw = true;
+          if (k === 'trompo' && grounded && onLevel && s.dir > 0 && near > 0 && near <= 60) trompoAhead = true;
         } else if (grounded && Math.abs(feetOf(e, s) - y) < 1 && near >= 0 && near <= 18) hop = true;
       });
+      if (trompoAhead) move = 0;
       if (!chain && grounded && y === ROOF && x >= 1004 && x < 1030) chain = true;
       if (chain) {
         if (grounded && x > 1240) chain = false;
         else held = true;
       }
+      if (!grounded && p.vy < 0 && (p.awningChain ?? 0) > 0) held = true;
+      if (!grounded && p.vy > 0 && lv.awnings!.some((a, i) => a.torn && !run.awningsGone[i] && x + 6 > a.x && x - 6 < a.x + a.w && a.y >= y && a.y - y < 48)) held = true;
+      const onWa = grounded && y === wa.y && x > wa.x - 6 && x < wa.x + wa.w + 6;
+      if (mixed === 'off' && (onWa || (run.awningBounce?.awning === WA && run.awningBounce.tier === 0 && p.vy < 0))) mixed = 'hop';
+      if (mixed === 'hop' && (p.awningChain ?? 0) >= 1 && !grounded) mixed = 'go';
+      if (mixed === 'go' && p.vy > 0 && x > TALL.x1) mixed = 'settle';
+      if (mixed === 'settle' && grounded) mixed = 'off';
+      if (mixed === 'hop') {
+        move = 0;
+        held = true;
+      } else if (mixed === 'go') {
+        move = run.awningBounce?.awning === TB ? 1 : towards(p, 1592);
+        held = true;
+      } else if (mixed === 'settle') {
+        move = towards(p, wc.x + wc.w / 2);
+        held = false;
+      }
+      const t = run.enemies[TROMPO_L]!;
+      if (grounded && y === wc.y && x > wc.x && x < wc.x + wc.w + 6 && t.alive && !(t.dir > 0 && t.x < TROMPO_TURNED)) move = 0;
       for (const c of CROSSINGS) {
         if (x < c.from || x >= c.to) continue;
         const strung = run.rollos[c.rollo]!.steps !== null;
@@ -128,31 +178,37 @@ function bot(lv: Level, maxSteps: number, wait = 0): { run: RunState; steps: num
       }
       lv.enemies.forEach((e, i) => {
         const s = run.enemies[i]!;
-        if (kindOf(e) !== 'paloma' || !s.alive || held !== null || !grounded || y !== ROOF || x < 2280 || x > 2360) return;
+        if (kindOf(e) !== 'paloma' || !s.alive || held !== null || !grounded || y !== ROOF || x < 3096 || x > 3176) return;
         const reach = enemyBox(e, s).x0 - front <= 26;
-        const coming = (s.wing!.phase === 'walk' && s.dir < 0 && s.x < 2390) || s.wing!.phase === 'telegraph';
-        move = reach ? 0 : coming ? (x < 2350 ? 1 : 0) : x > 2304 ? -1 : 0;
+        const coming = (s.wing!.phase === 'walk' && s.dir < 0 && s.x < 3206) || s.wing!.phase === 'telegraph';
+        move = reach ? 0 : coming ? (x < 3166 ? 1 : 0) : x > 3120 ? -1 : 0;
       });
     }
     if (run.phase === 'playing' && grounded && hold === 0 && held === null && move === 1) {
       const feetRow = Math.floor((y - 1) / TILE);
       for (let d = 0; d <= 14; d++) if (w.solidTile(Math.floor((front + d) / TILE), feetRow) && y - feetRow * TILE > 4) jump = true;
-      for (let d = 0; d <= 10; d++) {
-        const col = Math.floor((front + d) / TILE);
+      const onTile = w.solidTile(Math.floor((x - 6) / TILE), feetRow + 1) || w.solidTile(Math.floor((x + 5.99) / TILE), feetRow + 1);
+      let drop = false;
+      for (let d = 2; d <= 4; d++) {
+        const col = Math.floor((x + d) / TILE);
         let empty = 0;
         while (feetRow + 1 + empty < w.height && !w.solidTile(col, feetRow + 1 + empty)) empty++;
-        if (empty >= 3) jump = true;
+        if (onTile && empty >= 3) drop = true;
       }
       lv.pinatas.forEach((pt, i) => {
         if (!run.pinatasOpen[i] && (pt.row + 4) * TILE === y && pt.col * TILE - x >= -12 && pt.col * TILE - x <= -2) jump = true;
       });
-      if (jump) {
+      const stepDown = !w.solidTile(Math.floor((front + 2) / TILE), feetRow + 1);
+      // Where it would come down: the lowest feet below its own, the reach ahead, the reach for one coming its way.
+      const zone = drop ? [112, 110, 200] : jump ? [16, 90, 160] : stepDown ? [40, 30, 160] : null;
+      jump ||= drop;
+      if (zone) {
         lv.enemies.forEach((e, i) => {
           const s = run.enemies[i]!;
           const k = kindOf(e);
           if (!s.alive || (k === 'trompo' && isStunned(s)) || k === 'paloma' || k === 'chapulin') return;
           const feet = feetOf(e, s);
-          if (feet >= y - 8 && feet <= y + 16 && s.x > x && (s.x < x + 90 || (s.dir < 0 && s.x < x + 160))) {
+          if (feet >= y - 8 && feet <= y + zone[0]! && s.x > x && (s.x < x + zone[1]! || (s.dir < 0 && s.x < x + zone[2]!))) {
             jump = false;
             move = 0;
           }
@@ -175,26 +231,26 @@ function bot(lv: Level, maxSteps: number, wait = 0): { run: RunState; steps: num
   return { run, steps, lost, states };
 }
 
-const played = bot(level, 3000);
+const played = bot(level, 4000);
 
 describe('GDD-WLD-14 level 2-3 layout', () => {
-  it('GDD-WLD-14 2-3 is 180 by 17 tiles and passes the validator with World 2 rules', () => {
-    expect([world.width, world.height]).toEqual([180, 17]);
+  it('GDD-WLD-14 2-3 is 240 by 17 tiles and passes the validator with World 2 rules', () => {
+    expect([world.width, world.height]).toEqual([240, 17]);
     expect(validateLevel(entry)).toEqual([]);
     expect(level.abilities).toBeUndefined();
     expect(level.spawn).toEqual({ x: mid(3), y: ROOF });
-    expect(level.exit).toEqual({ x: mid(176), y: HIGH });
-    expect(world.solidTile(176, 8)).toBe(true);
-    expect(world.solidTile(176, 7)).toBe(false);
+    expect(level.exit).toEqual({ x: mid(227), y: HIGH });
+    expect(world.solidTile(227, 8)).toBe(true);
+    expect(world.solidTile(227, 7)).toBe(false);
   });
 
-  it('GDD-WLD-03 2-3 ofrendas stand on the roof at columns 45, 99 and 153, about 25, 55 and 85 percent', () => {
+  it('GDD-WLD-03 2-3 ofrendas stand on the roof at columns 60, 132 and 204, about 25, 55 and 85 percent', () => {
     expect(level.ofrendas.map((o) => [o.id, o.x, o.y])).toEqual([
-      ['2-3-1', mid(45), ROOF],
-      ['2-3-2', mid(99), ROOF],
-      ['2-3-3', mid(153), ROOF],
+      ['2-3-1', mid(60), ROOF],
+      ['2-3-2', mid(132), ROOF],
+      ['2-3-3', mid(204), ROOF],
     ]);
-    [0.25, 0.55, 0.85].forEach((share, i) => expect(Math.abs(level.ofrendas[i]!.x / 2880 - share)).toBeLessThan(0.01));
+    [0.25, 0.55, 0.85].forEach((share, i) => expect(Math.abs(level.ofrendas[i]!.x / 3840 - share)).toBeLessThan(0.01));
   });
 
   it('GDD-WLD-14 2-3 has the roofs, walls, chimneys and high roofs of its plan, and its pits', () => {
@@ -204,29 +260,39 @@ describe('GDD-WLD-14 level 2-3 layout', () => {
     };
     add(29, 29, 12); // the Trompo pen's walls, 2 tiles
     add(36, 36, 12);
-    add(57, 57, 12); // the wall between the two Trompos
-    add(68, 68, 10); // the chimneys, 4 tiles above the roof (top y = 160)
+    add(52, 52, 12); // the walls that pen the two Trompos
+    add(58, 58, 12);
+    add(68, 68, 10); // the torn chain's chimneys, 4 tiles above the roof (top y = 160)
     add(73, 73, 10);
     add(83, 83, 12); // the wall before the second piñata
-    add(113, 118, 8); // the high roof F1 (top y = 128)
-    add(169, 179, 8); // the exit roof (top y = 128)
+    add(101, 101, 8); // the mixed chain's tall chimney, 6 tiles (top y = 128)
+    add(106, 106, 10); // and its chimney, 4 tiles
+    add(121, 126, 12); // the step R that pens the Trompo on L
+    add(164, 169, 8); // the high roof F1 (top y = 128)
+    add(220, 239, 8); // the exit roof (top y = 128)
     const found = new Set<string>();
     for (let c = 0; c < world.width; c++) for (let r = 0; r < 14; r++) if (world.solidTile(c, r)) found.add(`${c},${r}`);
     expect(found).toEqual(expected);
-    const pits = [[20, 22], [49, 51], [64, 67], [69, 72], [74, 77], [90, 93], [105, 112], [119, 122], [134, 137], [147, 150], [163, 168]];
+    const pits = [[20, 22], [44, 46], [64, 67], [69, 72], [74, 77], [92, 100], [102, 105], [107, 110], [140, 143], [156, 163], [170, 173], [185, 188], [198, 201], [214, 219]];
     for (let c = 0; c < world.width; c++) {
       const pit = pits.some(([a, b]) => c >= a! && c <= b!);
       for (let r = 14; r < 17; r++) expect(world.solidTile(c, r), `${c},${r}`).toBe(!pit);
     }
   });
 
-  it('GDD-WLD-03 GDD-WLD-10 2-3 gaps: the alley and the exam pit are wide, covered by their rollos up to 4 open tiles; torn awnings cover nothing', () => {
-    expect(gaps(world).map((g) => [g.col, g.width])).toEqual([[20, 3], [49, 3], [64, 4], [69, 4], [74, 4], [90, 4], [105, 8], [119, 4], [134, 4], [147, 4], [163, 6]]);
-    expect(openGaps(level).map((g) => [g.col, g.width])).toEqual([[20, 3], [49, 3], [64, 4], [69, 4], [74, 4], [109, 4], [119, 4], [166, 3]]);
+  it('GDD-WLD-03 GDD-WLD-10 2-3 gaps: the reading pit, the alley and the exam pit are wide, covered up to 4 open tiles; torn awnings cover nothing', () => {
+    expect(gaps(world).map((g) => [g.col, g.width])).toEqual([
+      [20, 3], [44, 3], [64, 4], [69, 4], [74, 4], [92, 9], [102, 4], [107, 4], [140, 4], [156, 8], [170, 4], [185, 4], [198, 4], [214, 6],
+    ]);
+    expect(openGaps(level).map((g) => [g.col, g.width])).toEqual([
+      [20, 3], [44, 3], [64, 4], [69, 4], [74, 4], [92, 1], [97, 4], [102, 4], [107, 4], [160, 4], [170, 4], [217, 3],
+    ]);
     expect(Math.max(...openGaps(level).map((g) => g.width))).toBe(4);
-    // Made whole, the chain's torn awnings would cover some of its pits' columns: torn, they cover none (GDD-WLD-03).
+    // Made whole, the torn awnings would cover some of their pits' columns: torn, they cover none (GDD-WLD-03).
     const whole: Level = { ...level, awnings: AWNINGS_2_3.map((a) => ({ x: a.x, y: a.y, w: a.w })) };
-    expect(openGaps(whole).filter((g) => g.col >= 64 && g.col <= 77).map((g) => [g.col, g.width])).toEqual([[64, 1], [66, 2], [69, 4], [74, 2]]);
+    expect(openGaps(whole).filter((g) => g.col >= 64 && g.col <= 110).map((g) => [g.col, g.width])).toEqual([
+      [64, 1], [66, 2], [69, 4], [74, 2], [92, 1], [97, 4], [102, 4], [107, 2],
+    ]);
   });
 
   it('GDD-WLD-10 GDD-WLD-11 2-3 awnings, cordel, rollos and piñatas', () => {
@@ -236,22 +302,26 @@ describe('GDD-WLD-14 level 2-3 layout', () => {
       [65, 3, 208, true],
       [70, 3, 208, true],
       [75, 3, 208, true],
-      [109, 3, 256, false],
-      [119, 2, 208, false],
-      [134, 4, 208, false],
-      [166, 2, 240, true],
+      [93, 4, 208, false],
+      [98, 3, 208, true],
+      [103, 3, 208, false],
+      [108, 3, 208, true],
+      [160, 3, 256, false],
+      [170, 2, 208, false],
+      [185, 4, 208, false],
+      [217, 2, 240, true],
     ]);
-    expect(CORDELES_2_3).toEqual([{ x: 147 * TILE, y: 208, w: 4 * TILE }]);
+    expect(CORDELES_2_3).toEqual([{ x: 198 * TILE, y: 208, w: 4 * TILE }]);
     expect(ROLLOS_2_3.map((r) => [r.x / TILE, r.w / TILE, r.y, r.post])).toEqual([
-      [90, 4, 224, 'right'],
-      [105, 8, 176, 'right'],
-      [163, 6, 176, 'right'],
+      [140, 4, 224, 'right'],
+      [156, 8, 176, 'right'],
+      [214, 6, 176, 'right'],
     ]);
     expect(level.pinatas).toEqual([
       { col: 38, row: 10 },
       { col: 85, row: 10 },
     ]);
-    expect(level.veladora).toEqual({ col: 109, row: 6 });
+    expect(level.veladora).toEqual({ col: 160, row: 6 });
     expect([level.spikes, level.crumbles, level.springs, level.platforms, level.tacos, level.doors, level.keys, level.fragiles]).toEqual([[], [], [], [], [], [], [], []]);
   });
 
@@ -278,16 +348,17 @@ describe('GDD-WLD-14 level 2-3 layout', () => {
     });
   });
 
-  it('GDD-ENM-03 2-3 enemies: an Alacrán, four Trompos, a Tlacuache, a Chapulín and a Paloma', () => {
+  it('GDD-ENM-03 2-3 enemies: an Alacrán, five Trompos, a Tlacuache, a Chapulín and a Paloma', () => {
     expect(ENEMIES_2_3.map((e) => [kindOf(e), e.x, e.y])).toEqual([
       ['alacran', mid(26), ROOF],
       ['trompo', mid(32), ROOF],
+      ['trompo', mid(49), ROOF],
       ['trompo', mid(55), ROOF],
-      ['trompo', mid(61), ROOF],
-      ['tlacuache', mid(116), HIGH],
-      ['trompo', mid(128), ROOF],
-      ['chapulin', mid(142), ROOF],
-      ['paloma', mid(148), 208],
+      ['trompo', mid(116), ROOF],
+      ['tlacuache', mid(167), HIGH],
+      ['trompo', mid(179), ROOF],
+      ['chapulin', mid(193), ROOF],
+      ['paloma', mid(199), 208],
     ]);
   });
 });
@@ -333,20 +404,21 @@ describe('GDD-ENM-03 2-3 the enemies keep to their stretches', () => {
     expect(ENEMIES_2_3.filter((e) => kindOf(e) !== 'chapulin').map(stretch)).toEqual([
       [375, 457, 224, 224],
       [487, 569, 224, 224],
-      [839.7, 905, 224, 224],
-      [935, 1016.7, 224, 224],
-      [1816, 1896, 128, 128],
-      [1975.5, 2136.5, 224, 224],
-      [2359, 2409, 208, 208],
+      [759.7, 825, 224, 224],
+      [855, 921, 224, 224],
+      [1783.2, 1929, 224, 224],
+      [2632, 2712, 128, 128],
+      [2791.5, 2952.5, 224, 224],
+      [3175, 3225, 208, 208],
     ]);
   });
 
   it('GDD-WLD-10 2-3 no walker or the Paloma walks through or under an awning while Poncho is away', () => {
-    expect(ENEMIES_2_3.filter((e) => kindOf(e) !== 'chapulin').map((e) => alone.get(e)!.under)).toEqual([-1, -1, -1, -1, -1, -1, -1]);
+    expect(ENEMIES_2_3.filter((e) => kindOf(e) !== 'chapulin').map((e) => alone.get(e)!.under)).toEqual([-1, -1, -1, -1, -1, -1, -1, -1]);
   });
 
   it('GDD-ENM-03 2-3 the Chapulín hops over the roofs M and K1 and is thrown high by A4 between them, and never falls or tears an awning', () => {
-    expect(stretch(ENEMIES_2_3.find((e) => kindOf(e) === 'chapulin')!)).toEqual([1975, 2355, 130.9, 224]);
+    expect(stretch(ENEMIES_2_3.find((e) => kindOf(e) === 'chapulin')!)).toEqual([2791, 3171, 130.9, 224]);
   });
 });
 
@@ -364,8 +436,8 @@ describe('GDD-WLD-14 2-3 the torn awning (the Ki)', () => {
   it('GDD-WLD-10 2-3 held, T1 gives one tier 1 rebound: it takes the lowest hilo of its column and not the next', () => {
     const states = play(quiet, { ...startRun(quiet), player: standing(150, ROOF) }, 150, (r) => ({ move: towards(r.player, 200), jumpHeld: true }));
     expect(rebounds(states)).toEqual([-480]);
-    const taken = (col: number, row: number) => states.at(-1)!.hilosTaken[level.hilos!.findIndex((h) => h.col === col && h.row === row)];
-    expect([taken(12, 6), taken(12, 4), taken(12, 3)]).toEqual([true, false, false]);
+    const r = states.at(-1)!;
+    expect([taken(r, 12, 6), taken(r, 12, 4), taken(r, 12, 3)]).toEqual([true, false, false]);
   });
 
   it('GDD-WLD-10 2-3 the chain carries: two rebounds on W1, then T1 gives tier 3 and the whole column; W1 takes its own column', () => {
@@ -377,26 +449,25 @@ describe('GDD-WLD-14 2-3 the torn awning (the Ki)', () => {
     expect(rebounds(states).slice(0, 3)).toEqual([-480, -540, -600]);
     expect(states.find((s) => s.awningBounce?.tier === 3)!.awningBounce!.awning).toBe(T1);
     const r = states.at(-1)!;
-    for (const [col, row] of [[8, 10], [8, 6], [8, 4], [12, 6], [12, 4], [12, 3]] as const) expect(r.hilosTaken[level.hilos!.findIndex((h) => h.col === col && h.row === row)], `${col},${row}`).toBe(true);
+    for (const [col, row] of [[8, 10], [8, 6], [8, 4], [12, 6], [12, 4], [12, 3]] as const) expect(taken(r, col, row), `${col},${row}`).toBe(true);
     expect(r.awningsGone[T1]).toBe(true);
   });
 });
 
-/** Standing on the roof 39 px before the chain's edge; the chain tests hold jump from their 10th step. */
+/** Standing on the roof 39 px before the torn chain's edge; the chain tests hold jump from their 10th step. */
 const edge = (): RunState => ({ ...startRun(quiet), player: standing(985, ROOF) });
 
 describe('GDD-WLD-14 2-3 the torn chain over the chimneys (the Shō)', () => {
   it('GDD-WLD-10 2-3 holding jump and right from the roof edge rebounds on T2, T3 and T4 at tiers 1, 2, 3, tears each, and lands on the roof', () => {
     const states = play(quiet, edge(), 240, (_r, i) => ({ move: 1, jumpHeld: i >= 10 }));
     expect(rebounds(states)).toEqual([-480, -540, -600]);
-    const bounced = states.flatMap((s, i) => (i > 0 && s.awningBounce !== states[i - 1]!.awningBounce ? [s.awningBounce!.awning] : []));
-    expect(bounced).toEqual([T2, T3, T4]);
+    expect(bouncedOn(states)).toEqual([T2, T3, T4]);
     const r = states.at(-1)!;
     expect([r.awningsGone[T2], r.awningsGone[T3], r.awningsGone[T4]]).toEqual([true, true, true]);
     expect(r.player).toMatchObject({ grounded: true, y: ROOF });
     expect(r.player.x).toBeGreaterThan(78 * TILE);
     expect(states.every((s) => s.lives.lives === 7)).toBe(true);
-    for (const [col, row] of [[67, 9], [68, 7], [71, 9], [73, 5], [76, 10], [79, 4]] as const) expect(r.hilosTaken[level.hilos!.findIndex((h) => h.col === col && h.row === row)], `${col},${row}`).toBe(true);
+    for (const [col, row] of [[67, 9], [68, 7], [71, 9], [73, 5], [76, 10], [79, 4]] as const) expect(taken(r, col, row), `${col},${row}`).toBe(true);
   });
 
   for (const after of [1, 2]) {
@@ -417,18 +488,150 @@ describe('GDD-WLD-14 2-3 the torn chain over the chimneys (the Shō)', () => {
   });
 });
 
+/** Standing on Wa under its hilo column (x = 1528), a jump held for `tiers` held rebounds in place and through the last one's rise. */
+const hopsOnWa = (tiers: number): RunState =>
+  play(quiet, { ...startRun(quiet), player: standing(1528, 208) }, 200, (r) => {
+    const chain = r.player.awningChain ?? 0;
+    return { move: 0, jumpHeld: chain < tiers || (chain === tiers && r.player.vy < 0) };
+  }).at(-1)!;
+
+/** Standing on the roof 39 px before the mixed chain's edge (column 91's right side, x = 1472). */
+const mixedEdge = (): RunState => ({ ...startRun(quiet), player: standing(1433, ROOF) });
+
+describe('GDD-WLD-14 2-3 the mixed chain: stripes to stop on, patches to bounce on (the Shō)', () => {
+  it('GDD-WLD-10 2-3 a jump from the edge onto Wa, let go, rebounds once and settles: the whole awning is a place to stop over the pit', () => {
+    const states = play(quiet, mixedEdge(), 120, (r, i) => ({ move: towards(r.player, 1512), jumpHeld: i >= 10 && i < 20 }));
+    expect(rebounds(states)).toEqual([-180]);
+    expect(bouncedOn(states)).toEqual([WA]);
+    expect(states.at(-1)!.player).toMatchObject({ grounded: true, y: 208 });
+    expect(states.at(-1)!.lives.lives).toBe(7);
+  });
+
+  it('GDD-WLD-10 2-3 a jump from Wa that comes down on Tb is a tier 1 rebound that peaks 2.9 px under the tall chimney and costs a life', () => {
+    const peaks: number[] = [];
+    const onTb: number[] = [];
+    for (let x = 1484; x <= 1556; x += 2) {
+      const states = play(quiet, { ...startRun(quiet), player: standing(x, 208) }, 160, (r) => ({ move: r.awningBounce?.awning === TB ? 1 : towards(r.player, 1592), jumpHeld: true }));
+      // From further back the jump comes down on Wa again: a held rebound there starts the chain (below).
+      if (bouncedOn(states)[0] === WA) continue;
+      // Every other jump costs a life: into the open column before Tb, or onto Tb at tier 1.
+      expect(states.at(-1)!.lives.lives, `x ${x}`).toBe(6);
+      expect(states.some((s) => s.player.x > TALL.x1 + 6 && s.lives.lives === 7), `x ${x}`).toBe(false);
+      if (bouncedOn(states).length === 0) continue;
+      onTb.push(x);
+      expect(bouncedOn(states), `x ${x}`).toEqual([TB]);
+      expect(rebounds(states), `x ${x}`).toEqual([-480]);
+      peaks.push(Math.min(...states.filter((s) => s.lives.lives === 7).map((s) => s.player.y)));
+    }
+    expect([onTb[0], onTb.at(-1), onTb.length]).toEqual([1506, 1556, 26]);
+    expect(Math.round(Math.min(...peaks) * 10) / 10).toBe(130.9);
+    expect(TALL.top).toBe(128);
+  });
+
+  it('GDD-WLD-10 2-3 a plain landing on Tb rebounds once, tears it and he falls into the pit', () => {
+    for (const target of [1576, 1592, 1608]) {
+      const states = play(quiet, { ...startRun(quiet), player: standing(1520, 208) }, 160, (r, i) => ({ move: towards(r.player, target), jumpHeld: i < 10 }));
+      expect(bouncedOn(states), `target ${target}`).toEqual([TB]);
+      expect(rebounds(states), `target ${target}`).toEqual([-180]);
+      expect(states.at(-1)!.lives.lives, `target ${target}`).toBe(6);
+    }
+  });
+
+  it('GDD-WLD-10 2-3 hopping in place on Wa starts the chain: Wa tier 1, then Tb tier 2 over the tall chimney; let go past it, he settles on Wc', () => {
+    const clearances: number[] = [];
+    for (let x = 1496; x <= 1556; x += 4) {
+      // A hop in place holding jump; once the tier 1 rebound has begun, steered onto Tb's middle, then right; falling past the tall
+      // chimney, jump let go for good and steered onto Wc's middle.
+      let letGo = false;
+      const states = play(quiet, { ...startRun(quiet), player: standing(x, 208) }, 200, (r) => {
+        const p = r.player;
+        letGo ||= p.vy > 0 && p.x > TALL.x1;
+        return { move: letGo ? towards(p, 1672) : r.awningBounce?.awning === TB ? 1 : (p.awningChain ?? 0) >= 1 ? towards(p, 1592) : 0, jumpHeld: !letGo };
+      });
+      expect(bouncedOn(states).slice(0, 2), `x ${x}`).toEqual([WA, TB]);
+      expect(rebounds(states).slice(0, 2), `x ${x}`).toEqual([-480, -540]);
+      expect(states.at(-1)!.awningsGone[TB], `x ${x}`).toBe(true);
+      expect(states.every((s) => s.lives.lives === 7), `x ${x}`).toBe(true);
+      const wc = AWNINGS_2_3[WC]!;
+      expect(states.at(-1)!.player, `x ${x}`).toMatchObject({ grounded: true, y: wc.y });
+      expect(states.at(-1)!.player.x, `x ${x}`).toBeGreaterThan(wc.x);
+      expect(states.at(-1)!.player.x, `x ${x}`).toBeLessThan(wc.x + wc.w);
+      // How far his feet are above the tall chimney's top as his centre crosses its middle.
+      clearances.push(TALL.top - states.find((s) => s.player.x >= TALL.x0 + TILE / 2)!.player.y);
+    }
+    expect(Math.round(Math.min(...clearances) * 10) / 10).toBe(4.5);
+  });
+
+  it('GDD-WLD-04 2-3 hopping in place on Wa takes its column: the jump the lowest, tier 1 the next, tier 2 the top', () => {
+    expect([0, 1, 2].map((tiers) => [taken(hopsOnWa(tiers), 95, 11), taken(hopsOnWa(tiers), 95, 6), taken(hopsOnWa(tiers), 95, 5)])).toEqual([
+      [true, false, false],
+      [true, true, false],
+      [true, true, true],
+    ]);
+  });
+
+  it('GDD-WLD-10 2-3 holding jump and right from the roof edge flows through Wa and Tb over the tall chimney, and on to the roof L', () => {
+    const states = play(quiet, mixedEdge(), 300, (_r, i) => ({ move: 1, jumpHeld: i >= 10 }));
+    expect(bouncedOn(states).slice(0, 2)).toEqual([WA, TB]);
+    expect(rebounds(states).slice(0, 2)).toEqual([-480, -540]);
+    const r = states.at(-1)!;
+    expect(r.player).toMatchObject({ grounded: true, y: ROOF });
+    expect(r.player.x).toBeGreaterThan(111 * TILE);
+    expect(states.every((s) => s.lives.lives === 7)).toBe(true);
+  });
+
+  it('GDD-WLD-10 2-3 from standing on Wc, holding jump and right reaches the roof L, through Td or over it', () => {
+    for (let x = 1656; x <= 1688; x += 8) {
+      const states = play(quiet, { ...startRun(quiet), player: standing(x, 208) }, 200, () => ({ move: 1, jumpHeld: true }));
+      const r = states.at(-1)!;
+      expect(r.player, `x ${x}`).toMatchObject({ grounded: true, y: ROOF });
+      expect(r.player.x, `x ${x}`).toBeGreaterThan(111 * TILE);
+      expect(states.every((s) => s.lives.lives === 7), `x ${x}`).toBe(true);
+    }
+  });
+
+  it('GDD-ENM-03 2-3 the Trompo on L never reaches Poncho waiting on Wc; going as it turns at the pit edge lands him behind it', () => {
+    const lv: Level = { ...level, enemies: [ENEMIES_2_3[TROMPO_L]!] };
+    expect(play(lv, { ...startRun(lv), player: standing(1672, 208) }, 1200, () => idle).every((s) => s.lives.lives === 7)).toBe(true);
+    // From Wc, a takeoff after k steps of waiting, holding jump and right until he lands on L, then standing still for half a second.
+    const hits: number[] = [];
+    let safe = 0;
+    for (let k = 0; k < 250; k++) {
+      let s: RunState = { ...startRun(lv), player: standing(1672, 208) };
+      for (let i = 0; i < k; i++) s = stepRun(s, idle, lv);
+      const t = s.enemies[0]!;
+      const turned = t.dir > 0 && t.x < TROMPO_TURNED;
+      let landed = -1;
+      for (let i = 0; i < 200 && s.lives.lives === 7 && (landed < 0 || i <= landed + 30); i++) {
+        if (landed < 0 && s.player.grounded && s.player.y === ROOF) landed = i;
+        s = stepRun(s, { move: landed < 0 ? 1 : 0, jumpHeld: landed < 0 }, lv);
+      }
+      if (s.lives.lives < 7) hits.push(k);
+      if (turned) {
+        safe++;
+        expect(s.lives.lives, `k ${k}`).toBe(7);
+      }
+    }
+    expect(safe).toBeGreaterThan(40);
+    expect(hits.length).toBe(HITS_FROM_WC);
+  });
+});
+
+/** Of the 250 steps of the Trompo's round on L, the takeoffs from Wc that land Poncho in it (measured). */
+const HITS_FROM_WC = 112;
+
 describe('GDD-WLD-14 2-3 the rollo on the far post (the Ten)', () => {
   it('GDD-WLD-11 2-3 without R1, no rebound on A2 reaches the high roof F1: its tier 3 peak is 8 px short', () => {
     const bare: Level = { ...quiet, rollos: [] };
     const peaks: number[] = [];
-    for (let target = 1746; target <= 1790; target += 4) {
-      let r: RunState = { ...startRun(bare), player: { ...standing(1760, 256), x: target } };
+    for (let target = 2562; target <= 2606; target += 4) {
+      let r: RunState = { ...startRun(bare), player: { ...standing(2576, 256), x: target } };
       let peak = Infinity;
       for (let i = 0; i < 400; i++) {
         // Steered to `target` for two tiers, then pressing right, into the wall, on the third.
         r = stepRun(r, { move: (r.player.awningChain ?? 0) >= 3 ? 1 : towards(r.player, target), jumpHeld: i > 0 }, bare);
         peak = Math.min(peak, r.player.y);
-        expect(r.player.grounded && r.player.x > 113 * TILE - 6, `target ${target}, step ${i}`).toBe(false);
+        expect(r.player.grounded && r.player.x > 164 * TILE - 6, `target ${target}, step ${i}`).toBe(false);
       }
       peaks.push(peak);
     }
@@ -437,8 +640,8 @@ describe('GDD-WLD-14 2-3 the rollo on the far post (the Ten)', () => {
 
   it('GDD-WLD-11 2-3 no claw from the near roof reaches R1 bundle, nor a fireball spat there', () => {
     const b = bundleBox(ROLLOS_2_3[R1]!);
-    expect(b.x0 - (104 * TILE + 16 + 6)).toBeGreaterThan(20 + 6); // the claw reaches 20 px past his front, which is at most 6 px past the roof's edge
-    let r: RunState = { ...startRun(quiet), power: 'fuego', player: standing(1684, ROOF) };
+    expect(b.x0 - (155 * TILE + 16 + 6)).toBeGreaterThan(20 + 6); // the claw reaches 20 px past his front, which is at most 6 px past the roof's edge
+    let r: RunState = { ...startRun(quiet), power: 'fuego', player: standing(2500, ROOF) };
     for (let i = 0; i < 120; i++) r = stepRun(r, { move: 0, jumpHeld: false, fuego: i % 20 === 0 }, quiet);
     expect(r.rollos[R1]!.steps).toBeNull();
   });
@@ -450,16 +653,16 @@ describe('GDD-WLD-14 2-3 the rollo on the far post (the Ten)', () => {
     const at = states[unrolled]!.player;
     expect(at.x).toBeGreaterThan(AWNINGS_2_3[A2]!.x);
     expect(at.y).toBeGreaterThan(ROLLOS_2_3[R1]!.y);
-    expect(states.some((s) => s.player.grounded && s.player.y === ROLLOS_2_3[R1]!.y && s.player.x > 105 * TILE && s.player.x < 113 * TILE)).toBe(true);
-    expect(states.some((s) => s.player.grounded && s.player.y === HIGH && s.player.x > 113 * TILE && s.player.x < 119 * TILE)).toBe(true);
+    expect(states.some((s) => s.player.grounded && s.player.y === ROLLOS_2_3[R1]!.y && s.player.x > 156 * TILE && s.player.x < 164 * TILE)).toBe(true);
+    expect(states.some((s) => s.player.grounded && s.player.y === HIGH && s.player.x > 164 * TILE && s.player.x < 170 * TILE)).toBe(true);
   });
 
   it('GDD-LIFE-03 2-3 the veladora over A2 is reached by a tier 3 rebound and not by tier 2', () => {
     for (const tiers of [2, 3]) {
-      let r: RunState = { ...startRun(quiet), lives: loseLife(startWorld()), player: { ...standing(1752, 256) } };
+      let r: RunState = { ...startRun(quiet), lives: loseLife(startWorld()), player: { ...standing(2568, 256) } };
       for (let i = 0; i < 300; i++) {
         const chain = r.player.awningChain ?? 0;
-        r = stepRun(r, { move: towards(r.player, 1752), jumpHeld: i > 0 && (chain < tiers || (chain === tiers && r.player.vy < 0)) }, quiet);
+        r = stepRun(r, { move: towards(r.player, 2568), jumpHeld: i > 0 && (chain < tiers || (chain === tiers && r.player.vy < 0)) }, quiet);
       }
       expect(veladoraUsed(r.lives, level.veladora!), `${tiers} tiers`).toBe(tiers === 3);
     }
@@ -476,8 +679,8 @@ describe('GDD-WLD-14 2-3 the rollo on the far post (the Ten)', () => {
     };
     const from: number[] = [];
     for (let x = line.x - 80; x <= line.x + 5; x++) if (unrolls(x)) from.push(x);
-    expect([from[0], from.at(-2), from.at(-1), from.length]).toEqual([1388, 1408, 1445, 22]);
-    let r: RunState = { ...startRun(quiet), power: 'fuego', player: standing(1400, ROOF) };
+    expect([from[0], from.at(-2), from.at(-1), from.length]).toEqual([2188, 2208, 2245, 22]);
+    let r: RunState = { ...startRun(quiet), power: 'fuego', player: standing(2200, ROOF) };
     r = stepRun(r, idle, quiet);
     r = stepRun(r, { ...idle, fuego: true }, quiet);
     let k = 0;
@@ -489,7 +692,7 @@ describe('GDD-WLD-14 2-3 the rollo on the far post (the Ten)', () => {
     }
     expect(rolloLength(line, r.rollos[R2]!)).toBe(line.w);
     expect(r.player.x).toBeGreaterThan(line.x + line.w);
-    for (const [col, row] of [[91, 13], [92, 13]] as const) expect(r.hilosTaken[level.hilos!.findIndex((h) => h.col === col && h.row === row)]).toBe(true);
+    for (const [col, row] of [[141, 13], [142, 13]] as const) expect(taken(r, col, row)).toBe(true);
   });
 
   it('GDD-WLD-11 2-3 R2 bundle is out of the claw from either edge, and a running jump across the Fuego pit misses its two hilos', () => {
@@ -501,18 +704,16 @@ describe('GDD-WLD-14 2-3 the rollo on the far post (the Ten)', () => {
       for (let i = 0; i < 10; i++) r = stepRun(r, idle, quiet);
       expect(r.rollos[R2]!.steps, `x ${x}`).toBeNull();
     }
-    const i91 = level.hilos!.findIndex((h) => h.col === 91);
-    const i92 = level.hilos!.findIndex((h) => h.col === 92);
-    expect([played.run.hilosTaken[i91], played.run.hilosTaken[i92]]).toEqual([false, false]);
+    expect([taken(played.run, 141, 13), taken(played.run, 142, 13)]).toEqual([false, false]);
   });
 });
 
 describe('GDD-WLD-14 2-3 the exam (the Ketsu)', () => {
   it('GDD-WLD-11 2-3 without R4, T5 one bounce never reaches the exit roof, wherever it is steered', () => {
     const bare: Level = { ...quiet, rollos: [] };
-    for (let target = 2660; target <= 2700; target += 4) {
-      const states = play(bare, { ...startRun(bare), player: standing(2560, ROOF) }, 200, (r, i) => ({ move: r.player.x < 2600 || r.awningsGone[T5] ? 1 : towards(r.player, target), jumpHeld: i > 0 && r.player.x > 2594 }));
-      expect(states.some((s) => s.player.grounded && s.player.x > 169 * TILE - 6), `target ${target}`).toBe(false);
+    for (let target = 3476; target <= 3516; target += 4) {
+      const states = play(bare, { ...startRun(bare), player: standing(3376, ROOF) }, 200, (r, i) => ({ move: r.player.x < 3416 || r.awningsGone[T5] ? 1 : towards(r.player, target), jumpHeld: i > 0 && r.player.x > 3410 }));
+      expect(states.some((s) => s.player.grounded && s.player.x > 220 * TILE - 6), `target ${target}`).toBe(false);
       expect(states.at(-1)!.lives.lives, `target ${target}`).toBe(6);
     }
   });
@@ -598,28 +799,35 @@ describe('GDD-WLD-04 2-3 hilos', () => {
     }
   });
 
-  it('GDD-WLD-04 2-3 the playthrough takes 42 hilos: all but the Ki two columns (the ladder and the chain take them) and the Fuego pair', () => {
+  it('GDD-WLD-04 2-3 the playthrough takes 40 hilos: all but the Ki two columns and the top of Wa column (the ladder and the chain take them) and the Fuego pair', () => {
     const missed = level.hilos!.filter((_, i) => !played.run.hilosTaken[i]).map((h) => `${h.col},${h.row}`);
-    expect(missed).toEqual(['8,10', '8,6', '8,4', '12,6', '12,4', '12,3', '91,13', '92,13']);
+    expect(missed).toEqual(['8,10', '8,6', '8,4', '12,6', '12,4', '12,3', '95,6', '95,5', '141,13', '142,13']);
   });
 });
 
 describe('GDD-WLD-14 playing 2-3', () => {
-  it('GDD-WLD-14 2-3 the bot plays from the start through every ofrenda to the exit with all seven lives, in under 2000 steps', () => {
+  it('GDD-WLD-14 2-3 the bot plays from the start through every ofrenda to the exit with all seven lives, in under 2700 steps', () => {
     const { run, steps, lost } = played;
     expect(run.phase).toBe('clear');
     expect(lost).toEqual([]);
-    expect(steps).toBeLessThan(2000);
+    expect(steps).toBeLessThan(2700);
     expect(run.lives.lives).toBe(7);
     expect(run.checkpointIndex).toBe(2);
     expect(touchesExit(run.player, level.exit!)).toBe(true);
-    expect([T2, T3, T4, T5].map((i) => run.awningsGone[i])).toEqual([true, true, true, true]);
+    expect([T2, T3, T4, TB, TD, T5].map((i) => run.awningsGone[i])).toEqual([true, true, true, true, true, true]);
     expect([R1, R4].map((i) => rolloLength(ROLLOS_2_3[i]!, run.rollos[i]!))).toEqual([ROLLOS_2_3[R1]!.w, ROLLOS_2_3[R4]!.w]);
+  });
+
+  it('GDD-WLD-14 2-3 the bot settles on Wc, a whole awning, and never stands on a torn one; it defeats the Trompo on L', () => {
+    const states = played.states;
+    const stood = (a: number) => states.some((s) => s.player.grounded && s.player.y === 208 && s.player.x > AWNINGS_2_3[a]!.x - 6 && s.player.x < AWNINGS_2_3[a]!.x + AWNINGS_2_3[a]!.w + 6);
+    expect([TB, WC, TD].map(stood)).toEqual([false, true, false]);
+    expect(played.run.enemies[TROMPO_L]!.alive).toBe(false);
   });
 
   it('GDD-WLD-14 2-3 the bot also clears it losing no life after waiting 60, 120, 180 or 240 steps at the start', () => {
     for (const wait of [60, 120, 180, 240]) {
-      const { run, lost } = bot(level, 3000, wait);
+      const { run, lost } = bot(level, 4000, wait);
       expect(run.phase, `wait ${wait}`).toBe('clear');
       expect(lost, `wait ${wait}`).toEqual([]);
     }

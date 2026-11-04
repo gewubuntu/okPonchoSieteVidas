@@ -11,10 +11,10 @@ const LEVELS_2 = { '2-1': LEVEL_2_1, '2-2': LEVEL_2_2, '2-3': LEVEL_2_3 };
 
 describe('GDD-WLD-01 World 2 levels', () => {
   for (const [id, level] of Object.entries(LEVELS_2)) {
-    it(`GDD-WLD-01 ${id} is a World 2 level of 180 by 17 tiles with three ofrendas, 50 hilos and an exit, played after the one before`, () => {
+    it(`GDD-WLD-01 ${id} is a World 2 level of 240 by 17 tiles (8 screens, GDD-WLD-03) with three ofrendas, 50 hilos and an exit, played after the one before`, () => {
       expect(levelById(id)).toMatchObject({ world: 2, test: false });
       expect(levelById(id)!.level).toBe(level);
-      expect([level.world.width, level.world.height]).toEqual([180, 17]);
+      expect([level.world.width, level.world.height]).toEqual([240, 17]);
       expect(level.ofrendas).toHaveLength(3);
       expect(level.hilos).toHaveLength(50);
       expect(level.exit).toBeDefined();
