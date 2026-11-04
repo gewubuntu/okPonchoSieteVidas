@@ -653,3 +653,23 @@ Retired IDs: L-046
 - **Rule:** Keep a staged feature on its staging branch or worktree until its GDD text is ready; check the GDD draft against the code there, and replay code, GDD and backlog onto the PR branch together, in one commit, right before the gate and the push.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-059 A design draft had an enemy land where its own hop cannot reach
+
+- **Date:** 2026-11-04
+- **Area:** level, gdd
+- **What went wrong:** The World 2 draft (PR #76) had the Chihuahua hop onto awnings 16 to 32 px above the street in 2-1, 2-2 and GDD-ENM-03, while its own hop, in the same draft, peaks about 16 px and cannot climb a 32 px block. The parts were written by separate designers and a critic, and none of them put the enemy's numbers beside the layouts that used them. The `pr-reviewer` found it.
+- **Root cause:** The layouts and the enemy's movement were drafted at the same time by different authors. The critic checked the rules for contradictions but did not recompute reaches across the parts, and nothing measures a design-only draft.
+- **Rule:** In a design draft, every place where a level says an enemy or item reaches, lands on or touches something gets the height or distance worked out from that thing's own numbers in the draft, written beside the claim as a target. A critic of a draft with many authors recomputes each such reach. At build time each one becomes a test over the real level (L-014, L-047).
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-060 A subagent brief waived a skill step
+
+- **Date:** 2026-11-04
+- **Area:** process
+- **What went wrong:** The brief for the World 2 GDD writer told it to report `npm outdated` and defer the upgrade, but the minor version bump calls for the GDD-TEC-07 dependency review (`harness-gdd-update` step 2): upgrade, then run the gate and the playtests. The `pr-reviewer` flagged the deferral as blocking, and the upgrade was then done on the same PR.
+- **Root cause:** The brief was written to keep a docs-only PR small, and nobody checked it against the skill it told the agent to follow.
+- **Rule:** A brief to a subagent never waives a step of a skill or a GDD rule. If a step seems out of scope, ask the user or do the step. A minor GDD version runs the dependency review in its own PR, docs-only or not.
+- **Recurrence:** 1
+- **Promoted:** no
