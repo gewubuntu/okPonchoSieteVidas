@@ -135,6 +135,7 @@ describe('GDD-BOS-03 2-4 measured', () => {
           expect(states.slice(i - 30, i).every((s) => s.mode === 'telegraph' && s.y === 40), `phase ${hits + 1} step ${i + 1}`).toBe(true);
           expect(states[i - 31]!.mode).not.toBe('telegraph');
           const end = states.findIndex((s, j) => j > i && s.mode !== 'drop');
+          if (end < 0) continue;
           expect(end - i, `phase ${hits + 1} step ${i + 1}`).toBeGreaterThanOrEqual(23);
         }
       }
@@ -153,6 +154,19 @@ describe('GDD-BOS-03 2-4 measured', () => {
   it('GDD-BOS-03 her phase 1 drop onto an awning reaches him at x 60 and 420, not at 58 and 422', () => {
     // Her box over the left awning spans 64 to 96, over the right one 384 to 416; his hurtbox is 10 px wide.
     expect([58, 60, 420, 422].map(lostOnAwning)).toEqual([false, true, true, false]);
+  });
+
+  it('GDD-BOS-03 in phase 3 an awning is no shelter: standing still under the one she aims at, her drop through it reaches him', () => {
+    for (const x of [80, 240, 400]) {
+      let run = standing(x, 224, estrellaStart(DEF, 2));
+      let mode = '';
+      for (let i = 0; i < 600 && run.lives.lives === 7; i++) {
+        mode = run.estrella!.mode;
+        run = stepRun(run, STILL, LEVEL_2_4);
+      }
+      expect([run.lives.lives, mode], `x ${x}`).toEqual([6, 'drop']);
+      expect(run.estrella!.tx, `x ${x}`).toBe(x);
+    }
   });
 
   it('GDD-BOS-03 her box stays on screen and under the cable, and never ends a drop inside a tile, wherever she aims', () => {
@@ -263,9 +277,11 @@ describe('GDD-BOS-03 only awning rebounds and cordel jumps reach her (user, 2026
  * A bot for 2-4 (GDD-BOS-03), reading her state each step. Phase 1: it walks from the spawn to the floor under the left awning (x 80);
  * when she hangs over it, a floor jump held through its landing on the awning: the tier 1 rebound bumps her. Phase 2: from the left
  * awning it jumps right onto the left cordel and stands at x 127, clear of her drop at x 160; when she hangs, it steps under the middle of
- * her sway and a cordel jump bumps her. Phase 3: it walks off the cordel and the left awning to the floor and back under the awning, where
- * her aim at him drops her onto the awning over him, which throws her up; when she hangs, under the middle of her sway, the floor jump's
- * held rebound off that awning bumps her. It lets go of jump for a step before pressing it again (L-048).
+ * her sway and a cordel jump bumps her. Phase 3, the GDD's way (she drops away from him, then a cordel jump): it walks off the cordel
+ * onto the middle awning and waits at x 248, so she aims there; as her telegraph ends it runs right and slides to a stop 26 px from her
+ * line while her drop tears through the awning to the floor; as she rests it jumps up onto the end of the right cordel (x 272 on), above
+ * the tejocotes; when she hangs and her sway brings her within 12 px across, a cordel jump bumps her. It lets go of jump for a step before
+ * pressing it again (L-048).
  */
 function bot(level: Level, maxSteps: number): { run: RunState; steps: number; hitsAt: number[] } {
   let run = startRun(level);
@@ -278,6 +294,8 @@ function bot(level: Level, maxSteps: number): { run: RunState; steps: number; hi
     const floor = grounded && y === 224;
     let target = x;
     let jump = false;
+    // How near the target it lets go of the run button: from a run it slides about 7 px to a stop.
+    let near = 2;
     if (run.phase === 'playing' && e.mode !== 'defeated') {
       if (e.hits === 1) {
         if (grounded && y === 136) {
@@ -294,16 +312,30 @@ function bot(level: Level, maxSteps: number): { run: RunState; steps: number; hi
           // Let go at the top, so the landing on the cordel is a plain one.
           jump = held && run.player.vy < 0;
         }
-      } else if (floor) {
-        target = e.mode === 'hang' ? e.tx : 80;
-        jump = e.mode === 'hang' && e.tx < 112 && Math.abs(x - e.tx) < 3;
-      } else if (grounded) target = 30;
-      else {
-        target = held ? e.tx : 30;
-        jump = held;
+      } else if (e.hits === 0) {
+        if (floor) {
+          target = e.mode === 'hang' ? e.tx : 80;
+          jump = e.mode === 'hang' && e.tx < 112 && Math.abs(x - e.tx) < 3;
+        } else {
+          target = e.tx;
+          jump = held;
+        }
+      } else {
+        // Phase 3: waits on the middle awning at x 248, so she aims there; as her telegraph ends it runs right along the awning and slides
+        // to a stop about 26 px from her line, and her drop tears through the awning beside it to the floor, the tejocotes rolling below.
+        // As she rests, a jump straight up from there lands on the end of the right cordel (x 272 on); when her sway brings her within
+        // 12 px across, a cordel jump bumps her.
+        const dodging = e.mode === 'drop' || e.mode === 'rest' || e.mode === 'rise' || (e.mode === 'telegraph' && e.age === ESTRELLA.telegraphSteps - 1);
+        if (!grounded) jump = held && run.player.vy < 0;
+        else if (y === 136 && x > 240) jump = e.mode === 'hang' && Math.abs(e.x - x) < 12;
+        else if (dodging) {
+          target = e.tx + 26;
+          near = 8;
+          jump = (e.mode === 'rest' || e.mode === 'rise') && y === 176 && run.player.vx === 0;
+        } else target = 248;
       }
     }
-    const move = Math.abs(target - x) < 2 ? 0 : Math.sign(target - x);
+    const move = Math.abs(target - x) < near ? 0 : Math.sign(target - x);
     // A new press only after a step with jump up (L-048).
     if (jump && !held && run.player.jumpWasHeld) jump = false;
     held = jump;
@@ -325,8 +357,8 @@ describe('GDD-BOS-03 playing 2-4', () => {
     expect(steps).toBeLessThan(1800);
     expect(run.lives.lives).toBe(7);
     expect(run.estrella).toMatchObject({ hits: 3, mode: 'defeated' });
-    // Measured: the hits on steps 344, 663 and 902, the clear 60 steps after the third.
-    expect(hitsAt).toEqual([344, 663, 902]);
-    expect(steps).toBe(962);
+    // Measured: the hits on steps 344, 663 and 949, the clear 60 steps after the third.
+    expect(hitsAt).toEqual([344, 663, 949]);
+    expect(steps).toBe(1009);
   });
 });

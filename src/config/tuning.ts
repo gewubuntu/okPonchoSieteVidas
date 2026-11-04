@@ -378,7 +378,8 @@ export const ROCK = { size: 12, knockX: 90, knockY: 150, gravity: 1500, backStep
 /**
  * GDD-BOS-03: La Estrella, World 2's boss, a `width` x `height` px box (her clay-pot core). Each array has one entry per phase. She glides
  * along the cable with her box's bottom at `highBottom` at `glideSpeed` px/s, telegraphs for `telegraphSteps` (0.5 s, GDD-ENM-01), drops at
- * `dropSpeed` px/s onto the awning or the floor under her; an awning throws her up at `awningThrow` px/s, the floor holds her for
+ * `dropSpeed` px/s onto the awning or the floor under her (in a phase whose `tearsAwnings` is true she tears through the awnings to the
+ * floor); an awning throws her up at `awningThrow` px/s, the floor holds her for
  * `restSteps` (0.3 s) before she is pulled up at `riseSpeed`. She hangs with her bottom at `lowBottom` for `hangSteps`, swaying `swayPx` to
  * either side on a `swayPeriodSteps` (1.0 s) sine, then is yanked up to `highBottom` at `yankSpeed`. In phase 3 she aims at Poncho, kept
  * between `aimMinX` and `aimMaxX`. A hit leaves her hurt for `hurtSteps` (1.0 s); the last of her `hits` defeats her: she falls at
@@ -396,6 +397,7 @@ export const ESTRELLA = {
   telegraphSteps: Math.round(0.5 * TICK_HZ),
   dropSpeed: [300, 300, 360],
   awningThrow: 240,
+  tearsAwnings: [false, false, true],
   restSteps: Math.round(0.3 * TICK_HZ),
   riseSpeed: 120,
   hangSteps: [Math.round(2.0 * TICK_HZ), Math.round(1.5 * TICK_HZ), Math.round(1.0 * TICK_HZ)],

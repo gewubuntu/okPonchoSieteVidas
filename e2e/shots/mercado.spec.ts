@@ -1,7 +1,7 @@
 // Screenshots of World 2's Mercado backdrop, ground and decor for visual review (GDD-ART-06), in the stub level 2-1 and the arena 2-4,
 // and La Estrella's placeholder in each phase (GDD-BOS-03). Run with `npm run shots`; images land in shots/ (not committed).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { bumpEstrella, start, stepToEstrellaMode } from '../helpers';
+import { bumpEstrella, phase3Hit, start, stepToEstrellaMode } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
   await page.waitForTimeout(250); // L-042: real time only lets the frame render before the picture; nothing is timed by it
@@ -119,19 +119,21 @@ test('GDD-BOS-03 estrella: phase 2, risen from her thud at x 160, the tejocotes 
   await shot(page, info, 'estrella-phase2-tejocotes');
 });
 
-test('GDD-BOS-03 estrella: phase 3, hanging over the awning she dropped on, aimed at Poncho under it, three cones', async ({ page, isMobile }, info) => {
-  await fight(page, isMobile, 2, 80, 224);
-  expect(await stepToEstrellaMode(page, 'hang')).toBeLessThan(1000);
-  await page.evaluate(() => window.__PONCHO__!.step(15));
-  expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'hang', tx: 80, y: 72, hits: 2 });
+test('GDD-BOS-03 estrella: phase 3, risen from the floor through the middle awning, two pairs of tejocotes, Poncho on the right cordel', async ({ page, isMobile }, info) => {
+  await fight(page, isMobile, 2, 248, 176);
+  expect(await stepToEstrellaMode(page, 'drop')).toBeLessThan(1000);
+  await page.evaluate(() => window.__PONCHO__!.teleport(275, 136));
+  expect(await stepToEstrellaMode(page, 'rise', 200)).toBeLessThan(200);
+  await page.evaluate(() => window.__PONCHO__!.step(40));
+  expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'rise', tx: 248, hits: 2 });
+  expect(await page.evaluate(() => window.__PONCHO__!.tejocotes().length)).toBe(4);
   await drawnAs(page, { cones: 3, pale: 3 });
-  await shot(page, info, 'estrella-phase3-hang');
+  await shot(page, info, 'estrella-phase3-rise');
 });
 
 test('GDD-BOS-03 estrella: defeated, her rope snapped, the empty pot falling', async ({ page, isMobile }, info) => {
-  await fight(page, isMobile, 2, 80, 224);
-  expect(await stepToEstrellaMode(page, 'hang')).toBeLessThan(1000);
-  expect(await bumpEstrella(page)).toBe(3);
+  await fight(page, isMobile, 2, 248, 176);
+  expect(await phase3Hit(page)).toBe(3);
   await page.evaluate(() => window.__PONCHO__!.step(20));
   expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'defeated', age: 20 });
   await drawnAs(page, { cones: 0, rope: null });

@@ -129,8 +129,10 @@ export function moveEstrella(def: Estrella, e: EstrellaState, player: PlayerStat
     case 'telegraph': {
       if (age < ESTRELLA.telegraphSteps) return still({ ...e, age });
       // The jalón: straight down to the surface under her, or in phase 3 in a straight line to the surface under Poncho as the telegraph ends.
+      // In phase 3 (ESTRELLA.tearsAwnings) she tears straight through the awnings, which stay whole, to the floor, so an awning over him
+      // is no shelter.
       const tx = p === 2 ? aimAt(player) : e.x;
-      return still({ ...e, mode: 'drop', age: 0, tx, ty: surfaceUnder(def, awnings, tx) });
+      return still({ ...e, mode: 'drop', age: 0, tx, ty: ESTRELLA.tearsAwnings[p] ? def.floor : surfaceUnder(def, awnings, tx) });
     }
     case 'drop': {
       const { at, arrived } = move(e, ESTRELLA.dropSpeed[p]);

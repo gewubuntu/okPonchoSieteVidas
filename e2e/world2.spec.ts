@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot, bumpEstrella, openGame, pixelsAt, resultsRowCentre, stepToEstrellaMode, stepUntil, tapAt, waitForResults } from './helpers';
+import { boot, openGame, phase3Hit, pixelsAt, resultsRowCentre, stepUntil, tapAt, waitForResults } from './helpers';
 
 // World 2, the Mercado (user, 2026-11-04): its levels opened by their address (GDD-UI-02), drawn in the Mercado's look (GDD-ART-06),
 // "Start" following the latest world reached, the restart at 2-1 with seven after the last life (GDD-LIFE-05), and 2-4, the last level
@@ -173,14 +173,10 @@ test('GDD-UI-02 2-4, the last level built, names no next level: its clear greys 
   // GDD-ART-06: World 2's arena is drawn with the plaza in place of the rooftops; GDD-UI-01: its boss bar names its boss.
   expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'mercado', midKey: 'mercado:plaza' });
   expect(await api(page, () => window.__PONCHO__!.bossBar())).toMatchObject({ shown: true, name: 'La Estrella', pips: 3 });
-  // La Estrella set to two hits (phase 3): she aims at Poncho on the floor under the left awning, drops onto the awning over him and
-  // hangs there; a jump held through its landing on the awning rebounds into her for the third hit (GDD-BOS-03).
-  await api(page, () => {
-    window.__PONCHO__!.setEstrella(2);
-    window.__PONCHO__!.teleport(80, 224);
-  });
-  expect(await stepToEstrellaMode(page, 'hang', 1000)).toBeLessThan(1000);
-  expect(await bumpEstrella(page)).toBe(3);
+  // La Estrella set to two hits (phase 3): her drop aimed at the middle awning tears through it beside Poncho, and from the right
+  // cordel a jump bumps her as she hangs, the third hit (GDD-BOS-03).
+  await api(page, () => window.__PONCHO__!.setEstrella(2));
+  expect(await phase3Hit(page)).toBe(3);
   expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ hits: 3, mode: 'defeated' });
   await stepUntil(page, { phase: 'clear' }, 70);
   await api(page, () => window.__PONCHO__!.step(61));

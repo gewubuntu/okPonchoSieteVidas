@@ -100,6 +100,22 @@ describe('GDD-BOS-03 La Estrella in a run', () => {
   });
 });
 
+describe('GDD-BOS-03 Remolino in a run', () => {
+  it('GDD-BOS-03 in phase 3 her drop aimed over the middle awning tears through it to the floor and spills two pairs of tejocotes', () => {
+    // Poncho under the awning (invulnerable, so he is only her aim): she lands on the floor on step 141, the awning still whole.
+    const { run, steps } = play({ ...fight(240, 224, estrellaStart(DEF, 2)), invulnerable: 1000 }, 300, () => STILL, (r) => r.estrella!.mode === 'rest');
+    expect(steps).toBe(141);
+    expect(run.estrella).toMatchObject({ x: 240, y: 224, hits: 2 });
+    expect(run.awningsGone).toEqual([false, false, false]);
+    expect(run.tejocotes).toEqual([
+      { x: 240, y: 224, dir: -1, wait: 0 },
+      { x: 240, y: 224, dir: 1, wait: 0 },
+      { x: 240, y: 224, dir: -1, wait: 24 },
+      { x: 240, y: 224, dir: 1, wait: 24 },
+    ]);
+  });
+});
+
 describe('GDD-BOS-03 hitting her in a run', () => {
   it('GDD-BOS-03 a jump from the left awning bumps her hanging in phase 1: his body box flush under her, his rise stopped', () => {
     const { run, steps } = play(fight(80, 176, posed('hang', 80, 112)), 30, () => ({ ...STILL, jumpHeld: true }), (r) => r.estrella!.hits > 0);

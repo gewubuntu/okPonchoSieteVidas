@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot, bumpEstrella, openGame, pixelsAt, stepToEstrellaMode, stepUntil, tapAt, waitForResults } from './helpers';
+import { boot, bumpEstrella, openGame, phase3Hit, pixelsAt, stepToEstrellaMode, stepUntil, tapAt, waitForResults } from './helpers';
 
 // GDD-BOS-01, GDD-BOS-03: La Estrella in her arena, level 2-4, opened by its address (GDD-UI-02). Timed in simulation steps, never by
 // polling around an event (L-042): the stepped tests pause the game and step it in the page; one test runs through the game's own frames
@@ -13,13 +13,6 @@ async function arena(page: Page): Promise<string[]> {
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await api(page, () => window.__PONCHO__!.pause(true));
   return errors;
-}
-
-/** From the paused arena: Poncho on the floor under the left awning, stepped until she hangs over it (in phase 3 she aims at him there). */
-async function underLeftAwning(page: Page): Promise<void> {
-  await api(page, () => window.__PONCHO__!.teleport(80, 224));
-  expect(await stepToEstrellaMode(page, 'hang', 1000)).toBeLessThan(1000);
-  expect(await api(page, () => window.__PONCHO__!.estrella()!.tx)).toBe(80);
 }
 
 test('GDD-BOS-03 level=2-4 opens her arena on the title screen and Start plays it, with the bar: La Estrella, three pips', async ({ page, isMobile }) => {
@@ -113,9 +106,9 @@ test('GDD-BOS-03 in phase 2 she thuds through the cordel to the floor and a tejo
 test('GDD-BOS-03 the third hit defeats her; 1.0 s later the level clear screen, 2-4 saved and Next level greyed', async ({ page }) => {
   await arena(page);
   await api(page, () => window.__PONCHO__!.setEstrella(2));
-  await underLeftAwning(page);
   const heard = (await api(page, () => window.__PONCHO__!.sfx())).length;
-  expect(await bumpEstrella(page)).toBe(3);
+  // Her phase 3 drop tears through the middle awning beside him; from the right cordel a jump bumps her as she hangs.
+  expect(await phase3Hit(page)).toBe(3);
   expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ hits: 3, mode: 'defeated', age: 0 });
   // Her rope snapped and no cone left; the bar's three pips are outlines.
   await page.waitForFunction(() => {
