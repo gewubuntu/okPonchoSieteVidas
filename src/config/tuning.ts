@@ -307,6 +307,53 @@ export const FRUIT = { size: 8, fallSpeed: 120, lieSteps: Math.round(3.0 * TICK_
  */
 export const ROCK = { size: 12, knockX: 90, knockY: 150, gravity: 1500, backSteps: Math.round(2.0 * TICK_HZ) } as const;
 
+/**
+ * GDD-BOS-03: La Estrella, World 2's boss, a `width` x `height` px box (her clay-pot core). Each array has one entry per phase. She glides
+ * along the cable with her box's bottom at `highBottom` at `glideSpeed` px/s, telegraphs for `telegraphSteps` (0.5 s, GDD-ENM-01), drops at
+ * `dropSpeed` px/s onto the awning or the floor under her; an awning throws her up at `awningThrow` px/s, the floor holds her for
+ * `restSteps` (0.3 s) before she is pulled up at `riseSpeed`. She hangs with her bottom at `lowBottom` for `hangSteps`, swaying `swayPx` to
+ * either side on a `swayPeriodSteps` (1.0 s) sine, then is yanked up to `highBottom` at `yankSpeed`. In phase 3 she aims at Poncho, kept
+ * between `aimMinX` and `aimMaxX`. A hit leaves her hurt for `hurtSteps` (1.0 s); the last of her `hits` defeats her: she falls at
+ * `fallSpeed` and the level is clear `defeatSteps` (1.0 s) after that hit. `cones` are the paper cones she has left after 0, 1, 2 and 3
+ * hits. Placeholder drawing: her cones' tips `coneTip` px from her middle (a star about 56 px across), her rope hangs from the cable at
+ * `cableY`, and it shakes in a zigzag `zigzagPx` to either side every `zigzagStepPx` in her telegraph; her body flashes (red in the
+ * telegraph, white hurt or defeated) on for `flashSteps` and off for as many.
+ */
+export const ESTRELLA = {
+  width: 32,
+  height: 32,
+  highBottom: 40,
+  lowBottom: [112, 72, 72],
+  glideSpeed: [80, 100, 120],
+  telegraphSteps: Math.round(0.5 * TICK_HZ),
+  dropSpeed: [300, 300, 360],
+  awningThrow: 240,
+  restSteps: Math.round(0.3 * TICK_HZ),
+  riseSpeed: 120,
+  hangSteps: [Math.round(2.0 * TICK_HZ), Math.round(1.5 * TICK_HZ), Math.round(1.0 * TICK_HZ)],
+  swayPx: [0, 8, 16],
+  swayPeriodSteps: Math.round(1.0 * TICK_HZ),
+  yankSpeed: 180,
+  hurtSteps: BOSS.hurtSteps,
+  defeatSteps: Math.round(1.0 * TICK_HZ),
+  fallSpeed: 120,
+  hits: 3,
+  aimMinX: 56,
+  aimMaxX: 424,
+  cones: [7, 5, 3, 0],
+  coneTip: 28,
+  cableY: 8,
+  zigzagPx: 2,
+  zigzagStepPx: 4,
+  flashSteps: 4,
+} as const;
+
+/**
+ * GDD-BOS-03: a tejocote, La Estrella's filling, is a `size` px square that rolls along the floor at `rollSpeed` px/s. Each time she thuds on
+ * the floor `pairs` of them (one entry per phase) roll out, one each way per pair, a pair every `secondPairSteps` (0.4 s).
+ */
+export const TEJOCOTE = { size: 8, rollSpeed: 90, secondPairSteps: Math.round(0.4 * TICK_HZ), pairs: [1, 1, 2] } as const;
+
 /** GDD-UI-01: the boss bar at the top middle: the name's middle `nameY` px from the top, and pips `pipSize` px square, `pipGap` apart, their top `pipTop` px from the top. */
 export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4 } as const;
 
