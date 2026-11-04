@@ -36,13 +36,18 @@ function thingTiles(level: Level): { col: number; row: number }[] {
  * mod 9 is 0 or 1; its kind is (3 x column + 5 x row) mod 7. It gets none when a tile above it, up to the plant's height, is solid or holds a fragile wall, a crumbling tile, a piñata or a door, or
  * when a spawn, ofrenda, exit, spike, spring, door, key, piñata, taco, veladora or enemy start stands within 2 columns on its row or
  * the row above. `sizes` are the kinds' sizes in game px: World 1's plants, or World 2's decor (`MERCADO.decor`), which follows the same rule.
+ * World 2's awnings, cordeles and rollos (GDD-WLD-10, GDD-WLD-11) count as blocks in every tile their top crosses, and their poles stand
+ * at both ends: a top tile within 2 columns of an end, below it, gets no plant either.
  */
 export function plantSpots(level: Level, sizes: readonly { readonly h: number }[] = PLANTS): PlantSpot[] {
   const solid = (tx: number, ty: number) => level.world.solidTile(tx, ty);
   // GDD-ART-06, GDD-MOV-09: a level tile under a sand slope is no top tile.
   const ground = (tx: number, ty: number) => solid(tx, ty) || level.world.slopeAt(tx, ty) !== null;
   // What a plant must not poke into: the level's tiles and the blocks that are not in them (fragile walls, crumbling tiles, piñatas, doors).
-  const blocks = new Set([...level.fragiles, ...level.crumbles, ...level.pinatas, ...level.doors.flatMap((d) => Array.from({ length: d.height }, (_, i) => ({ col: d.col, row: d.row + i })))].map((t) => `${t.col},${t.row}`));
+  // GDD-ART-06: World 2's awnings and strings (a rollo over its whole line), with the columns of their two ends, where their poles stand.
+  const covers = [...(level.awnings ?? []), ...(level.cordeles ?? []), ...(level.rollos ?? [])].map((c) => ({ row: Math.floor(c.y / TILE), from: Math.floor(c.x / TILE), to: Math.floor((c.x + c.w - 1) / TILE) }));
+  const coverTiles = covers.flatMap((c) => Array.from({ length: c.to - c.from + 1 }, (_, i) => ({ col: c.from + i, row: c.row })));
+  const blocks = new Set([...level.fragiles, ...level.crumbles, ...level.pinatas, ...level.doors.flatMap((d) => Array.from({ length: d.height }, (_, i) => ({ col: d.col, row: d.row + i }))), ...coverTiles].map((t) => `${t.col},${t.row}`));
   const filled = (tx: number, ty: number) => solid(tx, ty) || blocks.has(`${tx},${ty}`);
   const things = thingTiles(level);
   const spots: PlantSpot[] = [];
@@ -54,6 +59,7 @@ export function plantSpots(level: Level, sizes: readonly { readonly h: number }[
       const tiles = Math.ceil(sizes[kind]!.h / TILE);
       if (Array.from({ length: tiles }, (_, i) => filled(col, row - 1 - i)).some(Boolean)) continue;
       if (things.some((t) => Math.abs(t.col - col) <= 2 && (t.row === row || t.row === row - 1))) continue;
+      if (covers.some((c) => c.row < row && (Math.abs(c.from - col) <= 2 || Math.abs(c.to - col) <= 2))) continue;
       spots.push({ kind, col, row });
     }
   }

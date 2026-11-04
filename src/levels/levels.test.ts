@@ -243,9 +243,8 @@ describe('GDD-TEC-04 level 0-1', () => {
 
 describe('GDD-PRG-02 which levels are saved', () => {
   it('GDD-PRG-02 0-1, 1-1, 1-2, 1-3, 1-4 and 2-1 to 2-4 are saved, with their hilo counts, and the test levels are not', () => {
-    // Real levels keep 50 hilos (GDD-WLD-04), the boss arenas 1-4 and 2-4 none (GDD-BOS-01); World 2's stubs have none until they are
-    // designed. The sandbox and the slopes level, test levels, are never saved.
-    expect(SAVED_LEVELS).toEqual({ '0-1': 50, '1-1': 50, '1-2': 50, '1-3': 50, '1-4': 0, '2-1': 0, '2-2': 0, '2-3': 0, '2-4': 0 });
+    // Real levels keep 50 hilos (GDD-WLD-04), the boss arenas 1-4 and 2-4 none (GDD-BOS-01). The sandbox and the slopes level, test levels, are never saved.
+    expect(SAVED_LEVELS).toEqual({ '0-1': 50, '1-1': 50, '1-2': 50, '1-3': 50, '1-4': 0, '2-1': 50, '2-2': 50, '2-3': 50, '2-4': 0 });
   });
 });
 
