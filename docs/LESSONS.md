@@ -683,3 +683,13 @@ Retired IDs: L-046
 - **Rule:** A playtest reads where things are in a real level (pits, exit, spawn, decor, enemies) from the level module it plays (`import { LEVEL_x_y } from '../src/levels/...'`), and comments any number it must hard-code; a commit that changes a level's data runs every spec and shot scenario that opens it (`grep -rln "level=<id>" e2e`).
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-062 Playtests in one checkout reloaded mid-test while other worktrees ran their own
+
+- **Date:** 2026-11-04
+- **Area:** harness, playtest
+- **What went wrong:** During World 2's build, playtests in the main checkout failed four times with "Execution context was destroyed, most likely because of a navigation" (block, cactus, the 1-2 and settings shots), each early in a run and each passing alone. Agent worktrees were running their own dev servers at the time, every worktree with `node_modules` symlinked to the main checkout's.
+- **Root cause:** Vite keeps its optimized dependencies in `node_modules/.vite`; with `node_modules` shared, every dev server used the same cache, and one server re-optimizing it made the others reload their pages (the most likely cause: the failures stopped once only one server ran).
+- **Rule:** A dev server for playtests on its own port (`PONCHO_E2E_PORT`, L-059) also has its own Vite cache (`vite.config.ts` derives `cacheDir` from the port), so parallel worktrees never share it.
+- **Recurrence:** 1
+- **Promoted:** no

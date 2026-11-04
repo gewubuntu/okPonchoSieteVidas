@@ -1,6 +1,11 @@
 import { defineConfig } from 'vitest/config';
 
+// L-062: worktrees that symlink node_modules would share Vite's dependency cache; one server re-optimizing it reloads the others'
+// pages mid-test. A playtest server on its own port (PONCHO_E2E_PORT, L-059) gets its own cache.
+const port = process.env['PONCHO_E2E_PORT'];
+
 export default defineConfig({
+  cacheDir: port ? `node_modules/.vite-${port}` : 'node_modules/.vite',
   server: { host: true, port: 5173 },
   build: {
     target: 'es2022',
