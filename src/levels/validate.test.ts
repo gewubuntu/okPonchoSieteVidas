@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BASE_WIDTH, TILE } from '../config/tuning';
 import type { Boss } from '../sim/boss';
 import type { Enemy } from '../sim/enemy';
+import type { Estrella } from '../sim/estrella';
 import type { Level, Ofrenda, Point } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import type { LevelEntry } from './index';
@@ -110,6 +111,17 @@ describe('GDD-TEC-04 and GDD-WLD-03 level length', () => {
     expect(validateLevel(entry({ width: 181 }))).toEqual(['181 tiles wide, expected 90 to 180 (3 to 6 screens)']);
   });
 
+  it('accepts up to 8 screens, 240 tiles, from World 2 on, and rejects 241 there (user, 2026-11-04)', () => {
+    expect(validateLevel(entry({ width: 240, world: 2 }))).toEqual([]);
+    expect(validateLevel(entry({ width: 241, world: 2 }))).toEqual(['241 tiles wide, expected 90 to 240 (3 to 8 screens)']);
+    expect(validateLevel(entry({ width: 89, world: 2 }))).toEqual(['89 tiles wide, expected 90 to 240 (3 to 8 screens)']);
+  });
+
+  it('keeps Worlds 0 and 1 at 6 screens: 181 tiles is too long there', () => {
+    expect(validateLevel(entry({ width: 181, world: 0 }))).toEqual(['181 tiles wide, expected 90 to 180 (3 to 6 screens)']);
+    expect(validateLevel(entry({ width: 181, world: 1 }))).toEqual(['181 tiles wide, expected 90 to 180 (3 to 6 screens)']);
+  });
+
   it('lets a test level be one screen', () => {
     expect(validateLevel(entry({ width: 30, ofrendas: [7, 19, 25], exit: null, test: true }))).toEqual([]);
   });
@@ -148,8 +160,16 @@ describe('GDD-TEC-04 and GDD-WLD-03 gaps', () => {
     expect(validateLevel(entry({ pits: cols(10, 13) }))).toEqual(['gap of 4 tiles at columns 10 to 13, World 1 allows 3']);
   });
 
-  it('a world with no gap limit is a problem', () => {
-    expect(validateLevel(entry({ world: 2 }))).toEqual(['no gap limit for World 2']);
+  it('World 2 allows a gap of 4 tiles', () => {
+    expect(validateLevel(entry({ world: 2, pits: cols(10, 13) }))).toEqual([]);
+  });
+
+  it('World 2 rejects a gap of 5 tiles', () => {
+    expect(validateLevel(entry({ world: 2, pits: cols(10, 14) }))).toEqual(['gap of 5 tiles at columns 10 to 14, World 2 allows 4']);
+  });
+
+  it('a world with no gap limit and no length limit is a problem, once for each', () => {
+    expect(validateLevel(entry({ world: 3 }))).toEqual(['no length limit for World 3', 'no gap limit for World 3']);
   });
 });
 
@@ -172,6 +192,13 @@ describe('GDD-TEC-04 and GDD-ENM-01 enemies start 3 tiles from a respawn', () =>
     expect(validateLevel(entry({ enemies: [{ x: spawnAt.x + 36, y: spawnAt.y - 31 }] }))).toEqual([
       'alacran at 92,193 is 47 px from the respawn at 56,224, under 48',
     ]);
+  });
+
+  it('GDD-ENM-03 it holds for World 2\'s Paloma, Chapulín and Trompo too', () => {
+    for (const kind of ['paloma', 'chapulin', 'trompo'] as const) {
+      expect(validateLevel(entry({ enemies: [{ x: spawnAt.x + 47, y: spawnAt.y, kind }] })), kind).toEqual([`${kind} at 103,224 is 47 px from the respawn at 56,224, under 48`]);
+      expect(validateLevel(entry({ enemies: [{ x: spawnAt.x + 48, y: spawnAt.y, kind }] })), kind).toEqual([]);
+    }
   });
 
   it('ofrendas count as respawns', () => {
@@ -254,5 +281,107 @@ describe('GDD-TEC-04 and GDD-BOS-01 a boss level', () => {
   it('GDD-BOS-01 his start exactly 48 px from the spawn passes, 47 px fails', () => {
     expect(validateLevel(arena({ boss: { x: 56 + 48 - 152, y: 224, floor: 224 } }))).toEqual([]);
     expect(validateLevel(arena({ boss: { x: 56 + 47 - 152, y: 224, floor: 224 } }))).toEqual(['the boss starts 47 px from the spawn, under 48']);
+  });
+});
+
+/** GDD-BOS-03: a one-screen level with La Estrella and the spawn given. Her box's middle starts each phase at y = 24, over its first spot. */
+const star = (spots: Estrella['spots'], spawn: Point, o: Options = {}) => entry({ width: 30, ofrendas: [], exit: null, ...o, level: { spawn, estrella: { floor: 224, spots }, ...o.level } });
+
+describe('GDD-TEC-04 and GDD-BOS-03 La Estrella level', () => {
+
+  it('GDD-BOS-03 a level with La Estrella is a boss level: one screen, no ofrendas, no exit', () => {
+    expect(validateLevel(star([[400, 80], [320, 160], [400]], { x: 240, y: 224 }))).toEqual([]);
+    expect(validateLevel(star([[400, 80], [320, 160], [400]], { x: 240, y: 224 }, { ofrendas: [7], exit: onFloor(25), width: 31 }))).toEqual([
+      '1 ofrendas, a boss level has none',
+      'an exit, a boss level has none',
+      '31 tiles wide, a boss level is one screen (30)',
+    ]);
+  });
+
+  it('GDD-BOS-03 her start in each phase is at least 3 tiles from the spawn, by her box middle', () => {
+    expect(validateLevel(star([[400, 80], [440, 160], [352]], { x: 400, y: 40 }))).toEqual([
+      'La Estrella starts phase 1 16 px from the spawn, under 48',
+      'La Estrella starts phase 2 43 px from the spawn, under 48',
+    ]);
+    expect(validateLevel(star([[400], [400], [400]], { x: 448, y: 24 }))).toEqual([]);
+    expect(validateLevel(star([[400], [400], [400]], { x: 447, y: 24 }))).toEqual([1, 2, 3].map((p) => `La Estrella starts phase ${p} 47 px from the spawn, under 48`));
+  });
+});
+
+/** A cover over columns 11 to 13, its top at y. */
+const over = (y: number) => ({ x: 176, y, w: 48 });
+
+describe('GDD-TEC-04 GDD-WLD-10 GDD-WLD-11 covered pits', () => {
+  // A 5-tile pit at columns 10 to 14 (x 160 to 240) in World 1 (limit 3); the floor's top is y = 224 on both edges.
+  const pit = cols(10, 14);
+  const fails = ['gap of 5 tiles at columns 10 to 14, World 1 allows 3'];
+
+  it('a whole awning over pit columns, its top 3 tiles above the edge ground, leaves only the uncovered runs as gaps', () => {
+    expect(validateLevel(entry({ pits: pit }))).toEqual(fails);
+    expect(validateLevel(entry({ pits: pit, level: { awnings: [over(176)] } }))).toEqual([]);
+  });
+
+  it('a torn awning does not cover', () => {
+    expect(validateLevel(entry({ pits: pit, level: { awnings: [{ ...over(176), torn: true }] } }))).toEqual(fails);
+  });
+
+  it('a cordel covers, and so does a rollo, rolled up or not', () => {
+    expect(validateLevel(entry({ pits: pit, level: { cordeles: [over(176)] } }))).toEqual([]);
+    expect(validateLevel(entry({ pits: pit, level: { rollos: [{ ...over(176), post: 'left' }] } }))).toEqual([]);
+  });
+
+  it('more than 3 tiles above the ground, or below it, does not cover', () => {
+    expect(validateLevel(entry({ pits: pit, level: { cordeles: [over(175)] } }))).toEqual(fails);
+    expect(validateLevel(entry({ pits: pit, level: { cordeles: [over(224)] } }))).toEqual([]);
+    expect(validateLevel(entry({ pits: pit, level: { cordeles: [over(232)] } }))).toEqual(fails);
+  });
+
+  it('the ground that counts is the nearer edge', () => {
+    // The left edge (column 9) raised to y = 176, the right edge (column 15) at 224.
+    const raised = [[9, 11], [9, 12], [9, 13]] as const;
+    // Over columns 10 and 11, level with the right edge's ground but 48 px below the left's: the left is nearer.
+    expect(validateLevel(entry({ pits: pit, solid: raised, level: { cordeles: [{ x: 160, y: 224, w: 32 }] } }))).toEqual(fails);
+    expect(validateLevel(entry({ pits: pit, solid: raised, level: { cordeles: [{ x: 160, y: 176, w: 32 }] } }))).toEqual([]);
+    // Over columns 13 and 14, 56 px above the right edge's ground (nearer) but 8 px above the left's.
+    expect(validateLevel(entry({ pits: pit, solid: raised, level: { cordeles: [{ x: 208, y: 168, w: 32 }] } }))).toEqual(fails);
+    // Over column 12, as near to both: the left edge counts.
+    expect(validateLevel(entry({ pits: pit, solid: raised, level: { cordeles: [{ x: 192, y: 168, w: 16 }] } }))).toEqual([]);
+  });
+
+  it('a pit at the level\'s left end has only its right edge, and one at its right end only its left edge', () => {
+    // Columns 0 to 4, the right edge (column 5) raised to y = 176, a cordel level with it over columns 0 to 2.
+    const atLeft = entry({ pits: cols(0, 4), solid: [[5, 11], [5, 12], [5, 13]], level: { cordeles: [{ x: 0, y: 176, w: 48 }] } });
+    expect(validateLevel(atLeft)).toEqual([]);
+    // Columns 86 to 89, the left edge (column 85) raised to y = 176, a cordel level with it over columns 88 and 89.
+    const atRight = entry({ pits: cols(86, 89), solid: [[85, 11], [85, 12], [85, 13]], exit: onFloor(80), level: { cordeles: [{ x: 1408, y: 176, w: 32 }] } });
+    expect(validateLevel(atRight)).toEqual([]);
+  });
+
+  it('a cover has to span the whole column', () => {
+    const four = cols(10, 13);
+    expect(validateLevel(entry({ pits: four, level: { cordeles: [{ x: 170, y: 208, w: 6 }] } }))).toEqual(['gap of 4 tiles at columns 10 to 13, World 1 allows 3']);
+    expect(validateLevel(entry({ pits: four, level: { cordeles: [{ x: 160, y: 208, w: 16 }] } }))).toEqual([]);
+  });
+});
+
+describe('GDD-TEC-04 GDD-WLD-10 GDD-WLD-11 awnings and cordeles in the validator', () => {
+  it('an awning top at y = 160 passes; above it fails', () => {
+    expect(validateLevel(entry({ level: { awnings: [{ x: 32, y: 160, w: 32 }] } }))).toEqual([]);
+    expect(validateLevel(entry({ level: { awnings: [{ x: 32, y: 152, w: 32 }] } }))).toEqual(['awning at 32,152 has its top above y = 160']);
+  });
+
+  it('an awning, 8 px thick, may not overlap a solid tile', () => {
+    expect(validateLevel(entry({ level: { awnings: [{ x: 32, y: 216, w: 32 }] } }))).toEqual([]);
+    expect(validateLevel(entry({ level: { awnings: [{ x: 32, y: 217, w: 32 }] } }))).toEqual(['awning at 32,217 overlaps a solid tile']);
+    // A tile at row 11 just right of its right end (column 4), and one under it (column 3).
+    expect(validateLevel(entry({ solid: [[4, 11]], level: { awnings: [{ x: 32, y: 176, w: 32 }] } }))).toEqual([]);
+    expect(validateLevel(entry({ solid: [[3, 11]], level: { awnings: [{ x: 32, y: 176, w: 32 }] } }))).toEqual(['awning at 32,176 overlaps a solid tile']);
+  });
+
+  it('a cordel 2 px line and a rollo line may not overlap a solid tile', () => {
+    expect(validateLevel(entry({ level: { cordeles: [{ x: 32, y: 222, w: 32 }] } }))).toEqual([]);
+    expect(validateLevel(entry({ level: { cordeles: [{ x: 32, y: 223, w: 32 }] } }))).toEqual(['cordel at 32,223 overlaps a solid tile']);
+    expect(validateLevel(entry({ level: { rollos: [{ x: 32, y: 222, w: 32, post: 'left' }] } }))).toEqual([]);
+    expect(validateLevel(entry({ level: { rollos: [{ x: 32, y: 223, w: 32, post: 'right' }] } }))).toEqual(['rollo at 32,223 overlaps a solid tile']);
   });
 });

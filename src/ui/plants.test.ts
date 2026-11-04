@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { BACKDROP, PLANTS, TILE } from '../config/tuning';
+import { BACKDROP, MERCADO, PLANTS, TILE } from '../config/tuning';
 import { LEVEL_0_1 } from '../levels/level0-1';
 import { LEVEL_1_2 } from '../levels/level1-2';
 import { LEVEL_1_3 } from '../levels/level1-3';
 import { LEVEL_1_4 } from '../levels/level1-4';
+import { LEVEL_2_1 } from '../levels/level2-1';
+import { LEVEL_2_2 } from '../levels/level2-2';
+import { LEVEL_2_3 } from '../levels/level2-3';
+import { LEVEL_2_4 } from '../levels/level2-4';
 import { SANDBOX_LEVEL } from '../levels/sandbox';
 import { SLOPES_LEVEL } from '../levels/slopes';
 import type { Level } from '../sim/run';
@@ -46,6 +50,10 @@ const kinds = (l: Level) => plantSpots(l).map((s) => s.kind);
 
 /** The columns of `list` within 2 of column `c`. */
 const within2 = (list: number[], c: number) => list.filter((x) => Math.abs(x - c) <= 2);
+
+/** GDD-ART-06: the columns of World 2's decor on the floor at row 14, and how many tiles tall the item at a column there is. */
+const decorCols = (l: Level) => plantSpots(l, MERCADO.decor).filter((s) => s.row === 14).map((s) => s.col);
+const tilesOf = (col: number) => Math.ceil(MERCADO.decor[(3 * col + 5 * 14) % 7]!.h / TILE);
 
 describe('GDD-ART-06 plants', () => {
   // Row 14: (c + 28) mod 9 = (c + 1) mod 9 is 0 for c = 8, 17, 26, 35 and 1 for c = 0, 9, 18, 27, 36. The spawn at column 39 clears 37 to 41.
@@ -315,5 +323,63 @@ describe('GDD-ART-06 plants in 1-3', () => {
       return Array.from({ length: c1 - c0 + 1 }, (_, i) => c0 + i);
     });
     expect(spots.filter((s) => crusherCols.includes(s.col))).toEqual([]);
+  });
+});
+
+// GDD-ART-06 World 2's decor (maceta, bugambilia, huacal, ollas, farol, rebozos, letrero de lotería) stands by World 1's plant rule,
+// with its own sizes: only the heights differ, so only the "tiles above it, up to its height" clause can place it differently.
+describe('GDD-ART-06 World 2 decor', () => {
+  it('GDD-ART-06 decor heights: a tile 3 rows up stops a palm yucca but not ollas, a tile 2 rows up stops rebozos but not an agave', () => {
+    // Row 14: column 8 is kind 3 (palm yucca 36 px, 3 tiles; ollas 14 px, 1 tile), column 18 kind 5 (agave 12 px, 1 tile; rebozos
+    // 24 px, 2 tiles). The tiles at (8, 11) and (18, 12) are no spots themselves: (8 + 22) and (18 + 24) mod 9 are 3 and 6.
+    const l = level(14, [
+      [8, 11],
+      [18, 12],
+    ]);
+    expect(cols(l, 14)).toEqual([0, 9, 17, 18, 26, 27, 35, 36]);
+    expect(plantSpots(l, MERCADO.decor).filter((s) => s.row === 14).map((s) => s.col)).toEqual([0, 8, 9, 17, 26, 27, 35, 36]);
+  });
+
+  // GDD-ART-06, L-014: what the rule places in World 2's levels, counted on their real data, with the kinds it gives (MERCADO.decor's
+  // indices).
+  for (const [id, lv, count, kindsOf] of [
+    ['2-1', LEVEL_2_1, 20, [0, 1, 2, 3, 4, 5, 6]],
+    ['2-2', LEVEL_2_2, 22, [0, 1, 2, 3, 4, 5, 6]],
+    ['2-3', LEVEL_2_3, 20, [0, 1, 2, 3, 4, 5, 6]],
+    ['2-4', LEVEL_2_4, 1, [0]],
+  ] as const) {
+    it(`GDD-ART-06 decor in ${id}: ${count} items of ${kindsOf.length} kinds`, () => {
+      const spots = plantSpots(lv, MERCADO.decor);
+      expect(spots).toHaveLength(count);
+      expect(new Set(spots.map((s) => s.kind))).toEqual(new Set(kindsOf));
+    });
+  }
+
+  it('GDD-ART-06 decor and awnings: no item within 2 columns of an end of an awning, where its poles stand', () => {
+    const base = decorCols(level(14));
+    // An awning over columns 19 to 24, its top 48 px over the floor: its poles are at columns 19 and 24, each with items within 2 columns.
+    const withAwning = decorCols(level(14, [], { awnings: [{ x: 19 * TILE, y: 176, w: 6 * TILE }] }));
+    expect(within2(base, 19).length).toBeGreaterThan(0);
+    expect(within2(base, 24).filter((c) => Math.abs(c - 19) > 2).length).toBeGreaterThan(0);
+    expect(withAwning).toEqual(base.filter((c) => Math.abs(c - 19) > 2 && Math.abs(c - 24) > 2));
+  });
+
+  it('GDD-ART-06 decor and cordeles: an item as tall as the cordel is high stands under it no more, a short one does', () => {
+    const base = decorCols(level(14));
+    // A cordel 32 px over the floor (row 12) over columns 10 to 30: an item of 2 tiles reaches it; one of 1 tile does not.
+    const cordel = { x: 10 * TILE, y: 192, w: 21 * TILE };
+    const under = decorCols(level(14, [], { cordeles: [cordel] }));
+    const expected = base.filter((c) => Math.abs(c - 10) > 2 && Math.abs(c - 30) > 2).filter((c) => c < 10 || c > 30 || tilesOf(c) < 2);
+    expect(base.some((c) => c > 12 && c < 28 && tilesOf(c) >= 2)).toBe(true);
+    expect(base.some((c) => c > 12 && c < 28 && tilesOf(c) < 2)).toBe(true);
+    expect(under).toEqual(expected);
+  });
+
+  it('GDD-ART-06 decor and rollos: a rollo counts over its whole line, rolled up or not', () => {
+    const base = decorCols(level(14));
+    const rollo = { x: 10 * TILE, y: 192, w: 21 * TILE, post: 'left' as const };
+    const cordel = { x: 10 * TILE, y: 192, w: 21 * TILE };
+    expect(decorCols(level(14, [], { rollos: [rollo] }))).toEqual(decorCols(level(14, [], { cordeles: [cordel] })));
+    expect(decorCols(level(14, [], { rollos: [rollo] }))).not.toEqual(base);
   });
 });

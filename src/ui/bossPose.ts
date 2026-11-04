@@ -87,9 +87,9 @@ export function bossFrameInfo(frame: number): { look: BossLook; crown: number; w
 /** GDD-UI-01: how many of the boss bar's pips are filled: one for each hit he has left. */
 export const bossPips = (b: BossState): number => BOSS.hits - b.hits;
 
-/** GDD-UI-01: the boss bar's pips, left to right, centred together on the screen's middle, in game px. */
-export function bossPipBoxes(): { x: number; y: number; w: number; h: number }[] {
-  const width = BOSS.hits * BOSS_BAR.pipSize + (BOSS.hits - 1) * BOSS_BAR.pipGap;
+/** GDD-UI-01: the boss bar's `pips` pips (one per hit that beats the boss, `bossBar`), left to right, centred together on the screen's middle, in game px. */
+export function bossPipBoxes(pips: number): { x: number; y: number; w: number; h: number }[] {
+  const width = pips * BOSS_BAR.pipSize + (pips - 1) * BOSS_BAR.pipGap;
   const left = BASE_WIDTH / 2 - width / 2;
-  return Array.from({ length: BOSS.hits }, (_, i) => ({ x: left + i * (BOSS_BAR.pipSize + BOSS_BAR.pipGap), y: BOSS_BAR.pipTop, w: BOSS_BAR.pipSize, h: BOSS_BAR.pipSize }));
+  return Array.from({ length: pips }, (_, i) => ({ x: left + i * (BOSS_BAR.pipSize + BOSS_BAR.pipGap), y: BOSS_BAR.pipTop, w: BOSS_BAR.pipSize, h: BOSS_BAR.pipSize }));
 }

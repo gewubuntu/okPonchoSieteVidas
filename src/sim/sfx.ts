@@ -1,6 +1,7 @@
 // GDD-AUD-02: which sound effects a simulation step asks for, worked out from the states before and after it. Pure logic,
 // no Phaser (GDD-TEC-02). The scene plays them.
-import { SFX } from '../config/tuning';
+import { AWNING, SFX } from '../config/tuning';
+import { isStunned } from './enemy';
 import { hilosCollected } from './hilo';
 import { isOutOfLives } from './lives';
 import { flipPose } from './respawnFlip';
@@ -11,7 +12,7 @@ export type SfxName = 'lifeLost' | 'meow' | 'jump' | 'land' | 'claw' | 'stomp' |
 
 export interface Sfx {
   readonly name: SfxName;
-  /** For 'hilo': semitones above the root G5. */
+  /** For 'hilo': semitones above the root G5. For 'jump' on an awning's held rebound: semitones above the jump sound (GDD-WLD-10). */
   readonly semitones?: number;
 }
 
@@ -56,17 +57,27 @@ export function stepSounds(before: RunState, after: RunState, combo: HiloCombo):
   const note = stepHiloCombo(combo, hilosCollected(after.hilosTaken) - hilosCollected(before.hilosTaken));
   const sounds: Sfx[] = [];
   if (after.lives.lives < before.lives.lives) sounds.push({ name: 'lifeLost' });
-  if (!shown(before) && shown(after)) sounds.push({ name: 'meow' });
+  // GDD-AUD-02: Poncho meows as he appears again. GDD-BOS-03: and when La Estrella is defeated; a hit on her comes only on a step that
+  // starts in play (stepRun), so her defeat needs no gate of its own (L-025). Don Zopilote's defeat has his own sound (GDD-BOS-02, below).
+  const defeated = after.estrella?.mode === 'defeated' && before.estrella?.mode !== 'defeated';
+  if ((!shown(before) && shown(after)) || defeated) sounds.push({ name: 'meow' });
   if (playing) {
     if (after.player.takeoff !== undefined) sounds.push({ name: 'jump' });
+    // GDD-WLD-10: an awning's held rebound plays the jump sound, a step higher for each tier; a plain rebound the land sound (below).
+    const rebound = after.awningBounce !== null && after.awningBounce.at === before.clock ? after.awningBounce : null;
+    if (rebound !== null && rebound.tier > 0) sounds.push({ name: 'jump', semitones: AWNING.reboundSemitones[rebound.tier - 1]! });
     // From the air: a body on the ground has no downward speed, so the 60 px/s fall speed covers "was not grounded".
     // GDD-BOS-02: the boss's landing in the sand after a dive thumps too, once a step with Poncho's own.
-    const slam = before.boss?.mode === 'dive' && after.boss?.mode === 'stuck';
-    if ((after.phase === 'playing' && after.player.grounded && before.player.vy >= SFX.landMinSpeed) || slam) sounds.push({ name: 'land' });
+    // GDD-BOS-03: so does La Estrella's landing at the end of her drop, the thud on the floor and the drop onto an awning.
+    const slam = (before.boss?.mode === 'dive' && after.boss?.mode === 'stuck') || (before.estrella?.mode === 'drop' && (after.estrella?.mode === 'rest' || after.estrella?.mode === 'bounce'));
+    if ((after.phase === 'playing' && after.player.grounded && before.player.vy >= SFX.landMinSpeed) || slam || rebound?.tier === 0) sounds.push({ name: 'land' });
     // GDD-BOS-02: a hiss at the start of every telegraph of his, a warning before each attack.
     if (before.boss?.mode !== 'telegraph' && after.boss?.mode === 'telegraph') sounds.push({ name: 'hiss' });
     if (before.claw.phase === 'idle' && after.claw.phase === 'windup') sounds.push({ name: 'claw' });
-    if (after.stomped) sounds.push({ name: 'stomp' });
+    // A stomp thuds. GDD-ENM-03: so does a Trompo the claw or a fireball topples. GDD-BOS-03: and a hit on La Estrella.
+    const toppled = after.enemies.some((e, i) => isStunned(e) && !isStunned(before.enemies[i]!));
+    const struck = (after.estrella?.hits ?? 0) > (before.estrella?.hits ?? 0);
+    if (after.stomped || toppled || struck) sounds.push({ name: 'stomp' });
     // GDD-BOS-02: a hit on the boss grunts, the hit that defeats him gives his long deflating hiss instead; a hit comes only on a step
     // that starts in play (stepRun), once a step.
     if ((after.boss?.hits ?? 0) > (before.boss?.hits ?? 0)) sounds.push({ name: after.boss?.mode === 'defeated' ? 'bossDefeat' : 'grunt' });

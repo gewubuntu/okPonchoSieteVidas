@@ -1,5 +1,5 @@
 // GDD-TEC-04: every level in the game, for the validator. A test level (the sandbox, the slopes level) skips the exit and length checks;
-// a boss level (1-4) is held to the boss-level rule instead (GDD-BOS-01).
+// a boss level (1-4, 2-4) is held to the boss-level rule instead (GDD-BOS-01).
 // GDD-UI-02: which one is played, and which one comes after it. GDD-LIFE-05: the lives a level starts with, the lives each world keeps
 // in the save, the level each world's run has reached, and where the restart after the last life plays.
 import { LIVES_MAX } from '../config/tuning';
@@ -10,8 +10,14 @@ import { LEVEL_1_1 } from './level1-1';
 import { LEVEL_1_2 } from './level1-2';
 import { LEVEL_1_3 } from './level1-3';
 import { LEVEL_1_4 } from './level1-4';
+import { LEVEL_2_1 } from './level2-1';
+import { LEVEL_2_2 } from './level2-2';
+import { LEVEL_2_3 } from './level2-3';
+import { LEVEL_2_4 } from './level2-4';
 import { SANDBOX_LEVEL } from './sandbox';
 import { SLOPES_LEVEL } from './slopes';
+import { LAB_2M_LEVEL } from './lab2m';
+import { LAB_2E_ID, LAB_2E_LEVEL } from './lab2e';
 
 export interface LevelEntry {
   readonly id: string;
@@ -35,10 +41,18 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: '1-1', world: 1, test: false, level: LEVEL_1_1, next: '1-2' },
   { id: '1-2', world: 1, test: false, level: LEVEL_1_2, next: '1-3' },
   { id: '1-3', world: 1, test: false, level: LEVEL_1_3, next: '1-4' },
-  // GDD-BOS-02: World 1's boss arena. It names no next level until World 2 exists.
-  { id: '1-4', world: 1, test: false, level: LEVEL_1_4 },
+  // GDD-BOS-02: World 1's boss arena. Its Next level starts World 2 (GDD-UI-02), with seven lives (GDD-LIFE-05).
+  { id: '1-4', world: 1, test: false, level: LEVEL_1_4, next: '2-1' },
+  // GDD-WLD-01: World 2, the Mercado: 2-1 to 2-3 (GDD-WLD-12, GDD-WLD-13, GDD-WLD-14); 2-4 is its boss arena and, the last level built, names no next.
+  { id: '2-1', world: 2, test: false, level: LEVEL_2_1, next: '2-2' },
+  { id: '2-2', world: 2, test: false, level: LEVEL_2_2, next: '2-3' },
+  { id: '2-3', world: 2, test: false, level: LEVEL_2_3, next: '2-4' },
+  { id: '2-4', world: 2, test: false, level: LEVEL_2_4 },
   SANDBOX,
   { id: 'slopes', world: 1, test: true, level: SLOPES_LEVEL },
+  // GDD-WLD-10, GDD-WLD-11: the Mercado lab, a World 2 test level.
+  { id: 'lab-2m', world: 2, test: true, level: LAB_2M_LEVEL },
+  { id: LAB_2E_ID, world: 2, test: true, level: LAB_2E_LEVEL },
 ];
 
 /** GDD-PRG-02: the levels whose progress is saved (the real ones, not the test level), by id, with their hilo counts: what `readSave` needs to read their entries. */
@@ -54,10 +68,10 @@ export const levelById = (id: string): LevelEntry | undefined => LEVELS.find((e)
 export const worldLevels = (world: number): readonly LevelEntry[] => LEVELS.filter((e) => e.world === world && !e.test);
 
 /**
- * GDD-LIFE-05, GDD-PRG-02: the worlds whose lives the save keeps: those of the seven worlds that have a level (World 1; the test levels are
- * World 1's too, so they add no world).
+ * GDD-LIFE-05, GDD-PRG-02: the worlds whose lives the save keeps: those of the seven worlds that have a real level (Worlds 1 and 2; a
+ * test level, such as the sandbox or the World 2 labs lab-2m and lab-2e, adds no world).
  */
-export const SAVED_WORLDS: readonly number[] = [...new Set(LEVELS.filter((e) => e.world >= 1).map((e) => e.world))];
+export const SAVED_WORLDS: readonly number[] = [...new Set(LEVELS.filter((e) => e.world >= 1 && !e.test).map((e) => e.world))];
 
 /** GDD-UI-02, GDD-PRG-02: the ids of the saved (non-test) levels of each saved world, by the world's number as text: what `readSave` reads each world's `worldAt` against. */
 export const SAVED_WORLD_LEVELS: Readonly<Record<string, readonly string[]>> = Object.fromEntries(SAVED_WORLDS.map((w) => [String(w), worldLevels(w).map((e) => e.id)]));
@@ -81,38 +95,58 @@ export interface StartSave {
 
 /**
  * GDD-UI-02, GDD-LIFE-05: what "Start" plays, and with how many lives. An address (`location.search`) wins, whatever was played or
- * cleared, with seven lives: `level=sandbox`, `level=slopes`, `level=1-1`, `level=1-2`, `level=1-3`, `level=1-4` (the boss arena) or `level=0-1` gives that level. Anything else gives
- * the tutorial, with seven, until it has started (GDD-PRG-02); then World 1 where its run is: the level `worldAt['1']` names, if it is a
- * real World 1 level, with the saved lives (seven when none are saved), but 1-1, the world's start, always with seven. Without a run
- * saved (a save from before it, or a value naming nothing) the older rule stands: at 0 lives (the Siete vidas gastadas screen came up in
- * it) 1-1 with seven; else the first World 1 level not cleared, with the saved lives, 1-1 with seven, and 1-1 once every World 1 level
- * is cleared. The cleared levels still count for medals, best times and hilos; they decide "Start" only without a run.
+ * cleared, with seven lives: `level=` and the id of any level (`level=sandbox`, `level=0-1`, `level=1-4`, `level=2-1` ...) gives that level. Anything else gives
+ * the tutorial, with seven, until it has started (GDD-PRG-02); then the latest world reached (`frontierWorld`) where its run is: the
+ * level `worldAt` names for that world, if it is a real level of it, with the saved lives (seven when none are saved), but the world's
+ * first level always with seven. Without a run saved (a save from before it, or a value naming nothing) the older rule stands: at 0 lives
+ * (the Siete vidas gastadas screen came up in it) the world's first level with seven; else its first level not cleared, with the saved
+ * lives, the first level with seven, and the first level once every level of the world is cleared. The cleared levels still count for
+ * medals, best times and hilos; they decide "Start" only without a run, and in which world it plays.
  */
 export function startLevel(search: string, save: StartSave): StartPick {
   const id = new URLSearchParams(search).get('level');
-  const addressed = id === 'sandbox' || id === 'slopes' || id === '1-1' || id === '1-2' || id === '1-3' || id === '1-4' || id === TUTORIAL_ID ? levelById(id) : undefined;
+  const addressed = id === null ? undefined : levelById(id);
   if (addressed) return { entry: addressed, lives: LIVES_MAX };
   if (!save.tutorialPlayed) return { entry: levelById(TUTORIAL_ID)!, lives: LIVES_MAX };
-  const world1 = worldLevels(1);
-  const lives = save.worldLives['1'] ?? LIVES_MAX;
-  const at = world1.find((e) => e.id === save.worldAt['1']);
-  // A run kept with no lives (only a damaged save holds one: a game over moves the run back to 1-1) is a game over: 1-1 with seven.
-  if (at) return lives === 0 || at === world1[0] ? { entry: world1[0]!, lives: LIVES_MAX } : { entry: at, lives };
-  const next = lives === 0 ? undefined : world1.find((e) => save.levels[e.id]?.cleared !== true);
-  return next === undefined || next === world1[0] ? { entry: world1[0]!, lives: LIVES_MAX } : { entry: next, lives };
+  const world = String(frontierWorld(save.levels));
+  const inWorld = worldLevels(Number(world));
+  const lives = save.worldLives[world] ?? LIVES_MAX;
+  const at = inWorld.find((e) => e.id === save.worldAt[world]);
+  // A run kept with no lives (only a damaged save holds one: a game over moves the run back to the first level) is a game over: the
+  // first level with seven.
+  if (at) return lives === 0 || at === inWorld[0] ? { entry: inWorld[0]!, lives: LIVES_MAX } : { entry: at, lives };
+  const next = lives === 0 ? undefined : inWorld.find((e) => save.levels[e.id]?.cleared !== true);
+  return next === undefined || next === inWorld[0] ? { entry: inWorld[0]!, lives: LIVES_MAX } : { entry: next, lives };
+}
+
+/**
+ * GDD-UI-02: the latest world reached, the one "Start" plays: World 1, and while a world's last level is cleared and names a next level
+ * in a later world (1-4 names 2-1), that world. A save from before World 2 that cleared 1-4 so goes on in World 2.
+ */
+export function frontierWorld(levels: StartSave['levels']): number {
+  let world = 1;
+  for (;;) {
+    // Never empty: World 1 has levels, and a later world holds the level named.
+    const inWorld = worldLevels(world);
+    const last = inWorld[inWorld.length - 1]!;
+    const next = last.next === undefined ? undefined : levelById(last.next);
+    if (levels[last.id]?.cleared !== true || next === undefined || next.world <= world) return world;
+    world = next.world;
+  }
 }
 
 /**
  * GDD-LIFE-05: the lives a level picked on the results menu starts with ("Next level", or "Retry" for the same level): the lives Poncho
- * has at the clear when both are levels of the same one of the seven worlds (1-1's go on into 1-2, 1-2's into 1-3, and 1-3's into 1-4), else seven. The tutorial, World 0, is
+ * has at the clear when both are levels of the same one of the seven worlds (1-1's go on into 1-2, 1-2's into 1-3, and 1-3's into 1-4), else
+ * seven (1-4's Next level starts 2-1 with seven). The tutorial, World 0, is
  * outside the seven worlds (GDD-WLD-01): its lives carry neither into 1-1 nor into its own Retry. A test level has no exit, so it never
  * comes here (GDD-TEC-04).
  */
 export const livesInto = (from: LevelEntry, to: LevelEntry, lives: number): number => (from.world >= 1 && to.world === from.world ? lives : LIVES_MAX);
 
 /**
- * GDD-LIFE-05: where the restart after the last life plays: the first level of the world (1-1 for every World 1 level, 0-1 for the
- * tutorial), or a test level's own start, since a test level is in no world's order.
+ * GDD-LIFE-05: where the restart after the last life plays: the first level of the world (1-1 for every World 1 level, 2-1 for every
+ * World 2 level, 0-1 for the tutorial), or a test level's own start, since a test level is in no world's order.
  */
 export const worldStart = (entry: LevelEntry): LevelEntry => (entry.test ? entry : worldLevels(entry.world)[0]!);
 
@@ -128,7 +162,7 @@ export const worldLivesAfter = (saved: Readonly<Record<string, number>>, entry: 
  * GDD-UI-02, GDD-PRG-02, GDD-LIFE-05 (Proposed): the level each world's run has reached, kept in the save per world, after a clear in a
  * level of `entry`'s world or at the Siete vidas gastadas screen in one. "Start" plays that level. A clear moves the run to the next level
  * of the same world in the game's order (`next` of the entry); the world's last level, which ends the run, starts a new one at the world's
- * first level. The Siete vidas gastadas screen puts the run back at the world's first level, however it is reached. The tutorial, outside
+ * first level (1-4, whose next level is in World 2, too). The Siete vidas gastadas screen puts the run back at the world's first level, however it is reached. The tutorial, outside
  * the seven worlds, writes none. A test level never comes here (the scene keeps its screen out of the save, GDD-PRG-02). Retry writes
  * nothing more than the clear did.
  */

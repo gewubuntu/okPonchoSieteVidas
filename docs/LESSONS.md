@@ -160,7 +160,8 @@ Retired IDs: L-046
 - **Recurrence 17 (2026-11-03, PR #73, the `gdd-one-version` gate check of L-057, found by the review):** the check was proved to fail on one bad GDD, but I ran no mutants on its own logic; its fake git answered every `merge-base` call, so asking for `merge-base HEAD HEAD` (which turns the check off) survived the unit tests. The mutation step lives in `harness-feature`, and a retro's new guard does not go through that skill; `harness-retro` step 3 and `docs/HARNESS.md` (Adding a check) now ask for one mutant per condition and per argument inside a new guard's module, and the fake git answers only `merge-base origin/main HEAD` (13 mutants, all caught).
 - **Recurrence 18 (2026-11-04, PR #75, Don Zopilote's art, found by the review):** the crown rule ("a point for each hit he has left") is drawn in 11 looks at three crowns, but its art test counted the crown's gold in the flap frame only, so a mutant giving every hurt frame three points survived. The skill step already says a helper used at several sites needs a test that reaches every site; the plan applied it to the pose code, not to the drawing's looks. The test now covers every look that shows his colours, and its mutant is caught.
 - **Recurrence 19 (2026-11-04, PR #77, found by the review):** the crown's floor check `y < def.floor` had no mutant for its boundary (`<=`), and two reachable hit heights put the crown exactly on the floor, where the mutant moved the bounce a step later. A test now pins a landing exactly on the floor.
-- **Recurrence:** 19
+- **Recurrence 20 (2026-11-04, PR #78, World 2's awnings, found by the review):** the `onAwning &&` guard that keeps a torn awning whole on a step a stomp wins had no test that could fail; the stream's mutants covered the stomp's bounce and the chain, not this one clause of the run's tear, and the main session's diff read missed it in a large merge. A test in `src/sim/awning.test.ts` now pins it, and the reviewer's mutant is killed.
+- **Recurrence:** 20
 - **Promoted:** .claude/skills/harness-feature (mutation step, now one mutation per new GDD rule; a condition over several fields, or a revert of several, is one change per field), .claude/skills/harness-retro (step 3: a new guard's own mutants), pr-reviewer subagent. (Fifth time, the Tlacuache: two play-dead tests read the 2.0 s from `TLACUACHE.playDeadSteps`, so moving it did not fail them; the mutation step caught it before the commit, and the tests now say 119 and 120 steps.) (Sixth time, the same PR: the reviewer found two Tlacuache rules with no test that could fail, the claw half of "the claw or a fireball wins over a first stomp" and the wake-up twitch. My mutations went bullet by bullet and missed clauses; the feature skill now asks for one mutation per clause.) (Seventh time, PR #35: the clause "so it always starts at its normal size" was tested only for the first drop to one; resetting the start when the lives leave one had no test. The start tracking moved into a pure helper with unit tests for each path.) (Eighth time, PR #44: the hilo playback rate was computed in `PlayScene`, and the plan left the scene out of the mutants, so the reviewer could set the rate to 1 with every test green. The rate moved into a pure helper (`noteRate`) and the scene logs the rate it passes, checked in e2e; the feature skill now names numbers computed in a scene.) Guard: none (only a mutant shows that a test can fail, and no script can tell which GDD clauses a plan left without one; the pr-reviewer mutates every new rule).
 
 ## L-011 Generated audio was never listened to or measured
@@ -180,8 +181,8 @@ Retired IDs: L-046
 - **What went wrong:** For the touch controls I ran `node scripts/check.mjs | tail -1; git commit ...`. The gate had failed (a TypeScript error: `toSorted` is not in the ES2022 lib), but the pipe kept only `tail`'s exit status and `;` ignores failures, so the commit and push went ahead. I saw "1 problem(s) found" in the output and fixed it in a second commit before opening the PR, so nothing broke, but CLAUDE.md says the gate must pass before every commit.
 - **Root cause:** I chained the commit after a pipeline that hides the gate's exit code, and read the result only after the commit had happened.
 - **Rule:** Run the gate on its own and check its exit code, then commit: `node scripts/check.mjs && git commit ...` with no pipe to `tail` (or `set -o pipefail`). If the output is needed, read it from a separate run.
-- **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-feature (Gate step), then, after the second time, `scripts/hooks/gate-pipe.mjs`: a PreToolUse hook that denies a shell command committing after the gate with anything but `&&` between them. Second time (2026-10-25, GDD-ART-02): `node scripts/check.mjs 2>&1 | tail -1 && git commit` committed a lessons-format failure; the next commit fixed it. The rule stands: never pipe the gate.
+- **Recurrence:** 3
+- **Promoted:** .claude/skills/harness-feature (Gate step), then, after the second time, `scripts/hooks/gate-pipe.mjs`: a PreToolUse hook that denies a shell command committing after the gate with anything but `&&` between them. Second time (2026-10-25, GDD-ART-02): `node scripts/check.mjs 2>&1 | tail -1 && git commit` committed a lessons-format failure; the next commit fixed it. The rule stands: never pipe the gate. Third time (2026-11-04, World 2): `node scripts/check.mjs 2>&1 | tail -2 && GIT_EDITOR=true git cherry-pick --continue` committed a merge whose gate failed (two tests that listed every level missed the World 2 labs); the commit was amended before the push. The hook let it through because it knew only `git commit`; it now treats `cherry-pick`, `merge`, `revert`, `am` and `rebase` as commits too. Guard: `scripts/hooks/gate-pipe.mjs`.
 
 ## L-013 Sentences the new feature made false were left in the GDD
 
@@ -670,3 +671,54 @@ Retired IDs: L-046
 - **Recurrence 2 (2026-11-04, PR #75 re-review):** my fix for the first finding checked only the frames shown resting on the floor; the reviewer measured the fight and found the flap's lowered wings 2 to 14 px into the floor for the last 5 steps of every phase 2 drop and the climb's for 4 steps off the floor. The same check also showed the lowered wings had been cut off by the frame's bottom edge, which the outline test missed because it treated the edge as filled. Now: the lowered wings are shorter and fit their frame, an edge counts as empty in the outline test, the art test pins that only the lowered wings reach below his box (14 px, `BOSS_ART.wingsBelow`), `bossPose` keeps them raised within 14 px of the floor, and a test runs the bot through the whole 1-4 fight checking every frame shown against the floor.
 - **Recurrence:** 2
 - **Promoted:** .claude/skills/harness-feature step 5 (Sprite frames). Guard for Don Zopilote: `scripts/art/boss.test.mjs` ("only his lowered wings reach below his box") and `src/levels/level1-4.test.ts` ("through the whole fight no frame of his reaches into the floor"); a new sprite gets its own from the skill step.
+
+## L-060 Parallel worktrees on one machine would run their playtests against each other's dev server
+
+- **Date:** 2026-11-04
+- **Area:** harness, playtest
+- **What went wrong:** For World 2, several agents built streams in parallel git worktrees on one machine. `playwright.config.ts` fixed the dev server on port 4173 with `reuseExistingServer`, so a second worktree's `npm run test:e2e` would have reused the first one's server and tested the other tree's code, passing or failing for the wrong reasons. Only one stream could be allowed to run playtests at a time, and the others shipped specs marked "not run".
+- **Root cause:** The port was a constant in the config, written when only one checkout ever ran the playtests.
+- **Rule:** Each worktree that runs playtests next to another sets its own `PONCHO_E2E_PORT` (the config reads it for the server, its URL and `baseURL`; 4173 stays the default for CI and a single checkout).
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-061 The swarm's worktrees were cut from main, not from the branch they were to build on
+
+- **Date:** 2026-11-04
+- **Area:** process
+- **What went wrong:** The agents launched with `isolation: worktree` for World 2 got worktrees at `origin/main` (b43756c), not at the session branch's head, which held the World 2 GDD sections and the Mercado art. The gate's GDD-ID check failed for them until each agent noticed and moved its tree onto the branch, and the plumbing stream wrote 27 files on the old base before the main session told it to fast-forward.
+- **Root cause:** A worktree is made from the repository's default base, not from the checkout's current branch, and the launch prompts did not say which commit to build on.
+- **Rule:** A prompt that launches an agent in a worktree starts with the exact command to put the tree on the branch head it builds on (`git fetch origin <branch> && git reset --hard origin/<branch>`, the branch pushed first), before the agent writes anything.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-062 Playtests pinned the stub levels' numbers, and the real levels broke them
+
+- **Date:** 2026-11-04
+- **Area:** playtest, level
+- **What went wrong:** `e2e/world2.spec.ts`, one test of `e2e/world1.spec.ts` and three scenarios of `e2e/shots/mercado.spec.ts` were written while 2-1 to 2-3 were stubs and hard-coded their numbers: the 4-tile gap at columns 40 to 43, the exit at x 1400, the spawn at x 40 and the stub's decor list. When the real levels landed, seven playtests failed on both viewports and three screenshot scenarios failed, in the full run only; each was re-anchored on the level module (`pits()` over `LEVEL_2_1.world`, `LEVEL_2_1.exit`, `LEVEL_2_1.spawn`, `plantSpots(LEVEL_2_1, MERCADO.decor)`).
+- **Root cause:** The specs copied positions out of the level by hand instead of reading them from the level data they play, and the commit that replaced the stubs ran the specs of the new features, not every spec and shot scenario that opens those levels.
+- **Rule:** A playtest reads where things are in a real level (pits, exit, spawn, decor, enemies) from the level module it plays (`import { LEVEL_x_y } from '../src/levels/...'`), and comments any number it must hard-code; a commit that changes a level's data runs every spec and shot scenario that opens it (`grep -rln "level=<id>" e2e`).
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-063 Playtests in one checkout reloaded mid-test while other worktrees ran their own
+
+- **Date:** 2026-11-04
+- **Area:** harness, playtest
+- **What went wrong:** During World 2's build, playtests in the main checkout failed four times with "Execution context was destroyed, most likely because of a navigation" (block, cactus, the 1-2 and settings shots), each early in a run and each passing alone. Agent worktrees were running their own dev servers at the time, every worktree with `node_modules` symlinked to the main checkout's.
+- **Root cause:** Vite keeps its optimized dependencies in `node_modules/.vite`; with `node_modules` shared, every dev server used the same cache, and one server re-optimizing it made the others reload their pages (the most likely cause: the failures stopped once only one server ran).
+- **Rule:** A dev server for playtests on its own port (`PONCHO_E2E_PORT`, L-060) also has its own Vite cache (`vite.config.ts` derives `cacheDir` from the port), so parallel worktrees never share it.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-064 A mutant that loops forever hung the whole mutation run
+
+- **Date:** 2026-11-04
+- **Area:** tests, harness
+- **What went wrong:** For World 2's enemies, the mutant "awning wins over tile" turned a test's open-ended `while` loop (step until the Chapulín lands) into an endless one. `scripts/mutate.mjs` waited on it with no limit, so the run hung until the worker was killed by hand, and the remaining mutants never ran in that pass.
+- **Root cause:** The runner gives a mutant's test command no time limit, and the tests had loops bounded only by the behaviour under test, which a mutant may remove.
+- **Rule:** Bound every loop in a test by a step count (`for (let i = 0; i < N && !done; i++)`), never by the behaviour alone; a mutant that hangs counts as killed only once it is stopped, and is re-run after the loop is bounded.
+- **Recurrence:** 1
+- **Promoted:** no
+

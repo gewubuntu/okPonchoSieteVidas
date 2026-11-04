@@ -34,6 +34,11 @@ export interface PlayerState {
   kickLock?: number;
   /** GDD-AUD-02: set on the step a jump (GDD-MOV-02) or a wall kick (GDD-MOV-08) takes off. Left out means neither. */
   takeoff?: 'jump' | 'kick';
+  /** GDD-WLD-10: held awning rebounds in a row (0 to 3), the tier of the last one. Left out means 0. */
+  awningChain?: number;
+  /** GDD-WLD-10: steps left in which a jump press counts as held at the last plain awning landing, and the tier it gives. Left out means none. */
+  awningLate?: number;
+  awningLateTier?: number;
 }
 
 /** Abilities unlocked by progression (GDD-PRG-01). Left out means none. */

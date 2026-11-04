@@ -191,6 +191,41 @@ export const SPRING = { velocity: 480, boostVelocity: 600 } as const;
 /** GDD-WLD-05: a moving platform travels back and forth along its path at this speed (px/s) and is a one-way floor. */
 export const PLATFORM = { speed: 40 } as const;
 
+/**
+ * GDD-WLD-10: awnings. Landing on one with jump held (or pressed in the jump buffer) throws Poncho up at the next of `tiers` (480 is
+ * SPRING.velocity, 600 SPRING.boostVelocity) over held rebounds in a row; without, he rebounds at `plainFactor` of his landing speed,
+ * or stands on it when that is under `settleSpeed`. A torn awning's plain rebound is at least `tornMinSpeed`. A jump pressed in the
+ * `lateSteps` (the jump buffer, 0.1 s) after a plain landing counts as held at it. The cloth is `height` px thick and its top at least
+ * `minTopY` (a tier 3 rebound stays on screen). Drawing: it sags `sagPx[tier]` px (0 is a plain rebound) for `sagSteps`, then is
+ * `liftPx` above rest for `liftSteps`; a held rebound's sound is raised `reboundSemitones[tier - 1]`.
+ */
+export const AWNING = {
+  tiers: [480, 540, 600],
+  plainFactor: 0.5,
+  settleSpeed: 150,
+  tornMinSpeed: 180,
+  lateSteps: FORGIVENESS.bufferSteps,
+  height: 8,
+  minTopY: 160,
+  sagPx: [2, 2, 4, 6],
+  sagSteps: 4,
+  liftPx: 1,
+  liftSteps: 4,
+  reboundSemitones: [0, 2, 4],
+} as const;
+
+/**
+ * GDD-WLD-11: papel picado. A rollo's bundle is a `size` px square by its post; a claw swipe or a fireball that touches it unrolls it
+ * at `unrollSpeed` px/s (above RUN.maxSpeed). A cordel's line, which is all of it that collides, is `linePx` thick.
+ */
+export const ROLLO = { size: 12, unrollSpeed: 160, linePx: 2 } as const;
+
+/**
+ * GDD-TEC-04, GDD-WLD-10, GDD-WLD-11: a pit column under a whole awning, a cordel or a rollo whose top is at most `abovePx` (3 tiles)
+ * above the ground at the pit's nearer edge does not count towards a gap.
+ */
+export const COVER = { abovePx: 3 * TILE } as const;
+
 /** GDD-WLD-05: moving blocks travel at this speed (px/s), like the platforms. */
 export const BLOCK = { speed: 40 } as const;
 
@@ -267,6 +302,39 @@ export const ZOPILOTE = {
 } as const;
 
 /**
+ * GDD-ENM-03: the Paloma (pigeon) is `width` x `height` px, standing on the ground or a cordel, and walks at `speed` px/s. When Poncho's
+ * hurtbox centre is within `sightX` px of it across, on either side, and his feet within `sightY` px of its own, up or down, it freezes for
+ * `telegraphSteps` (0.5 s, GDD-ENM-01), flies straight up `riseHeight` px at `riseSpeed` px/s, hovers for `hoverSteps` (1.0 s) bobbing
+ * `bobPx` (drawn only), and comes back down at `descendSpeed` px/s.
+ */
+export const PALOMA = {
+  width: 14,
+  height: 12,
+  speed: 20,
+  sightX: 48,
+  sightY: 24,
+  telegraphSteps: Math.round(0.5 * TICK_HZ),
+  riseHeight: 40,
+  riseSpeed: 120,
+  hoverSteps: Math.round(1.0 * TICK_HZ),
+  bobPx: 2,
+  descendSpeed: 60,
+} as const;
+
+/**
+ * GDD-ENM-03: the Chapulín (grasshopper) is `width` x `height` px. It crouches for `crouchSteps` (0.6 s), flashing in the last `flashSteps`
+ * (0.5 s, the telegraph of GDD-ENM-01), then hops `hopUp` px/s up and `hopAcross` px/s across the way it faces, falling as Poncho falls
+ * (GDD-MOV-04). An awning's top it falls onto throws it up at `awningUp` px/s (the awnings' first tier, GDD-WLD-10) without a crouch.
+ */
+export const CHAPULIN = { width: 12, height: 10, crouchSteps: Math.round(0.6 * TICK_HZ), flashSteps: Math.round(0.5 * TICK_HZ), hopUp: 300, hopAcross: 60, awningUp: 480 } as const;
+
+/**
+ * GDD-ENM-03, GDD-CMB-02: the Trompo (spinning top), the first heavy enemy, is `width` x `height` px, standing on the ground, and spins
+ * along at `speed` px/s. A claw swipe or a fireball stuns it for `stunSteps` (1.0 s); it wobbles in the last `wobbleSteps` (0.5 s).
+ */
+export const TROMPO = { width: 14, height: 14, speed: 70, stunSteps: Math.round(1.0 * TICK_HZ), wobbleSteps: Math.round(0.5 * TICK_HZ) } as const;
+
+/**
  * GDD-BOS-02: Don Zopilote, World 1's boss, a `width` x `height` px box (three times the Zopilote). He laps an ellipse `rx` px either
  * side and `ry` px above and below the middle the level gives in `lapSteps` (4.0 s), dropping a cactus fruit at the lap steps in `dropAt`,
  * then freezes for his telegraph, `telegraphSteps` (0.5 s, GDD-ENM-01). Phases 1 and 3 dive at `diveSpeed` and `fastDiveSpeed` px/s and
@@ -307,8 +375,56 @@ export const FRUIT = { size: 8, fallSpeed: 120, lieSteps: Math.round(3.0 * TICK_
  */
 export const ROCK = { size: 12, knockX: 90, knockY: 150, gravity: 1500, backSteps: Math.round(2.0 * TICK_HZ) } as const;
 
+/**
+ * GDD-BOS-03: La Estrella, World 2's boss, a `width` x `height` px box (her clay-pot core). Each array has one entry per phase. She glides
+ * along the cable with her box's bottom at `highBottom` at `glideSpeed` px/s, telegraphs for `telegraphSteps` (0.5 s, GDD-ENM-01), drops at
+ * `dropSpeed` px/s onto the awning or the floor under her (in a phase whose `tearsAwnings` is true she tears through the awnings to the
+ * floor); an awning throws her up at `awningThrow` px/s, the floor holds her for
+ * `restSteps` (0.3 s) before she is pulled up at `riseSpeed`. She hangs with her bottom at `lowBottom` for `hangSteps`, swaying `swayPx` to
+ * either side on a `swayPeriodSteps` (1.0 s) sine, then is yanked up to `highBottom` at `yankSpeed`. In phase 3 she aims at Poncho, kept
+ * between `aimMinX` and `aimMaxX`. A hit leaves her hurt for `hurtSteps` (1.0 s); the last of her `hits` defeats her: she falls at
+ * `fallSpeed` and the level is clear `defeatSteps` (1.0 s) after that hit. `cones` are the paper cones she has left after 0, 1, 2 and 3
+ * hits. Placeholder drawing: her cones' tips `coneTip` px from her middle (a star about 56 px across), her rope hangs from the cable at
+ * `cableY` from a trolley; in her telegraph her body and the trolley shake `shakePx` to either side, flipping every `flashSteps` (her rope
+ * has no length up there); her body flashes (red in the telegraph, white hurt or defeated) on for `flashSteps` and off for as many.
+ */
+export const ESTRELLA = {
+  width: 32,
+  height: 32,
+  highBottom: 40,
+  lowBottom: [112, 72, 72],
+  glideSpeed: [80, 100, 120],
+  telegraphSteps: Math.round(0.5 * TICK_HZ),
+  dropSpeed: [300, 300, 360],
+  awningThrow: 240,
+  tearsAwnings: [false, false, true],
+  restSteps: Math.round(0.3 * TICK_HZ),
+  riseSpeed: 120,
+  hangSteps: [Math.round(2.0 * TICK_HZ), Math.round(1.5 * TICK_HZ), Math.round(1.0 * TICK_HZ)],
+  swayPx: [0, 8, 16],
+  swayPeriodSteps: Math.round(1.0 * TICK_HZ),
+  yankSpeed: 180,
+  hurtSteps: BOSS.hurtSteps,
+  defeatSteps: Math.round(1.0 * TICK_HZ),
+  fallSpeed: 120,
+  hits: 3,
+  aimMinX: 56,
+  aimMaxX: 424,
+  cones: [7, 5, 3, 0],
+  coneTip: 28,
+  cableY: 8,
+  shakePx: 2,
+  flashSteps: 4,
+} as const;
+
+/**
+ * GDD-BOS-03: a tejocote, La Estrella's filling, is a `size` px square that rolls along the floor at `rollSpeed` px/s. Each time she thuds on
+ * the floor `pairs` of them (one entry per phase) roll out, one each way per pair, a pair every `secondPairSteps` (0.4 s).
+ */
+export const TEJOCOTE = { size: 8, rollSpeed: 90, secondPairSteps: Math.round(0.4 * TICK_HZ), pairs: [1, 1, 2] } as const;
+
 /** GDD-UI-01: the boss bar at the top middle: the name's middle `nameY` px from the top, and pips `pipSize` px square, `pipGap` apart, their top `pipTop` px from the top. */
-export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4 } as const;
+export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4, nameStroke: '#2a1f2e', nameStrokePx: 2 } as const;
 
 /**
  * GDD-BOS-02, GDD-ART-01: the size of Don Zopilote's art in game px: one frame of his sheet (`frameW` x `frameH`, `columns` across; his box's
@@ -335,15 +451,16 @@ export const BOSS_DEFEAT = { tumbleSteps: 6, crownVx: 45, crownVy: 180, crownGra
 export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;
 
 /**
- * GDD-TEC-04: what the level validator checks. GDD-WLD-03: a level is 3 to 6 screens of BASE_WIDTH wide, has 3 ofrendas,
- * and its gaps never exceed `maxGapTiles` for its world (World 1 has a limit so far, and the tutorial 0-1, outside the seven worlds, follows it: GDD-WLD-01). GDD-ENM-01: no enemy starts
+ * GDD-TEC-04: what the level validator checks. GDD-WLD-03: a level is `minScreens` to `maxScreens` (for its world: 6 in Worlds 0 and 1, 8 from
+ * World 2 on, user, 2026-11-04) screens of BASE_WIDTH wide, has 3 ofrendas,
+ * and its gaps never exceed `maxGapTiles` for its world (Worlds 1 and 2 have a limit so far, World 2 a tile more, and the tutorial 0-1, outside the seven worlds, follows World 1: GDD-WLD-01). GDD-ENM-01: no enemy starts
  * closer than 3 tiles to a respawn.
  */
 export const LEVEL_RULES = {
   minScreens: 3,
-  maxScreens: 6,
+  maxScreens: { 0: 6, 1: 6, 2: 8 } as Readonly<Record<number, number>>,
   ofrendas: 3,
-  maxGapTiles: { 0: 3, 1: 3 } as Readonly<Record<number, number>>,
+  maxGapTiles: { 0: 3, 1: 3, 2: 4 } as Readonly<Record<number, number>>,
   enemyClearance: 3 * TILE,
 } as const;
 
@@ -401,4 +518,41 @@ export const BACKDROP_ART = {
   mountainBandArt: 488,
   desertBandArt: 176,
   footColour: 0x3a4580,
+} as const;
+
+/**
+ * GDD-ART-06: World 2's (Mercado) backdrop and decor, from `scripts/art/mercado.mjs`, put together as World 1's: the clouds scroll at
+ * `cloudFactor` of the camera's scroll, the far hill town at `farFactor` and the mid rooftops at `midFactor` (World 1's shares). The
+ * sky's bands are flat colours (`skyBands`), the first two ending `skyEnds` art px from the top with a dither strip of `stripArt` px; the
+ * last is the camera's background. There is no sun. Each cloud is an image at `clouds` (game px). The far band is `farBandArt` art px
+ * tall from game y `farTop`, with the flat foot in `footColour` below it; the mid band (the boss arena's plaza in its place) is
+ * `midBandArt` art px tall from `midTop` (down to the floor's top at 224). `decor` are the market's seven things (maceta de talavera,
+ * bugambilia, huacal de fruta, ollas de barro, farol, rebozos, letrero de lotería), their size in game px, placed by World 1's plant rule.
+ */
+export const MERCADO = {
+  cloudFactor: 0.1,
+  farFactor: 0.3,
+  midFactor: 0.5,
+  skyBands: [0x86bee0, 0xa9d3ea, 0xcfe8f1],
+  skyEnds: [240, 440],
+  stripArt: 2,
+  clouds: [
+    { x: 72, y: 20 },
+    { x: 227, y: 20 },
+    { x: 396, y: 48 },
+  ],
+  farTop: 84,
+  farBandArt: 464,
+  midTop: 148,
+  midBandArt: 304,
+  footColour: 0x4e4a78,
+  decor: [
+    { name: 'maceta', w: 10, h: 12 },
+    { name: 'bugambilia', w: 16, h: 20 },
+    { name: 'huacal', w: 14, h: 10 },
+    { name: 'ollas', w: 14, h: 14 },
+    { name: 'farol', w: 8, h: 40 },
+    { name: 'rebozos', w: 16, h: 24 },
+    { name: 'loteria', w: 12, h: 16 },
+  ],
 } as const;
