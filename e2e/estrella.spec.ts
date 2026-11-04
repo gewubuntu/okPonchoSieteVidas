@@ -22,7 +22,7 @@ test('GDD-BOS-03 level=2-4 opens her arena on the title screen and Start plays i
   if (isMobile) await tapAt(page, 240, 60, true);
   else await page.keyboard.press('Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5 && window.__PONCHO__!.bossBar().pips === 3);
-  expect(await api(page, () => window.__PONCHO__!.bossBar())).toEqual({ shown: true, name: 'La Estrella', nameY: 10, pips: 3, outlines: 0 });
+  expect(await api(page, () => window.__PONCHO__!.bossBar())).toEqual({ shown: true, name: 'La Estrella', stroke: ['#2a1f2e', 2], nameY: 10, pips: 3, outlines: 0 });
   expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ hits: 0, mode: 'glide', y: 40 });
   expect(await api(page, () => window.__PONCHO__!.boss())).toBeNull();
   // Her seven cones, the three top ones with pale tips, her rope from the trolley on the cable at y 8 down to her top at y 8 (no length).

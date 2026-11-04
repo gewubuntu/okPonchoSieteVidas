@@ -136,3 +136,17 @@ describe('GDD-ENM-03 and GDD-CMB-02 the stunned Trompo', () => {
     expect(new Set([0, 3, 6, 9].map(litAt)).size).toBe(4);
   });
 });
+
+// CIE L* of an sRGB colour, as the art guide measures it (GDD-ART-03).
+const lin = (v: number) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const lightness = (c: number) => {
+  const [r, g, b] = [(c >> 16) & 255, (c >> 8) & 255, c & 255].map((v) => lin(v / 255));
+  const y = 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+  return 116 * (y > 0.008856 ? Math.cbrt(y) : 7.787 * y + 16 / 116) - 16;
+};
+
+describe('GDD-ART-06 the World 2 enemies read against the walls', () => {
+  it('GDD-ART-06 the Chapulín body is at least 15 L* from the pink wall', () => {
+    expect(Math.abs(lightness(COLOURS.leaf) - lightness(0xe07f8e))).toBeGreaterThanOrEqual(15);
+  });
+});

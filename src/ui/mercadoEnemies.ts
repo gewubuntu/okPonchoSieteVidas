@@ -19,7 +19,8 @@ export const COLOURS = {
   iron: 0x3b2b3c,
   teal: 0x2aa198,
   rosa: 0xd9327e,
-  leaf: 0x4f8f4c,
+  // GDD-ART-06: at least 15 L* from the pink wall (#E07F8E), so the Chapulín reads against it.
+  leaf: 0x3e7a3c,
   yellow: 0xe9b53f,
   wood: 0x7e5a3e,
   tejaLit: 0xe07a52,

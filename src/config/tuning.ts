@@ -424,7 +424,7 @@ export const ESTRELLA = {
 export const TEJOCOTE = { size: 8, rollSpeed: 90, secondPairSteps: Math.round(0.4 * TICK_HZ), pairs: [1, 1, 2] } as const;
 
 /** GDD-UI-01: the boss bar at the top middle: the name's middle `nameY` px from the top, and pips `pipSize` px square, `pipGap` apart, their top `pipTop` px from the top. */
-export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4 } as const;
+export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4, nameStroke: '#2a1f2e', nameStrokePx: 2 } as const;
 
 /**
  * GDD-CMB-01: landing on top of a stompable enemy bounces Poncho up at `bounce` px/s, or at `boostBounce` (the jump

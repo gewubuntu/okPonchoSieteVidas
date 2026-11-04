@@ -346,7 +346,7 @@ export interface PonchoDebug {
    * GDD-UI-01: the boss bar as drawn: whether its name is shown, the name and its middle's y (game px), how many pips were drawn filled
    * and how many as a grey outline (a hit taken).
    */
-  bossBar(): { shown: boolean; name: string; nameY: number; pips: number; outlines: number };
+  bossBar(): { shown: boolean; name: string; stroke: [string, number]; nameY: number; pips: number; outlines: number };
   /** Test hook: Don Zopilote at the start of phase `hits + 1` (`bossStart`), with no fruit, as after a lost life. Nothing in a level without a boss. */
   setBoss(hits: number): void;
   /**
@@ -753,7 +753,7 @@ export class PlayScene extends Phaser.Scene {
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(10);
     this.drawHud();
     // GDD-UI-01: the boss bar, top middle, in a boss level only: his name over one pip per hit he has left. Drawn with the HUD.
-    this.bossName = this.add.text(BASE_WIDTH / 2, BOSS_BAR.nameY, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff3dc' }).setOrigin(0.5).setScrollFactor(0).setDepth(10).setVisible(isBossLevel(this.level));
+    this.bossName = this.add.text(BASE_WIDTH / 2, BOSS_BAR.nameY, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff3dc', stroke: BOSS_BAR.nameStroke, strokeThickness: BOSS_BAR.nameStrokePx }).setOrigin(0.5).setScrollFactor(0).setDepth(10).setVisible(isBossLevel(this.level));
     this.bossBarGfx = this.add.graphics().setScrollFactor(0).setDepth(10);
 
     this.ofrendaGfx = this.add.graphics().setDepth(2);
@@ -1188,7 +1188,7 @@ export class PlayScene extends Phaser.Scene {
         fruitDrawn: () => this.fruitPainted,
         rocks: () => this.run.rocks.map((r) => ({ x: r.x, y: r.y, mode: r.mode })),
         rocksDrawn: () => this.rocksPainted,
-        bossBar: () => ({ shown: this.bossName.visible, name: this.bossName.text, nameY: this.bossName.y, pips: this.bossPipsPainted, outlines: this.bossOutlinesPainted }),
+        bossBar: () => ({ shown: this.bossName.visible, name: this.bossName.text, stroke: [typeof this.bossName.style.stroke === 'string' ? this.bossName.style.stroke : '', this.bossName.style.strokeThickness], nameY: this.bossName.y, pips: this.bossPipsPainted, outlines: this.bossOutlinesPainted }),
         setBoss: (hits) => {
           if (!this.level.boss) return;
           this.run = { ...this.run, boss: bossStart(this.level.boss, hits), fruit: [] };

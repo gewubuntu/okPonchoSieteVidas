@@ -38,7 +38,7 @@ test('GDD-BOS-02 level=1-4 opens the arena on the title screen and Start plays i
   const [pipDim] = await pixelsAt(page, [{ x: 240, y: 21 }]);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5 && window.__PONCHO__!.bossBar().pips === 3);
-  expect(await api(page, () => window.__PONCHO__!.bossBar())).toEqual({ shown: true, name: 'Don Zopilote', nameY: 10, pips: 3, outlines: 0 });
+  expect(await api(page, () => window.__PONCHO__!.bossBar())).toEqual({ shown: true, name: 'Don Zopilote', stroke: ['#2a1f2e', 2], nameY: 10, pips: 3, outlines: 0 });
   expect(await api(page, () => window.__PONCHO__!.boss())).toMatchObject({ hits: 0, mode: 'lap' });
   expect(await api(page, () => window.__PONCHO__!.exitDrawn())).toBe(false);
   expect(await api(page, () => window.__PONCHO__!.hilos())).toMatchObject({ taken: 0, total: 0 });
