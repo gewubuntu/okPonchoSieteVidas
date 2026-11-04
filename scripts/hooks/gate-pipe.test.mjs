@@ -18,6 +18,16 @@ describe('L-012 gate-pipe hook', () => {
     for (const join of ['; ', ' || ', ' & ', '\n']) expect(gateProblem(`node scripts/check.mjs${join}git commit -m x`)).toMatch(/L-012/);
   });
 
+  it('denies a pipe before any git command that makes a commit: cherry-pick, merge, revert, am, rebase (L-012, third time)', () => {
+    for (const git of ['GIT_EDITOR=true git cherry-pick --continue', 'git cherry-pick abc123', 'git merge --ff-only topic', 'git revert HEAD', 'git am x.patch', 'git rebase --continue'])
+      expect(gateProblem(`node scripts/check.mjs 2>&1 | tail -2 && ${git}`), git).toMatch(/L-012/);
+  });
+
+  it('lets those through when && joins them to the gate, and leaves git commands that make no commit alone', () => {
+    for (const git of ['git cherry-pick abc123', 'git merge --ff-only topic', 'git rebase --continue']) expect(gateProblem(`node scripts/check.mjs && ${git}`), git).toBeNull();
+    for (const git of ['git status', 'git log --oneline -3', 'git push', 'git amend-notes']) expect(gateProblem(`node scripts/check.mjs | tail -1; ${git}`), git).toBeNull();
+  });
+
   it('ignores commands without both the gate and a commit after it', () => {
     expect(gateProblem('node scripts/check.mjs | tail -1')).toBeNull();
     expect(gateProblem('git commit -m x; node scripts/check.mjs | tail')).toBeNull();
