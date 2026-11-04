@@ -7,7 +7,8 @@ import { spawn, type PlayerInput } from '../sim/movement';
 import { startRun, stepRun, touchesExit, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
 import type { LevelEntry } from './index';
-import { LEVEL_2_1, LEVEL_2_1_AWNINGS, LEVEL_2_1_CORDELES } from './level2-1';
+import { LEVEL_2_1, LEVEL_2_1_AWNINGS, LEVEL_2_1_CORDELES, LEVEL_2_1_ROWS } from './level2-1';
+import { parseTiles } from '../sim/tilemap';
 import { gaps, openGaps, validateLevel } from './validate';
 
 const level = LEVEL_2_1;
@@ -22,6 +23,22 @@ const idle: PlayerInput = { move: 0, jumpHeld: false };
 const standing = (x: number, y: number) => ({ ...spawn(x, y), grounded: true });
 /** A run of `lv` with Poncho standing at (x, y). */
 const at = (lv: Level, x: number, y: number): RunState => ({ ...startRun(lv), player: standing(x, y) });
+/** 2-1 with the pit one column wider (its far floor from column 120), for the comparison that sets its width. */
+const widerPit = (): Level => ({
+  ...quiet,
+  world: parseTiles(LEVEL_2_1_ROWS.map((row, i) => (i >= 14 ? row.slice(0, 119) + '.' + row.slice(120) : row))),
+});
+/** Runs right from the pit Paloma's pen, presses jump once past `take` and holds it: does he reach the floor past the pit? */
+function cross(lv: Level, take: number): boolean {
+  let s = at(lv, 1722, 224);
+  let k = -1;
+  for (let i = 0; i < 200 && s.phase === 'playing'; i++) {
+    if (k < 0 && s.player.x > take) k = i;
+    s = stepRun(s, { move: 1, jumpHeld: k >= 0 }, lv);
+    if (s.player.grounded && s.player.y === 224 && s.player.x > 1880) return true;
+  }
+  return false;
+}
 const hiloKeys = (r: RunState) => level.hilos!.flatMap((h, i) => (r.hilosTaken[i] ? [`${h.col},${h.row}`] : []));
 
 /** The first awning, the stall row, the ladder awning, the alley awning, the pit awning and the last stall row, by their place in the list. */
@@ -89,7 +106,7 @@ describe('GDD-WLD-12 level 2-1', () => {
     }
   });
 
-  it('GDD-WLD-03 2-1 has a 3-tile gap and an 8-tile pit that the pit awning leaves open 3 tiles a side', () => {
+  it('GDD-WLD-03 2-1 has a 3-tile gap and an 8-tile pit that the pit awning leaves open 3 tiles before it and 2 after', () => {
     expect(gaps(world)).toEqual([
       { col: 22, width: 3 },
       { col: 111, width: 8 },
@@ -97,7 +114,7 @@ describe('GDD-WLD-12 level 2-1', () => {
     expect(openGaps(level)).toEqual([
       { col: 22, width: 3 },
       { col: 111, width: 3 },
-      { col: 116, width: 3 },
+      { col: 117, width: 2 },
     ]);
     // Without the pit awning the pit is one 8-tile gap, past World 2's 4 (GDD-WLD-03).
     const bare: LevelEntry = { ...ENTRY, level: { ...level, awnings: awnings.filter((a) => a !== PIT) } };
@@ -128,7 +145,7 @@ describe('GDD-WLD-12 level 2-1', () => {
 
   it('GDD-WLD-12 2-1 piñata and veladora', () => {
     expect(level.pinatas).toEqual([{ col: 34, row: 5 }]);
-    expect(level.veladora).toEqual({ col: 114, row: 3 });
+    expect(level.veladora).toEqual({ col: 115, row: 3 });
     for (const empty of ['spikes', 'crumbles', 'springs', 'platforms', 'tacos', 'doors', 'keys', 'fragiles'] as const) expect(level[empty], empty).toEqual([]);
     expect(level.blocks).toBeUndefined();
     expect(level.rollos).toBeUndefined();
@@ -142,7 +159,7 @@ describe('GDD-WLD-12 level 2-1', () => {
       [69, 3, 192, false],
       [74, 3, 192, false],
       [88, 5, 176, false],
-      [114, 2, 208, false],
+      [114, 3, 208, false],
       [156, 3, 192, false],
       [161, 3, 192, false],
       [166, 3, 192, false],
@@ -472,7 +489,7 @@ describe('GDD-WLD-12 playing 2-1', () => {
     }
   });
 
-  it('GDD-WLD-12 2-1 Ten: no jump crosses the pit, a running jump from its edge lands on the pit awning, and its rebound carries him over the far open tiles', () => {
+  it('GDD-WLD-12 2-1 Ten: no jump crosses the pit, a running jump from its edge lands on the pit awning, and its rebound carries him over the 2 open tiles past it', () => {
     // A running jump from the edge with the pit awning taken away falls in.
     const bare: Level = { ...quiet, awnings: awnings.filter((a) => a !== PIT) };
     let r = at(bare, 1730, 224);
@@ -498,8 +515,8 @@ describe('GDD-WLD-12 playing 2-1', () => {
     expect(held.tiers).toEqual([1]);
     expect(held.s.phase).toBe('playing');
     expect(held.s.player.x).toBeGreaterThan(1904);
-    // Not held at the landing, and right let go from the first touch: one small hop and he settles on the awning (holding right on,
-    // the hop carries him across its 32 px and he walks off its far end), and a jump from there reaches the far floor too.
+    // Not held at the landing, and right let go from the first touch: one small hop and he settles on the awning, and a jump from there
+    // reaches the far floor too.
     let s = at(quiet, 1730, 224);
     let k = -1;
     for (let i = 0; i < 120; i++) {
@@ -513,6 +530,45 @@ describe('GDD-WLD-12 playing 2-1', () => {
     expect(s.phase).toBe('playing');
     expect(s.player).toMatchObject({ y: 224, grounded: true });
     expect(s.player.x).toBeGreaterThan(1904);
+  });
+
+  it('GDD-WLD-10 2-1 Ten: a plain landing on the pit awning left edge while holding right settles on it and does not carry him into the pit', () => {
+    // A running jump from the pit's edge, jump let go long before the landing and right held throughout: he lands on the awning's left
+    // edge, the plain rebound's small hop carries him on across it, and he comes down on its 48 px and stands there. From then on he is
+    // standing on it as on any ledge, so it is right held after he has settled, not the hop, that would walk him off its far end.
+    let s = at(quiet, 1730, 224);
+    let k = -1;
+    let touch = -1;
+    let settled = -1;
+    const xs: number[] = [];
+    for (let i = 0; i < 120 && settled < 0; i++) {
+      if (k < 0 && s.player.x > 1762) k = i;
+      const before = s.awningBounce;
+      s = stepRun(s, { move: 1, jumpHeld: k >= 0 && i - k < 20 }, quiet);
+      if (s.awningBounce !== before) {
+        touch = i + 1;
+        xs.push(Math.round(s.player.x * 10) / 10);
+      }
+      if (touch >= 0 && s.player.grounded && s.player.y === PIT.y) {
+        settled = i + 1;
+        xs.push(Math.round(s.player.x * 10) / 10);
+      }
+    }
+    expect(s.awningBounce).toMatchObject({ awning: 6, tier: 0 });
+    expect(s.phase).toBe('playing');
+    expect(xs).toEqual([1825, 1857]); // the plain landing, 1 px onto its left end, then the hop's landing, his body 9 px clear of its far end
+    expect(s.player.x + 6).toBeLessThan(PIT.x + PIT.w);
+    expect(settled - touch).toBe(16); // the hop, in steps
+  });
+
+  it('GDD-WLD-10 2-1 Ten: every running jump that reaches the pit awning crosses the pit held, which a 9-tile pit would not allow', () => {
+    // Running from the pen and pressing jump, held, once past `take`: the jumps that reach the awning (from 1756) land on its first 20 px,
+    // and a tier 1 rebound from there must clear the open tiles past it. With the 2 open tiles of the level every one crosses; with the
+    // far floor a column further (a 9-tile pit, 3 open tiles a side) those pressed before 1768 come down in the pit.
+    const far = widerPit();
+    const takes = [1756, 1760, 1764, 1768, 1772, 1776];
+    expect(takes.map((t) => cross(quiet, t))).toEqual([true, true, true, true, true, true]);
+    expect(takes.map((t) => cross(far, t))).toEqual([false, false, false, true, true, true]);
   });
 
   it('GDD-ENM-03 2-1 Ten: sprinting at the pit Paloma is a hit; waiting for its hover, walking under it and jumping past it lands on the pit awning', () => {
@@ -580,9 +636,9 @@ describe('GDD-WLD-12 playing 2-1', () => {
 
   it('GDD-LIFE-03 2-1 Ten: three held rebounds in place on the pit awning reach the veladora at the top of the third and not before, and its column gives one hilo per beat', () => {
     const veladora = level.veladora!;
-    let r: RunState = { ...at(quiet, mid(114), PIT.y), lives: loseLife(startWorld()) };
+    let r: RunState = { ...at(quiet, mid(115), PIT.y), lives: loseLife(startWorld()) };
     r = stepRun(r, idle, quiet);
-    const column = ['114,7', '114,6', '114,5', '114,4'];
+    const column = ['115,7', '115,6', '115,5', '115,4'];
     const got: string[][] = [];
     const used: boolean[] = [];
     for (let i = 0; i < 200; i++) {
@@ -629,12 +685,12 @@ describe('GDD-WLD-12 playing 2-1', () => {
     }
   });
 
-  it('GDD-WLD-04 2-1 the playthrough collects 43 hilos and the two in-place climbs the other 7', () => {
+  it('GDD-WLD-04 2-1 the playthrough collects 44 hilos and the two in-place climbs the other 6', () => {
     const main = bot(level, 2000).run;
     const missed = level.hilos!.flatMap((h, i) => (main.hilosTaken[i] ? [] : [`${h.col},${h.row}`]));
-    expect(missed).toEqual(['32,6', '32,5', '32,4', '32,3', '114,6', '114,5', '114,4']);
+    expect(missed).toEqual(['32,6', '32,5', '32,4', '32,3', '115,5', '115,4']);
     const first = climb(quiet, mid(32), A1.y, 0, 160).r;
-    const pit = climb(quiet, mid(114), PIT.y, 0, 200).r;
+    const pit = climb(quiet, mid(115), PIT.y, 0, 200).r;
     expect(missed.filter((k) => !hiloKeys(first).includes(k) && !hiloKeys(pit).includes(k))).toEqual([]);
   });
 });
