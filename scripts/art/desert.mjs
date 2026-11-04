@@ -2,7 +2,11 @@
 // the far mountains, the ground tiles, the seven plants and the far desert strip, in 24 colours and no outline (GDD-ART-05). The look follows the user's desert scene
 // (assets/worlds/desierto/reference-scene.jpg) with a warmer golden sky. Everything is drawn on a grid of game pixels, 4 x 4 art
 // pixels each, so the shapes are as chunky as the game; only the sky's dither is finer (2 art pixels, GDD-ART-05).
+import { Cells, curve, interior, leaf, noise, S, shade, within, wrapDelta } from './cells.mjs';
 import { ellipse, Grid, or, stroke } from './raster.mjs';
+import { cutSlope, SLOPE_ORDER, slopeTopRow } from './slopes.mjs';
+
+export { SLOPE_ORDER, slopeTopRow };
 
 /** GDD-ART-06: the palette, grouped as the GDD lists it (sky from the top to the horizon). */
 export const PALETTE = {
@@ -27,51 +31,9 @@ const [RED, ORANGE, BLUEGREEN, DEEP] = PALETTE.plants;
 // Trunks and stems are the earth's two shades and the sand's darkest; spines and pale bits are the cloud's cream.
 const [TRUNK_MID, TRUNK_DARK, TRUNK_LIGHT, SPINE] = [EARTH_BASE, EARTH_DARK, SAND_DARK, CLOUD_TOP];
 
-/** Art pixels per game pixel (GDD-ART-01). */
-const S = 4;
 /** The screen in art pixels (1920 x 1080). */
 const WIDTH = 480 * S;
 const HEIGHT = 270 * S;
-
-/** A grid of game-pixel cells, `w` by `h`, that `scaled()` blows up to art pixels. */
-class Cells {
-  constructor(w, h) {
-    this.w = w;
-    this.h = h;
-    this.cells = new Array(w * h).fill(null);
-  }
-
-  get(x, y) {
-    return x >= 0 && y >= 0 && x < this.w && y < this.h ? this.cells[y * this.w + x] : null;
-  }
-
-  set(x, y, colour) {
-    if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.cells[y * this.w + x] = colour;
-  }
-
-  /** The cells `w` by `h` from (x0, y0) as new cells. */
-  crop(x0, y0, w, h) {
-    const c = new Cells(w, h);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) c.cells[y * w + x] = this.get(x0 + x, y0 + y);
-    return c;
-  }
-
-  /** The cells as a pixel Grid, each one S x S art pixels. */
-  scaled() {
-    const g = new Grid(this.w * S, this.h * S);
-    for (let y = 0; y < this.h * S; y++) {
-      for (let x = 0; x < this.w * S; x++) g.cells[y * g.width + x] = this.cells[Math.floor(y / S) * this.w + Math.floor(x / S)];
-    }
-    return g;
-  }
-}
-
-/** A repeatable pseudo-random number from two integers, so the art is the same on every run. */
-function noise(a, b) {
-  let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263)) | 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-}
 
 // ---------------------------------------------------------------------------------------------------- sky
 
@@ -219,9 +181,6 @@ export function drawClouds() {
 
 // ---------------------------------------------------------------------------------------------------- mountains
 
-/** The distance between two columns on the repeating 480 cell strip, with its sign: negative when `x` lies left of `at`. */
-const wrapDelta = (x, at) => ((x - at + 720) % 480) - 240;
-
 /**
  * The first (top) row of a range at column `x` (cells): the highest of its peaks' slopes (left and right slope per peak, rows per
  * column), with a little roughness; it repeats every 480.
@@ -326,38 +285,13 @@ function drawTile(top, version) {
   return c;
 }
 
-/** GDD-MOV-09's sand slopes in the order the ground sheet draws them, with their surface height at the tile's left and right edge in game px (cells). */
-export const SLOPE_ORDER = [['/', 0, 16], ['\\', 16, 0], ['r', 0, 8], ['R', 8, 16], ['F', 16, 8], ['f', 8, 0]];
-
-/** The row of a slope tile's top ground cell in cell column x: the cell its surface passes through at the column's middle. */
-export const slopeTopRow = (left, right, x) => Math.floor(16 - (left + ((right - left) * (x + 0.5)) / 16));
-
-/**
- * A slope tile and the tile under it (GDD-ART-06, GDD-MOV-09): the top tile over the earth tile of the same version, a 16 x 32 cell
- * strip, each column moved down to its `slopeTopRow`, then cut back into the two tiles. Cells moved above the surface are left empty.
- */
-function drawSlopePair(left, right, version) {
-  const top = drawTile(true, version);
-  const earth = drawTile(false, version);
-  const slope = new Cells(16, 16);
-  const foot = new Cells(16, 16);
-  for (let x = 0; x < 16; x++) {
-    const shift = slopeTopRow(left, right, x);
-    for (let r = 0; r + shift < 32; r++) {
-      const colour = r < 16 ? top.get(x, r) : earth.get(x, r - 16);
-      if (r + shift < 16) slope.set(x, r + shift, colour);
-      else foot.set(x, r + shift - 16, colour);
-    }
-  }
-  return { slope, foot };
-}
-
 /**
  * The ground sheet, 1792 x 64: frames 0 and 1 are the top tile's two versions, frames 2 and 3 the earth tile's, frames 4 to 15 the
  * slopes of SLOPE_ORDER, two versions each, frames 16 to 27 the tiles under them.
  */
 export function drawGround() {
-  const pairs = SLOPE_ORDER.flatMap(([, left, right]) => [0, 1].map((v) => drawSlopePair(left, right, v)));
+  // GDD-MOV-09: each slope is the top tile over the earth tile of the same version, cut along the slope (`cutSlope`).
+  const pairs = SLOPE_ORDER.flatMap(([, left, right]) => [0, 1].map((v) => cutSlope(drawTile(true, v), drawTile(false, v), left, right)));
   const frames = [drawTile(true, 0), drawTile(true, 1), drawTile(false, 0), drawTile(false, 1), ...pairs.map((p) => p.slope), ...pairs.map((p) => p.foot)];
   const g = new Grid(frames.length * 64, 64);
   frames.forEach((tile, n) => {
@@ -373,60 +307,6 @@ export function drawGround() {
 export const PLANT_SIZES = [[16, 16], [12, 20], [10, 10], [14, 36], [16, 40], [16, 12], [12, 8]];
 /** The frame every plant is drawn in, in game px: the tallest and widest, each plant bottom-aligned and centred in it. */
 export const PLANT_FRAME = { w: 16, h: 40 };
-
-/** A shape from tests on cell centres (`raster.mjs` shapes, in cell units) as a reader of cells `c` that says whether (x, y) is inside it. */
-const within = (c, test) => (x, y) => x >= 0 && y >= 0 && x < c.w && y < c.h && test(x + 0.5, y + 0.5);
-
-/**
- * Paints the cells of a shape `base`, with `light` along its upper left edge and `dark` along its lower right (GDD-ART-05: light from the
- * upper left); where both the lower and the right neighbour are outside, `deep` (the corner in shadow).
- */
-function shade(c, test, base, light, dark, deep = dark) {
-  const has = within(c, test);
-  for (let y = 0; y < c.h; y++) {
-    for (let x = 0; x < c.w; x++) {
-      if (!has(x, y)) continue;
-      const lowerRight = !has(x + 1, y) || !has(x, y + 1);
-      c.set(x, y, !has(x + 1, y) && !has(x, y + 1) ? deep : lowerRight ? dark : !has(x - 1, y) || !has(x, y - 1) ? light : base);
-    }
-  }
-}
-
-/**
- * A pointed leaf from a base of half-width `half` at (bx, by) to the tip (tx, ty), in two tones: `lit` on the side that faces the upper
- * left and `shadow` on the side that faces the lower right.
- */
-function leaf(c, bx, by, tx, ty, half, lit, shadow) {
-  const dx = tx - bx, dy = ty - by, len = Math.hypot(dx, dy);
-  let nx = -dy / len, ny = dx / len;
-  if (nx + ny < 0 || (nx + ny === 0 && nx < 0)) [nx, ny] = [-nx, -ny];
-  for (let y = 0; y < c.h; y++) {
-    for (let x = 0; x < c.w; x++) {
-      const px = x + 0.5 - bx, py = y + 0.5 - by;
-      const along = (px * dx + py * dy) / len;
-      const across = px * nx + py * ny;
-      if (along < -0.6 || along > len || Math.abs(across) > half * (1 - Math.max(0, along) / len) + 0.4) continue;
-      c.set(x, y, across > 0.2 ? shadow : lit);
-    }
-  }
-}
-
-/** The cells of a shape on cells `c` that have all four neighbours inside it too, for spines and spots that stay off the edge. */
-function interior(c, test, f) {
-  const has = within(c, test);
-  for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) if (has(x, y) && has(x - 1, y) && has(x + 1, y) && has(x, y - 1) && has(x, y + 1)) f(x, y);
-}
-
-/** The cells a quadratic curve from `p0` through the control point `p1` to `p2` passes, each a cell once, in order. */
-function curve(p0, p1, p2) {
-  const out = [];
-  for (let i = 0; i <= 80; i++) {
-    const t = i / 80, u = 1 - t;
-    const cell = [Math.floor(u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0]), Math.floor(u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1])];
-    if (!out.some(([x, y]) => x === cell[0] && y === cell[1])) out.push(cell);
-  }
-  return out;
-}
 
 /** The nopal (prickly pear), 16 x 16: round pads in a stack with pale spines and red fruit on their tops. */
 function drawNopal() {
