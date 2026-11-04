@@ -1482,7 +1482,7 @@ export class PlayScene extends Phaser.Scene {
       this.fruitImages.forEach((image) => image.setVisible(false));
       return;
     }
-    this.bossSprite.setPosition(b.x, b.y).setFrame(bossFrame(bossPose(b))).setFlipX(b.dir < 0);
+    this.bossSprite.setPosition(b.x, b.y).setFrame(bossFrame(bossPose(b, this.level.boss!.floor))).setFlipX(b.dir < 0);
     // L-010: what was drawn is read back from the sprite (its place, its mirroring, its frame), not from the pose.
     const frame = Number(this.bossSprite.frame.name);
     this.bossPainted = { x: this.bossSprite.x, y: this.bossSprite.y, dir: this.bossSprite.flipX ? -1 : 1, frame, ...bossFrameInfo(frame) };

@@ -174,6 +174,28 @@ test('GDD-BOS-02 his wings are tucked while he dives and while he sweeps', async
   await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.wings === 'tucked' && window.__PONCHO__!.bossDrawn()?.look === 'sweep');
 });
 
+test('GDD-BOS-02 near the floor at the end of a drop his wings stay raised, not lowered into the floor', async ({ page }) => {
+  await arena(page);
+  await api(page, () => {
+    window.__PONCHO__!.setBoss(1);
+    window.__PONCHO__!.teleport(40, 176);
+  });
+  expect(await stepToBossMode(page, 'drop')).toBeLessThan(1000);
+  // Step on to a step of the drop where his flap is down and his box's bottom is within BOSS_ART.wingsBelow (14) px of the floor (224).
+  const found = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    for (let i = 0; i < 200; i++) {
+      const b = d.boss()!;
+      if (b.mode !== 'drop') return false;
+      if (b.y + 15 > 224 - 14 && Math.floor(b.age / 8) % 2 === 1) return true;
+      d.step(1);
+    }
+    return false;
+  });
+  expect(found).toBe(true);
+  await page.waitForFunction(() => window.__PONCHO__!.bossDrawn()?.look === 'flapUp' && window.__PONCHO__!.bossDrawn()?.wings === 'raised');
+});
+
 test('GDD-BOS-02 his sprite is drawn facing right when he faces right, and left when he faces left', async ({ page }) => {
   await arena(page);
   // Both ways in one lap: he starts facing left; read the sprite's way on a step where the boss faces each way.

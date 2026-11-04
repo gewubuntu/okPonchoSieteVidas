@@ -72,7 +72,7 @@ function wingRaised(ox, oy) {
 /** The whole bird, facing right. wings 'raised' | 'lowered' | 'tucked'; crown 0 to 3 points; eye 'grump' | 'wide' | 'x'; feet 'tucked' | 'out' | 'none'. */
 function drawBird({ wings = 'raised', crown = 3, beakOpen = false, eye = 'grump', feet = 'tucked' } = {}) {
   const g = new Grid(FRAME.w, FRAME.h);
-  const pick = (w) => (wings === 'lowered' ? { coverts: flipY(w.coverts, 64), flight: flipY(w.flight, 64) } : w);
+  const pick = (w) => (wings === 'lowered' ? { coverts: flipY(w.coverts, 60), flight: flipY(w.flight, 60) } : w);
   if (wings !== 'tucked') {
     const far = pick(wingRaised(8, 2));
     shaded(g, far.flight, [BLUE, NAVY, NAVY]);
@@ -98,7 +98,7 @@ function drawBird({ wings = 'raised', crown = 3, beakOpen = false, eye = 'grump'
     const near = pick(wingRaised(0, 0));
     shaded(g, near.flight, [PURPLE, PURPLE, BLUE]);
     shaded(g, near.coverts, PLUME);
-    for (const l of [[[63, 34], [50, 36]], [[64, 44], [48, 46]], [[66, 54], [52, 57]]]) g.fill(wings === 'raised' ? stroke(l, 1) : flipY(stroke(l, 1), 64), BLUE, true);
+    for (const l of [[[63, 34], [50, 36]], [[64, 44], [48, 46]], [[66, 54], [52, 57]]]) g.fill(wings === 'raised' ? stroke(l, 1) : flipY(stroke(l, 1), 60), BLUE, true);
   } else {
     shaded(g, polygon([[88, 60], [66, 56], [40, 60], [18, 68], [44, 69], [72, 70]]), PLUME);
     shaded(g, polygon([[46, 62], [18, 68], [46, 68]]), [PURPLE, PURPLE, BLUE]);
@@ -226,8 +226,9 @@ export function bossFrames() {
   for (const look of DEFEAT_LOOKS) frames.push({ look, crown: 0 });
   return frames.map((f) => {
     const grid = new Grid(FRAME.w, FRAME.h);
-    // The stuck frame is placed by its floor line; the defeat looks 4 px up, so the bird lying on the floor stays above it.
-    paste(grid, drawLook(f.look, f.crown), f.look === 'stuck' ? 0 : 5, f.look.startsWith('defeat') ? -4 : 0);
+    // The stuck frame is placed by its floor line; the defeat looks 4 px up, so the bird lying on the floor stays above it, and the climb
+    // looks 1 px up, so only lowered wings reach below his box (BOSS_ART.wingsBelow).
+    paste(grid, drawLook(f.look, f.crown), f.look === 'stuck' ? 0 : 5, f.look.startsWith('defeat') ? -4 : f.look.startsWith('climb') ? -1 : 0);
     return { ...f, grid };
   });
 }

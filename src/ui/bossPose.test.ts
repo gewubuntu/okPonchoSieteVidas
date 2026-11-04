@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import { BOSS } from '../config/tuning';
 import { bossStart, type BossMode, type BossState } from '../sim/boss';
 import { bossFrame, bossFrameInfo, bossPipBoxes, bossPips, bossPose } from './bossPose';
 
 const DEF = { x: 240, y: 72, floor: 224 };
 const inMode = (mode: BossMode, age: number, hits = 0): BossState => ({ ...bossStart(DEF, hits), mode, age });
+const pose = (b: BossState) => bossPose(b, DEF.floor);
+/** He in `mode` at age 8 (the flap down), his box's bottom `bottom` px above the floor. */
+const at = (mode: BossMode, bottom: number): BossState => ({ ...inMode(mode, 8), y: DEF.floor - bottom - BOSS.height / 2 });
 
 describe('GDD-BOS-02 how Don Zopilote is drawn', () => {
   it('GDD-BOS-02 in his telegraph his wings are up and his body flashes red every other 4 steps', () => {
-    const poses = [0, 3, 4, 7, 8, 29].map((a) => bossPose(inMode('telegraph', a)));
+    const poses = [0, 3, 4, 7, 8, 29].map((a) => pose(inMode('telegraph', a)));
     expect(poses.map((p) => p.wings)).toEqual(Array(6).fill('raised'));
     expect(poses.map((p) => p.flash)).toEqual(['red', 'red', null, null, 'red', null]);
     expect(poses.map((p) => p.look)).toEqual(['telegraphRed', 'telegraphRed', 'telegraph', 'telegraph', 'telegraphRed', 'telegraph']);
@@ -17,7 +21,7 @@ describe('GDD-BOS-02 how Don Zopilote is drawn', () => {
   it('GDD-BOS-02 he flaps up for 8 steps and down for 8 while he laps, drops or climbs', () => {
     const looks = { lap: ['flapUp', 'flapDown'], drop: ['flapUp', 'flapDown'], climb: ['climbUp', 'climbDown'] } as const;
     for (const mode of ['lap', 'drop', 'climb'] as const) {
-      const poses = [0, 7, 8, 15, 16].map((a) => bossPose(inMode(mode, a)));
+      const poses = [0, 7, 8, 15, 16].map((a) => pose(inMode(mode, a)));
       const [up, down] = looks[mode];
       expect(poses.map((p) => p.wings), mode).toEqual(['raised', 'raised', 'lowered', 'lowered', 'raised']);
       expect(poses.map((p) => p.look), mode).toEqual([up, up, down, down, up]);
@@ -27,28 +31,39 @@ describe('GDD-BOS-02 how Don Zopilote is drawn', () => {
 
   it('GDD-BOS-02 diving and sweeping his wings are tucked and do not flap', () => {
     for (const [mode, look] of [['dive', 'dive'], ['sweep', 'sweep']] as const) {
-      for (const age of [0, 8]) expect(bossPose(inMode(mode, age)), `${mode} ${age}`).toMatchObject({ wings: 'tucked', look, flash: null, dazed: false });
+      for (const age of [0, 8]) expect(pose(inMode(mode, age)), `${mode} ${age}`).toMatchObject({ wings: 'tucked', look, flash: null, dazed: false });
     }
   });
 
   it('GDD-BOS-02 stuck his wings are down and only stuck is he dazed', () => {
-    for (const age of [0, 59]) expect(bossPose(inMode('stuck', age))).toMatchObject({ wings: 'lowered', dazed: true, look: 'stuck', flash: null });
-    for (const mode of ['lap', 'telegraph', 'dive', 'drop', 'sweep', 'climb', 'hurt', 'defeated'] as const) expect(bossPose(inMode(mode, 0)).dazed, mode).toBe(false);
+    for (const age of [0, 59]) expect(pose(inMode('stuck', age))).toMatchObject({ wings: 'lowered', dazed: true, look: 'stuck', flash: null });
+    for (const mode of ['lap', 'telegraph', 'dive', 'drop', 'sweep', 'climb', 'hurt', 'defeated'] as const) expect(pose(inMode(mode, 0)).dazed, mode).toBe(false);
   });
 
   it('GDD-BOS-02 hurt or defeated his body flashes white every other 4 steps', () => {
     for (const [mode, white, plain] of [['hurt', 'hurtWhite', 'hurt'], ['defeated', 'defeatWhite', 'defeat']] as const) {
-      const poses = [0, 3, 4, 8].map((a) => bossPose(inMode(mode, a)));
+      const poses = [0, 3, 4, 8].map((a) => pose(inMode(mode, a)));
       expect(poses.map((p) => p.flash), mode).toEqual(['white', 'white', null, 'white']);
       expect(poses.map((p) => p.wings), mode).toEqual(Array(4).fill('tucked'));
       expect(poses.map((p) => p.look), mode).toEqual([white, white, plain, white]);
     }
   });
 
+  it('GDD-BOS-02 flapping, his wings stay raised while lowered ones would reach into the floor', () => {
+    // His box's bottom 14 px above the floor leaves room for the lowered wings (BOSS_ART.wingsBelow); 13 px does not.
+    for (const mode of ['lap', 'drop', 'climb'] as const) {
+      expect(pose(at(mode, 14)).wings, `${mode} 14`).toBe('lowered');
+      expect(pose(at(mode, 13)).wings, `${mode} 13`).toBe('raised');
+      expect(pose(at(mode, 0)).wings, `${mode} 0`).toBe('raised');
+    }
+    expect(pose(at('climb', 13)).look).toBe('climbUp');
+    expect(pose(at('drop', 13)).look).toBe('flapUp');
+  });
+
   it('GDD-BOS-02 his crown has a point for each hit he has left, none when defeated', () => {
-    expect([0, 1, 2].map((hits) => bossPose(inMode('lap', 0, hits)).crown)).toEqual([3, 2, 1]);
-    expect(bossPose(inMode('hurt', 0, 1)).crown).toBe(2);
-    expect(bossPose(inMode('defeated', 0, 3)).crown).toBe(0);
+    expect([0, 1, 2].map((hits) => pose(inMode('lap', 0, hits)).crown)).toEqual([3, 2, 1]);
+    expect(pose(inMode('hurt', 0, 1)).crown).toBe(2);
+    expect(pose(inMode('defeated', 0, 3)).crown).toBe(0);
   });
 
   it('GDD-BOS-02 each look and crown has its frame in the sheet\'s order', () => {

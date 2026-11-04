@@ -35,14 +35,17 @@ function commonest(grid) {
   for (const c of grid.cells) if (c !== null && c !== OUTLINE) tally.set(c, (tally.get(c) ?? 0) + 1);
   return [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
-/** The painted cells of the box [x0, x0 + w) x [y0, y0 + h) of `grid` that are not the outline and have an empty 4-neighbour inside the box. */
-function bare(grid, x0, y0, w, h) {
+/**
+ * The painted cells of the box [x0, x0 + w) x [y0, y0 + h) of `grid` that are not the outline and have an empty 4-neighbour, a neighbour
+ * outside the box counting as empty: a drawing cut off by its frame's edge has lost its outline there. Only the first `rows` rows are checked.
+ */
+function bare(grid, x0, y0, w, h, rows = h) {
   const off = [];
-  for (let y = 0; y < h; y++) {
+  for (let y = 0; y < rows; y++) {
     for (let x = 0; x < w; x++) {
       const c = grid.get(x0 + x, y0 + y);
       if (c === null || c === OUTLINE) continue;
-      const open = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h && grid.get(x0 + x + dx, y0 + y + dy) === null);
+      const open = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => x + dx < 0 || x + dx >= w || y + dy < 0 || y + dy >= h || grid.get(x0 + x + dx, y0 + y + dy) === null);
       if (open) off.push(`${x},${y}`);
     }
   }
@@ -86,7 +89,7 @@ describe('GDD-BOS-02 Don Zopilote\'s art', { timeout: 60_000 }, () => {
 
   it('GDD-ART-05 every frame is outlined', () => {
     // The stuck frame's sand mound is scenery, with no outline (GDD-ART-05): it is checked above the mound's top (STUCK_FLOOR - 24).
-    for (const f of FRAMES) expect(bare(f.grid, 0, 0, FRAME.w, f.look === 'stuck' ? STUCK_FLOOR - 25 : FRAME.h), `${f.look} ${f.crown}`).toEqual([]);
+    for (const f of FRAMES) expect(bare(f.grid, 0, 0, FRAME.w, FRAME.h, f.look === 'stuck' ? STUCK_FLOOR - 25 : FRAME.h), `${f.look} ${f.crown}`).toEqual([]);
     const fruit = drawFruitSheet();
     for (const i of [0, 1]) expect(bare(fruit, i * 36, 0, 36, 36), `fruit ${i}`).toEqual([]);
     const rock = drawRock();
@@ -104,14 +107,20 @@ describe('GDD-BOS-02 Don Zopilote\'s art', { timeout: 60_000 }, () => {
     expect(count(frame('defeat', 0).grid, GOLD)).toBe(0);
   });
 
-  it('GDD-BOS-02 the frames he shows resting on the floor stay above it', () => {
-    // Stuck, sweeping, hurt (after a claw hit he is on the floor) and defeated (lying there), his box's bottom is on the floor's top: the
-    // frame's row FRAME.h / 2 + 30 (his box 60 drawing px tall), so nothing is painted from that row down.
+  it('GDD-BOS-02 only his lowered wings reach below his box, BOSS_ART.wingsBelow px', () => {
+    // His box's bottom is the frame's row FRAME.h / 2 + 30 (his box 60 drawing px tall), the floor line of the frames he shows resting on
+    // the floor (stuck, sweeping, hurt after a claw hit, lying defeated). Only the lowered wings (flapDown, climbDown) reach below it, and
+    // bossPose keeps them raised while that would put them in the floor; every other frame stays above it.
     const floorRow = FRAME.h / 2 + 30;
     expect(floorRow).toBe(STUCK_FLOOR);
-    for (const f of FRAMES.filter((fr) => ['stuck', 'sweep', 'hurt', 'hurtWhite', 'defeat', 'defeatWhite'].includes(fr.look))) {
-      expect(f.grid.cells.slice(floorRow * FRAME.w).filter((c) => c !== null).length, `${f.look} ${f.crown}`).toBe(0);
-    }
+    const below = (grid) => {
+      let lowest = -1;
+      grid.cells.forEach((c, i) => {
+        if (c !== null) lowest = Math.max(lowest, Math.floor(i / FRAME.w));
+      });
+      return Math.max(0, Math.ceil((lowest + 1 - floorRow) / 2)); // in game px, 2 drawing px each
+    };
+    for (const f of FRAMES) expect(below(f.grid), `${f.look} ${f.crown}`).toBe(['flapDown', 'climbDown'].includes(f.look) ? BOSS_ART.wingsBelow : 0);
   });
 
   it('GDD-BOS-02 the flashes', () => {

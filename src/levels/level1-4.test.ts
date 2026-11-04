@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { BOSS, BOSS_ART } from '../config/tuning';
 import { bossStart, type BossState } from '../sim/boss';
+import { bossPose } from '../ui/bossPose';
 import { spawn, type PlayerInput } from '../sim/movement';
 import { medal } from '../sim/results';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
@@ -147,7 +149,7 @@ describe('GDD-BOS-02 1-4 measured', () => {
  * the rock resting, it claws. It steps 30 px aside from a fruit falling right above it and jumps a fruit lying just ahead. It lets go of a
  * button for a step before pressing it again (L-048).
  */
-function bot(level: Level, maxSteps: number): { run: RunState; steps: number } {
+function bot(level: Level, maxSteps: number, each: (run: RunState) => void = () => {}): { run: RunState; steps: number } {
   let run = startRun(level);
   let steps = 0;
   let hold = 0;
@@ -194,6 +196,7 @@ function bot(level: Level, maxSteps: number): { run: RunState; steps: number } {
     clawBefore = input.claw === true;
     run = stepRun(run, input, level);
     steps++;
+    each(run);
   }
   return { run, steps };
 }
@@ -205,5 +208,22 @@ describe('GDD-BOS-02 playing 1-4', () => {
     expect(steps).toBeLessThan(1500);
     expect(run.lives.lives).toBe(7);
     expect(run.boss).toMatchObject({ hits: 3, mode: 'defeated' });
+  });
+
+  it('GDD-BOS-02 through the whole fight no frame of his reaches into the floor', () => {
+    // Only the lowered wings reach below his box, BOSS_ART.wingsBelow px (scripts/art/boss.test.mjs); bossPose keeps them raised near the floor.
+    const floor = LEVEL_1_4.boss!.floor;
+    const lowered: string[] = [];
+    let worst = Infinity;
+    bot(LEVEL_1_4, 1500, (run) => {
+      const b = run.boss!;
+      const look = bossPose(b, floor).look;
+      const below = look === 'flapDown' || look === 'climbDown' ? BOSS_ART.wingsBelow : 0;
+      worst = Math.min(worst, floor - (b.y + BOSS.height / 2 + below));
+      if (below > 0) lowered.push(b.mode);
+    });
+    expect(worst).toBeGreaterThanOrEqual(0);
+    // The fight shows the lowered wings in every flapping mode, so the check above is not empty.
+    expect(new Set(lowered)).toEqual(new Set(['lap', 'drop', 'climb']));
   });
 });

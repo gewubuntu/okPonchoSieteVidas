@@ -1,5 +1,5 @@
 // GDD-BOS-02, GDD-UI-01: how Don Zopilote is drawn in each mode, and the boss bar's pips. Pure, no Phaser: the scene draws what this says.
-import { BASE_WIDTH, BOSS, BOSS_BAR } from '../config/tuning';
+import { BASE_WIDTH, BOSS, BOSS_ART, BOSS_BAR } from '../config/tuning';
 import type { BossState } from '../sim/boss';
 
 /** The looks of one crown in his sheet, in order (the order of `scripts/art/boss.mjs`: a test compares them). */
@@ -24,9 +24,14 @@ export interface BossPose {
 /** The modes in which he flaps his wings, up for BOSS.flapSteps and down for as many. */
 const FLAPPING: readonly BossState['mode'][] = ['lap', 'climb', 'drop'];
 
-export function bossPose(b: BossState): BossPose {
+/**
+ * His pose; `floor` is the y of the arena's floor (his def's `floor`). Flapping, his wings stay raised while lowered ones would reach into the
+ * floor: his box's bottom less than BOSS_ART.wingsBelow px above it, as at the end of a drop or the start of a climb.
+ */
+export function bossPose(b: BossState, floor: number): BossPose {
   const blink = Math.floor(b.age / BOSS.flashSteps) % 2 === 0;
-  const flapUp = FLAPPING.includes(b.mode) && Math.floor(b.age / BOSS.flapSteps) % 2 === 0;
+  const room = floor - (b.y + BOSS.height / 2) >= BOSS_ART.wingsBelow;
+  const flapUp = FLAPPING.includes(b.mode) && (Math.floor(b.age / BOSS.flapSteps) % 2 === 0 || !room);
   const flash = b.mode === 'telegraph' && blink ? 'red' : (b.mode === 'hurt' || b.mode === 'defeated') && blink ? 'white' : null;
   const look = ((): BossLook => {
     switch (b.mode) {

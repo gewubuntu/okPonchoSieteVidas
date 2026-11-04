@@ -313,8 +313,9 @@ export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4 } as cons
 /**
  * GDD-BOS-02, GDD-ART-01: the size of Don Zopilote's art in game px: one frame of his sheet (`frameW` x `frameH`, `columns` across; his box's
  * middle is the frame's middle), one frame of the fruit sheet (`fruitFrame` square, over its 8 x 8 box) and the rock (`rock` square, over its 12 x 12).
+ * His lowered wings reach `wingsBelow` px below his box's bottom; no other frame reaches below it.
  */
-export const BOSS_ART = { frameW: 75, frameH: 62, columns: 7, fruitFrame: 9, rock: 13 } as const;
+export const BOSS_ART = { frameW: 75, frameH: 62, columns: 7, fruitFrame: 9, rock: 13, wingsBelow: 14 } as const;
 
 /**
  * GDD-CMB-01: landing on top of a stompable enemy bounces Poncho up at `bounce` px/s, or at `boostBounce` (the jump
