@@ -40,7 +40,7 @@ describe('GDD-BOS-02 how Don Zopilote is drawn', () => {
     for (const [mode, white, plain] of [['hurt', 'hurtWhite', 'hurt'], ['defeated', 'defeatWhite', 'defeat']] as const) {
       const poses = [0, 3, 4, 8].map((a) => bossPose(inMode(mode, a)));
       expect(poses.map((p) => p.flash), mode).toEqual(['white', 'white', null, 'white']);
-      expect(poses.map((p) => p.wings), mode).toEqual(Array(4).fill('lowered'));
+      expect(poses.map((p) => p.wings), mode).toEqual(Array(4).fill('tucked'));
       expect(poses.map((p) => p.look), mode).toEqual([white, white, plain, white]);
     }
   });
@@ -66,10 +66,10 @@ describe('GDD-BOS-02 how Don Zopilote is drawn', () => {
     expect(bossFrameInfo(2)).toEqual({ look: 'climbUp', crown: 3, wings: 'raised', flash: null, dots: 0 });
     expect(bossFrameInfo(3)).toEqual({ look: 'climbDown', crown: 3, wings: 'lowered', flash: null, dots: 0 });
     expect(bossFrameInfo(6)).toEqual({ look: 'dive', crown: 3, wings: 'tucked', flash: null, dots: 0 });
-    expect(bossFrameInfo(10)).toEqual({ look: 'hurtWhite', crown: 3, wings: 'lowered', flash: 'white', dots: 0 });
+    expect(bossFrameInfo(10)).toEqual({ look: 'hurtWhite', crown: 3, wings: 'tucked', flash: 'white', dots: 0 });
     expect(bossFrameInfo(18)).toEqual({ look: 'stuck', crown: 2, wings: 'lowered', flash: null, dots: 3 });
     expect(bossFrameInfo(30)).toEqual({ look: 'sweep', crown: 1, wings: 'tucked', flash: null, dots: 0 });
-    expect(bossFrameInfo(34)).toEqual({ look: 'defeatWhite', crown: 0, wings: 'lowered', flash: 'white', dots: 0 });
+    expect(bossFrameInfo(34)).toEqual({ look: 'defeatWhite', crown: 0, wings: 'tucked', flash: 'white', dots: 0 });
   });
 });
 

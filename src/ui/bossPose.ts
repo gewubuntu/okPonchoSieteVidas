@@ -9,7 +9,7 @@ export const BOSS_DEFEAT_LOOKS = ['defeat', 'defeatWhite'] as const;
 export type BossLook = (typeof BOSS_LOOKS)[number] | (typeof BOSS_DEFEAT_LOOKS)[number];
 
 export interface BossPose {
-  /** Raised for the telegraph and on the upbeat of a flap, tucked while he dives and sweeps, lowered otherwise. */
+  /** Raised for the telegraph and on the upbeat of a flap, tucked while he dives, sweeps, is hurt or defeated, lowered otherwise. */
   readonly wings: 'raised' | 'lowered' | 'tucked';
   /** The body's flash: red in the telegraph (GDD-ENM-01), white when hurt or defeated, on for BOSS.flashSteps and off for as many. */
   readonly flash: 'red' | 'white' | null;
@@ -49,7 +49,7 @@ export function bossPose(b: BossState): BossPose {
     }
   })();
   return {
-    wings: b.mode === 'dive' || b.mode === 'sweep' ? 'tucked' : b.mode === 'telegraph' || flapUp ? 'raised' : 'lowered',
+    wings: b.mode === 'dive' || b.mode === 'sweep' || b.mode === 'hurt' || b.mode === 'defeated' ? 'tucked' : b.mode === 'telegraph' || flapUp ? 'raised' : 'lowered',
     flash,
     dazed: b.mode === 'stuck',
     crown: bossPips(b),
@@ -69,7 +69,7 @@ export function bossFrameInfo(frame: number): { look: BossLook; crown: number; w
   const defeated = frame >= BOSS.hits * BOSS_LOOKS.length;
   const look: BossLook = defeated ? BOSS_DEFEAT_LOOKS[frame - BOSS.hits * BOSS_LOOKS.length]! : BOSS_LOOKS[frame % BOSS_LOOKS.length]!;
   const crown = defeated ? 0 : BOSS.hits - Math.floor(frame / BOSS_LOOKS.length);
-  const wings = look.startsWith('flap') || look.startsWith('climb') ? (look.endsWith('Up') ? 'raised' : 'lowered') : look.startsWith('telegraph') ? 'raised' : look === 'dive' || look === 'sweep' ? 'tucked' : 'lowered';
+  const wings = look.startsWith('flap') || look.startsWith('climb') ? (look.endsWith('Up') ? 'raised' : 'lowered') : look.startsWith('telegraph') ? 'raised' : look === 'dive' || look === 'sweep' || look.startsWith('hurt') || look.startsWith('defeat') ? 'tucked' : 'lowered';
   const flash = look === 'telegraphRed' ? 'red' : look === 'hurtWhite' || look === 'defeatWhite' ? 'white' : null;
   return { look, crown, wings, flash, dots: look === 'stuck' ? 3 : 0 };
 }

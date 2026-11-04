@@ -211,9 +211,9 @@ function drawLook(look, crown) {
     case 'dive': return rotated(drawBird({ wings: 'tucked', feet: 'none', eye: 'wide', crown }), 0.75);
     case 'stuck': return drawStuck(crown);
     case 'sweep': return drawBird({ wings: 'tucked', feet: 'out', beakOpen: true, crown });
-    case 'hurt': return drawBird({ wings: 'lowered', eye: 'x', crown });
+    case 'hurt': return drawBird({ wings: 'tucked', eye: 'x', crown }); // tucked: he is hurt on the floor too, where lowered wings would hang below it
     case 'hurtWhite': return flashed(drawLook('hurt', crown), SUN_DISC, CLOUD_UNDER);
-    case 'defeat': return rotated(drawBird({ wings: 'raised', eye: 'x', crown: 0, feet: 'out' }), Math.PI * 0.9);
+    case 'defeat': return rotated(drawBird({ wings: 'tucked', eye: 'x', crown: 0, feet: 'out' }), Math.PI * 0.9); // he lies on the floor
     case 'defeatWhite': return flashed(drawLook('defeat', 0), SUN_DISC, CLOUD_UNDER);
     default: throw new Error(`no look ${look}`);
   }
@@ -226,7 +226,8 @@ export function bossFrames() {
   for (const look of DEFEAT_LOOKS) frames.push({ look, crown: 0 });
   return frames.map((f) => {
     const grid = new Grid(FRAME.w, FRAME.h);
-    paste(grid, drawLook(f.look, f.crown), f.look === 'stuck' ? 0 : 5, 0); // the stuck frame is placed by its floor line
+    // The stuck frame is placed by its floor line; the defeat looks 4 px up, so the bird lying on the floor stays above it.
+    paste(grid, drawLook(f.look, f.crown), f.look === 'stuck' ? 0 : 5, f.look.startsWith('defeat') ? -4 : 0);
     return { ...f, grid };
   });
 }

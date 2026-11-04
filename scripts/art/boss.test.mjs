@@ -94,11 +94,24 @@ describe('GDD-BOS-02 Don Zopilote\'s art', { timeout: 60_000 }, () => {
   });
 
   it('GDD-BOS-02 his crown loses a point for each hit', () => {
-    const gold = [3, 2, 1].map((crown) => count(frame('flapUp', crown).grid, GOLD));
-    expect(gold[0]).toBeGreaterThan(gold[1]);
-    expect(gold[1]).toBeGreaterThan(gold[2]);
-    expect(gold[2]).toBeGreaterThan(0);
+    // Every look that shows his colours (the flashes paint the crown too): more gold at each crown than at the one below it (L-010).
+    for (const look of LOOKS.filter((l) => !['telegraphRed', 'hurtWhite'].includes(l))) {
+      const gold = [3, 2, 1].map((crown) => count(frame(look, crown).grid, GOLD));
+      expect(gold[0], look).toBeGreaterThan(gold[1]);
+      expect(gold[1], look).toBeGreaterThan(gold[2]);
+      expect(gold[2], look).toBeGreaterThan(0);
+    }
     expect(count(frame('defeat', 0).grid, GOLD)).toBe(0);
+  });
+
+  it('GDD-BOS-02 the frames he shows resting on the floor stay above it', () => {
+    // Stuck, sweeping, hurt (after a claw hit he is on the floor) and defeated (lying there), his box's bottom is on the floor's top: the
+    // frame's row FRAME.h / 2 + 30 (his box 60 drawing px tall), so nothing is painted from that row down.
+    const floorRow = FRAME.h / 2 + 30;
+    expect(floorRow).toBe(STUCK_FLOOR);
+    for (const f of FRAMES.filter((fr) => ['stuck', 'sweep', 'hurt', 'hurtWhite', 'defeat', 'defeatWhite'].includes(fr.look))) {
+      expect(f.grid.cells.slice(floorRow * FRAME.w).filter((c) => c !== null).length, `${f.look} ${f.crown}`).toBe(0);
+    }
   });
 
   it('GDD-BOS-02 the flashes', () => {

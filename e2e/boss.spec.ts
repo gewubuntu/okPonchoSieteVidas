@@ -116,9 +116,9 @@ test('GDD-BOS-02 his body flashes red in his telegraph and white when a claw swi
     return d.boss()!.mode === 'hurt' && d.bossDrawn()?.flash === 'white' && d.bossBar().pips === 2 && d.bossBar().outlines === 1;
   });
   // One hit taken: two points left on his crown (GDD-BOS-02).
-  expect(await api(page, () => window.__PONCHO__!.bossDrawn())).toMatchObject({ crown: 2, look: 'hurtWhite', wings: 'lowered' });
-  const [white, first, last] = await pixelsAt(page, [{ x: 232, y: 212 }, { x: 230, y: 21 }, { x: 250, y: 21 }]);
-  // The flash's white is World 1's pale cream, fff6d0.
+  expect(await api(page, () => window.__PONCHO__!.bossDrawn())).toMatchObject({ crown: 2, look: 'hurtWhite', wings: 'tucked' });
+  const [white, first, last] = await pixelsAt(page, [{ x: 232, y: 208 }, { x: 230, y: 21 }, { x: 250, y: 21 }]);
+  // The flash's white is World 1's pale cream, fff6d0, sampled 1 px above his middle (232, 209), clear of his tucked wing's shaded fold.
   expect(Math.min(white!.r, white!.g), JSON.stringify(white)).toBeGreaterThan(230);
   expect(white!.b, JSON.stringify(white)).toBeGreaterThan(190);
   expect(first!.g, JSON.stringify(first)).toBeLessThan(110); // still filled
