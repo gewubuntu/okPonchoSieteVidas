@@ -2,7 +2,9 @@
 // the Fuego spit and the victory cheer, built with the pose rig from the user's drawing. Facing right; the game mirrors them.
 // `hand` is where a held item's middle goes (frame drawing px); `holds` says how the game draws a held taco or chile on the frame:
 // 'paw' (no paw here: the game draws a paw holding it at `hand`), 'food' (his own paw is drawn: the food alone goes at `hand`, in
-// the paw's grip) or 'none'.
+// the paw's grip) or 'none'. The eat and spit frames also give `mouth` (where the crumbs and the flame burst go). The victory frames
+// are the front view: they give `over` (his paws alone, drawn over the food) and `mirror: false` (not flipped for the left).
+import { Grid } from '../raster.mjs';
 import { COLOURS } from '../poncho-pixels.mjs';
 import { check, pose, POSE_FRAME } from './rig.mjs';
 
@@ -175,6 +177,265 @@ function drawArm(grid, { path, paw, dir, claws = false, under = 60 }) {
   return grid;
 }
 
+// ---- The front view, for the victory cheer (GDD-ART-02: the front sprite reference, sprite-back-front.jpg's right-hand figure, guides
+// a pose the main drawing does not show). Drawn as pixel maps at the side drawing's scale (71 drawing px from the crown's top to the
+// feet), in his colours, the light from the upper left; each part is outlined over the parts behind it. Local px: the figure's
+// middle is between columns 29 and 30, his feet on row 71. The front view is not mirrored for a run to the left.
+const FRONT = {
+  crown: { x: 22, y: 0, rows: [
+    '.....rrrrr.....',
+    '...rrrrrrrrc...',
+    '..rrrrrrrrrcc..',
+    '..rrrrrrrrrcc..',
+    '.rrrrrrrrrrccc.',
+    '.rrrrrrrrrrccc.',
+    '.bbbbbbbbbbddd.',
+    'bbbbbbbbbbbdddd',
+    'rrrrrrrrrrrcccc',
+    'rrrrrrrrrrrcccc',
+    '.rrrrrrrrrrccc.',
+    '.rrrrrrrrrrccc.',
+    '.rrrrrrrrrrccc.',
+  ] },
+  ears: { x: 8, y: 2, rows: [
+    '.....ff.............................FF.....',
+    '.....ff.............................fF.....',
+    '.....fff...........................ffF.....',
+    '....ffkf...........................fkfF....',
+    '....fkkff.........................ffkkF....',
+    '...ffkkkff.......................ffkkkFF...',
+    '...ffkkkkf.......................fkkkkfF...',
+    '...fkkkkkff.....................ffkkkkkF...',
+    '..ffkkkkkkf.....................fkkkkkkfF..',
+    '..fkkkkkkkff...................ffkkkkkkkF..',
+    '.ffkkkkkkkkff.................ffkkkkkkkkfF.',
+    '.fkkkkkkkkkkf.................fkkkkkkkkkkF.',
+    'ffkkkkkkkkkkff...............ffkkkkkkkkkkFF',
+  ] },
+  brim: { x: 2, y: 11, rows: [
+    '....................sssssssssssssss....................',
+    '..............ssssssbbbbbbbbbbbbbbbssssss..............',
+    '..........ssssbbbbbbbbbbbbbbbbbbbbbbbbbbbssss..........',
+    '........ssbbbbbbbbbbbbrbbbrbbbrbbbbbbbbbbbbbbss........',
+    '......ssbbbbbbbbbbrrbrrrbrrrbrrrbrrrbbrbbbbbbbbss......',
+    '....ssbbbbbbbbrrbrrrrrrrrrrrrrrrrrrrrrrrbbrbbbbbdss....',
+    '...sbbbbbbrrbrrrrrrrrrrrrrrcrrrrrrrrrrrrrrrrbbbbddds...',
+    '..sbbbbbbrrrrrrrrrcccccccccccccccccccrrrrrrrbrrbdddds..',
+    '.sbbbbrrrrrrrrcccc...................ccccrrrrrrrddddds.',
+    'sbbbbrrrrrrccc...........................cccrrrrrrrddds',
+    'bbbbbrrrrcc.................................ccrrrrrdddd',
+    'bbrrrrrcc.....................................ccrrrrddr',
+    'brrrrrc.........................................crrrdrr',
+    'rrrrrc...........................................crrrrr',
+    'crrrc.............................................crrrc',
+    '.crc...............................................crc.',
+    '..c.................................................c..',
+  ] },
+  head: { x: 9, y: 19, rows: [
+    '..............fffffwwwfffff..............',
+    '..........fffffffffwwwfffffffff..........',
+    '.......ffffffffffffwwwffffffffffff.......',
+    '......fffffffffffffwwwfffffffffffff......',
+    '....ffffffffffffffwwwwwfffffffffffffs....',
+    '...fffffffffffffffwwwwwfffffffffffffss...',
+    '..sfffffffffffffffwwwwwfffffffffffffssF..',
+    '.ssfffffffffffffffwwwwwfffffffffffffssFF.',
+    '.ssffffffffffffffwwwwwwwffffffffffffssFF.',
+    'sssffffffffffffffwwwwwwwffffffffffffssFFF',
+    'sssffffffffffffffwwwwwwwffffffffffffssFFF',
+    'sssffffffffffffffwwwwwwwffffffffffffssFFF',
+    'sssffffffffffffwwwwwwwwwwwffffffffffssFFF',
+    '.ssffffffffwwwwwwwwwwwwwwwwwwwffffffssFF.',
+    '.ssfffffwwwwwwwwwwwwwwwwwwwwwwwwwfffssFF.',
+    '..sffffwwwwwwwwwwwwwwwwwwwwwwwwwwwffssF..',
+    '...fffwwwwwwwwwwwwwwwwwwwwwwwwwwwwwfss...',
+    '....fwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwws....',
+    '......wwwwwwwwwwwwwwwwwwwwwwwwwwwww......',
+    '.......wwwwwwwwwwwwwwwwwwwwwwwwwww.......',
+    '..........wwwwwwwwwwwwwwwwwwwww..........',
+    '..............ppppppppppppp..............',
+  ] },
+  poncho: { x: 11, y: 39, rows: [
+    '.........bbbbnnnnnnnnnnnbbbd.........',
+    '........ccbbbnnnnnnnnnnnbbbcc........',
+    '.......rrWccbbbbbbbbbbbbbccWrr.......',
+    '......rrrrWWccbbbbbbbbbccWWrrrr......',
+    '.....bccrrWrrWccbbbbbccWrrWrrccd.....',
+    '....bbbbccrrrrWWccbccWWrrrrccbbdd....',
+    '...WbbbbbbccrrWrrWcWrrWrrccbbbbddW...',
+    '..bbbbbbbbbbccrrrrWrrrrccbbbbbbdddd..',
+    '.bbbbbbbbbWbbbccrrWrrccbbbWbbbbddddd.',
+    'bbbbbbbbbWWbbbbbccrccbbbbbWWbbbdddddd',
+    'bbWbbbbbbbbWbbbbbbcbbbbbbWbbbbbdddWdd',
+    'bWWbbbbbbbbbbbbbbbbbbbbbbbbbbbbdddWWd',
+    'cccccbbbbbbbbbbbbbWbbbbbbbbbbbbdccccc',
+    'WWrWWccccbbbbbbbbWWWbbbbbbbbccccWWrWW',
+    'WrrrWWrWWcccccbbbbbbbbbcccccWWrWWrrrW',
+    'ccccWrrrWWrWWWccccbccccWWWrWWrrrWcccc',
+    'ccccccccWrrrWWrWWWcWWWrWWrrrWcccccccc',
+    '.c.r.ccccccccrrrWWrWWrrrcccccccc.r.d.',
+    '.c.r.d.c.ccccccccrrrcccccccc.d.c.r.d.',
+    '...r.d.c.r.d.ccccccccccd.c.r.d.c.r...',
+    '.......c.r.d.c.r.dcc.r.d.c.r.d.......',
+    '...........d.c.r.d.c.r.d.c...........',
+    '.................d.c.................',
+  ] },
+  legs: { x: 20, y: 58, rows: [
+    'ffffffsFF.ffffffsFF',
+    'ffffffsFF.ffffffsFF',
+    'ffffffsFF.ffffffsFF',
+    'ffffffsFF.ffffffsFF',
+    'ffffffsFF.ffffffsFF',
+    'ffffffsFF.ffffffsFF',
+    'ffffffsFF.ffffffsFF',
+    'ffffffsFF.ffffffsFF',
+    'ffffffsFF.ffffffsFF',
+    'ffffffsFF.ffffffsFF',
+    'wwwwwwwpp.wwwwwwwpp',
+    'wwwwwwwww.wwwwwwwww',
+    'pwwwcwwwp.pwwwcwwwp',
+    'pwwwcwwwp.pwwwcwwwp',
+  ] },
+  tailR: { x: 40, y: 40, rows: [
+    '..............wwwp.',
+    '..............wwwp.',
+    '.............wwwwpp',
+    '..............wwwp.',
+    '..............wwwp.',
+    '..............wwww.',
+    '..............wwww.',
+    '..............ffff.',
+    '..............ffff.',
+    '.............ffff..',
+    '............fffff..',
+    '............ffff...',
+    '.fff.....ffffff....',
+    'FFFFFFFFFFFFFFF....',
+    'FFFFFFFFFFFFFF.....',
+    '.FFFFFFFFFFF.......',
+    '......FFF..........',
+  ] },
+  tailL: { x: 0, y: 40, rows: [
+    '.wwwp..............',
+    '.wwwp..............',
+    'wwwwpp.............',
+    '.wwwp..............',
+    '.wwwp..............',
+    '.wwww..............',
+    '.wwww..............',
+    '.ffff..............',
+    '.ffff..............',
+    '..ffff.............',
+    '..fffff............',
+    '...ffff............',
+    '....ffffff.....fff.',
+    '....FFFFFFFFFFFFFFF',
+    '.....FFFFFFFFFFFFFF',
+    '.......FFFFFFFFFFF.',
+    '..........FFF......',
+  ] },
+};
+/** Face and badge stamps on the front view (local px). */
+const FRONT_EYE = ['.nnn.', 'n...n'];
+const FRONT_MOUTHS = {
+  cheer: ['.nnnn.', 'nwwwwn', 'nccccn', '.nnnn.'],
+  grin: ['nnnnnnnn', '.nwwwwn.', '..nccn..', '...nn...'],
+};
+const FRONT_BADGE = ['#####', '#wff#', '#fFf#', '#####'];
+const FRONT_X = 18, FRONT_Y = 24; // local to frame px: his middle on the frame's middle, his feet on its bottom row
+const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const pxKey = (x, y) => `${x},${y}`;
+const pxAt = (k) => k.split(',').map(Number);
+
+/** A part's pixels {"x,y": colour} in local px, only the columns `keep` accepts, moved `dx` across. */
+function frontPart({ x: px = 0, y: py, rows }, keep = () => true, dx = 0) {
+  const m = new Map();
+  rows.forEach((r, j) => [...r].forEach((ch, i) => {
+    if (ch !== '.' && keep(px + i)) m.set(pxKey(px + i + dx, py + j), ch === '#' ? OUTLINE : COLOURS[ch]);
+  }));
+  return m;
+}
+function stampPx(m, rows, x0, y0) {
+  rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== '.') m.set(pxKey(x0 + i, y0 + j), ch === '#' ? OUTLINE : COLOURS[ch]); }));
+}
+/** A raised arm along `path` (local px), 5 px thick tapering to 3, lit on its upper left edge, shaded under. */
+function frontArm(path) {
+  const m = new Map();
+  const segs = path.slice(1).map((b, i) => ({ a: path[i], b }));
+  let total = 0;
+  for (const s of segs) { s.from = total; s.len = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]); total += s.len; }
+  const xs = path.map((p) => p[0]), ys = path.map((p) => p[1]);
+  for (let y = Math.floor(Math.min(...ys)) - 3; y <= Math.max(...ys) + 3; y++) for (let x = Math.floor(Math.min(...xs)) - 3; x <= Math.max(...xs) + 3; x++) {
+    const px = x + 0.5, py = y + 0.5;
+    let best = null;
+    for (const s of segs) {
+      const dx = s.b[0] - s.a[0], dy = s.b[1] - s.a[1];
+      const k = Math.max(0, Math.min(1, ((px - s.a[0]) * dx + (py - s.a[1]) * dy) / (s.len * s.len)));
+      const d = Math.hypot(px - s.a[0] - k * dx, py - s.a[1] - k * dy);
+      if (!best || d < best.d) best = { d, t: (s.from + k * s.len) / total, ox: px - s.a[0] - k * dx, oy: py - s.a[1] - k * dy };
+    }
+    const r = 2.4 - 0.9 * best.t;
+    if (best.d > r) continue;
+    const lit = -(best.ox + best.oy) * Math.SQRT1_2;
+    m.set(pxKey(x, y), lit < -(r - 1.2) ? COLOURS.F : lit > r - 1 && r > 2 ? COLOURS.w : COLOURS.f);
+  }
+  return m;
+}
+
+/**
+ * The front view posed: `lift` px up (a jump), `squash` local rows taken out of everything above the legs, the legs 'stand',
+ * 'tuck' (3 rows shorter) or 'apart' (2 px out each, bent 2 rows shorter), the tail 'tailR' or 'tailL', a mouth from FRONT_MOUTHS, both paws up at
+ * local row `pawY` either side of the held food. Returns the frame, its paws alone (`over`, to draw over the food) and `hand`.
+ */
+function frontPose({ lift = 0, squash = [], legs = 'stand', tail = 'tailR', mouth = 'cheer', pawY = -12 }) {
+  const drop = { tuck: 3, apart: 2 }[legs] ?? 0, spread = legs === 'apart' ? 2 : 0;
+  const body = (y) => (squash.includes(y) ? null : y + squash.filter((r) => r > y).length + drop);
+  const legRows = { ...FRONT.legs, y: FRONT.legs.y + drop, rows: FRONT.legs.rows.slice(drop) };
+  const head = frontPart(FRONT.head);
+  stampPx(head, FRONT_EYE, 19, 27); stampPx(head, FRONT_EYE, 35, 27);
+  stampPx(head, ['kkk', 'kkk'], 15, 31); stampPx(head, ['kkk', 'kkk'], 42, 31);
+  stampPx(head, ['nn'], 29, 31);
+  const mo = FRONT_MOUTHS[mouth];
+  stampPx(head, mo, 30 - mo[0].length / 2, 32);
+  const poncho = frontPart(FRONT.poncho);
+  stampPx(poncho, FRONT_BADGE, 34, 42);
+  const arm = [[20, 20], [18.5, 5], [21, pawY + 3]];
+  const paws = new Map();
+  stampPx(paws, PAWS.fwd.rows, 18, pawY - 2);
+  stampPx(paws, PAWS.fwd.rows.map((r) => [...r].reverse().join('')), 35, pawY - 2);
+  // Back to front: [pixels, is it the legs].
+  const layers = [
+    [frontPart(FRONT[tail]), false],
+    [frontPart(legRows, (x) => x < 30, -spread), true],
+    [frontPart(legRows, (x) => x >= 30, spread), true],
+    [frontPart(FRONT.ears), false],
+    [frontArm(arm), false],
+    [frontArm(arm.map(([x, y]) => [59 - x, y])), false],
+    [poncho, false],
+    [head, false],
+    [frontPart(FRONT.crown), false],
+    [frontPart(FRONT.brim), false],
+    [paws, false],
+  ];
+  const grid = new Grid(POSE_FRAME.w, POSE_FRAME.h), over = new Grid(POSE_FRAME.w, POSE_FRAME.h);
+  const ox = FRONT_X, oy = FRONT_Y - lift;
+  for (const [m0, isLegs] of layers) {
+    // The body sits on the legs and squashes by whole rows before it is outlined.
+    const m = new Map();
+    for (const [k, c] of m0) { const [x, y] = pxAt(k); const ny = isLegs ? y : body(y); if (ny !== null) m.set(pxKey(x, ny), c); }
+    const ring = new Map(m);
+    for (const k of m.keys()) { const [x, y] = pxAt(k); for (const [dx, dy] of N4) if (!m.has(pxKey(x + dx, y + dy))) ring.set(pxKey(x + dx, y + dy), OUTLINE); }
+    for (const [k, c] of ring) {
+      const [x, y] = pxAt(k);
+      grid.set(x + ox, y + oy, c);
+      if (m0 === paws) over.set(x + ox, y + oy, c);
+    }
+  }
+  // The food's grip point: its middle (held.HAND in items.mjs) centred between the paws, the taco across them.
+  grid.hand = { x: 29 + ox, y: body(pawY + 3) + oy };
+  return { grid, over };
+}
+
 const SPECS = {
   // GDD-CMB-02, the wind-up (2 steps): coiled and leaning back, the paw drawn back high behind his near shoulder, claws out.
   clawWind: {
@@ -297,37 +558,23 @@ const SPECS = {
     mouthAt: { dx: 3, dy: 2 },
     holds: 'paw',
   },
-  // The victory cheer: a big leap with the legs tucked, the taco thrust straight up high over his head on a long arm past the
-  // front of the brim, happy shut eyes, tail up; then the landing, a squash, the taco still held high.
-  victory0: {
-    spec: {
-      y: -8,
-      body: { squash: -3 },
-      hat: { dx: -2, dy: 1, tilt: -16 },
-      face: 'happy',
-      legs: 'tuck',
-      tail: 'up',
-    },
-    arm: () => ({ path: [[70, 62], [81, 54], [85, 14]], paw: [85, 10], dir: 'up' }),
-    holds: 'food',
-  },
-  victory1: {
-    spec: {
-      body: { squash: 3, widen: 2 },
-      hat: { dx: -3, dy: 1, tilt: -16 },
-      face: 'happy',
-      legs: 'splay',
-      tail: 'up',
-    },
-    arm: () => ({ path: [[71, 74], [82, 66], [85, 26]], paw: [85, 22], dir: 'up' }),
-    holds: 'food',
-  },
+  // The victory cheer, in the front view (FRONT): a jump with the legs tucked, both arms up holding the taco high over the crown,
+  // happy shut eyes, mouth open in a cheer; then the landing, a squash with the feet apart, a big smile, the tail swished over.
+  victory0: { front: { lift: 7, legs: 'tuck', tail: 'tailR', mouth: 'cheer', pawY: -12 }, holds: 'food' },
+  victory1: { front: { squash: [47, 36, 16], legs: 'apart', tail: 'tailL', mouth: 'grin', pawY: -9 }, holds: 'food' },
 };
 
 export const LOOKS = Object.keys(SPECS);
 
 export function drawFrames() {
-  return Object.entries(SPECS).map(([look, { spec, eyes, mouthPatch, mouthAt, arm, after, holds }]) => {
+  return Object.entries(SPECS).map(([look, { spec, front, eyes, mouthPatch, mouthAt, arm, after, holds }]) => {
+    if (front) {
+      // The front view: the game draws it as it is for both directions (no mirroring), the food at `hand` and `over` on top.
+      const { grid, over } = frontPose(front);
+      const problems = [...check(grid), ...check(over).filter((p) => !p.startsWith('open'))];
+      if (problems.length) throw new Error(`${look}: ${problems.slice(0, 3).join('; ')}`);
+      return { look, grid, hand: grid.hand, holds, over, mirror: false };
+    }
     const grid = pose(spec);
     if (eyes) withEyes(grid, eyes);
     if (mouthPatch) withMouth(grid, mouthPatch);
