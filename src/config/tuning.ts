@@ -310,8 +310,9 @@ export const ZOPILOTE = {
  * within `peek` px of its box's middle (across and up or down), is alarmed within `alarm` px, and shivers every `shiverSteps`. A defeated
  * enemy shows its squash or hit frame for `defeatSteps`, the hit frame rising `hitRise` px, then the poof's four frames for `poofSteps` each.
  * `reach` is how far each kind's drawing reaches past its box at most, over all its frames, behind it, in front, above and below (L-059):
- * a tail, a claw, a wing, a flower or a spine; a walker never reaches below its feet. A tail or claw beside the box may lie over a wall's face
- * (user, 2026-11-05: "Allow it, pin it"; checked over the real levels by `scripts/art/enemies1.levels.test.mjs`).
+ * a tail, a claw, a wing, a flower or a spine; a walker never reaches below its feet. A tail, claw or wing beside the box may lie over a wall's
+ * face or a slope's sand (user, 2026-11-05: "Allow it, pin it", "Allow beside the body"; checked over the real levels by
+ * `scripts/art/enemies1.levels.test.mjs`).
  */
 export const ENEMY_ART = {
   frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, poof: { w: 24, h: 24 } },
