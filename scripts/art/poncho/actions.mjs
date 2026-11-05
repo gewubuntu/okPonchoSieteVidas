@@ -3,7 +3,8 @@
 // `hand` is where a held item's middle goes (frame drawing px); `holds` says how the game draws a held taco or chile on the frame:
 // 'paw' (no paw here: the game draws a paw holding it at `hand`), 'food' (his own paw is drawn: the food alone goes at `hand`, in
 // the paw's grip) or 'none'. The eat and spit frames also give `mouth` (where the crumbs and the flame burst go). The victory frames
-// are the front view: they give `over` (his paws alone, drawn over the food) and `mirror: false` (not flipped for the left).
+// are the front view: they give `over` (his paws alone, drawn over the food), `sparkle` (the celebration's stars, drawn on top)
+// and `mirror: false` (not flipped for the left).
 import { Grid } from '../raster.mjs';
 import { COLOURS } from '../poncho-pixels.mjs';
 import { check, pose, POSE_FRAME } from './rig.mjs';
@@ -315,6 +316,32 @@ const FRONT = {
     '.FFFFFFFFFFF.......',
     '......FFF..........',
   ] },
+  tailUp: { x: 40, y: 33, rows: [
+    '..........ww..',
+    '.........wwwp.',
+    '........wwwwpp',
+    '........wwwwpp',
+    '.........wwwp.',
+    '.........wwww.',
+    '.........wwwp.',
+    '.........wwwp.',
+    '.........fffs.',
+    '.........fffs.',
+    '.........fffs.',
+    '.........fffs.',
+    '.........fffs.',
+    '.........ffs..',
+    '.........ffs..',
+    '.........ffs..',
+    '........fffs..',
+    '........fffs..',
+    '.......ffffs..',
+    '.......fffs...',
+    '.fffffffffs...',
+    'FFFFFFFFFF....',
+    'FFFFFFFFF.....',
+    '.FFFFFFF......',
+  ] },
   tailL: { x: 0, y: 40, rows: [
     '.wwwp..............',
     '.wwwp..............',
@@ -358,7 +385,7 @@ function frontPart({ x: px = 0, y: py, rows }, keep = () => true, dx = 0) {
 function stampPx(m, rows, x0, y0) {
   rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== '.') m.set(pxKey(x0 + i, y0 + j), ch === '#' ? OUTLINE : COLOURS[ch]); }));
 }
-/** A raised arm along `path` (local px), 5 px thick tapering to 3, lit on its upper left edge, shaded under. */
+/** An arm along `path` (local px), 5 px thick tapering to 3, lit on its upper left edge, shaded under. */
 function frontArm(path) {
   const m = new Map();
   const segs = path.slice(1).map((b, i) => ({ a: path[i], b }));
@@ -383,11 +410,13 @@ function frontArm(path) {
 }
 
 /**
- * The front view posed: `lift` px up (a jump), `squash` local rows taken out of everything above the legs, the legs 'stand',
- * 'tuck' (3 rows shorter) or 'apart' (2 px out each, bent 2 rows shorter), the tail 'tailR' or 'tailL', a mouth from FRONT_MOUTHS, both paws up at
- * local row `pawY` either side of the held food. Returns the frame, its paws alone (`over`, to draw over the food) and `hand`.
+ * The front view posed: `lift` px up (a hop), `squash` local rows taken out of everything above the legs, the legs 'stand',
+ * 'tuck' (3 rows shorter) or 'apart' (2 px out each, bent 2 rows shorter), the tail 'tailUp', 'tailR' or 'tailL', a mouth from
+ * FRONT_MOUTHS, the sombrero tilted by `tilt` (a shear: > 0 dips its right side), the body swayed `sway` px across, the ears up
+ * `ears` px. Both paws hug the food to his chest just below his chin. Returns the frame, the paws alone (`over`, drawn over the
+ * food) and `hand`.
  */
-function frontPose({ lift = 0, squash = [], legs = 'stand', tail = 'tailR', mouth = 'cheer', pawY = -12 }) {
+function frontPose({ lift = 0, squash = [], legs = 'stand', tail = 'tailR', mouth = 'cheer', tilt = 0, sway = 0, ears = 0 }) {
   const drop = { tuck: 3, apart: 2 }[legs] ?? 0, spread = legs === 'apart' ? 2 : 0;
   const body = (y) => (squash.includes(y) ? null : y + squash.filter((r) => r > y).length + drop);
   const legRows = { ...FRONT.legs, y: FRONT.legs.y + drop, rows: FRONT.legs.rows.slice(drop) };
@@ -399,41 +428,72 @@ function frontPose({ lift = 0, squash = [], legs = 'stand', tail = 'tailR', mout
   stampPx(head, mo, 30 - mo[0].length / 2, 32);
   const poncho = frontPart(FRONT.poncho);
   stampPx(poncho, FRONT_BADGE, 34, 42);
-  const arm = [[20, 20], [18.5, 5], [21, pawY + 3]];
+  // The sombrero tilted by whole columns and rows about the crown's base: each column dips, each row slides.
+  const tilted = (m) => {
+    const out = new Map();
+    for (const [k, c] of m) {
+      const [x, y] = pxAt(k), ny = y + Math.round((x - 29.5) * tilt);
+      out.set(pxKey(x + Math.round((12 - ny) * tilt), ny), c);
+    }
+    return out;
+  };
+  const moved = (m, dx, dy) => new Map([...m].map(([k, c]) => { const [x, y] = pxAt(k); return [pxKey(x + dx, y + dy), c]; }));
+  // The paws either side of the food's middle (PAW_Y), the forearms just showing from under the poncho's sides.
+  const PAW_Y = 47;
   const paws = new Map();
-  stampPx(paws, PAWS.fwd.rows, 18, pawY - 2);
-  stampPx(paws, PAWS.fwd.rows.map((r) => [...r].reverse().join('')), 35, pawY - 2);
+  stampPx(paws, PAWS.fwd.rows, 17, PAW_Y - 2);
+  stampPx(paws, PAWS.fwd.rows.map((r) => [...r].reverse().join('')), 36, PAW_Y - 2);
+  const arm = [[14, 52], [17, 48]];
   // Back to front: [pixels, is it the legs].
   const layers = [
     [frontPart(FRONT[tail]), false],
     [frontPart(legRows, (x) => x < 30, -spread), true],
     [frontPart(legRows, (x) => x >= 30, spread), true],
-    [frontPart(FRONT.ears), false],
+    [moved(frontPart(FRONT.ears), 0, -ears), false],
+    [poncho, false],
     [frontArm(arm), false],
     [frontArm(arm.map(([x, y]) => [59 - x, y])), false],
-    [poncho, false],
     [head, false],
-    [frontPart(FRONT.crown), false],
-    [frontPart(FRONT.brim), false],
+    [tilted(frontPart(FRONT.crown)), false],
+    [tilted(frontPart(FRONT.brim)), false],
     [paws, false],
   ];
   const grid = new Grid(POSE_FRAME.w, POSE_FRAME.h), over = new Grid(POSE_FRAME.w, POSE_FRAME.h);
-  const ox = FRONT_X, oy = FRONT_Y - lift;
+  const oy = FRONT_Y - lift;
   for (const [m0, isLegs] of layers) {
-    // The body sits on the legs and squashes by whole rows before it is outlined.
+    // The body sits on the legs, sways and squashes by whole rows before it is outlined.
     const m = new Map();
-    for (const [k, c] of m0) { const [x, y] = pxAt(k); const ny = isLegs ? y : body(y); if (ny !== null) m.set(pxKey(x, ny), c); }
+    for (const [k, c] of m0) {
+      const [x, y] = pxAt(k), ny = isLegs ? y : body(y);
+      if (ny !== null) m.set(pxKey(x + (isLegs ? 0 : sway), ny), c);
+    }
     const ring = new Map(m);
     for (const k of m.keys()) { const [x, y] = pxAt(k); for (const [dx, dy] of N4) if (!m.has(pxKey(x + dx, y + dy))) ring.set(pxKey(x + dx, y + dy), OUTLINE); }
     for (const [k, c] of ring) {
       const [x, y] = pxAt(k);
-      grid.set(x + ox, y + oy, c);
-      if (m0 === paws) over.set(x + ox, y + oy, c);
+      grid.set(x + FRONT_X, y + oy, c);
+      if (m0 === paws) over.set(x + FRONT_X, y + oy, c);
     }
   }
-  // The food's grip point: its middle (held.HAND in items.mjs) centred between the paws, the taco across them.
-  grid.hand = { x: 29 + ox, y: body(pawY + 3) + oy };
+  // The food's grip point (held.HAND in items.mjs): the taco centred between the paws, across his chest.
+  grid.hand = { x: 29 + sway + FRONT_X, y: body(PAW_Y + 3) + oy };
   return { grid, over };
+}
+
+/**
+ * The celebration's sparkles, a grid of their own drawn over him: four-point stars at frame px [x, y, arm], a white heart (a
+ * 3 x 3 diamond) and thin white points with cream tips, ringed in his crimson so they read on the gold and on the pale blue.
+ */
+function sparkles(stars) {
+  const g = new Grid(POSE_FRAME.w, POSE_FRAME.h);
+  for (const [x, y, arm] of stars) {
+    const pts = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (let i = 2; i <= arm; i++) pts.push([i, 0], [-i, 0], [0, i], [0, -i]);
+    for (const [dx, dy] of pts) for (const [ex, ey] of N4) if (!g.get(x + dx + ex, y + dy + ey)) g.set(x + dx + ex, y + dy + ey, COLOURS.c);
+    for (const [dx, dy] of pts) g.set(x + dx, y + dy, arm > 1 && Math.abs(dx) + Math.abs(dy) === arm ? COLOURS.w : COLOURS.W);
+    if (arm > 1) for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) g.set(x + dx, y + dy, COLOURS.w);
+  }
+  return g;
 }
 
 const SPECS = {
@@ -558,22 +618,32 @@ const SPECS = {
     mouthAt: { dx: 3, dy: 2 },
     holds: 'paw',
   },
-  // The victory cheer, in the front view (FRONT): a jump with the legs tucked, both arms up holding the taco high over the crown,
-  // happy shut eyes, mouth open in a cheer; then the landing, a squash with the feet apart, a big smile, the tail swished over.
-  victory0: { front: { lift: 7, legs: 'tuck', tail: 'tailR', mouth: 'cheer', pawY: -12 }, holds: 'food' },
-  victory1: { front: { squash: [47, 36, 16], legs: 'apart', tail: 'tailL', mouth: 'grin', pawY: -9 }, holds: 'food' },
+  // The victory cheer, in the front view (FRONT): hugging the food to his chest with both paws. A happy hop (legs tucked, ears
+  // perked, tail flicked straight up, the sombrero tipped one way), then the landing (a squash, feet apart, a big grin, the tail
+  // curled the other way, the sombrero tipped back the other way): played in turn, a joyful bounce. Sparkles twinkle round him.
+  victory0: {
+    front: { lift: 7, legs: 'tuck', tail: 'tailUp', mouth: 'cheer', tilt: 0.1, sway: 1, ears: 1 },
+    stars: [[13, 20, 3], [84, 30, 2], [11, 50, 2], [83, 58, 3]],
+    holds: 'food',
+  },
+  victory1: {
+    front: { squash: [47, 36, 16], legs: 'apart', tail: 'tailL', mouth: 'grin', tilt: -0.1, sway: -1 },
+    stars: [[83, 20, 3], [12, 34, 2], [86, 47, 2], [12, 63, 3]],
+    holds: 'food',
+  },
 };
 
 export const LOOKS = Object.keys(SPECS);
 
 export function drawFrames() {
-  return Object.entries(SPECS).map(([look, { spec, front, eyes, mouthPatch, mouthAt, arm, after, holds }]) => {
+  return Object.entries(SPECS).map(([look, { spec, front, stars, eyes, mouthPatch, mouthAt, arm, after, holds }]) => {
     if (front) {
-      // The front view: the game draws it as it is for both directions (no mirroring), the food at `hand` and `over` on top.
+      // The front view: drawn as it is for both directions (no mirroring); the food at `hand`, then `over` and `sparkle` on top.
       const { grid, over } = frontPose(front);
-      const problems = [...check(grid), ...check(over).filter((p) => !p.startsWith('open'))];
+      const sparkle = sparkles(stars);
+      const problems = [...check(grid), ...[over, sparkle].flatMap((g) => check(g).filter((p) => !p.startsWith('open')))];
       if (problems.length) throw new Error(`${look}: ${problems.slice(0, 3).join('; ')}`);
-      return { look, grid, hand: grid.hand, holds, over, mirror: false };
+      return { look, grid, hand: grid.hand, holds, over, sparkle, mirror: false };
     }
     const grid = pose(spec);
     if (eyes) withEyes(grid, eyes);
