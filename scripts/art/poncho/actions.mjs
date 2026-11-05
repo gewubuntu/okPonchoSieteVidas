@@ -33,6 +33,54 @@ function withEyes(grid, name) {
   return grid;
 }
 
+/**
+ * Mouth patches over the drawing's snout and jaw (its columns 41 to 50, rows 32 to 42), placed by the rig's mouth anchor: '.'
+ * keeps the drawing's pixel, '_' clears it. They reach past the drawing's chin, so each brings its own outline there.
+ */
+const MOUTH_PATCH = {
+  /** Cheeks puffed full of fire: the jaw bulges forward and down round a tight little mouth. */
+  puffed: [
+    '..........',
+    '..........',
+    '......ww#.',
+    '....nwwww#',
+    '.....wwww#',
+    '....wwwwp#',
+    '...wwwwpp#',
+    '..wwwppp#_',
+    'ppppppp##_',
+    '#######...',
+    '..........',
+  ],
+  /** Wide open forward, the fire's way out: the upper lip under the nose, the jaw dropped, the tongue. */
+  gape: [
+    '..........',
+    '..........',
+    'wwwwwww##_',
+    'wwwnnnnnn#',
+    'wwnnnnnnn#',
+    'wwwnccccn#',
+    'wwwwnnccn#',
+    'pwwwwwnnn#',
+    'ppwwwwww#_',
+    '#ppppppp#_',
+    '.#######__',
+  ],
+};
+// The patch's top left against the rig's mouth anchor (the drawing's (47, 35)).
+const MOUTH_PATCH_AT = { dx: -6, dy: -3 };
+
+/** The grid with a mouth patch painted over its snout and jaw. */
+function withMouth(grid, name) {
+  const { x, y } = grid.anchors.mouth;
+  MOUTH_PATCH[name].forEach((row, j) => [...row].forEach((ch, i) => {
+    const px = x + MOUTH_PATCH_AT.dx + i, py = y + MOUTH_PATCH_AT.dy + j;
+    if (ch === '_') grid.set(px, py, null);
+    else if (ch !== '.') grid.set(px, py, COLOURS[ch]);
+  }));
+  return grid;
+}
+
 /** Bristled with the shock: stiff and straight up from behind him, the tip high. */
 const STIFF_TAIL = { path: [[22, 65], [14, 67], [8, 64], [5, 56], [4, 47], [4, 39]], tip: [4.2, 39.5] };
 
@@ -191,61 +239,87 @@ const SPECS = {
     after: (g) => bristled(g, { x0: 16, x1: 31, y0: 68, y1: 84 }),
     holds: 'none',
   },
-  // GDD-PWR-02, GDD-PWR-03, eating: the paw brings the food up to his open mouth, eyes wide with delight; then the chomp.
+  // GDD-PWR-02, GDD-PWR-03, eating: a little hop up, stretched, reaching for the bite with the mouth open and eyes wide; then the
+  // chomp, a deep squash with the mouth shut on it and eyes happily shut. The game draws the whole taco at `hand` in eat0, the
+  // bitten one in eat1, and the crumbs at `mouth`.
   eat0: {
     spec: {
+      body: { squash: -2 },
       head: { dy: -1 },
+      hat: { dy: 1 },
       face: { eyes: 'wide', mouth: 'open' },
+      legs: 'tuck',
       tail: 'up',
     },
-    arm: { path: [[69, 72], [75, 72], [78, 67]], paw: [79, 64], dir: 'up' },
+    arm: ({ x, y }) => ({ path: [[69, y + 13], [75, y + 13], [78, y + 8]], paw: [79, y + 5], dir: 'up' }),
     holds: 'food',
   },
   eat1: {
     spec: {
-      body: { squash: 2 },
+      body: { squash: 4, widen: 2 },
       head: { dy: 1 },
-      hat: { dy: -1 },
+      hat: { dy: -2 },
       face: { eyes: 'happy', mouth: 'puff' },
+      legs: 'splay',
       tail: 'up',
     },
-    arm: { path: [[69, 73], [75, 73], [78, 69]], paw: [79, 66], dir: 'up' },
+    arm: ({ x, y }) => ({ path: [[71, y + 11], [77, y + 11], [80, y + 7]], paw: [81, y + 4], dir: 'up' }),
     holds: 'food',
   },
-  // GDD-PWR-03, the Fuego spit: leaning back a touch, the mouth open forward, eyes squeezed with the heat; the game draws the paw
-  // and the chile at `hand`, in front of his chest.
-  spit: {
+  // GDD-PWR-03, the Fuego spit, two frames: the wind-up, leaning well back with his cheeks puffed full and eyes squeezed; then the
+  // blast, leaning in with the mouth wide open forward, the hat blown back. The game draws the paw and the chile at `hand` and the
+  // flame burst at `mouth` (the front of the open mouth).
+  spit0: {
     spec: {
-      body: { dx: -2 },
-      head: { dx: -1, dy: -1 },
-      hat: { dx: -1, dy: -2, tilt: -16 },
-      face: { eyes: 'squeeze', mouth: 'open' },
-      tail: 'back',
-      hand: { dx: -2, dy: 4 },
+      body: { dx: -3, squash: 1 },
+      head: { dx: -2, dy: -1 },
+      hat: { dx: 1, dy: 0, tilt: 8 },
+      face: { eyes: 'squeeze', mouth: 'closed' },
+      legs: 'stand',
+      tail: 'low',
+      hand: { dx: -4, dy: 4 },
     },
+    mouthPatch: 'puffed',
+    mouthAt: { dx: 2, dy: 1 },
     holds: 'paw',
   },
-  // The victory cheer: the food thrust straight up over his head, a happy closed-eye smile, stretched up; then a squash bounce.
+  spit1: {
+    spec: {
+      body: { dx: 3, squash: -1 },
+      head: { dx: 2, dy: 0 },
+      hat: { dx: -3, dy: -3, tilt: -16 },
+      face: { eyes: 'squeeze', mouth: 'closed' },
+      legs: 'splay',
+      tail: 'back',
+      hand: { dx: 0, dy: 4 },
+    },
+    mouthPatch: 'gape',
+    mouthAt: { dx: 3, dy: 2 },
+    holds: 'paw',
+  },
+  // The victory cheer: a big leap with the legs tucked, the taco thrust straight up high over his head on a long arm past the
+  // front of the brim, happy shut eyes, tail up; then the landing, a squash, the taco still held high.
   victory0: {
     spec: {
+      y: -8,
       body: { squash: -3 },
-      hat: { dx: -3, dy: 0, tilt: -16 },
+      hat: { dx: -2, dy: 1, tilt: -16 },
       face: 'happy',
       legs: 'tuck',
       tail: 'up',
     },
-    arm: { path: [[70, 70], [78, 69], [83, 57]], paw: [84, 53], dir: 'up' },
+    arm: () => ({ path: [[70, 62], [81, 54], [85, 14]], paw: [85, 10], dir: 'up' }),
     holds: 'food',
   },
   victory1: {
     spec: {
-      body: { squash: 2, widen: 1 },
-      hat: { dx: -3, dy: 0, tilt: -16 },
+      body: { squash: 3, widen: 2 },
+      hat: { dx: -3, dy: 1, tilt: -16 },
       face: 'happy',
       legs: 'splay',
       tail: 'up',
     },
-    arm: { path: [[71, 73], [79, 72], [84, 60]], paw: [85, 56], dir: 'up' },
+    arm: () => ({ path: [[71, 74], [82, 66], [85, 26]], paw: [85, 22], dir: 'up' }),
     holds: 'food',
   },
 };
@@ -253,13 +327,18 @@ const SPECS = {
 export const LOOKS = Object.keys(SPECS);
 
 export function drawFrames() {
-  return Object.entries(SPECS).map(([look, { spec, eyes, arm, after, holds }]) => {
+  return Object.entries(SPECS).map(([look, { spec, eyes, mouthPatch, mouthAt, arm, after, holds }]) => {
     const grid = pose(spec);
     if (eyes) withEyes(grid, eyes);
-    if (arm) drawArm(grid, arm);
+    if (mouthPatch) withMouth(grid, mouthPatch);
+      if (arm) drawArm(grid, typeof arm === 'function' ? arm(grid.anchors.mouth) : arm);
     after?.(grid);
     const problems = check(grid);
     if (problems.length) throw new Error(`${look}: ${problems.slice(0, 3).join('; ')}`);
-    return { look, grid, hand: grid.hand, holds };
+    const m = grid.anchors.mouth;
+    const frame = { look, grid, hand: grid.hand, holds };
+    // Where the crumbs (eating) and the flame burst (the spit) are drawn.
+    if (/^(eat|spit)/.test(look)) frame.mouth = { x: m.x + (mouthAt?.dx ?? 0), y: m.y + (mouthAt?.dy ?? 0) };
+    return frame;
   });
 }
