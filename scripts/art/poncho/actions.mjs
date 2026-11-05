@@ -180,59 +180,59 @@ function drawArm(grid, { path, paw, dir, claws = false, under = 60 }) {
 
 // ---- The front view, for the victory cheer (GDD-ART-02: the front sprite reference, sprite-back-front.jpg's right-hand figure, guides
 // a pose the main drawing does not show). Drawn as pixel maps at the side drawing's scale (71 drawing px from the crown's top to the
-// feet), in his colours, the light from the upper left; each part is outlined over the parts behind it. Local px: the figure's
+// feet, its rows lined up with the side drawing's: the crown's top, the brim's underside at the face, the chin, the poncho's hem
+// and the feet), in his colours, the light from the upper left; each part is outlined over the parts behind it. Local px: the figure's
 // middle is between columns 29 and 30, his feet on row 71. The front view is not mirrored for a run to the left.
 const FRONT = {
-  crown: { x: 22, y: 0, rows: [
-    '.....rrrrr.....',
-    '...rrrrrrrrc...',
-    '..rrrrrrrrrcc..',
-    '..rrrrrrrrrcc..',
-    '.rrrrrrrrrrccc.',
-    '.rrrrrrrrrrccc.',
-    '.bbbbbbbbbbddd.',
-    'bbbbbbbbbbbdddd',
-    'rrrrrrrrrrrcccc',
-    'rrrrrrrrrrrcccc',
-    '.rrrrrrrrrrccc.',
-    '.rrrrrrrrrrccc.',
-    '.rrrrrrrrrrccc.',
+  crown: { x: 20, y: 2, rows: [
+    '.......rrrrr.......',
+    '.....rrrrrrrrr.....',
+    '...rrrrrrrrrrrrc...',
+    '..rrrrrrrrrrrrrcc..',
+    '..rrrrrrrrrrrrrcc..',
+    '.rrrrrrrrrrrrrrccc.',
+    '.rrrrrrrrrrrrrrccc.',
+    'rrrrrrrrrrrrrrrcccc',
+    'bbbbbbbbbbbbbbddddd',
+    'bbbbbbbbbbbbbbddddd',
+    'rrrrrrrrrrrrrrrcccc',
+    'rrrrrrrrrrrrrrrcccc',
+    'rrrrrrrrrrrrrrrcccc',
+    'rrrrrrrrrrrrrrrcccc',
   ] },
-  ears: { x: 8, y: 2, rows: [
-    '.....ff.............................FF.....',
-    '.....ff.............................fF.....',
-    '.....fff...........................ffF.....',
-    '....ffkf...........................fkfF....',
-    '....fkkff.........................ffkkF....',
-    '...ffkkkff.......................ffkkkFF...',
-    '...ffkkkkf.......................fkkkkfF...',
-    '...fkkkkkff.....................ffkkkkkF...',
-    '..ffkkkkkkf.....................fkkkkkkfF..',
-    '..fkkkkkkkff...................ffkkkkkkkF..',
-    '.ffkkkkkkkkff.................ffkkkkkkkkfF.',
-    '.fkkkkkkkkkkf.................fkkkkkkkkkkF.',
-    'ffkkkkkkkkkkff...............ffkkkkkkkkkkFF',
+  ears: { x: 7, y: 4, rows: [
+    '....ff.................................FF....',
+    '....ff.................................fF....',
+    '....fff...............................ffF....',
+    '...ffkf...............................fkfF...',
+    '...fkkff.............................ffkkF...',
+    '..ffkkkff...........................ffkkkFF..',
+    '..ffkkkkf...........................fkkkkfF..',
+    '..fkkkkkff.........................ffkkkkkF..',
+    '.ffkkkkkkf.........................fkkkkkkfF.',
+    '.fkkkkkkkff.......................ffkkkkkkkF.',
+    'ffkkkkkkkkff.....................ffkkkkkkkkfF',
+    'fkkkkkkkkkkf.....................fkkkkkkkkkkF',
   ] },
-  brim: { x: 2, y: 11, rows: [
+  brim: { x: 2, y: 15, rows: [
     '....................sssssssssssssss....................',
     '..............ssssssbbbbbbbbbbbbbbbssssss..............',
     '..........ssssbbbbbbbbbbbbbbbbbbbbbbbbbbbssss..........',
     '........ssbbbbbbbbbbbbrbbbrbbbrbbbbbbbbbbbbbbss........',
-    '......ssbbbbbbbbbbrrbrrrbrrrbrrrbrrrbbrbbbbbbbbss......',
-    '....ssbbbbbbbbrrbrrrrrrrrrrrrrrrrrrrrrrrbbrbbbbbdss....',
-    '...sbbbbbbrrbrrrrrrrrrrrrrrcrrrrrrrrrrrrrrrrbbbbddds...',
-    '..sbbbbbbrrrrrrrrrcccccccccccccccccccrrrrrrrbrrbdddds..',
-    '.sbbbbrrrrrrrrcccc...................ccccrrrrrrrddddds.',
-    'sbbbbrrrrrrccc...........................cccrrrrrrrddds',
-    'bbbbbrrrrcc.................................ccrrrrrdddd',
-    'bbrrrrrcc.....................................ccrrrrddr',
-    'brrrrrc.........................................crrrdrr',
+    '......ssbbbbbbbbbbrbbrrrbrrrbrrrbrrbbbrbbbbbbbbss......',
+    '....ssbbbbbbbbrrbrrrrrrrrrrrrrrrrrrrbrrrbbrbbbbbdss....',
+    '...sbbbbbbrbbrrrrrrrrrrrrrrrrrrrrrrrrrrrbrrbbbbbddds...',
+    '..sbbbbbbbrrrrrrrrrrcccccccccccccccrrrrrrrrrbbrbdddds..',
+    '.sbbbbrrrrrrrrrccccc...............cccccrrrrrrrrddddds.',
+    'sbbbbrrrrrrrccc.........................cccrrrrrrrrddds',
+    'bbbbbrrrrrcc...............................ccrrrrrrdddd',
+    'bbrrrrrrcc...................................ccrrrrrddr',
+    'brrrrrcc.......................................ccrrrdrr',
     'rrrrrc...........................................crrrrr',
     'crrrc.............................................crrrc',
     '.crc...............................................crc.',
-    '..c.................................................c..',
   ] },
-  head: { x: 9, y: 19, rows: [
+  head: { x: 9, y: 20, rows: [
     '..............fffffwwwfffff..............',
     '..........fffffffffwwwfffffffff..........',
     '.......ffffffffffffwwwffffffffffff.......',
@@ -269,15 +269,19 @@ const FRONT = {
     'bbbbbbbbbWWbbbbbccrccbbbbbWWbbbdddddd',
     'bbWbbbbbbbbWbbbbbbcbbbbbbWbbbbbdddWdd',
     'bWWbbbbbbbbbbbbbbbbbbbbbbbbbbbbdddWWd',
-    'cccccbbbbbbbbbbbbbWbbbbbbbbbbbbdccccc',
-    'WWrWWccccbbbbbbbbWWWbbbbbbbbccccWWrWW',
-    'WrrrWWrWWcccccbbbbbbbbbcccccWWrWWrrrW',
-    'ccccWrrrWWrWWWccccbccccWWWrWWrrrWcccc',
-    'ccccccccWrrrWWrWWWcWWWrWWrrrWcccccccc',
-    '.c.r.ccccccccrrrWWrWWrrrcccccccc.r.d.',
-    '.c.r.d.c.ccccccccrrrcccccccc.d.c.r.d.',
-    '...r.d.c.r.d.ccccccccccd.c.r.d.c.r...',
-    '.......c.r.d.c.r.dcc.r.d.c.r.d.......',
+    'bbbWbbbbbbbbbbbbbbWbbbbbbbbbbbbddWddd',
+    'bbbbbbbbbbbbbbbbbWWWbbbbbbbbbbbdddddd',
+    'bbbbbbbbbbWbbbbbbbbbbbbbbbWbbbbdddddd',
+    'bbbbbbbbbWWbbbbbbbbbbbbbbbWWbbbdddddd',
+    'bbWbbbbbbbbWbbbbbbbbbbbbbWbbbbbdddWdd',
+    'cccccccbbbbbbbbbbbbbbbbbbbbbbbccccccc',
+    'WWrWWWrccccccbbbbbWbbbbbccccccrWWWrWW',
+    'WrrrWWrWWWrWWcccccccccccWWrWWWrWWrrrW',
+    'cccccrrrWrrrWWrWWWrWWWrWWrrrWrrrccccc',
+    'ccccccccccccWrrrWrrrWrrrWcccccccccccc',
+    '.c.r.d.ccccccccccccccccccccccc.c.r.d.',
+    '.c.r.d.c.r.d.ccccccccccc.c.r.d.c.r.d.',
+    '...r.d.c.r.d.c.r.d.c.r.d.c.r.d.c.r...',
     '...........d.c.r.d.c.r.d.c...........',
     '.................d.c.................',
   ] },
@@ -365,6 +369,7 @@ const FRONT = {
 /** Face and badge stamps on the front view (local px). */
 const FRONT_EYE = ['.nnn.', 'n...n'];
 const FRONT_MOUTHS = {
+  smile: ['n.nn.n', '.n..n.'],
   cheer: ['.nnnn.', 'nwwwwn', 'nccccn', '.nnnn.'],
   grin: ['nnnnnnnn', '.nwwwwn.', '..nccn..', '...nn...'],
 };
@@ -413,19 +418,19 @@ function frontArm(path) {
  * The front view posed: `lift` px up (a hop), `squash` local rows taken out of everything above the legs, the legs 'stand',
  * 'tuck' (3 rows shorter) or 'apart' (2 px out each, bent 2 rows shorter), the tail 'tailUp', 'tailR' or 'tailL', a mouth from
  * FRONT_MOUTHS, the sombrero tilted by `tilt` (a shear: > 0 dips its right side), the body swayed `sway` px across, the ears up
- * `ears` px. Both paws hug the food to his chest just below his chin. Returns the frame, the paws alone (`over`, drawn over the
- * food) and `hand`.
+ * `ears` px. With `hug`, both paws hug the food to his chest just below his chin; without, they hang at his sides under the
+ * poncho. Returns the frame, the hugging paws alone (`over`, drawn over the food) and `hand`.
  */
-function frontPose({ lift = 0, squash = [], legs = 'stand', tail = 'tailR', mouth = 'cheer', tilt = 0, sway = 0, ears = 0 }) {
+function frontPose({ lift = 0, squash = [], legs = 'stand', tail = 'tailR', mouth = 'cheer', tilt = 0, sway = 0, ears = 0, hug = true }) {
   const drop = { tuck: 3, apart: 2 }[legs] ?? 0, spread = legs === 'apart' ? 2 : 0;
   const body = (y) => (squash.includes(y) ? null : y + squash.filter((r) => r > y).length + drop);
   const legRows = { ...FRONT.legs, y: FRONT.legs.y + drop, rows: FRONT.legs.rows.slice(drop) };
   const head = frontPart(FRONT.head);
-  stampPx(head, FRONT_EYE, 19, 27); stampPx(head, FRONT_EYE, 35, 27);
-  stampPx(head, ['kkk', 'kkk'], 15, 31); stampPx(head, ['kkk', 'kkk'], 42, 31);
-  stampPx(head, ['nn'], 29, 31);
+  stampPx(head, FRONT_EYE, 19, 28); stampPx(head, FRONT_EYE, 35, 28);
+  stampPx(head, ['kkk', 'kkk'], 15, 32); stampPx(head, ['kkk', 'kkk'], 42, 32);
+  stampPx(head, ['nn'], 29, 32);
   const mo = FRONT_MOUTHS[mouth];
-  stampPx(head, mo, 30 - mo[0].length / 2, 32);
+  stampPx(head, mo, 30 - mo[0].length / 2, 33);
   const poncho = frontPart(FRONT.poncho);
   stampPx(poncho, FRONT_BADGE, 34, 42);
   // The sombrero tilted by whole columns and rows about the crown's base: each column dips, each row slides.
@@ -433,26 +438,31 @@ function frontPose({ lift = 0, squash = [], legs = 'stand', tail = 'tailR', mout
     const out = new Map();
     for (const [k, c] of m) {
       const [x, y] = pxAt(k), ny = y + Math.round((x - 29.5) * tilt);
-      out.set(pxKey(x + Math.round((12 - ny) * tilt), ny), c);
+      out.set(pxKey(x + Math.round((15 - ny) * tilt), ny), c);
     }
     return out;
   };
   const moved = (m, dx, dy) => new Map([...m].map(([k, c]) => { const [x, y] = pxAt(k); return [pxKey(x + dx, y + dy), c]; }));
   // The paws either side of the food's middle (PAW_Y), the forearms just showing from under the poncho's sides.
-  const PAW_Y = 47;
-  const paws = new Map();
-  stampPx(paws, PAWS.fwd.rows, 17, PAW_Y - 2);
-  stampPx(paws, PAWS.fwd.rows.map((r) => [...r].reverse().join('')), 36, PAW_Y - 2);
-  const arm = [[14, 52], [17, 48]];
+  const PAW_Y = 48;
+  const paws = new Map(), sidePaws = new Map();
+  if (hug) {
+    stampPx(paws, PAWS.fwd.rows, 17, PAW_Y - 2);
+    stampPx(paws, PAWS.fwd.rows.map((r) => [...r].reverse().join('')), 36, PAW_Y - 2);
+  } else {
+    stampPx(sidePaws, PAWS.down.rows, 9, 58);
+    stampPx(sidePaws, PAWS.down.rows.map((r) => [...r].reverse().join('')), 44, 58);
+  }
+  const arm = [[14, 53], [17, 49]];
   // Back to front: [pixels, is it the legs].
   const layers = [
     [frontPart(FRONT[tail]), false],
     [frontPart(legRows, (x) => x < 30, -spread), true],
     [frontPart(legRows, (x) => x >= 30, spread), true],
     [moved(frontPart(FRONT.ears), 0, -ears), false],
+    [sidePaws, false],
     [poncho, false],
-    [frontArm(arm), false],
-    [frontArm(arm.map(([x, y]) => [59 - x, y])), false],
+    ...(hug ? [[frontArm(arm), false], [frontArm(arm.map(([x, y]) => [59 - x, y])), false]] : []),
     [head, false],
     [tilted(frontPart(FRONT.crown)), false],
     [tilted(frontPart(FRONT.brim)), false],
@@ -631,6 +641,8 @@ const SPECS = {
     stars: [[83, 20, 3], [12, 34, 2], [86, 47, 2], [12, 63, 3]],
     holds: 'food',
   },
+  // The front view standing, for checking its sizes against the side view (not played by the game).
+  frontStand: { front: { hug: false, mouth: 'smile' }, stars: [], holds: 'none' },
 };
 
 export const LOOKS = Object.keys(SPECS);
