@@ -293,7 +293,7 @@ export const held = {
       { look: 'chileHeld', grid: make(true) },
       { look: 'tacoFood', grid: layer(24, 24, SMALL_TACO, 5, 2) },
       { look: 'chileFood', grid: chileAlone() },
-      { look: 'tacoBittenHeld', grid: layer(24, 24, bitten(SMALL_TACO, [[13.4, 0.4, 2.9], [16.2, 3.9, 3.1]]), 5, 2) },
+      { look: 'tacoBittenHeld', grid: layer(24, 24, bitten(SMALL_TACO, [[0.2, 4.6, 3.0], [-0.2, 8.4, 2.9]]), 5, 2) },
     ];
   },
 };
