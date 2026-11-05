@@ -2,10 +2,13 @@
 // Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04), and the backdrop, the decor and the ground tiles are the level's
 // world's art (GDD-ART-06, `src/ui/scenery/`); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, BOSS_ART, BOSS_BAR, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
+import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, BOSS_ART, BOSS_BAR, ENEMY_ART, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
 import { bossCrown, bossStart } from '../sim/boss';
 import { isBossLevel, levelBoss } from '../sim/bossLevel';
-import { enemyPhase, feetOf, kindOf, type EnemyKind, type EnemyState } from '../sim/enemy';
+import { centre, enemyPhase, feetOf, kindOf, type EnemyKind } from '../sim/enemy';
+import { defeatLook, stepDefeats, type DefeatFx } from '../ui/defeatFx';
+import { frameLook, SHEETS, type EnemyLook, type Sheet } from '../ui/enemyLooks';
+import { enemyPose } from '../ui/enemyPose';
 import { chapulinShapes, palomaShapes, trompoShapes, type Shape } from '../ui/mercadoEnemies';
 import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
@@ -14,6 +17,11 @@ import donZopilotePng from '../../assets/sprites/boss/don-zopilote.png';
 import bossFruitPng from '../../assets/sprites/boss/fruit.png';
 import bossRockPng from '../../assets/sprites/boss/rock.png';
 import bossCrownPng from '../../assets/sprites/boss/crown.png';
+import alacranPng from '../../assets/sprites/enemies/alacran.png';
+import zopilotePng from '../../assets/sprites/enemies/zopilote.png';
+import cactusPng from '../../assets/sprites/enemies/cactus.png';
+import tlacuachePng from '../../assets/sprites/enemies/tlacuache.png';
+import poofPng from '../../assets/sprites/enemies/poof.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import jumpOgg from '../../assets/audio/sfx/jump.ogg';
@@ -41,7 +49,7 @@ import bossDefeatMp3 from '../../assets/audio/sfx/boss-defeat.mp3';
 import { activateOfrenda, collectVeladora, isOutOfLives, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { clawBox } from '../sim/claw';
-import { ESTRELLA, FIREBALL, FRUIT, ROCK, TLACUACHE } from '../config/tuning';
+import { ESTRELLA, FIREBALL, FRUIT, ROCK } from '../config/tuning';
 import { estrellaStart } from '../sim/estrella';
 import { estrellaPose, tejocoteBoxes } from '../ui/estrellaPose';
 import { flipPose } from '../sim/respawnFlip';
@@ -78,6 +86,11 @@ import { bossFrame, bossFrameInfo, bossPipBoxes, bossPose, type BossLook } from 
 import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tipsDone as nextTipsDone, tipText, type Device, type TipFade } from '../ui/tips';
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 import { hasMarketThings, loadMarketThings, MarketThings, type MarketDrawn } from '../ui/MarketThings';
+
+/** GDD-ENM-02: World 1's enemy sheets and the defeat poof's. */
+const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, poof: poofPng };
+/** A sheet's frames stand on their bottom middle (a walker's feet), or the Zopilote's and the poof's on their middle. */
+const centred = (sheet: Sheet): boolean => sheet === 'zopilote' || sheet === 'poof';
 
 /** GDD-AUD-02: the cache keys of every sound effect. */
 const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow', 'tick', 'hiss', 'grunt', 'bossDefeat'].map((n) => `sfx-${n}`);
@@ -334,7 +347,17 @@ export interface PonchoDebug {
    * walker where it walked to (GDD-MOV-09: it follows slopes), which is its start's y until it moves.
    */
   enemies(): { x: number; y: number; alive: boolean; dir: number; phase: string }[];
-  enemiesDrawn(): { x: number; y: number; kind: EnemyKind }[];
+  /**
+   * Where the scene drew the live enemies, read back from what was drawn (L-010): a World 1 enemy's sprite's x and, for a walker, its bottom
+   * (its feet), for a Zopilote its middle (its flight y), with the look of the frame it shows and whether it is mirrored (GDD-ENM-02); World 2's
+   * placeholders' x and feet, with no look.
+   */
+  enemiesDrawn(): { x: number; y: number; kind: EnemyKind; look?: EnemyLook; flip?: boolean }[];
+  /**
+   * GDD-ENM-02: the defeated enemies' squash, hit and poof frames as drawn, read back from their images: the kind, the look of the frame, its
+   * x and its y (a walker's feet for a squash or hit frame, else the frame's middle).
+   */
+  defeatsDrawn(): { kind: EnemyKind; look: EnemyLook; x: number; y: number }[];
   /**
    * GDD-BOS-02: Don Zopilote in the run, or null in a level without a boss: the middle of his box, the way he faces, his mode, the steps
    * in it, the hits he has taken and where his dive, drop, sweep or climb goes.
@@ -500,7 +523,12 @@ export class PlayScene extends Phaser.Scene {
   private fireballGfx!: Phaser.GameObjects.Graphics;
   private fireballsPainted = 0;
   private enemyGfx!: Phaser.GameObjects.Graphics;
-  private enemiesPainted: { x: number; y: number; kind: EnemyKind }[] = [];
+  private enemiesPainted: ReturnType<PonchoDebug['enemiesDrawn']> = [];
+  /** GDD-ENM-02: World 1's enemies' sprites, and the defeat effects' (`defeatFx`), each a pool of images reused frame to frame. */
+  private enemyImages: Phaser.GameObjects.Image[] = [];
+  private defeatImages: Phaser.GameObjects.Image[] = [];
+  private defeats: readonly DefeatFx[] = [];
+  private defeatsPainted: ReturnType<PonchoDebug['defeatsDrawn']> = [];
   /** GDD-BOS-02: Don Zopilote and his fruit, the arena's rocks, and what was last drawn of each (`PonchoDebug.bossDrawn` and the rest). */
   private bossSprite!: Phaser.GameObjects.Image;
   private fruitImages: Phaser.GameObjects.Image[] = [];
@@ -713,6 +741,8 @@ export class PlayScene extends Phaser.Scene {
     this.load.spritesheet('boss-fruit', bossFruitPng, { frameWidth: BOSS_ART.fruitFrame * ART_SCALE, frameHeight: BOSS_ART.fruitFrame * ART_SCALE });
     this.load.image('boss-rock', bossRockPng);
     this.load.spritesheet('boss-crown', bossCrownPng, { frameWidth: BOSS_ART.crownW * ART_SCALE, frameHeight: BOSS_ART.crownH * ART_SCALE });
+    // GDD-ENM-02: World 1's enemies and the defeat poof, one row of frames each (`ENEMY_LOOKS`). Every level loads them: they are small.
+    for (const sheet of SHEETS) this.load.spritesheet(`enemy-${sheet}`, ENEMY_PNGS[sheet], { frameWidth: ENEMY_ART.frames[sheet].w * ART_SCALE, frameHeight: ENEMY_ART.frames[sheet].h * ART_SCALE });
     // GDD-AUD-02: Ogg where it plays, MP3 elsewhere. Phaser picks the first format the browser supports.
     this.load.audio('sfx-ofrenda', [ofrendaOgg, ofrendaMp3]);
     this.load.audio('sfx-jump', [jumpOgg, jumpMp3]);
@@ -1205,6 +1235,7 @@ export class PlayScene extends Phaser.Scene {
         fireballsDrawn: () => this.fireballsPainted,
         enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: enemyPhase(e) })),
         enemiesDrawn: () => this.enemiesPainted,
+        defeatsDrawn: () => this.defeatsPainted,
         boss: () => {
           const b = this.run.boss;
           return b ? { x: b.x, y: b.y, dir: b.dir, mode: b.mode, age: b.age, hits: b.hits, tx: b.tx, ty: b.ty } : null;
@@ -1376,23 +1407,30 @@ export class PlayScene extends Phaser.Scene {
     if (power === 'fuego') this.paintChile(g, cx + size * 0.55, cy - size * 0.35, size * 0.8);
   }
 
-  /** Draws every live enemy by its kind (GDD-ENM-02, GDD-ENM-03); a defeated one is not drawn. */
+  /**
+   * Draws every live enemy by its kind (GDD-ENM-02, GDD-ENM-03); a defeated one is not drawn, but World 1's go in a poof (`drawDefeats`).
+   * World 1's are sprites of their sheets, posed by `enemyPose`; World 2's are placeholder shapes.
+   */
   private drawEnemies(): void {
     this.enemyGfx.clear();
     this.enemiesPainted = [];
+    const ctx = { clock: this.run.clock, poncho: centre(this.run.player) };
+    let sprites = 0;
     this.level.enemies.forEach((def, i) => {
       const e = this.run.enemies[i]!;
       if (!e.alive) return;
       const kind = kindOf(def);
       switch (kind) {
         case 'alacran':
-          return this.drawAlacran(e, feetOf(def, e));
         case 'zopilote':
-          return this.drawZopilote(e);
         case 'cactus':
-          return this.drawCactus(e, def.y);
-        case 'tlacuache':
-          return this.drawTlacuache(e, feetOf(def, e));
+        case 'tlacuache': {
+          const pose = enemyPose(def, e, ctx)!;
+          const image = this.poolImage(this.enemyImages, sprites++, kind, pose.frame, pose.flip).setPosition(pose.x, pose.y);
+          // L-010: read back from the image: where it stands, its frame's look and its mirroring, not the pose.
+          this.enemiesPainted.push({ x: image.x, y: image.y, kind, look: frameLook(kind, Number(image.frame.name)), flip: image.flipX });
+          return;
+        }
         // GDD-ENM-03: World 2's placeholders, from `src/ui/mercadoEnemies.ts`; a flying Paloma's feet are where it has flown to.
         case 'paloma':
           return this.paintEnemy(kind, e.x, feetOf(def, e) - e.wing!.lift, palomaShapes(e, feetOf(def, e) - e.wing!.lift));
@@ -1404,6 +1442,31 @@ export class PlayScene extends Phaser.Scene {
           return kind satisfies never;
       }
     });
+    this.enemyImages.forEach((image, i) => image.setVisible(i < sprites));
+  }
+
+  /**
+   * The `index`th image of `pool`, made if the pool is that short, showing `frame` of `sheet`'s sheet, mirrored when `flip`, at depth 3 and
+   * at the scale of the art (GDD-ART-01), standing on its bottom middle or centred as the sheet's frames are (`centred`). Visible.
+   */
+  private poolImage(pool: Phaser.GameObjects.Image[], index: number, sheet: Sheet, frame: number, flip: boolean): Phaser.GameObjects.Image {
+    while (pool.length <= index) pool.push(this.add.image(0, 0, `enemy-${sheet}`, 0).setScale(1 / ART_SCALE).setDepth(3));
+    const image = pool[index]!.setTexture(`enemy-${sheet}`, frame).setFlipX(flip).setVisible(true);
+    return centred(sheet) ? image.setOrigin(0.5) : image.setOrigin(0.5, 1);
+  }
+
+  /**
+   * GDD-ENM-02: the defeated World 1 enemies' last frames (`defeatFx`): squashed by a stomp or knocked by the claw or a fireball, then a
+   * poof, one image each. World 2's kinds just vanish.
+   */
+  private drawDefeats(): void {
+    this.defeatsPainted = this.defeats.map((fx, i) => {
+      const look = defeatLook(fx);
+      const image = this.poolImage(this.defeatImages, i, look.sheet, look.frame, look.flip).setPosition(look.x, look.y);
+      // L-010: read back from the image: its sheet's frame and where it stands.
+      return { kind: fx.kind, look: frameLook(look.sheet, Number(image.frame.name)), x: image.x, y: image.y };
+    });
+    this.defeatImages.forEach((image, i) => image.setVisible(i < this.defeats.length));
   }
 
   /** Paints an enemy's placeholder shapes (GDD-ENM-03) and records where it was painted: its x and its feet. */
@@ -1415,91 +1478,6 @@ export class PlayScene extends Phaser.Scene {
       if ('rect' in s) g.fillRect(...s.rect);
       else g.fillTriangle(...s.tri);
     }
-  }
-
-  /**
-   * Placeholder Alacrán (GDD-ENM-02): a dark red scorpion 14 x 10 px with pale claws out in front, a tail arched over its back
-   * ending in a pale stinger, and four legs, facing the way it walks.
-   */
-  private drawAlacran(e: EnemyState, y: number): void {
-    const g = this.enemyGfx;
-    this.enemiesPainted.push({ x: e.x, y, kind: 'alacran' });
-    const d = e.dir;
-    g.fillStyle(0x9a3a2a, 1).fillRect(e.x - 5, y - 6, 10, 5);
-    g.lineStyle(1, 0x4a1a12, 1).strokeRect(e.x - 4.5, y - 5.5, 9, 4);
-    g.fillStyle(0xe9d3a3, 1).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), y - 7, 3, 3).fillRect(e.x + d * 5 - (d < 0 ? 3 : 0), y - 3, 3, 2);
-    g.lineStyle(1, 0x9a3a2a, 1).beginPath().moveTo(e.x - d * 5, y - 5).lineTo(e.x - d * 7, y - 8).lineTo(e.x - d * 4, y - 10).lineTo(e.x - d * 1, y - 8).strokePath();
-    g.fillStyle(0xe9d3a3, 1).fillRect(e.x - d * 1 - 1, y - 9, 2, 2);
-    g.lineStyle(1, 0x4a1a12, 1);
-    for (const lx of [-3, -1, 1, 3]) g.lineBetween(e.x + lx, y - 1, e.x + lx, y);
-  }
-
-  /**
-   * Placeholder cactus buddy (GDD-ENM-02): a green cactus 12 x 16 px with two arms and three pale thorns on top, the mark of an
-   * enemy that cannot be stomped (GDD-CMB-01).
-   */
-  private drawCactus(e: EnemyState, y: number): void {
-    const g = this.enemyGfx;
-    const x = e.x;
-    this.enemiesPainted.push({ x, y, kind: 'cactus' });
-    g.fillStyle(0x4f9a4a, 1).fillRect(x - 3, y - 16, 6, 16).fillRect(x - 6, y - 11, 3, 2).fillRect(x - 6, y - 14, 2, 4).fillRect(x + 3, y - 8, 3, 2).fillRect(x + 4, y - 11, 2, 4);
-    g.lineStyle(1, 0x2f5f2c, 1).lineBetween(x, y - 15, x, y);
-    g.fillStyle(0xf2efe6, 1);
-    for (const tx of [-3, -1, 1]) g.fillTriangle(x + tx, y - 16, x + tx + 2, y - 16, x + tx + 1, y - 19);
-  }
-
-  /**
-   * Placeholder Tlacuache (GDD-ENM-02): a grey opossum 16 x 10 px with a pale face, a pink nose and ears facing the way it walks,
-   * and a long bare pink tail behind. Its body flashes red for its telegraph (GDD-ENM-01). Playing dead it lies on its back,
-   * feet up, with a crossed-out eye and its tongue out, and its feet twitch in the last 0.5 s before it wakes.
-   */
-  private drawTlacuache(e: EnemyState, y: number): void {
-    const g = this.enemyGfx;
-    const { x, dir: d } = e;
-    const gait = e.gait!;
-    this.enemiesPainted.push({ x, y, kind: 'tlacuache' });
-    g.lineStyle(1, 0xd98c9a, 1).beginPath().moveTo(x - d * 6, y - 3).lineTo(x - d * 9, y - 2).lineTo(x - d * 8, y - 5).strokePath();
-    if (gait.phase === 'dead') {
-      // Two pairs of feet, 2 px wide, stick 4 px straight up; in the last 0.5 s they curl to 1 px every other 4 steps.
-      const twitch = gait.age >= TLACUACHE.playDeadSteps - TLACUACHE.twitchSteps && Math.floor(gait.age / 4) % 2 === 0;
-      g.fillStyle(0x8c8a94, 1).fillRect(x - 6, y - 5, 12, 5);
-      g.fillStyle(0xf2efe6, 1).fillRect(x + d * 5 - (d < 0 ? 3 : 0), y - 5, 3, 4);
-      g.fillStyle(0x4a4850, 1);
-      for (const lx of [-4, 2]) g.fillRect(Math.round(x) + lx, twitch ? y - 6 : y - 9, 2, twitch ? 1 : 4);
-      g.lineStyle(1, 0x4a4850, 1);
-      g.lineBetween(x + d * 6 - 1, y - 4, x + d * 6 + 1, y - 2).lineBetween(x + d * 6 - 1, y - 2, x + d * 6 + 1, y - 4);
-      g.fillStyle(0xe89aa8, 1).fillRect(x + d * 8 - (d < 0 ? 1 : 0), y - 2, 1, 2);
-      return;
-    }
-    const flash = gait.phase === 'telegraph' && Math.floor(gait.age / 4) % 2 === 0;
-    g.fillStyle(flash ? 0xff5030 : 0x8c8a94, 1).fillRect(x - 6, y - 8, 12, 6);
-    g.fillStyle(0xf2efe6, 1).fillRect(x + d * 5 - (d < 0 ? 4 : 0), y - 8, 4, 4);
-    g.fillStyle(0xe89aa8, 1).fillRect(x + d * 8 - (d < 0 ? 1 : 0), y - 6, 1, 1).fillRect(x + d * 4 - (d < 0 ? 2 : 0), y - 10, 2, 2);
-    g.fillStyle(0x1a1a1e, 1).fillRect(x + d * 6 - (d < 0 ? 1 : 0), y - 7, 1, 1);
-    g.lineStyle(1, 0x4a4850, 1);
-    for (const lx of [-4, -2, 2, 4]) g.lineBetween(x + lx, y - 2, x + lx, y);
-  }
-
-  /**
-   * Placeholder Zopilote (GDD-ENM-02): a dark brown vulture 16 x 10 px with a pink head and beak facing the way it flies, wings
-   * that flap while it cruises and are raised for its telegraph (which also flashes the body red, GDD-ENM-01), and three pale
-   * thorns along its back, the mark of an enemy that cannot be stomped (GDD-CMB-01).
-   */
-  private drawZopilote(e: EnemyState): void {
-    const f = e.flight!;
-    const g = this.enemyGfx;
-    const { x, y } = { x: e.x, y: f.y };
-    const d = e.dir;
-    this.enemiesPainted.push({ x, y, kind: 'zopilote' });
-    const flash = f.phase === 'telegraph' && Math.floor(f.age / 4) % 2 === 0;
-    const up = f.phase === 'telegraph' || (f.phase !== 'dive' && Math.floor(f.age / 8) % 2 === 0);
-    const wingY = up ? y - 7 : y + 4;
-    g.fillStyle(0x6b5340, 1).fillTriangle(x - 7, y - 1, x - 1, y - 1, x - 8, wingY).fillTriangle(x + 1, y - 1, x + 7, y - 1, x + 8, wingY);
-    g.fillStyle(flash ? 0xff5030 : 0x4a3a30, 1).fillRect(x - 6, y - 2, 12, 6);
-    g.fillStyle(0xd98c7a, 1).fillRect(x + d * 6 - (d < 0 ? 3 : 0), y - 3, 3, 3);
-    g.fillStyle(0xe9d3a3, 1).fillRect(x + d * 8 - (d < 0 ? 2 : 0), y - 1, 2, 1);
-    g.fillStyle(0xf2efe6, 1);
-    for (const tx of [-5, -1, 3]) g.fillTriangle(x + tx, y - 2, x + tx + 3, y - 2, x + tx + 1.5, y - 5);
   }
 
   /**
@@ -2083,6 +2061,7 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
     this.run = after;
+    this.defeats = stepDefeats(this.defeats, before, this.run, this.level);
     const { sounds, combo } = stepSounds(before, this.run, this.hiloCombo);
     this.hiloCombo = combo;
     for (const sound of sounds) this.playSfx(sound.name, sound.semitones);
@@ -2284,6 +2263,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawItems();
     this.drawFireballs();
     this.drawEnemies();
+    this.drawDefeats();
     this.drawBoss();
     this.drawEstrella();
     this.drawRocks();
@@ -2465,6 +2445,7 @@ export class PlayScene extends Phaser.Scene {
    */
   private resumeHere(saved: SavedRun): void {
     this.run = resumeRun(this.level, saved, this.progress[this.entry.id]?.hilos);
+    this.defeats = [];
     this.drawnLives = this.run.lives.lives;
     this.cracks = [];
     this.drawHud();
@@ -2517,6 +2498,7 @@ export class PlayScene extends Phaser.Scene {
     this.anim = startAnim(this.run.player.x);
     this.peak = 0;
     this.hiloCombo = NO_COMBO;
+    this.defeats = [];
     this.tipFade = NO_TIP;
     this.tipsDoneNow = (this.entry.tips ?? []).map(() => false);
     this.tipStep = 0;

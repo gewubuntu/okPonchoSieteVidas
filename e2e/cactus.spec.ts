@@ -15,8 +15,15 @@ type Input = { move: number; jumpHeld: boolean; claw?: boolean; fuego?: boolean 
 const step = (page: Page, n: number, input: Input = { move: 0, jumpHeld: false }) => page.evaluate(({ k, i }) => window.__PONCHO__!.step(k, i), { k: n, i: input });
 type Colour = { r: number; g: number; b: number };
 const cactus = async (page: Page) => (await api(page, () => window.__PONCHO__!.enemies()))[2]!;
-const green = (c: Colour) => Math.abs(c.r - 79) < 14 && Math.abs(c.g - 154) < 14 && Math.abs(c.b - 74) < 14; // the body, 4f9a4a
-const pale = (c: Colour) => c.r > 220 && c.g > 220 && c.b > 205; // the thorns, f2efe6
+const near = (c: Colour, [r, g, b]: [number, number, number]) => Math.abs(c.r - r) < 14 && Math.abs(c.g - g) < 14 && Math.abs(c.b - b) < 14;
+const green = (c: Colour) => near(c, [0x6f, 0xa0, 0x3a]); // the body, grass #6FA03A (GDD-ART-06)
+const pale = (c: Colour) => near(c, [0xff, 0xf4, 0xdc]) || near(c, [0xff, 0xf6, 0xd0]); // the spines, cloudTop #FFF4DC or sunDisc #FFF6D0
+/** Points every half px over a box `dx0` to `dx1` px across from x = 184 and `dy0` to `dy1` px down from its feet (y = 192). */
+const area = ([dx0, dx1]: [number, number], [dy0, dy1]: [number, number]) => {
+  const out: { x: number; y: number }[] = [];
+  for (let dx = dx0; dx <= dx1; dx += 0.5) for (let dy = dy0; dy <= dy1; dy += 0.5) out.push({ x: 184 + dx, y: 192 + dy });
+  return out;
+};
 
 test('GDD-ENM-02 the cactus buddy stands still on top of the 2-tile wall and is painted there', async ({ page }) => {
   await start(page);
@@ -27,14 +34,15 @@ test('GDD-ENM-02 the cactus buddy stands still on top of the 2-tile wall and is 
   await frames(page);
   const painted = (await api(page, () => window.__PONCHO__!.enemiesDrawn())).find((e) => e.kind === 'cactus')!;
   expect([painted.x, painted.y]).toEqual([184, 192]);
-  expect((await pixelsAt(page, [{ x: 182, y: 186 }, { x: 186, y: 184 }, { x: 183, y: 180 }])).some(green)).toBe(true);
+  expect(painted.look).toMatch(/^doze[01]$/); // Poncho is far from it
+  expect((await pixelsAt(page, area([-3, 1], [-12, -4]))).some(green)).toBe(true); // its trunk
 });
 
 test('GDD-CMB-01 three pale thorns on top mark it as not stompable', async ({ page }) => {
   await start(page);
   await frames(page);
-  const thorns = [-2, 0, 2].map((dx) => ({ x: 184 + dx, y: 192 - 17 }));
-  expect((await pixelsAt(page, thorns)).filter(pale).length).toBeGreaterThanOrEqual(2);
+  // Its box's top is 16 px above its feet: the spines stand along it, on its head and its arms.
+  expect((await pixelsAt(page, area([-5, 5], [-17, -13]))).filter(pale).length).toBeGreaterThanOrEqual(2);
 });
 
 test('GDD-CMB-03 walking into it costs a life in Base', async ({ page }) => {

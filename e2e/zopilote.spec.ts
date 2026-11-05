@@ -15,9 +15,20 @@ type Input = { move: number; jumpHeld: boolean; claw?: boolean; fuego?: boolean 
 const step = (page: Page, n: number, input: Input = { move: 0, jumpHeld: false }) => page.evaluate(({ k, i }) => window.__PONCHO__!.step(k, i), { k: n, i: input });
 type Colour = { r: number; g: number; b: number };
 const vulture = async (page: Page) => (await api(page, () => window.__PONCHO__!.enemies()))[1]!;
-const brown = (c: Colour) => Math.abs(c.r - 74) < 12 && Math.abs(c.g - 58) < 12 && Math.abs(c.b - 48) < 12; // the body, 4a3a30
-const red = (c: Colour) => c.r > 220 && c.g < 120 && c.b < 90; // the telegraph flash, ff5030
-const pale = (c: Colour) => c.r > 220 && c.g > 220 && c.b > 205; // the thorns, f2efe6
+const near = (c: Colour, [r, g, b]: [number, number, number]) => Math.abs(c.r - r) < 14 && Math.abs(c.g - g) < 14 && Math.abs(c.b - b) < 14;
+const navy = (c: Colour) => near(c, [0x3a, 0x45, 0x80]); // the black plumage, navy #3A4580 (GDD-ART-06)
+const red = (c: Colour) => near(c, [0xd8, 0x47, 0x3a]); // the telegraph flash, red #D8473A (GDD-ENM-01)
+const pale = (c: Colour) => near(c, [0xff, 0xf4, 0xdc]) || near(c, [0xff, 0xf6, 0xd0]); // the cholla's spines, cloudTop #FFF4DC or sunDisc #FFF6D0
+/** Points every half px over a box `dx0` to `dx1` px across from its middle (mirrored when it faces left) and `dy0` to `dy1` px down from it. */
+const area = (x: number, y: number, dir: number, [dx0, dx1]: [number, number], [dy0, dy1]: [number, number]) => {
+  const out: { x: number; y: number }[] = [];
+  for (let dx = dx0; dx <= dx1; dx += 0.5) for (let dy = dy0; dy <= dy1; dy += 0.5) out.push({ x: x + dx * dir, y: y + dy });
+  return out;
+};
+/** Its body, which is navy in every flap frame: 1 to 5 px behind its middle, 0 to 2 px below it. */
+const body = (v: { x: number; y: number; dir: number }) => area(v.x, v.y, v.dir, [-5, -1], [0, 2]);
+/** The look the scene drew it with (L-010: read back from its sprite). */
+const drawnLook = async (page: Page) => (await api(page, () => window.__PONCHO__!.enemiesDrawn())).find((e) => e.kind === 'zopilote')!.look;
 const ledge = (page: Page) => page.evaluate(() => window.__PONCHO__!.teleport(224, 112)); // on the spring ledge, 32 px below its line
 
 test('GDD-ENM-02 the Zopilote cruises on its line, bobbing, and is painted where it is', async ({ page }) => {
@@ -43,37 +54,43 @@ test('GDD-ENM-02 the Zopilote cruises on its line, bobbing, and is painted where
   const now = await vulture(page);
   const painted = (await api(page, () => window.__PONCHO__!.enemiesDrawn())).find((e) => e.kind === 'zopilote')!;
   expect([painted.x, painted.y]).toEqual([now.x, now.y]);
-  expect((await pixelsAt(page, [{ x: Math.round(now.x), y: Math.round(now.y) + 1 }])).some(brown)).toBe(true);
+  expect(painted.look).toMatch(/^flap[0-3]$/);
+  expect(painted.flip).toBe(now.dir < 0);
+  expect((await pixelsAt(page, body(now))).some(navy)).toBe(true);
 });
 
 test('GDD-CMB-01 three pale thorns along its back mark it as not stompable', async ({ page }) => {
   await start(page);
   await frames(page);
-  const { x, y } = await vulture(page);
-  const thorns = [-4, 0, 4].map((dx) => ({ x: Math.round(x + dx), y: Math.round(y) - 3 }));
-  expect((await pixelsAt(page, thorns)).filter(pale).length).toBeGreaterThanOrEqual(2);
+  const v = await vulture(page);
+  // Its box is 16 x 10 px: its top is 5 px above its middle. The cholla's spines stand on its back there.
+  expect((await pixelsAt(page, area(v.x, v.y, v.dir, [-8, 8], [-7, -3]))).filter(pale).length).toBeGreaterThanOrEqual(2);
 });
 
 test('GDD-ENM-01 it spots Poncho on the ledge, freezes and flashes for 0.5 s, then dives', async ({ page }) => {
   await start(page);
   await ledge(page);
-  await step(page, 3);
+  // Stepped until it spots him: that step is age 0 of its telegraph.
+  await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    for (let k = 0; k < 10 && d.enemies()[1]!.phase !== 'telegraph'; k++) d.step(1);
+  });
   expect((await vulture(page)).phase).toBe('telegraph');
   const frozen = await vulture(page);
-  let flashed = false;
-  let plain = false;
-  for (let i = 0; i < 6; i++) {
-    await step(page, 4);
+  // It is red (teleRed) for the first 4 steps of every 8 counted from age 0, and plain (tele) for the other 4.
+  let age = 0;
+  for (const [at, look] of [[0, 'teleRed'], [3, 'teleRed'], [4, 'tele'], [7, 'tele'], [8, 'teleRed'], [12, 'tele']] as const) {
+    await step(page, at - age);
+    age = at;
     await frames(page);
     const now = await vulture(page);
     expect([now.x, now.y]).toEqual([frozen.x, frozen.y]);
-    const colours = await pixelsAt(page, [{ x: Math.round(now.x), y: Math.round(now.y) + 1 }]);
-    flashed ||= colours.some(red);
-    plain ||= colours.some(brown);
+    expect(await drawnLook(page), `age ${at}`).toBe(look);
+    const colours = await pixelsAt(page, area(now.x, now.y, now.dir, [-6, 1], [-3, 2]));
+    expect(colours.some(red), `age ${at} red`).toBe(look === 'teleRed');
+    if (look === 'tele') expect(colours.some(navy), `age ${at} navy`).toBe(true);
   }
-  expect(flashed).toBe(true);
-  expect(plain).toBe(true);
-  await step(page, 8);
+  await step(page, 30 - age);
   expect((await vulture(page)).phase).toBe('dive');
 });
 

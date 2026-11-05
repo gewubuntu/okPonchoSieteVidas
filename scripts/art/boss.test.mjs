@@ -135,6 +135,7 @@ describe('GDD-BOS-02 Don Zopilote\'s art', { timeout: 60_000 }, () => {
     expect(lowest(1)).toBe(31);
   });
 
+  // L-059: how far the frames of assets/sprites/boss/don-zopilote.png reach below his box; src/levels/level1-4.test.ts fits them over the fight.
   it('GDD-BOS-02 only his lowered wings and his tumbling reach below his box', () => {
     // His box's bottom is the frame's row FRAME.h / 2 + 30 (his box 60 drawing px tall), the floor line of the frames he shows resting on
     // the floor (stuck, sweeping, hurt after a claw hit, lying defeated). Only the lowered wings (flapDown, climbDown), BOSS_ART.wingsBelow px,

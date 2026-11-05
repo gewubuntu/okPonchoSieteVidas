@@ -667,10 +667,10 @@ Retired IDs: L-046
 - **Area:** art
 - **What went wrong:** Don Zopilote's hurt and defeated frames (PR #75) were drawn with his wings lowered, as in the design canvas, where he hovered in the sky. In the game he is hurt on the floor after a claw hit and lies there defeated, with his box's bottom on the floor's top, so the wings hung 12 to 16 px below it, in front of the ground tiles. The art tests checked the palette, the outline and the crown, not where each frame is shown; the reviewer found it in the screenshots.
 - **Root cause:** The frames were designed one by one as poses, not against the places the game draws them: the plan listed which mode picks each frame, but not where his box is in that mode.
-- **Rule:** When planning a sprite's frames, list for each frame every place the game shows it (in the air, resting on the floor, rising from it, against a wall), pin in an art test how far each frame reaches past its box and that none is cut off by its frame's edge, and test over the real level or fight that at every step the frame shown fits the room it has there (`scripts/art/boss.test.mjs`, `src/levels/level1-4.test.ts`).
+- **Rule:** When planning a sprite's frames, list for each frame every place the game shows it (in the air, resting on the floor, rising from it, against a wall, on a sand slope), pin in an art test how far each frame reaches past its box and that none is cut off by its frame's edge, and test over the real level or fight that at every step the frame shown fits the room it has there, slope sand counting as ground and the player placed so that every frame is posed (`scripts/art/boss.test.mjs`, `src/levels/level1-4.test.ts`, `scripts/art/enemies1.levels.test.mjs`).
 - **Recurrence 2 (2026-11-04, PR #75 re-review):** my fix for the first finding checked only the frames shown resting on the floor; the reviewer measured the fight and found the flap's lowered wings 2 to 14 px into the floor for the last 5 steps of every phase 2 drop and the climb's for 4 steps off the floor. The same check also showed the lowered wings had been cut off by the frame's bottom edge, which the outline test missed because it treated the edge as filled. Now: the lowered wings are shorter and fit their frame, an edge counts as empty in the outline test, the art test pins that only the lowered wings reach below his box (14 px, `BOSS_ART.wingsBelow`), `bossPose` keeps them raised within 14 px of the floor, and a test runs the bot through the whole 1-4 fight checking every frame shown against the floor.
-- **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-feature step 5 (Sprite frames). Guard for Don Zopilote: `scripts/art/boss.test.mjs` ("only his lowered wings reach below his box") and `src/levels/level1-4.test.ts` ("through the whole fight no frame of his reaches into the floor"); a new sprite gets its own from the skill step.
+- **Recurrence:** 4
+- **Promoted:** .claude/skills/harness-feature step 5 (Sprite frames; since the fourth time it names slopes and asks that every frame be posed: 2026-11-05, PR #79 re-review, the first level test counted only level tiles as ground and kept Poncho at his spawn, so slope sand and every reaction frame went unchecked; the guard below ensures a fit test exists, not that it covers the frames). Guard for Don Zopilote: `scripts/art/boss.test.mjs` ("only his lowered wings reach below his box") and `src/levels/level1-4.test.ts` ("through the whole fight no frame of his reaches into the floor"); a new sprite got its own only from the skill step, until the third time (2026-11-05, PR #79 review: World 1's enemy sprites shipped with neither test; the plan, written from the art brief, never applied the skill step, and the Tlacuache's tail was drawn 5 px over pen walls unpinned). Guard: `scripts/check.mjs` (`sprite-fit`, `scripts/sprite-fit.mjs`): every character sprite sheet must be named by a test that cites L-059.
 
 ## L-060 Parallel worktrees on one machine would run their playtests against each other's dev server
 
@@ -698,9 +698,9 @@ Retired IDs: L-046
 - **Area:** playtest, level
 - **What went wrong:** `e2e/world2.spec.ts`, one test of `e2e/world1.spec.ts` and three scenarios of `e2e/shots/mercado.spec.ts` were written while 2-1 to 2-3 were stubs and hard-coded their numbers: the 4-tile gap at columns 40 to 43, the exit at x 1400, the spawn at x 40 and the stub's decor list. When the real levels landed, seven playtests failed on both viewports and three screenshot scenarios failed, in the full run only; each was re-anchored on the level module (`pits()` over `LEVEL_2_1.world`, `LEVEL_2_1.exit`, `LEVEL_2_1.spawn`, `plantSpots(LEVEL_2_1, MERCADO.decor)`).
 - **Root cause:** The specs copied positions out of the level by hand instead of reading them from the level data they play, and the commit that replaced the stubs ran the specs of the new features, not every spec and shot scenario that opens those levels.
-- **Rule:** A playtest reads where things are in a real level (pits, exit, spawn, decor, enemies) from the level module it plays (`import { LEVEL_x_y } from '../src/levels/...'`), and comments any number it must hard-code; a commit that changes a level's data runs every spec and shot scenario that opens it (`grep -rln "level=<id>" e2e`).
-- **Recurrence:** 1
-- **Promoted:** no
+- **Rule:** A playtest reads where things are in a real level (pits, exit, spawn, decor, enemies) from the level module it plays (`import { LEVEL_x_y } from '../src/levels/...'`), and comments any number it must hard-code; a commit that changes a level's data runs every spec and shot scenario that opens it (`grep -rln "level=<id>" e2e`). More generally, a change that replaces a stand-in (a stub level, a placeholder drawing) plans the rewrite of every spec that pins the stand-in's details.
+- **Recurrence:** 2
+- **Promoted:** `.claude/skills/harness-feature/SKILL.md` step 5, "Stand-ins (L-062)": the plan greps the specs for the stand-in's details and lists how each is rewritten (second time, 2026-11-04: world 1's enemy sprites replaced the placeholder drawings, and ten playtests in `enemy`, `cactus`, `tlacuache` and `zopilote.spec.ts` failed on both viewports: they asserted the placeholders' colours (`#9a3a2a`, `#4f9a4a`, `#ff5030`) and fixed feet pixels. The plan said those specs "must stay green unchanged", so they surfaced only in the implementer's full run and cost a second round; the rule above covered level numbers, not placeholder looks).
 
 ## L-063 Playtests in one checkout reloaded mid-test while other worktrees ran their own
 
@@ -722,3 +722,12 @@ Retired IDs: L-046
 - **Recurrence:** 1
 - **Promoted:** no
 
+## L-065 Parallel agents overwrote each other's helper scripts in the shared scratchpad
+
+- **Date:** 2026-11-04
+- **Area:** harness, process
+- **What went wrong:** Four artist agents drew World 1's enemies in parallel and each wrote its zoom helper to the scratchpad's top level as `zoom.mjs`; they overwrote one another's, and three of them lost a review round finding out and moving their files into subfolders.
+- **Root cause:** The brief gave every agent the same scratchpad path and no folder of its own, so the same obvious file names collided.
+- **Rule:** A brief for parallel agents gives each one its own scratch folder (`<scratchpad>/<agent's task>/`) for every file it writes there, and names any shared output path (a preview image) per agent.
+- **Recurrence:** 1
+- **Promoted:** no
