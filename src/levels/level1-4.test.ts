@@ -242,6 +242,7 @@ describe('GDD-BOS-02 playing 1-4', () => {
     expect(run.boss).toMatchObject({ hits: 3, mode: 'defeated' });
   });
 
+  // L-059: the frames of assets/sprites/boss/ (scripts/art/boss.test.mjs pins their reach) over the real fight.
   it('GDD-BOS-02 through the whole fight no frame of his reaches into the floor', () => {
     // Only the lowered wings reach below his box, BOSS_ART.wingsBelow px (scripts/art/boss.test.mjs); bossPose keeps them raised near the floor.
     const floor = LEVEL_1_4.boss!.floor;

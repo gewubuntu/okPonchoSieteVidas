@@ -110,6 +110,29 @@ describe('GDD-ENM-02 World 1\'s enemy sprites', { timeout: 60_000 }, () => {
     expect(points('tlacuache', 'walk0'), 'tlacuache walk0').toBe(0);
   });
 
+  // L-059: the frames of assets/sprites/enemies/; scripts/art/enemies1.levels.test.mjs fits them over the real levels.
+  it('GDD-ENM-02 each kind reaches past its box exactly as far as ENEMY_ART.reach says (L-059)', () => {
+    // Over every frame of the kind, facing right: how far its painted pixels (the outline included) stand behind, in front of, above and
+    // below its box, in game px (a drawing pixel is half a game px).
+    for (const kind of ['alacran', 'zopilote', 'cactus', 'tlacuache']) {
+      const { BOX } = KINDS[kind];
+      const reach = { behind: 0, front: 0, above: 0, below: 0 };
+      for (const look of KINDS[kind].LOOKS) {
+        const grid = frame(kind, look);
+        for (let y = 0; y < grid.height; y++) {
+          for (let x = 0; x < grid.width; x++) {
+            if (grid.get(x, y) === null) continue;
+            reach.behind = Math.max(reach.behind, (BOX.x0 - x) / 2);
+            reach.front = Math.max(reach.front, (x + 1 - BOX.x1) / 2);
+            reach.above = Math.max(reach.above, (BOX.y0 - y) / 2);
+            reach.below = Math.max(reach.below, (y + 1 - BOX.y1) / 2);
+          }
+        }
+      }
+      expect(reach, kind).toEqual(ENEMY_ART.reach[kind]);
+    }
+  });
+
   it('GDD-ENM-02 the body fills at least half the hit box, so hits are fair', () => {
     for (const [kind, look] of [['alacran', 'walk0'], ['zopilote', 'flap0'], ['cactus', 'doze0'], ['tlacuache', 'walk0']]) {
       const { x0, y0, x1, y1 } = KINDS[kind].BOX;

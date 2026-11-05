@@ -10,6 +10,7 @@ import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { gddVersionErrors } from './gdd-version.mjs';
+import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -495,6 +496,16 @@ function checkPhoneShotsByTouch() {
   return errors;
 }
 
+// L-059: every character sprite sheet has a test that pins how far its frames reach past their box and fits them over the real levels
+// (scripts/sprite-fit.mjs).
+function checkSpriteFit() {
+  const dir = join(ROOT, 'assets', 'sprites');
+  const entries = readdirSync(dir).map((name) => ({ name, dir: statSync(join(dir, name)).isDirectory() }));
+  // The check's own unit test names sheets in its fixtures, so it does not count.
+  const tests = textFiles().filter((f) => /\.test\.(m?js|ts)$/.test(f) && f !== join('scripts', 'sprite-fit.test.mjs')).map((f) => ({ path: f, text: read(f) }));
+  return spriteFitErrors(sheetsOf(entries), tests);
+}
+
 // L-020: a mutation run that was killed leaves its marker, and the mutated file, behind (scripts/mutate.mjs). The runner
 // itself sets PONCHO_MUTATING for the test it runs, so a mutant tested against the gate is judged by the other checks.
 function checkNoMutation() {
@@ -508,6 +519,7 @@ const checks = [
   ['realtime-waits', checkRealtimeWaits],
   ['whole-save-pins', checkWholeSavePins],
   ['phone-shots-by-touch', checkPhoneShotsByTouch],
+  ['sprite-fit', checkSpriteFit],
   ['gdd', checkGdd],
   ['gdd-one-version', checkOneGddVersion],
   ['gdd-open-questions', checkOpenQuestionRefs],
