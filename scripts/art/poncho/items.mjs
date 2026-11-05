@@ -269,7 +269,7 @@ export const held = {
   FRAME: { w: 24, h: 24 },
   /** Where the paw's middle is: the frame's middle (between pixels 11 and 12 each way), in drawing px. */
   HAND: { x: 12, y: 12 },
-  LOOKS: ['tacoHeld', 'chileHeld', 'tacoFood', 'chileFood'],
+  LOOKS: ['tacoHeld', 'chileHeld', 'tacoFood', 'chileFood', 'tacoBittenHeld'],
   draw() {
     const make = (fuego) => {
       const g = new Grid(24, 24);
@@ -293,6 +293,7 @@ export const held = {
       { look: 'chileHeld', grid: make(true) },
       { look: 'tacoFood', grid: layer(24, 24, SMALL_TACO, 5, 2) },
       { look: 'chileFood', grid: chileAlone() },
+      { look: 'tacoBittenHeld', grid: layer(24, 24, bitten(SMALL_TACO, [[13.4, 0.4, 2.9], [16.2, 3.9, 3.1]]), 5, 2) },
     ];
   },
 };
@@ -310,8 +311,8 @@ const SW = 64;
 const ARC = {
   cx: 21, cy: 32, k: 1.3,
   claws: [
-    { R: 26, w: 6.4, a0: -1.05, a1: 1.0 },
-    { R: 19, w: 4.2, a0: -0.84, a1: 1.08 },
+    { R: 26.5, w: 7.6, a0: -1.04, a1: 1.0 },
+    { R: 19, w: 6.2, a0: -0.84, a1: 1.08 },
     { R: 13, w: 3.2, a0: -0.46, a1: 1.15 },
   ],
 };
@@ -343,7 +344,7 @@ function smear(from, to, { scale = 1, peak = 0.6, core = 2, broken = false } = {
       const out = depth(1), inn = depth(-1);
       let c = COLOURS.w;
       if (out === 1) c = COLOURS.c;
-      else if (out <= 1 + core && inn > 1) c = COLOURS.W;
+      else if (out <= 1 + (core && w * scale >= 7 ? core + 1 : core) && inn > 1) c = COLOURS.W; // the heaviest claw's core 1 px wider
       if (inn === 1 && out > 1 && w * scale >= 3) c = COLOURS.c;
       g.set(x, y, c);
     }
@@ -404,6 +405,84 @@ export const swipe = {
       { look: 'swipe1', grid: sweep(smear(0, 1), 6) },
       { look: 'swipe2', grid: sweep(smear(0.45, 1, { scale: 0.75, core: 0, broken: true }), 6) },
       { look: 'swipe3', grid: s3 },
+    ];
+  },
+};
+
+// ---- Effects at his mouth: the fire burst of the spit (Fuego) and the crumbs of the chomp. ----------------------------------------
+
+/**
+ * A burst of fire from the mouth at (x0, y0) toward +x: a body `len` px long whose tip rises `rise` px, `width` px at its widest,
+ * with flames licking up off its top and leaning forward (`licks`: [where along the body 0 to 1, height, base width]). Hottest at the
+ * mouth and down the middle: a white-hot core, cream, fur orange, red at the edges, crimson along the underside. Nothing behind the
+ * mouth. Outlined.
+ */
+function flame(x0, y0, { len, rise, width, licks }) {
+  const g = new Grid(32, 32);
+  const at = (t) => [x0 + len * t, y0 - rise * t * t];
+  const half = (t) => (width / 2) * (t < 0.3 ? 0.6 + (1.33 * t) : Math.pow((1 - t) / 0.7, 0.8));
+  for (let y = 1; y < 31; y++) for (let x = x0; x < 31; x++) {
+    const px = x + 0.5, py = y + 0.5;
+    let best = 1e9, bt = 0;
+    for (let k = 0; k <= 80; k++) { const [cx, cy] = at(k / 80); const d = Math.hypot(px - cx, py - cy); if (d < best) { best = d; bt = k / 80; } }
+    const hw = half(bt);
+    let heat = best <= hw && hw >= 0.6 ? Math.max(best / hw, bt * 1.05) : 9;
+    const underside = heat < 9 && py > at(bt)[1] && best > hw - 1.3 && bt > 0.06;
+    // The licks: tapered flames from the body's top edge, up and a little forward.
+    for (const [t, h, wb] of licks) {
+      const [bx, by0] = at(t), by = by0 - half(t) * 0.5;
+      const tx = bx + h * 0.6, ty = by - h;
+      const dx = tx - bx, dy = ty - by, l2 = dx * dx + dy * dy;
+      const s = Math.max(0, Math.min(1, ((px - bx) * dx + (py - by) * dy) / l2));
+      const d = Math.hypot(px - bx - s * dx, py - by - s * dy), w = (wb / 2) * Math.pow(1 - s, 0.9);
+      if (d <= w && w >= 0.45) heat = Math.min(heat, Math.max(0.5 + 0.5 * s, Math.max(t * 1.05, d / w)));
+    }
+    if (heat > 1) continue;
+    let c = heat < 0.27 ? COLOURS.W : heat < 0.46 ? COLOURS.w : heat < 0.72 ? COLOURS.f : COLOURS.r;
+    if (underside && heat > 0.46) c = COLOURS.c;
+    g.set(x, y, c);
+  }
+  g.outline(OUTLINE, 1);
+  return sweep(g, 4);
+}
+
+/** Bits of the chomp: a corner of shell, a curl of lettuce, a cube of tomato; each a few pixels, outlined on its own. */
+const BITS = {
+  shell: ['ww.', 'wfs'],
+  shellB: ['.wf', 'fss'],
+  leaf: ['gg.', '.Gg'],
+  leafB: ['.gg', 'gG.'],
+  tomato: ['kr', 'rc'],
+};
+
+export const fx = {
+  FRAME: { w: 32, h: 32 },
+  /** Where his mouth goes; the effects leave it toward +x (mirrored for the left). */
+  MOUTH: { x: 3, y: 17 },
+  LOOKS: ['flame0', 'flame1', 'crumbs0', 'crumbs1'],
+  draw() {
+    const { x, y } = this.MOUTH;
+    // The crumbs fly out of the mouth and fall: each bit's top left in the two frames (the second later, further out and lower).
+    const flying = [
+      ['shell', [x + 4, y - 5], [x + 9, y - 4]],
+      ['shellB', [x + 10, y - 7], [x + 19, y - 6]],
+      ['leaf', [x + 12, y - 2], [x + 22, y + 1]],
+      ['tomato', [x + 5, y + 1], [x + 11, y + 7]],
+      ['leafB', [x + 10, y + 3], [x + 17, y + 9]],
+    ];
+    const crumbs = (f) => {
+      const g = new Grid(32, 32);
+      flying.forEach(([kind, ...at], i) => {
+        const map = f && i % 2 ? BITS[kind].map((row) => [...row].reverse().join('')) : BITS[kind]; // they tumble
+        paste(g, layer(32, 32, map, ...at[f]), 0, 0);
+      });
+      return g;
+    };
+    return [
+      { look: 'flame0', grid: flame(x, y, { len: 12, rise: 2, width: 12, licks: [[0.3, 5, 5], [0.62, 4, 4]] }) },
+      { look: 'flame1', grid: flame(x, y, { len: 26, rise: 6, width: 14, licks: [[0.16, 8, 6], [0.4, 10, 6], [0.64, 7, 5]] }) },
+      { look: 'crumbs0', grid: crumbs(0) },
+      { look: 'crumbs1', grid: crumbs(1) },
     ];
   },
 };
