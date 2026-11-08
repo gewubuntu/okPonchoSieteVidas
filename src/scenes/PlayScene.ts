@@ -2121,7 +2121,8 @@ export class PlayScene extends Phaser.Scene {
     this.paintCling(this.run.phase === 'playing' && player.clinging === true ? (player.wallSide ?? 0) : 0);
     // The blink phase comes from the invulnerability counter, so it is the same every time: bright for the first
     // 0.1 s after a respawn, then dim and bright in turn.
-    this.body.setAlpha(Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
+    // GDD-ART-04: the victory on the clear screen is drawn whole, even when he reached the exit blinking after a hit.
+    this.body.setAlpha(this.run.phase !== 'clear' && Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
     // GDD-PWR-01, GDD-ART-04: in Taco he holds a taco at his frame's hand, mirrored with him; it follows the body, blink and all. The claw
     // swipe sits on the claw's box, the spit's flame and the crumbs of a bite at his frame's mouth (`ponchoParts`).
     const parts = ponchoParts(this.pose, { ...player, x: this.body.x, y: this.body.y + HITBOX.height / 2 }, this.run.claw);

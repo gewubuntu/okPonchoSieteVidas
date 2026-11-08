@@ -87,6 +87,42 @@ test('GDD-ART-04 GDD-UI-02 the picture: his own colours above the veil, the leve
   for (const c of await pixelsAt(page, sides)) expect(Math.max(c.r, c.g, c.b), JSON.stringify(c)).toBeLessThan(90);
 });
 
+test('GDD-ART-04 GDD-LIFE-02 the victory is drawn whole, never in the blink of a hit he reached the exit in', async ({ page }) => {
+  const errors = await boot(page, '/?level=0-1');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await api(page, () => window.__PONCHO__!.pause(true));
+  const twoFrames = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  // In Taco, onto an Alacrán: the hit costs the power and starts the blink (GDD-PWR-01, GDD-LIFE-02).
+  await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    d.setPower('taco');
+    const e = d.enemies()[0]!;
+    d.teleport(e.x, e.y);
+    for (let k = 0; k < 10 && d.invulnerable() === 0; k++) d.step(1);
+  });
+  expect(await api(page, () => window.__PONCHO__!.invulnerable())).toBeGreaterThan(0);
+  // Step on until he is drawn dimmed, then reach the exit on that step's blink.
+  let dim = false;
+  for (let k = 0; k < 20 && !dim; k++) {
+    await api(page, () => window.__PONCHO__!.step(1));
+    await twoFrames();
+    dim = (await api(page, () => window.__PONCHO__!.bodyAlpha())) < 1;
+  }
+  expect(dim).toBe(true);
+  await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    d.teleport(1400, 224);
+    d.step(1);
+  });
+  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
+  for (const n of [0, 6, 6, 30]) {
+    await page.evaluate((k) => window.__PONCHO__!.step(k), n);
+    await twoFrames();
+    expect(await api(page, () => window.__PONCHO__!.bodyAlpha())).toBe(1);
+  }
+  expect(errors).toEqual([]);
+});
+
 test('GDD-ART-04 the victory is not mirrored, facing right either', async ({ page }) => {
   await atExit(page, 1);
   expect(await api(page, () => window.__PONCHO__!.state().facing)).toBe(1);

@@ -1,6 +1,6 @@
 // Poncho's action poses (GDD-ART-04, GDD-ART-02, GDD-CMB-02, GDD-CMB-03, GDD-PWR-02, GDD-PWR-03): the claw swipe, hurt, eating,
-// and the Fuego spit, built with the pose rig from the user's drawing. Facing right; the game mirrors them. (The victory pose is left
-// out for now, user, 2026-11-08: "Let's skip the victory pose for now.")
+// and the Fuego spit, built with the pose rig from the user's drawing. Facing right; the game mirrors them. (The victory pose is the
+// user's strip, in victory.mjs.)
 // `hand` is where a held item's middle goes (frame drawing px); `holds` says how the game draws a held taco or chile on the frame:
 // 'paw' (no paw here: the game draws a paw holding it at `hand`), 'food' (his own paw is drawn: the food alone goes at `hand`, in
 // the paw's grip) or 'none'. The eat and spit frames also give `mouth` (where the crumbs and the flame burst go).
