@@ -3,8 +3,7 @@
 // `hand` is where a held item's middle goes (frame drawing px); `holds` says how the game draws a held taco or chile on the frame:
 // 'paw' (no paw here: the game draws a paw holding it at `hand`), 'food' (his own paw is drawn: the food alone goes at `hand`, in
 // the paw's grip) or 'none'. The eat and spit frames also give `mouth` (where the crumbs and the flame burst go). The victory frames
-// are the front view: they give `over` (his paws alone, drawn over the food), `sparkle` (the celebration's stars, drawn on top)
-// and `mirror: false` (not flipped for the left).
+// are the front view: they give `sparkle` (the celebration's stars, drawn on top) and `mirror: false` (not flipped for the left).
 import { Grid } from '../raster.mjs';
 import { COLOURS } from '../poncho-pixels.mjs';
 import { check, pose, POSE_FRAME } from './rig.mjs';
@@ -178,209 +177,258 @@ function drawArm(grid, { path, paw, dir, claws = false, under = 60 }) {
   return grid;
 }
 
-// ---- The front view, for the victory cheer (GDD-ART-02: the front sprite reference, sprite-back-front.jpg's right-hand figure, guides
-// a pose the main drawing does not show). Pixel maps built from the side drawing's own pixels and shading, at its scale, its rows
-// lined up with the side's (the crown's top, the brim's underside at the face, the chin, the poncho's hem, the feet): the ears are
-// the side's near ear (and its mirror); the poncho is the side poncho's pattern (its dotted chevron, its blue field's marks, its
-// fold lines, its hem band) laid out symmetrically on a front trapezoid flaring from the neck to the hem, the right side in shade;
-// the brim keeps the side's tan rim, blue top, 5 px red teeth and crimson underside; the crown, the face (the brim's shadow, the
-// shaded right cheek and jaw, the cream muzzle and blaze, blush, the cheek's fur line, happy shut eyes) and the legs use the
-// side's colours and shading. Local px: the figure's middle is between columns 29 and 30, his feet on row 70. Light from the upper
-// left; each part is outlined over the parts behind it. The front view is not mirrored for a run to the left.
+// ---- The front view, for the victory cheer (GDD-ART-02: the sprite references guide the poses the main drawing does not show). It
+// follows the user's front views (assets/characters/poncho/front/, 06-standing-front.jpg the main one; the raised fist of 14, 15 and
+// 17) in the side drawing's palette, outline and three-shade shading, its rows lined up with the side's (the crown's top, the brim's
+// underside at the face, the chin, the poncho's hem, the feet):
+//   the sombrero: a tall egg of a crown, red with a blue band; the wide brim seen a little from below, the side's tan rim, blue,
+//     red teeth (the side's 5 px period) rising into it from the red underside band, crimson under; the right side in shade;
+//   the ears: the side drawing's near ear and its mirror, standing up beside the crown;
+//   the face: wide and shield-shaped, its cheeks angling in to a rounded chin; ginger, tan patches round big round dark eyes with
+//     glints under furrowed brows, a cream blaze and lower face, blush, a small nose and a "w" mouth; the brim's shadow, the right
+//     side and the jaw in shade;
+//   the poncho: a V neck, a red chevron of white and blue triangles, a blue field of white triangles and red dots, the red hem
+//     band of triangles along its V hem, side panels over his arms ending in red fringe, the badge on his right chest (fur
+//     colours: there is no gold in his palette); the right third in shade, a fold where each side panel hangs;
+//   cream paws at his sides under the side panels, short ginger legs with cream feet, the tail curling up to one side.
+// Local px: the figure's middle is between columns 29 and 30, his feet on row 70. Each part is outlined over the parts behind it.
+// The front view is not mirrored for a run to the left.
 const FRONT = {
-  crown: { x: 20, y: 2, rows: [
-    '.......rrrrr.......',
-    '.....crrrrrrcc.....',
-    '...ccrrrrrrrrrcc...',
-    '..ccrrrrrrrrccccc..',
-    '..crrrrrrrrrrcccc..',
-    '.ccrrrrrrrrrrrcccc.',
-    '.crrrrrrrrrrrrcccc.',
-    'ddbbbbbbbbbbbbddddd',
-    'ddbbbbbbbbbbbbddddd',
-    'dbbbbbbbbbbbbbbdddd',
-    'crrrrrrrrrrrrrrcccc',
-    'crrrrrrrrrrrrrrcccc',
-    'ccrrrrrrrrrrrrrcccc',
-    'ccrrrrrrrrrrrrccccc',
-    '.crrrrrrrrrrrrcccc.',
-    '.ccrrrrrrrrrrrcccc.',
-    '..crrrrrrrrrrcccc..',
+  crown: { x: 20, y: 1, rows: [
+    '.......rrccc.......',
+    '.....rrrrrrccc.....',
+    '....kkrrrrrrccc....',
+    '...rkkrrrrrrrccc...',
+    '..rrkkrrrrrrccccc..',
+    '..rrkkrrrrrrrcccc..',
+    '.rrrrrrrrrrrrccccc.',
+    '.rrrrrrrrrrrrrcccc.',
+    '.rrrrrrrrrrrrrcccc.',
+    'bbbbbbbbbbbbbbddddd',
+    'bbbbbbbbbbbbbbddddd',
+    'rrrrrrrrrrrrrrccccc',
+    'rrrrrrrrrrrrrrrcccc',
+    'rrrrrrrrrrrrrrrcccc',
+    'rrrrrrrrrrrrrrrcccc',
   ] },
-  ears: { x: 7, y: 5, rows: [
-    '.....ff................................ff.....',
-    '....Ffff..............................fffF....',
-    '...Fffcwf............................fwcffF...',
-    '...fffckw............................wkcfff...',
-    '..Fffckkwf..........................fwkkcffF..',
-    '..Fffckkkw..........................wkkkcffF..',
-    '.FFfckkkkwf........................fwkkkkcfFF.',
-    '.Fffckkkkkw........................wkkkkkcffF.',
-    'cFffckkkkk..........................kkkkkcffFc',
-    'FFffckkc..............................ckkcffFF',
-    'FFffF....................................FffFF',
-    'FF..........................................FF',
+  ears: { x: 8, y: 4, rows: [
+    '.....ff..............................ff.....',
+    '....Ffff............................fffF....',
+    '...Fffcwf..........................fwcffF...',
+    '...fffckw..........................wkcfff...',
+    '..Fffckkwf........................fwkkcffF..',
+    '..Fffckkkw........................wkkkcffF..',
+    '.FFfckkkkwf......................fwkkkkcfFF.',
+    '.Fffckkkkkw......................wkkkkkcffF.',
+    'cFffckkkkk........................kkkkkcffFc',
+    'FFffckkc............................ckkcffFF',
+    'FFffF..................................FffFF',
+    'FF........................................FF',
   ] },
-  brim: { x: 2, y: 15, rows: [
-    '....................sssssssssssssss....................',
-    '..............ssbbbbbbbbbbbbbbbbbbbbbbbss..............',
-    '..........ssbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbss..........',
-    '........sbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbds........',
-    '......sbbbbbbbbbbbbbrbbbbrbbbrbbbbrbbbbbbbbbbddds......',
-    '....sbbbbbbbbbbrrbbrrrbbrrrbrrrbbrrrbbrrbbbbbddddds....',
-    '...bbbbbbbrbbbrrrrrrcccccccccccccccrrrrrrbbbrddddddd...',
-    '..bbbbbbbbrrrrrcccccccccccccccccccccccccrrrrrdddddddd..',
-    '.bbbbbbbbrrrcccccccc...............ccccccccrrcdddddddd.',
-    'bbbbbrrbrrccccc.........................cccccccdccddddd',
-    'bbbbbrrrcccc...............................cccccccddddd',
-    'rbbbrrcccc...................................ccccccdddc',
-    'rrbrrccc.......................................cccccdcc',
-    'crrrcc...........................................cccccc',
-    'ccrcc.............................................ccccc',
-    '.ccc...............................................ccc.',
-    '..c.................................................c..',
+  brim: { x: 0, y: 15, rows: [
+    '....................sssssssssssssssssss.....................',
+    '................ssssbbbbbbbbbbbbbbbbbbbssss.................',
+    '.............sssbbbbbbbbbbbbbbbbbbbbbbbbbbbsss..............',
+    '...........ssbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbss............',
+    '........sssbbbbbbbbbrbbbrrbbbrrbbbrrbbbbbbbbbbbbsss.........',
+    '......ssbbbbbbbbbbbrrbbbrrbbbrrbbbrrbbbrrbbbbbbbbbbss.......',
+    '....ssbbbbbbbbrrbbbrrrbrrrrbrrrrbrrrrbrrrbbbrrbbbbbddss.....',
+    '...sbbbbbbrbbbrrrbrrrrrrrrrrrrrrrrrrrrrrrrbbrrbbbbbdddds....',
+    '.ssbbbbbbrrbbrrrrrrrcccccccccccccccccccrrrrrrrrbbrrdddddss..',
+    'sbbbbrbbbrrrrrrrcccc...................ccccrrrrbrrrddddddds.',
+    'bbbbrrbbrrrrcccc...........................ccccrrrrdddccddds',
+    'bbbbrrrbrrcc...................................ccrrcdcccdddd',
+    'rbbrrrrrcc.......................................cccccccdddd',
+    'rbbrrccc...........................................ccccccddc',
+    'rrrcc.................................................cccdcc',
+    'rrc.....................................................cccc',
+    'cc.......................................................ccc',
+    '...........................................................c',
   ] },
-  head: { x: 9, y: 19, rows: [
-    '...............FFFFFFFFFFF...............',
-    '............FFFFFFFFFFFFFFFFF............',
-    '.........FFFFFFFFFFFFFFFFFFFFFFF.........',
-    '.......FFFFFFFFFFFFFFFFFFFFFFFFFFF.......',
-    '.....FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.....',
-    '....FFFFFFFFFFFFFFFFpFFFFFFFFFFFFFFFF....',
-    '...FFFFFFFFFFFFssssswsssssFFFFFFFFFFFF...',
-    '..FFFFFFFssssssssffwwwffssssssssFFFFFFF..',
-    '.FFFFFssssfnnnnffffwwwfffffnnnnssssFFFFF.',
-    '.FFsssffffnnffnnfffwwwffffnnffnnfffsssFF.',
-    'FsssffffffnffffnfffwwwffffnffffnffffssssF',
-    'ssfffffffffffffffffwnnffffffffffffffsssss',
-    'sscfffffffffffffffwwnnwfffffffffffffssscF',
-    'sscfffkkkkffffffffwwwwwfffffffffkkkkssscF',
-    'ssscffkkkkffffwwwwwwwwwwwwwfffffkkkksscFF',
-    'ssscfffffffwwwwwwwwwwwwwwwwwwwffffffsscFF',
-    '.sssfffffwwwwwwwwwwwwwwwwwwwwwwwfffsssFF.',
-    '.sssssffwwwwwwwwwwwwwwwwwwwwwwwwwffsssFF.',
-    '...sssswwwwwwwwwwwwwwwwwwwwwppppppssFF...',
-    '....sssppwwwwwwwwwwwwwwwwwwpppppppsFF....',
-    '......spppppppwwwwwwwwwwppppppppppF......',
-    '.........ppppppppppppppppppppppp.........',
-    '..............ppppppppppppp..............',
+  head: { x: 8, y: 19, rows: [
+    '.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.',
+    '.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.',
+    '.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.',
+    '.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.',
+    '.FFFFFFFFFFFFFFFFFFFpppFFFFFFFFFFFFFFFFFFF.',
+    '.FFFFFFFFFFFFFFFFFFFpppFFFFFFFFFFFFFFFFFFF.',
+    '.FFFFFFFFFFFFFFFFFFFpwpFFFFFFFFFFFFFFFFFFF.',
+    '.FFFFFFFFFFFsssssssfwwwfsssssssFFFFFFFFFFF.',
+    '.FFFFFFFsssssssssssswwwssssssssssssFFFFFFF.',
+    '.FFFffffsssssssssssswwwssssssssssssffffFFF.',
+    '.FffffffsssssssssssswwwssssssssssssffffssF.',
+    '.sfffffsssssssssssswwwwwssssssssssssfffssF.',
+    'sfffffffssssssssssswwwwwsssssssssssfffffssF',
+    'sfffffffssssssssssswwwwwsssssssssssfffffssF',
+    '..sfffffssssssssswwwwwwwwwsssssssssffssFF..',
+    '...ssffffssssswwwwwwwwwwwwwwwsssssffssFF...',
+    '....ssfffffswwwwwwwwwwwwwwwwwwwsfffssFF....',
+    '......sfffwwwwwwwwwwwwwwwwwwwwwwwfssF......',
+    '.......swwwwwwwwwwwwwwwwwwwwwwwwwwpF.......',
+    '.........wwwwwwwwwwwwwwwwwwwwwwwpp.........',
+    '...........wwwwwwwwwwwwwwwwwwwpp...........',
+    '..............ppppppppppppppp..............',
+    '.....................p.....................',
   ] },
-  poncho: { x: 10, y: 40, rows: [
-    '............bbbnnnnnnnnnnddd............',
-    '..........rbbbbbbbbbbbbbdddddc..........',
-    '........rWrrbbbbbbbbbbbbddddrrWc........',
-    '........crrrrbbbbbbbbbbbdddrrrcc........',
-    '.......dbccrWrrbbbbbbbbbdrrWrccdd.......',
-    '.......dbbbcrrrrbbbbbbbbrrrrcdddd.......',
-    '.......dbbbbcrrWrbbbbbbrWrrcddddd.......',
-    '......dbbbbbbccrrrrbbrrrrccddddddd......',
-    '......dbbbbbbbbcrrWrrWrrcddddddddd......',
-    '.....dbbWbbbbbWbcrrrrrrcbWdddddWddd.....',
-    '.....dbWWWbrbWWWbccrrccbWWWdrdWWWdd.....',
-    '....dbbbbbbbbbbbbbbccbbbbddddddddddd....',
-    '....dbnbbbbbbbbbbbbbbbbbbddddddddndd....',
-    '...dbbnbbbbbbbbbbbbbbbbbbbdddddddnddd...',
-    '...dbWnbbbbWbbbbbWbbbbWbbbddWddddnWdd...',
-    '...dWWWbrbWWWbrbWWWbbWWWbrdWWWdrdWWWd...',
-    '..dbbbbbbbbbbbbbbbbbbbbbbbdddddddddddd..',
-    '..rrrbbbbbbbbbbbbbbbbbbbbbdddddddddrcc..',
-    '.rWrrrrrrrrrrrrbbbbbbbbbbrrrrrrrrrrrrWc.',
-    '.WWrrrWrrrWrrrWrrrrrrrrrrWrrrWrrrWrrrWW.',
-    'cccccWWrrWWrrWWrrrWrrWrrrWWrrWWrrWWccccc',
-    'c.r.cccccccccccrrWWrrWWrrccccccccccc.r.c',
-    'c.r.c.r.c.r.c.rccccccccccr.c.r.c.r.c.r.c',
-    'c.....r.c.r.c.r.c.r..r.c.r.c.r.c.r.....c',
-    '......r.....c...c.r..r.c...c.....r......',
-    '..................r..r..................',
+  poncho: { x: 9, y: 41, rows: [
+    '............WrrbbdFFFFFFdbbrrW............',
+    '..........dbWWWrbbdFFFFdbbrWWWdd..........',
+    '........ccrbbWWWrrbdssdbrrWWWddrcc........',
+    '.......nbbcrrWWWWbrrddrrbWWWWrrcddn.......',
+    '.....dbnbbbccrrbbbWWrrWWbbbrrccdddndd.....',
+    '...dbbbnbbbbbccrbbbWWWWbbbrccdddddndddd...',
+    '.dbbbbbnbbbbbbbcrrbbWWbbrrcbddddddndddddd.',
+    'dbbbbrbnbbbbbbbbccrrWWrrccbbddddddndrddddd',
+    'dbbbbbbnbbbbbbbbbbccrrccbbbbddddddnddddddd',
+    'dbbbbbbnbbbWbbbbbbbbccbbbbbbddWdddnddddddd',
+    'dbbbbbbnbbWWWbbbbbbbbbbbbbbbdWWWddnddddddd',
+    'rrrrrrrrrWWWWWbbrbbbbbbbbrbbWWWWWrrrrccccc',
+    'WbbbbbWWbrWWWWWbbbbbbbbbbbbWWWWWrdWWdddddW',
+    'WWbbbWWWWbrrbbbbbbbbWWbbbbbbddrrdWWWWdddWW',
+    'WWWbWWWWWbbbrrbbbbbWWWWbbbbbrrdddWWWWWdWWW',
+    'rrrrrrrrrWbbbWrbbbWWWWWWbbbrWdddWrrrrccccc',
+    'cccccccccrbWWWWrrWWWWWWWWrrWWWWdrccccccccc',
+    '.c.r.c...crrWWWbbrbbbbbbrbbWWWrrc...c.r.c.',
+    '.c.r.c....ccrrWWbbrrbbrrbbWWrrcc....c.r.c.',
+    '.c.r.c......ccrWWbbbrrbbbWWrcc......c.r.c.',
+    '...r..........crrbbWWWWbbrrc..........r...',
+    '...............ccrWWWWWWrcc...............',
+    '.................crrWWrrc.................',
+    '..................ccrrcc..................',
+    '....................cc....................',
   ] },
-  legs: { x: 21, y: 58, rows: [
-    'sfffffsF..Fsfffffs',
-    'sfffffsF..Fsfffffs',
-    'sfffffsF..Fsfffffs',
-    'sfffffsF..Fsfffffs',
-    'sfffffsF..Fsfffffs',
-    'sfffffsF..Fsfffffs',
-    'sfffffsF..Fsfffffs',
-    'sfffffsF..Fsfffffs',
-    'FfffffsF..FsfffffF',
-    'FFsssFFF..FFFsssFF',
-    'wwwwwwwp..pwwwwwww',
-    'wwcwwcwp..pwcwwcww',
-    'pwcwwcpp..ppcwwcwp',
+  ponchoLift: { x: 9, y: 41, rows: [
+    '............WrrbbdFFFFFFdbbrrW..............',
+    '..........dbWWWrbbdFFFFdbbrWWWdd............',
+    '........ccrbbWWWrrbdssdbrrWWWddrcc..........',
+    '.......nbbcrrWWWWbrrddrrbWWWWrrcddn.........',
+    '.....dbnbbbccrrbbbWWrrWWbbbrrccdddndd.......',
+    '...dbbbnbbbbbccrbbbWWWWbbbrccddddrrrrcc.....',
+    '.dbbbbbnbbbbbbbcrrbbWWbbrrcbddddddWWdddddW..',
+    'dbbbbrbnbbbbbbbbccrrWWrrccbbddddrWWWWdddWWW.',
+    'dbbbbbbnbbbbbbbbbbccrrccbbbbdddddWWWWWdWWWWW',
+    'dbbbbbbnbbbWbbbbbbbbccbbbbbbddWddrrrrccccccc',
+    'dbbbbbbnbbWWWbbbbbbbbbbbbbbbdWWrWccccccccccc',
+    'rrrrrrrrrWWWWWbbrbbbbbbbbrbbWWWdr...c.r.c.r.',
+    'WbbbbbWWbrWWWWWbbbbbbbbbbbbWWWrdc...c.r.c.r.',
+    'WWbbbWWWWbrrbbbbbbbbWWbbbbbbdddd....c.r.c.r.',
+    'WWWbWWWWWbbbrrbbbbbWWWWbbbbbrrdr......r...r.',
+    'rrrrrrrrrWbbbWrbbbWWWWWWbbbrWdWc............',
+    'cccccccccrbWWWWrrWWWWWWWWrrWWWr.............',
+    '.c.r.c...crrWWWbbrbbbbbbrbbWWWc.............',
+    '.c.r.c....ccrrWWbbrrbbrrbbWWrr..............',
+    '.c.r.c......ccrWWbbbrrbbbWWrcc..............',
+    '...r..........crrbbWWWWbbrrc................',
+    '...............ccrWWWWWWrcc.................',
+    '.................crrWWrrc...................',
+    '..................ccrrcc....................',
+    '....................cc......................',
   ] },
-  tailR: { x: 40, y: 40, rows: [
-    '..............wwwp.',
-    '..............wwwp.',
-    '.............wwwwpp',
-    '..............wwwp.',
-    '..............wwwp.',
-    '..............wwww.',
-    '..............wwww.',
-    '..............fffs.',
-    '..............fffs.',
-    '.............fffs..',
-    '............ffffs..',
-    '............fffs...',
-    '.ffs.....fffffs....',
-    'FFFFFFFFFFFFFFF....',
-    'FFFFFFFFFFFFFF.....',
-    '.FFFFFFFFFFF.......',
-    '......FFF..........',
+  legs: { x: 21, y: 59, rows: [
+    'fffffsF....Fsfffff',
+    'fffffsF....Fsfffff',
+    'fffffsF....Fsfffff',
+    'fffffsF....Fsfffff',
+    'fffffsF....Fsfffff',
+    'fffffsF....Fsfffff',
+    'fffffsF....Fsfffff',
+    'ffffssF....Fssffff',
+    'wwwwwwp....pwwwwww',
+    'wpwwpwp....pwpwwpw',
+    'wpwwpwp....pwpwwpw',
+    'ppppppp....ppppppp',
   ] },
-  tailUp: { x: 40, y: 33, rows: [
-    '..........ww..',
-    '.........wwwp.',
-    '........wwwwpp',
-    '........wwwwpp',
-    '.........wwwp.',
-    '.........wwww.',
-    '.........wwwp.',
-    '.........wwwp.',
-    '.........fffs.',
-    '.........fffs.',
-    '.........fffs.',
-    '.........fffs.',
-    '.........fffs.',
-    '.........ffs..',
-    '.........ffs..',
-    '.........ffs..',
-    '........fffs..',
-    '........fffs..',
-    '.......ffffs..',
-    '.......fffs...',
-    '.fffffffffs...',
-    'FFFFFFFFFF....',
-    'FFFFFFFFF.....',
-    '.FFFFFFF......',
+  paws: { x: 14, y: 58, rows: [
+    '.wwwww....................wwwww.',
+    'wwwwwwp..................wwwwwww',
+    'wwwwwwp..................wwwwwww',
+    'pwpwpwp..................wwpwpwp',
+    '.ppppp....................ppppp.',
   ] },
-  tailL: { x: 0, y: 40, rows: [
-    '.wwwp..............',
-    '.wwwp..............',
-    'wwwwpp.............',
-    '.wwwp..............',
-    '.wwwp..............',
-    '.wwww..............',
-    '.wwww..............',
-    '.fffs..............',
-    '.fffs..............',
-    '..fffs.............',
-    '..ffffs............',
-    '...fffs............',
-    '....fffffs.....ffs.',
-    '....FFFFFFFFFFFFFFF',
-    '.....FFFFFFFFFFFFFF',
-    '.......FFFFFFFFFFF.',
-    '..........FFF......',
+  tailRight: { x: 38, y: 43, rows: [
+    '...........w......',
+    '.........wwwww....',
+    '.........wwwwp....',
+    '.........wwwppw...',
+    '.........wwpppww..',
+    '...........pwwwws.',
+    '.............wwfs.',
+    '.............wffs.',
+    '..............ffs.',
+    '..............fffs',
+    '..............fffs',
+    '..............fffs',
+    '..............ffs.',
+    '.............fffs.',
+    '.............fffs.',
+    '.............ffs..',
+    '...........ffffs..',
+    '.ffs......fffffs..',
+    'FFFFFFFFFFFFFFF...',
+    'FFFFFFFFFFFFF.....',
+    '.FFFFFFFFFFF......',
+    '.......FFF........',
+  ] },
+  tailUpLeft: { x: 5, y: 37, rows: [
+    '...www..........',
+    '..wwwww.........',
+    '..wwwwp.........',
+    '..wwwpp.........',
+    '.wwwpp..........',
+    '.wwww...........',
+    'fwww............',
+    'fffs............',
+    'fffs............',
+    'fffs............',
+    'fffs............',
+    'fffs............',
+    'fffs............',
+    'fffs............',
+    'fffs............',
+    'fffs............',
+    '.ffs............',
+    '.ffs............',
+    '.ffs............',
+    '.fffs...........',
+    '.fffs...........',
+    '.ffffs..........',
+    '..ffffs.........',
+    '...fffffffffffs.',
+    '....FFFFFFFFFFFF',
+    '.....FFFFFFFFFFF',
+    '......FFFFFFFFF.',
   ] },
 };
-/** Face and badge stamps on the front view (local px). */
-const FRONT_EYE = ['.nnn.', 'n...n'];
+/** Face, badge and fist stamps on the front view (local px). The eyes keep their glints up left in both eyes. */
+// The viewer's left eye and its brow: a 2 px brow slanting down toward the nose, cutting the eye's top on a slope (half-lidded,
+// determined, as the user's front views and the side drawing's furrowed brow have it); the dark eye 7 px wide and 5 tall under it,
+// a glint at its upper left and a small one low right. The other eye mirrors it, its glints kept at the upper left (the light).
+const FRONT_EYE_L = [
+  'nn.........',
+  'nnnn.......',
+  '..nnnnn....',
+  '...nnnnnnn.',
+  '...nwwnnnnn',
+  '...nwwnnnn.',
+  '...nnnnnwn.',
+  '....nnnnn..',
+];
+const FRONT_EYE_R = FRONT_EYE_L.map((r) => [...r.replace(/w/g, 'n')].reverse().join(''))
+  .map((r, j) => (j === 4 || j === 5 ? `${r.slice(0, 2)}ww${r.slice(4)}` : j === 6 ? `${r.slice(0, 5)}w${r.slice(6)}` : r));
+const FRONT_NOSE = ['nnnn', '.nn.'];
 const FRONT_MOUTHS = {
-  smile: ['n.nn.n', '.n..n.'],
-  cheer: ['.nnnn.', 'nwwwwn', 'nccccn', '.nnnn.'],
-  grin: ['nnnnnnnn', '.nwwwwn.', '..nccn..', '...nn...'],
+  stern: ['nn..nn', '..nn..'],
+  smile: ['n......n', '.nn..nn.', '...nn...'],
 };
-const FRONT_BADGE = ['#####', '#wff#', '#fFf#', '#####'];
+const FRONT_BADGE = ['######', '#wfff#', '#fFFf#', '######'];
+const FRONT_FIST = [
+  '.wwwww.',
+  'wwpwpww',
+  'wwpwpww',
+  'wwwwwwp',
+  'pwwwwpp',
+  '.ppppp.',
+];
 const FRONT_X = 18, FRONT_Y = 24; // local to frame px: his middle on the frame's middle, his feet on its bottom row
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const pxKey = (x, y) => `${x},${y}`;
@@ -397,7 +445,7 @@ function frontPart({ x: px = 0, y: py, rows }, keep = () => true, dx = 0) {
 function stampPx(m, rows, x0, y0) {
   rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== '.') m.set(pxKey(x0 + i, y0 + j), ch === '#' ? OUTLINE : COLOURS[ch]); }));
 }
-/** An arm along `path` (local px), 5 px thick tapering to 3, lit on its upper left edge, shaded under. */
+/** A raised arm along `path` (local px), 5 px thick at the shoulder to 4 at the wrist: fur, lit cream on its left, shaded right. */
 function frontArm(path) {
   const m = new Map();
   const segs = path.slice(1).map((b, i) => ({ a: path[i], b }));
@@ -411,68 +459,50 @@ function frontArm(path) {
       const dx = s.b[0] - s.a[0], dy = s.b[1] - s.a[1];
       const k = Math.max(0, Math.min(1, ((px - s.a[0]) * dx + (py - s.a[1]) * dy) / (s.len * s.len)));
       const d = Math.hypot(px - s.a[0] - k * dx, py - s.a[1] - k * dy);
-      if (!best || d < best.d) best = { d, t: (s.from + k * s.len) / total, ox: px - s.a[0] - k * dx, oy: py - s.a[1] - k * dy };
+      if (!best || d < best.d) best = { d, t: (s.from + k * s.len) / total, ox: px - s.a[0] - k * dx };
     }
-    const r = 2.4 - 0.9 * best.t;
+    const r = 2.7 - 0.5 * best.t;
     if (best.d > r) continue;
-    const lit = -(best.ox + best.oy) * Math.SQRT1_2;
-    m.set(pxKey(x, y), lit < -(r - 1.2) ? COLOURS.F : lit > r - 1 && r > 2 ? COLOURS.w : COLOURS.f);
+    m.set(pxKey(x, y), best.ox > r - 1.3 ? COLOURS.s : best.ox < -(r - 1.1) ? COLOURS.w : COLOURS.f);
   }
   return m;
 }
 
 /**
  * The front view posed: `lift` px up (a hop), `squash` local rows taken out of everything above the legs, the legs 'stand',
- * 'tuck' (3 rows shorter) or 'apart' (2 px out each, bent 2 rows shorter), the tail 'tailUp', 'tailR' or 'tailL', a mouth from
- * FRONT_MOUTHS, the sombrero tilted by `tilt` (a shear: > 0 dips its right side), the body swayed `sway` px across, the ears up
- * `ears` px. With `hug`, both paws hug the food to his chest just below his chin; without, they hang at his sides under the
- * poncho. Returns the frame, the hugging paws alone (`over`, drawn over the food) and `hand`.
+ * 'tuck' (3 rows shorter) or 'apart' (2 px out each, bent 2 rows shorter), the tail 'tailRight' or 'tailUpLeft', a mouth from
+ * FRONT_MOUTHS, `sway` px across. With `fist` ({ path, at }: the arm from under the poncho to the wrist, the fist's middle; local
+ * px) his left arm (the viewer's right) is raised, the poncho's side panel lifted over it; otherwise both paws are at his sides.
  */
-function frontPose({ lift = 0, squash = [], legs = 'stand', tail = 'tailR', mouth = 'cheer', tilt = 0, sway = 0, ears = 0, hug = true }) {
+function frontPose({ lift = 0, squash = [], legs = 'stand', tail = 'tailRight', mouth = 'stern', fist = null, sway = 0 }) {
   const drop = { tuck: 3, apart: 2 }[legs] ?? 0, spread = legs === 'apart' ? 2 : 0;
   const body = (y) => (squash.includes(y) ? null : y + squash.filter((r) => r > y).length + drop);
-  const legRows = { ...FRONT.legs, y: FRONT.legs.y + drop, rows: FRONT.legs.rows.slice(drop) };
   const head = frontPart(FRONT.head);
+  stampPx(head, FRONT_EYE_L, 16, 27); stampPx(head, FRONT_EYE_R, 33, 27);
+  stampPx(head, ['kkk', 'kkk'], 13, 35); stampPx(head, ['kkk', 'kkk'], 44, 35);
+  stampPx(head, FRONT_NOSE, 28, 35);
   const mo = FRONT_MOUTHS[mouth];
-  stampPx(head, mo, 30 - mo[0].length / 2, 33);
-  const poncho = frontPart(FRONT.poncho);
-  stampPx(poncho, FRONT_BADGE, 38, 45);
-  // The sombrero tilted by whole columns and rows about the crown's base: each column dips, each row slides.
-  const tilted = (m) => {
-    const out = new Map();
-    for (const [k, c] of m) {
-      const [x, y] = pxAt(k), ny = y + Math.round((x - 29.5) * tilt);
-      out.set(pxKey(x + Math.round((15 - ny) * tilt), ny), c);
-    }
-    return out;
-  };
-  const moved = (m, dx, dy) => new Map([...m].map(([k, c]) => { const [x, y] = pxAt(k); return [pxKey(x + dx, y + dy), c]; }));
-  // The paws either side of the food's middle (PAW_Y), the forearms just showing from under the poncho's sides.
-  const PAW_Y = 48;
-  const paws = new Map(), sidePaws = new Map();
-  if (hug) {
-    stampPx(paws, PAWS.fwd.rows, 17, PAW_Y - 2);
-    stampPx(paws, PAWS.fwd.rows.map((r) => [...r].reverse().join('')), 36, PAW_Y - 2);
-  } else {
-    stampPx(sidePaws, PAWS.down.rows, 9, 58);
-    stampPx(sidePaws, PAWS.down.rows.map((r) => [...r].reverse().join('')), 44, 58);
-  }
-  const arm = [[14, 53], [17, 49]];
+  stampPx(head, mo, 30 - mo[0].length / 2, 37);
+  const poncho = frontPart(fist ? FRONT.ponchoLift : FRONT.poncho);
+  stampPx(poncho, FRONT_BADGE, 34, 43);
+  const legRows = { ...FRONT.legs, y: FRONT.legs.y + drop, rows: FRONT.legs.rows.slice(drop) };
+  const fistMap = new Map();
+  if (fist) stampPx(fistMap, FRONT_FIST, fist.at[0] - 3, fist.at[1] - 3);
   // Back to front: [pixels, is it the legs].
   const layers = [
     [frontPart(FRONT[tail]), false],
     [frontPart(legRows, (x) => x < 30, -spread), true],
     [frontPart(legRows, (x) => x >= 30, spread), true],
-    [moved(frontPart(FRONT.ears), 0, -ears), false],
-    [sidePaws, false],
+    [frontPart(FRONT.paws, (x) => !fist || x < 30), false],
+    [frontPart(FRONT.ears), false],
+    [fist ? frontArm(fist.path) : new Map(), false],
     [poncho, false],
-    ...(hug ? [[frontArm(arm), false], [frontArm(arm.map(([x, y]) => [59 - x, y])), false]] : []),
     [head, false],
-    [tilted(frontPart(FRONT.crown)), false],
-    [tilted(frontPart(FRONT.brim)), false],
-    [paws, false],
+    [frontPart(FRONT.crown), false],
+    [frontPart(FRONT.brim), false],
+    [fistMap, false],
   ];
-  const grid = new Grid(POSE_FRAME.w, POSE_FRAME.h), over = new Grid(POSE_FRAME.w, POSE_FRAME.h);
+  const grid = new Grid(POSE_FRAME.w, POSE_FRAME.h);
   const oy = FRONT_Y - lift;
   for (const [m0, isLegs] of layers) {
     // The body sits on the legs, sways and squashes by whole rows before it is outlined.
@@ -483,15 +513,12 @@ function frontPose({ lift = 0, squash = [], legs = 'stand', tail = 'tailR', mout
     }
     const ring = new Map(m);
     for (const k of m.keys()) { const [x, y] = pxAt(k); for (const [dx, dy] of N4) if (!m.has(pxKey(x + dx, y + dy))) ring.set(pxKey(x + dx, y + dy), OUTLINE); }
-    for (const [k, c] of ring) {
-      const [x, y] = pxAt(k);
-      grid.set(x + FRONT_X, y + oy, c);
-      if (m0 === paws) over.set(x + FRONT_X, y + oy, c);
-    }
+    for (const [k, c] of ring) { const [x, y] = pxAt(k); grid.set(x + FRONT_X, y + oy, c); }
   }
-  // The food's grip point (held.HAND in items.mjs): the taco centred between the paws, across his chest.
-  grid.hand = { x: 29 + sway + FRONT_X, y: body(PAW_Y + 3) + oy };
-  return { grid, over };
+  // The hand anchor: the raised fist's middle, or in front of his chest.
+  const at = fist ? fist.at : [29, 50];
+  grid.hand = { x: at[0] + sway + FRONT_X, y: body(at[1]) + oy };
+  return grid;
 }
 
 /**
@@ -632,21 +659,21 @@ const SPECS = {
     mouthAt: { dx: 3, dy: 2 },
     holds: 'paw',
   },
-  // The victory cheer, in the front view (FRONT): hugging the food to his chest with both paws. A happy hop (legs tucked, ears
-  // perked, tail flicked straight up, the sombrero tipped one way), then the landing (a squash, feet apart, a big grin, the tail
-  // curled the other way, the sombrero tipped back the other way): played in turn, a joyful bounce. Sparkles twinkle round him.
+  // The victory cheer, in the front view (FRONT): a confident fist raised beside his head on a short bent arm, as the user's front
+  // views have it. A hop (legs tucked, the tail up, his poncho's side panel lifted with the arm), then the landing (a squash, feet
+  // apart, the fist a beat higher, the tail swung over); a confident smile and bright determined eyes. Sparkles twinkle round him.
   victory0: {
-    front: { lift: 7, legs: 'tuck', tail: 'tailUp', mouth: 'cheer', tilt: 0.1, sway: 1, ears: 1 },
-    stars: [[13, 20, 3], [84, 30, 2], [11, 50, 2], [83, 58, 3]],
-    holds: 'food',
+    front: { lift: 6, legs: 'tuck', tail: 'tailUpLeft', mouth: 'smile', fist: { path: [[45, 47], [51, 46], [51.5, 38]], at: [51, 34] } },
+    stars: [[8, 26, 3], [86, 22, 2], [9, 58, 2], [86, 60, 3]],
+    holds: 'none',
   },
   victory1: {
-    front: { squash: [47, 36, 16], legs: 'apart', tail: 'tailL', mouth: 'grin', tilt: -0.1, sway: -1 },
-    stars: [[83, 20, 3], [12, 34, 2], [86, 47, 2], [12, 63, 3]],
-    holds: 'food',
+    front: { squash: [52, 38, 17], legs: 'apart', tail: 'tailRight', mouth: 'smile', fist: { path: [[45, 47], [51, 46], [51.5, 36]], at: [51, 32] } },
+    stars: [[86, 30, 3], [10, 38, 2], [12, 18, 2], [8, 66, 3]],
+    holds: 'none',
   },
-  // The front view standing, for checking its sizes against the side view (not played by the game).
-  frontStand: { front: { hug: false, mouth: 'smile' }, stars: [], holds: 'none' },
+  // The front view standing, for checking it against the side view and the user's front views (not played by the game).
+  frontStand: { front: {}, stars: [], holds: 'none' },
 };
 
 export const LOOKS = Object.keys(SPECS);
@@ -654,12 +681,12 @@ export const LOOKS = Object.keys(SPECS);
 export function drawFrames() {
   return Object.entries(SPECS).map(([look, { spec, front, stars, eyes, mouthPatch, mouthAt, arm, after, holds }]) => {
     if (front) {
-      // The front view: drawn as it is for both directions (no mirroring); the food at `hand`, then `over` and `sparkle` on top.
-      const { grid, over } = frontPose(front);
+      // The front view: drawn as it is for both directions (no mirroring); `sparkle` is drawn on top.
+      const grid = frontPose(front);
       const sparkle = sparkles(stars);
-      const problems = [...check(grid), ...[over, sparkle].flatMap((g) => check(g).filter((p) => !p.startsWith('open')))];
+      const problems = [...check(grid), ...check(sparkle).filter((p) => !p.startsWith('open'))];
       if (problems.length) throw new Error(`${look}: ${problems.slice(0, 3).join('; ')}`);
-      return { look, grid, hand: grid.hand, holds, over, sparkle, mirror: false };
+      return { look, grid, hand: grid.hand, holds, sparkle, mirror: false };
     }
     const grid = pose(spec);
     if (eyes) withEyes(grid, eyes);
