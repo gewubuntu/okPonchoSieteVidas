@@ -100,8 +100,6 @@ export const LEG_ROWS_OUT = [65, 68, 71];
 const squashed = (layer) => layer.filter(([, y]) => !LEG_ROWS_OUT.includes(y)).map(([x, y, c]) => [x, y + LEG_ROWS_OUT.filter((r) => r > y).length, c]);
 const body = squashed(cells((x, y) => !inArm(x, y)));
 const arm = squashed(cells(inArm));
-/** The arm moved by (dx, dy), the part that would come below his shoulder hidden behind the poncho. */
-const armAt = (dx, dy) => arm.map(([x, y, c]) => [x + dx, y + dy, c]).filter(([, y]) => y <= 47 + LEG_ROWS_OUT.length);
 
 /** Cells joined to (sx, sy) by colour other than the outline, within `bounds`, with the outline round them. */
 function region(sx, sy, bounds) {
@@ -120,30 +118,37 @@ function region(sx, sy, bounds) {
   return cells((x, y) => out.has(key(x, y)));
 }
 
-/** His left fist (the viewer's right), from the wrist out. */
-const FIST = region(57, 54, (x, y) => x >= 52 && y >= 44 && y <= 62);
-/** The column the fist is mirrored about: his face's middle, between the nose's two columns. */
+/** The column his left side is mirrored about for his right: his face's middle, between the nose's two columns. */
 const MIRROR_AXIS = 36.5;
 /**
- * The poncho's left side panel where the raised arm hid it, from his shoulder (row 26) out to the side panel's edge (column 11 at
- * row 41), as the drawing's panel is below the arm: blue at its outer edge, navy in its shadow, the outline at the seam with the
- * front panel (column 17).
+ * With his right arm down, the poncho hangs on that side as on his left: the drawing's left of column 18 below the brim (the side
+ * panel the raised arm lifts) is gone, and from his shoulder (row 41) down his left side (columns 50 and right: the side panel,
+ * the fist and the leg's edge) is mirrored over his right (columns 23 and left). The badge stays on his left chest.
  */
-const PANEL = (() => {
-  const out = [];
-  for (let y = 26; y <= 47; y++) {
-    const edge = Math.max(11, Math.round(17 - ((y - 26) * 6) / 15));
-    for (let x = edge; x <= 17; x++) if (at(x, y) === '.' || inArm(x, y)) out.push([x, y, x === 17 ? '#' : x === edge ? 'd' : 'n']);
-  }
-  return out;
-})();
+/**
+ * The poncho's edge the raised arm lifts beside his cheek (column 18 out to the outline before his face, rows 22 to 40), joined
+ * by colour other than the outline, with its outline.
+ */
+const LIFTED_EDGE = new Set(region(18, 33, (x, y) => x <= 23 && y >= 22 && y <= 40).map(([x, y]) => key(x, y)));
+/**
+ * His right side as the raised arm lifts it: the side panel, its fringe and the edge beside his cheek (left of column 24, below the
+ * brim, not the arm or his face), for the raise, where it follows the arm part of the way.
+ */
+const LIFTED_SIDE = squashed(cells((x, y) => !inArm(x, y) && y >= 22 && y <= 62 && (x <= 17 || LIFTED_EDGE.has(key(x, y)))));
+/** His left fist (the viewer's right), from the wrist out. */
+const FIST = new Set(region(57, 54, (x, y) => x >= 52 && y >= 44 && y <= 62).map(([x, y]) => key(x, y)));
+/** The poncho hanging on both sides, with his right fist (`fist`) or without it (that paw holds the taco). */
+const drapedBody = (fist) => squashed([
+  ...cells((x, y) => !inArm(x, y) && !LIFTED_EDGE.has(key(x, y)) && !(x <= 17 && y >= 22) && !(x <= 23 && y >= 41)),
+  ...cells((x, y) => x >= 50 && y >= 41 && (fist || !FIST.has(key(x, y)))).map(([x, y, c]) => [Math.round(2 * MIRROR_AXIS - x), y, c]),
+]);
+
 
 const FRAMES = {
-  // Ready: the taco not up yet, both fists up in front of him (the strip's first frame): the raised arm gone, the side panel it
-  // hid, and his left fist mirrored for his right.
-  victory0: () => frame([body, squashed(PANEL), squashed(FIST.map(([x, y, c]) => [Math.round(2 * MIRROR_AXIS - x), y, c]))]),
-  // The taco on its way up: the arm 8 rows lower, its elbow behind the poncho.
-  victory1: () => frame([body, armAt(1, 8)]),
+  // Ready: the taco not up yet, both fists up in front of him (the strip's first frame), the poncho hanging on both sides.
+  victory0: () => frame([drapedBody(true)]),
+  // The taco on its way up: the arm 8 rows lower, and the side of the poncho it lifts with it.
+  victory1: () => frame([drapedBody(false), ...[LIFTED_SIDE, arm].map((l) => l.map(([x, y, c]) => [x + 1, y + 8, c]).filter(([, y]) => y <= 62 + LEG_ROWS_OUT.length))]),
   // The user's drawing as it is.
   victory2: () => frame([body, arm]),
   // Stretched tall: the legs a row longer and the arm two rows longer, the taco three rows higher than in the drawing.
