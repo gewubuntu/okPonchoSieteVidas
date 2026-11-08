@@ -1207,7 +1207,7 @@ The run cycle is the user's run drawing (`sprite-run.jpg`, GDD-ART-02), side-on,
 
 Status: Proposed
 
-- **Outline:** every character, enemy, item and pickup has a near-black outline (#070509, as in the main reference, GDD-ART-02, which replaces the dark plum first proposed), 2 art pixels thick on the outside (one pixel of the user's drawing). Tiles and scenery have no outline, so what can be touched stands out. World 2's touchable world objects, the awnings, the cordeles' flags and the rollos, carry it too (Proposed, GDD-ART-06), while their posts, poles and lines do not.
+- **Outline:** every character, enemy, item and pickup has a near-black outline (#070509, as in the main reference, GDD-ART-02, which replaces the dark plum first proposed), 2 art pixels thick on the outside (one pixel of the user's drawing); Poncho's victory frames keep the user's strip's outline, 4 art pixels thick in places (GDD-ART-04). Tiles and scenery have no outline, so what can be touched stands out. World 2's touchable world objects, the awnings, the cordeles' flags and the rollos, carry it too (Proposed, GDD-ART-06), while their posts, poles and lines do not.
 - **Light** comes from the upper left. Each material has three shades: base, a shadow on the lower right and a highlight on the upper left. No soft gradients, no blurred or blended edges, no anti-aliasing.
 - **Dither** (a checker of two colours) only in skies and far scenery, never on characters or pickups.
 - **Glow:** the chile pickup's ring of warm glow and its heat wisps sit outside its outline, as a glow does; nothing else draws outside its outline (Proposed, GDD-ART-04).
