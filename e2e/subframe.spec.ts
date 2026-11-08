@@ -243,11 +243,13 @@ test('GDD-MOV-08 a Space tap shorter than one frame, against the wall, still kic
   await page.evaluate(() => window.__PONCHO__!.teleport(6, 100)); // beside the level's left edge, a full-height wall
   await page.keyboard.down('ArrowLeft');
   await page.waitForFunction(() => window.__PONCHO__!.state().clinging === true);
+  // A one-step jump makes a kick away and up of only about 7 steps, so the wait polls from before the tap (L-042).
+  const kicked = page.waitForFunction(() => window.__PONCHO__!.state().vx > 0 && window.__PONCHO__!.state().vy < 0);
   await page.evaluate(() => {
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', keyCode: 32, bubbles: true }));
     window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', keyCode: 32, bubbles: true }));
   });
-  await page.waitForFunction(() => window.__PONCHO__!.state().vx > 0 && window.__PONCHO__!.state().vy < 0);
+  await kicked;
   await page.keyboard.up('ArrowLeft');
 });
 
