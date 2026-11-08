@@ -123,15 +123,16 @@ test('GDD-BOS-03 estrella: phase 2, risen from her thud at x 160, the tejocotes 
   await shot(page, info, 'estrella-phase2-tejocotes');
 });
 
-test('GDD-BOS-03 estrella: phase 3, her drop tearing down through the middle awning, Poncho clear of it on the right cordel', async ({ page, isMobile }, info) => {
-  // As the arena's bot plays it (phase3Hit): he waits on the middle awning so she aims there; as her drop starts he is on the right
-  // cordel's end. The shot is the step her pot's bottom is 12 px through the awning's top (y 176), on her way to the floor; the
-  // awning stays whole (GDD-BOS-03).
-  await fight(page, isMobile, 2, 248, 176);
+/** Waits until a frame has drawn the middle awning torn apart (`market().awnings[1].gone`), together with the run's flag (L-033). */
+const middleTorn = (page: Page) => page.waitForFunction(() => window.__PONCHO__!.market().awnings[1]!.gone && window.__PONCHO__!.market().gone[1]!);
+
+test('GDD-BOS-03 estrella: phase 3, her first drop tearing down through the middle awning, which is gone, Poncho clear of it on the left cordel', async ({ page, isMobile }, info) => {
+  // As the arena's bot plays it (phase3Hit): he waits on the left cordel's end at x 205, clear of her line at x 240. The shot is the step
+  // her pot's bottom is 12 px through the awning's top (y 176), on her way to the floor: the tear has just happened.
+  await fight(page, isMobile, 2, 205, 136);
   expect(await stepToEstrellaMode(page, 'drop')).toBeLessThan(1000);
-  const tore = await page.evaluate(() => {
+  const reached = await page.evaluate(() => {
     const d = window.__PONCHO__!;
-    d.teleport(275, 136);
     let i = 0;
     while (i < 200 && d.estrella()!.y < 188) {
       d.step(1);
@@ -139,28 +140,43 @@ test('GDD-BOS-03 estrella: phase 3, her drop tearing down through the middle awn
     }
     return i;
   });
-  expect(tore).toBeLessThan(200);
-  expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'drop', tx: 248, ty: 224, hits: 2 });
-  expect((await page.evaluate(() => window.__PONCHO__!.market())).awnings[1]!.gone).toBe(false);
+  expect(reached).toBeLessThan(200);
+  expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'drop', tx: 240, ty: 224, hits: 2, tore: true });
+  expect(await page.evaluate(() => window.__PONCHO__!.market().gone)).toEqual([false, true, false]);
   expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ y: 136, grounded: true });
+  await middleTorn(page);
   await drawnAs(page, { cones: 3 });
   await shot(page, info, 'estrella-phase3-tear');
 });
 
-test('GDD-BOS-03 estrella: phase 3, risen from the floor through the middle awning, two pairs of tejocotes, Poncho on the right cordel', async ({ page, isMobile }, info) => {
-  await fight(page, isMobile, 2, 248, 176);
-  expect(await stepToEstrellaMode(page, 'drop')).toBeLessThan(1000);
-  await page.evaluate(() => window.__PONCHO__!.teleport(275, 136));
-  expect(await stepToEstrellaMode(page, 'rise', 200)).toBeLessThan(200);
+test('GDD-BOS-03 estrella: phase 3, risen from the floor where the middle awning was, two pairs of tejocotes, Poncho on the left cordel', async ({ page, isMobile }, info) => {
+  await fight(page, isMobile, 2, 205, 136);
+  expect(await stepToEstrellaMode(page, 'rise', 400)).toBeLessThan(400);
   await page.evaluate(() => window.__PONCHO__!.step(40));
-  expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'rise', tx: 248, hits: 2 });
+  expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'rise', tx: 240, hits: 2, tore: true });
   expect(await page.evaluate(() => window.__PONCHO__!.tejocotes().length)).toBe(4);
+  await middleTorn(page);
   await drawnAs(page, { cones: 3, pale: 3 });
   await shot(page, info, 'estrella-phase3-rise');
 });
 
+test('GDD-BOS-03 estrella: phase 3 after the tear, the middle awning torn away, her drop on the floor', async ({ page, isMobile }, info) => {
+  // Reached the way the game does (L-045): from the start of phase 3 her first drop is played out, not set torn by a hook.
+  await fight(page, isMobile, 2, 205, 136);
+  expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ hits: 2, tore: false });
+  expect(await page.evaluate(() => window.__PONCHO__!.market().gone)).toEqual([false, false, false]);
+  expect(await stepToEstrellaMode(page, 'rest', 400)).toBeLessThan(400);
+  expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'rest', x: 240, y: 224, hits: 2, tore: true });
+  expect(await page.evaluate(() => window.__PONCHO__!.market().gone)).toEqual([false, true, false]);
+  expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ y: 136, grounded: true });
+  expect(await page.evaluate(() => window.__PONCHO__!.lives())).toBe(7);
+  await middleTorn(page);
+  await drawnAs(page, { cones: 3 });
+  await shot(page, info, 'estrella-tear');
+});
+
 test('GDD-BOS-03 estrella: defeated, her rope snapped, the empty pot falling', async ({ page, isMobile }, info) => {
-  await fight(page, isMobile, 2, 248, 176);
+  await fight(page, isMobile, 2, 205, 136);
   expect(await phase3Hit(page)).toBe(3);
   await page.evaluate(() => window.__PONCHO__!.step(20));
   expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'defeated', age: 20 });

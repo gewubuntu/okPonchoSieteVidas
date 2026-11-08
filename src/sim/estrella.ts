@@ -16,9 +16,14 @@ export interface Estrella {
   readonly floor: number;
   /**
    * One list per phase. She starts the phase high over its first spot and drops at the next one, then at each in turn (so with two spots
-   * she alternates). Phase 3's list holds only where she starts it: there she aims at Poncho.
+   * she alternates). Phase 3's list holds only where she starts it: there she tears an awning away with her first drop, then aims at Poncho.
    */
   readonly spots: readonly [readonly number[], readonly number[], readonly number[]];
+  /**
+   * The tear, phase 3's first drop: the x she drops at (not aimed at Poncho), the top of the awning she tears away on the step her box's
+   * bottom reaches it, and that awning's index in `Level.awnings`. The level's awnings stay whole in its data: the tear is the fight's state.
+   */
+  readonly tear: { readonly x: number; readonly y: number; readonly awning: number };
 }
 
 /**
@@ -42,6 +47,8 @@ export interface EstrellaState {
   /** Where a drop, a bounce, a rise or a yank takes her middle across and her bottom. In a hang, `tx` is the x she sways about. */
   readonly tx: number;
   readonly ty: number;
+  /** She has torn the awning `Estrella.tear.awning` away in this fight (phase 3's first drop); from then on she aims at Poncho. */
+  readonly tore: boolean;
 }
 
 /** A tejocote: its middle and the y of its bottom, like Poncho's own position, the way it rolls, and the steps before it comes out. */
@@ -67,6 +74,8 @@ export interface EstrellaStep {
   readonly touch: number | undefined;
   /** Her drop ended this step on an awning or on the floor (for the tarp's dip and the sounds). */
   readonly landed: 'awning' | 'floor' | null;
+  /** She tore the awning `Estrella.tear.awning` away this step. */
+  readonly tore: boolean;
 }
 
 const EDGE = 1e-6;
@@ -79,12 +88,12 @@ const phaseIndex = (hits: number): 0 | 1 | 2 => (hits >= 2 ? 2 : hits === 1 ? 1 
 
 /**
  * At the start of the fight (`hits` 0) or of the phase she is in after a lost life (GDD-BOS-01): high over the phase's first spot, a glide
- * to the next about to start.
+ * to the next about to start. `tore` says she has already torn the awning away (a life lost after the tear keeps it, so the tear is seen once).
  */
-export function estrellaStart(def: Estrella, hits: number): EstrellaState {
+export function estrellaStart(def: Estrella, hits: number, tore = false): EstrellaState {
   const spots = def.spots[phaseIndex(hits)];
   const x = spots[0]!;
-  return { x, y: ESTRELLA.highBottom, hits, mode: 'glide', age: 0, spot: spots.length > 1 ? 1 : 0, tx: x, ty: ESTRELLA.highBottom };
+  return { x, y: ESTRELLA.highBottom, hits, mode: 'glide', age: 0, spot: spots.length > 1 ? 1 : 0, tx: x, ty: ESTRELLA.highBottom, tore };
 }
 
 /** Where she aims in phase 3: the middle of Poncho's hurtbox, across only, kept between ESTRELLA.aimMinX and aimMaxX. */
@@ -112,34 +121,38 @@ function nearestSpot(spots: readonly number[], x: number): number {
 }
 
 /**
- * One step of her pattern (GDD-BOS-03). `player` is Poncho at the start of the step, which she aims at in phase 3; `awnings` the tops of
- * the whole awnings. `landed` says where a drop ended this step.
+ * One step of her pattern (GDD-BOS-03). `player` is Poncho at the start of the step, which she aims at in phase 3 once she has torn the
+ * awning away; `awnings` the tops of the whole awnings. `landed` says where a drop ended this step, `tore` that her box's bottom reached the
+ * torn awning's top this step.
  */
-export function moveEstrella(def: Estrella, e: EstrellaState, player: PlayerState, awnings: readonly PlatformPos[]): { estrella: EstrellaState; landed: 'awning' | 'floor' | null } {
+export function moveEstrella(def: Estrella, e: EstrellaState, player: PlayerState, awnings: readonly PlatformPos[]): { estrella: EstrellaState; landed: 'awning' | 'floor' | null; tore: boolean } {
   const p = phaseIndex(e.hits);
   const age = e.age + 1;
-  const still = (estrella: EstrellaState) => ({ estrella, landed: null });
+  const still = (estrella: EstrellaState) => ({ estrella, landed: null, tore: false });
   switch (e.mode) {
     case 'glide': {
-      // Phase 3: always towards the spot above Poncho.
-      const tx = p === 2 ? aimAt(player) : def.spots[p][e.spot]!;
+      // Phase 3: first to the tear's x, then always towards the spot above Poncho.
+      const tx = p === 2 ? (e.tore ? aimAt(player) : def.tear.x) : def.spots[p][e.spot]!;
       const { at, arrived } = move({ ...e, tx, ty: ESTRELLA.highBottom }, ESTRELLA.glideSpeed[p]);
       return still(arrived ? { ...at, mode: 'telegraph', age: 0 } : at);
     }
     case 'telegraph': {
       if (age < ESTRELLA.telegraphSteps) return still({ ...e, age });
-      // The jalón: straight down to the surface under her, or in phase 3 in a straight line to the surface under Poncho as the telegraph ends.
-      // In phase 3 (ESTRELLA.tearsAwnings) she tears straight through the awnings, which stay whole, to the floor, so an awning over him
-      // is no shelter.
-      const tx = p === 2 ? aimAt(player) : e.x;
+      // The jalón: straight down to the surface under her, or in phase 3 in a straight line to the surface under Poncho as the telegraph ends
+      // (the first one straight down at the tear's x). In phase 3 (ESTRELLA.tearsAwnings) she tears straight through the awnings, which stay
+      // whole but for the one the first drop tears away, to the floor, so an awning over him is no shelter.
+      const tx = p === 2 ? (e.tore ? aimAt(player) : def.tear.x) : e.x;
       return still({ ...e, mode: 'drop', age: 0, tx, ty: ESTRELLA.tearsAwnings[p] ? def.floor : surfaceUnder(def, awnings, tx) });
     }
     case 'drop': {
       const { at, arrived } = move(e, ESTRELLA.dropSpeed[p]);
-      if (!arrived) return still(at);
+      // On the step her box's bottom reaches the top of the awning the first phase 3 drop is heading through, she tears it away.
+      const tore = p === 2 && !e.tore && at.y >= def.tear.y;
+      const moved = tore ? { ...at, tore: true } : at;
+      if (!arrived) return { estrella: moved, landed: null, tore };
       // An awning throws her straight back up to her low height; on the floor she rests, and tejocotes roll out.
-      if (at.y < def.floor) return { estrella: { ...at, mode: 'bounce', age: 0, ty: ESTRELLA.lowBottom[p] }, landed: 'awning' };
-      return { estrella: { ...at, mode: 'rest', age: 0 }, landed: 'floor' };
+      if (moved.y < def.floor) return { estrella: { ...moved, mode: 'bounce', age: 0, ty: ESTRELLA.lowBottom[p] }, landed: 'awning', tore };
+      return { estrella: { ...moved, mode: 'rest', age: 0 }, landed: 'floor', tore };
     }
     case 'bounce': {
       const { at, arrived } = move(e, ESTRELLA.awningThrow);
@@ -234,7 +247,7 @@ export interface EstrellaInput {
  * keeps nothing of a step that costs Poncho a life (so such a step does not hit her) and restarts her phase with `estrellaStart`.
  */
 export function stepEstrella(def: Estrella, fight: { readonly estrella: EstrellaState; readonly tejocotes: readonly Tejocote[] }, input: EstrellaInput): EstrellaStep {
-  const { estrella: moved, landed } = moveEstrella(def, fight.estrella, input.before, input.awnings);
+  const { estrella: moved, landed, tore } = moveEstrella(def, fight.estrella, input.before, input.awnings);
   let tejocotes = [...fight.tejocotes.flatMap((t) => stepTejocote(t, input.world) ?? []), ...(landed === 'floor' ? spill(moved, def.floor) : [])];
   const box = estrellaBox(moved);
   // A bump or the claw hits her while she can be hit. A bump stops his rise, his head flush under her, as on a piñata block.
@@ -251,5 +264,5 @@ export function stepEstrella(def: Estrella, fight: { readonly estrella: Estrella
   tejocotes = tejocotes.filter((t) => !tejocoteOut(t) || !((input.claw !== null && overlaps(input.claw, tejocoteBox(t))) || input.fireballs.some((f) => overlaps(f, tejocoteBox(t)))));
   const poncho = ponchoBox(player);
   const touch = estrellaActive(estrella) && overlaps(poncho, estrellaBox(estrella)) ? estrella.x : tejocotes.find((t) => tejocoteOut(t) && overlaps(poncho, tejocoteBox(t)))?.x;
-  return { estrella, tejocotes, player, hit, spent, touch, landed };
+  return { estrella, tejocotes, player, hit, spent, touch, landed, tore };
 }

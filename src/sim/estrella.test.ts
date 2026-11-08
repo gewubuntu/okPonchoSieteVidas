@@ -27,9 +27,10 @@ import {
 // GDD-BOS-03: La Estrella in an arena laid out like the proposed 2-4: the floor's top at y = 224 across the whole width (rows 14 to 16),
 // three whole awnings 4 tiles wide with their tops at y = 176 (x 48 to 112, 208 to 272, 368 to 432), and two cordeles at y = 136 between
 // them (x 112 to 208 and 272 to 368), which she passes through, so they are not given to her. Phase 1 starts over x = 400 and drops at 80,
-// then 400; phase 2 starts over 320 and drops at 160, then 320; phase 3 starts over 400 and aims at Poncho. Expected values come from
-// the design's numbers (ESTRELLA, TEJOCOTE); her box is 32 x 32 px, her y is its bottom.
-const DEF: Estrella = { floor: 224, spots: [[400, 80], [320, 160], [400]] };
+// then 400; phase 2 starts over 320 and drops at 160, then 320; phase 3 starts over 400, first drops at x 240 and tears the middle awning
+// away (its top at y 176), then aims at Poncho. Expected values come from the design's numbers (ESTRELLA, TEJOCOTE); her box is 32 x 32
+// px, her y is its bottom.
+const DEF: Estrella = { floor: 224, spots: [[400, 80], [320, 160], [400]], tear: { x: 240, y: 176, awning: 1 } };
 const AWNINGS: readonly PlatformPos[] = [
   { x: 48, y: 176, w: 64 },
   { x: 208, y: 176, w: 64 },
@@ -41,23 +42,25 @@ const WORLD = parseTiles([...Array<string>(14).fill('.'.repeat(30)), ...Array<st
 const at = (x: number, y = 224): PlayerState => spawn(x, y);
 
 /** Moves her `n` steps with Poncho as `poncho(i)` gives on step i (1-based); every state, and the step of each landing. */
-function cycle(e: EstrellaState, n: number, poncho: (i: number) => PlayerState = () => at(240)): { states: EstrellaState[]; landed: { step: number; on: 'awning' | 'floor' }[] } {
+function cycle(e: EstrellaState, n: number, poncho: (i: number) => PlayerState = () => at(240)): { states: EstrellaState[]; landed: { step: number; on: 'awning' | 'floor' }[]; tore: number[] } {
   const states: EstrellaState[] = [];
   const landed: { step: number; on: 'awning' | 'floor' }[] = [];
+  const tore: number[] = [];
   let s = e;
   for (let i = 1; i <= n; i++) {
     const r = moveEstrella(DEF, s, poncho(i), AWNINGS);
     s = r.estrella;
     states.push(s);
     if (r.landed) landed.push({ step: i, on: r.landed });
+    if (r.tore) tore.push(i);
   }
-  return { states, landed };
+  return { states, landed, tore };
 }
 /** The first step (1-based) at or after step `from` at which she is in `mode` with age 0. */
 const firstIn = (states: EstrellaState[], mode: EstrellaMode, from = 1): number => states.findIndex((s, i) => i + 1 >= from && s.mode === mode && s.age === 0) + 1;
 
 /** Her, in `mode` at age `age`, at x with her bottom at y. */
-const posed = (mode: EstrellaMode, x: number, y: number, hits = 0, age = 0): EstrellaState => ({ ...estrellaStart(DEF, hits), mode, age, x, y, tx: x, ty: y });
+const posed = (mode: EstrellaMode, x: number, y: number, hits = 0, age = 0, tore = false): EstrellaState => ({ ...estrellaStart(DEF, hits, tore), mode, age, x, y, tx: x, ty: y });
 /** Poncho rising: his hurtbox's top at `fromTop` before the step and at `toTop` after it. */
 const rising = (x: number, fromTop: number, toTop: number): { before: PlayerState; after: PlayerState } => ({
   before: { ...spawn(x, fromTop + 31), grounded: false, vy: -240 },
@@ -89,6 +92,12 @@ describe('GDD-BOS-03 La Estrella starts', () => {
   it('GDD-BOS-03 a lost life starts her phase again keeping her hits: phase 2 over x 320, phase 3 over x 400', () => {
     expect(estrellaStart(DEF, 1)).toMatchObject({ x: 320, y: 40, hits: 1, mode: 'glide', age: 0 });
     expect(estrellaStart(DEF, 2)).toMatchObject({ x: 400, y: 40, hits: 2, mode: 'glide', age: 0 });
+  });
+
+  it('GDD-BOS-03 the tear: estrellaStart has tore false by default and keeps tore when given', () => {
+    expect(estrellaStart(DEF, 2).tore).toBe(false);
+    expect(estrellaStart(DEF, 2, true).tore).toBe(true);
+    expect(estrellaStart(DEF, 2, true)).toMatchObject({ x: 400, y: 40, hits: 2, mode: 'glide', age: 0 });
   });
 });
 
@@ -209,7 +218,7 @@ describe('GDD-BOS-03 phase 2 Vaiven', () => {
 
 describe('GDD-BOS-03 phase 3 Remolino', () => {
   it('GDD-BOS-03 phase 3 glides at 120 px a second to the spot above Poncho and telegraphs there', () => {
-    const { states } = cycle(estrellaStart(DEF, 2), 110, () => at(240));
+    const { states } = cycle(estrellaStart(DEF, 2, true), 110, () => at(240));
     expect(states[0]!.x).toBeCloseTo(398, 6);
     expect(states[79]).toMatchObject({ mode: 'telegraph', age: 0, x: 240, y: 40 });
     // Over the middle awning, but in phase 3 she tears through the awnings to the floor.
@@ -217,14 +226,14 @@ describe('GDD-BOS-03 phase 3 Remolino', () => {
   });
 
   it('GDD-BOS-03 her glide target follows Poncho', () => {
-    const { states } = cycle(estrellaStart(DEF, 2), 50, (i) => at(i <= 10 ? 100 : 440));
+    const { states } = cycle(estrellaStart(DEF, 2, true), 50, (i) => at(i <= 10 ? 100 : 440));
     expect(states[9]!.x).toBeCloseTo(380, 6);
     expect(states[19]!.x).toBeCloseTo(400, 6);
   });
 
   it('GDD-BOS-03 phase 3 drops at 360 px a second through the awning under Poncho to the floor, rests and rises to y 72', () => {
     // 184 px from the cable's height to the floor at 6 px a step: on the floor on step 141, risen 152 px at 2 px a step by step 235.
-    const { states, landed } = cycle(estrellaStart(DEF, 2), 300, () => at(240));
+    const { states, landed } = cycle(estrellaStart(DEF, 2, true), 300, () => at(240));
     expect(states[110]!.y).toBeCloseTo(46, 6);
     expect(states[139]!.mode).toBe('drop');
     expect(states[140]).toMatchObject({ mode: 'rest', x: 240, y: 224 });
@@ -249,7 +258,7 @@ describe('GDD-BOS-03 phase 3 Remolino', () => {
   });
 
   it('GDD-BOS-03 phase 3 aims where Poncho is as the telegraph ends, not before', () => {
-    const last = posed('telegraph', 300, 40, 2, 28);
+    const last = posed('telegraph', 300, 40, 2, 28, true);
     expect(moveEstrella(DEF, last, at(300), AWNINGS).estrella).toMatchObject({ mode: 'telegraph', age: 29, x: 300 });
     expect(moveEstrella(DEF, { ...last, age: 29 }, at(200), AWNINGS).estrella).toMatchObject({ mode: 'drop', age: 0, x: 300, tx: 200, ty: 224 });
   });
@@ -263,11 +272,11 @@ describe('GDD-BOS-03 phase 3 Remolino', () => {
     expect(aimAt(at(20))).toBe(56);
     expect(aimAt(at(470))).toBe(424);
     expect(aimAt(at(57))).toBe(57);
-    expect(moveEstrella(DEF, posed('telegraph', 100, 40, 2, 29), at(20), AWNINGS).estrella).toMatchObject({ tx: 56, ty: 224 });
+    expect(moveEstrella(DEF, posed('telegraph', 100, 40, 2, 29, true), at(20), AWNINGS).estrella).toMatchObject({ tx: 56, ty: 224 });
   });
 
   it('GDD-BOS-03 her phase 3 drop is a straight line to the surface under the aim', () => {
-    const drop = posed('drop', 300, 40, 2);
+    const drop = posed('drop', 300, 40, 2, 0, true);
     const moved = moveEstrella(DEF, { ...drop, tx: 240, ty: 176 }, at(240), AWNINGS).estrella;
     const d = Math.hypot(240 - 300, 176 - 40);
     expect(moved.x).toBeCloseTo(300 - (60 / d) * 6, 6);
@@ -275,7 +284,7 @@ describe('GDD-BOS-03 phase 3 Remolino', () => {
   });
 
   it('GDD-BOS-03 phase 3 on the floor: two tejocotes each way, the second pair 24 steps after the first', () => {
-    const steps = play(estrellaStart(DEF, 2), 210, 160);
+    const steps = play(estrellaStart(DEF, 2, true), 210, 160);
     const thud = steps.findIndex((r) => r.landed === 'floor');
     expect(thud + 1).toBe(181);
     expect(steps[thud]!.tejocotes).toEqual([
@@ -290,6 +299,81 @@ describe('GDD-BOS-03 phase 3 Remolino', () => {
       { x: 160, y: 224, dir: 1, wait: 0 },
     ]);
     expect(steps[thud + 25]!.tejocotes[2]!.x).toBeCloseTo(158.5, 6);
+  });
+});
+
+describe('GDD-BOS-03 the tear, phase 3 first drop', () => {
+  it('GDD-BOS-03 the tear: untorn in phase 3 she glides to x 240, not to the spot above Poncho', () => {
+    // Poncho stands on the floor at x 400, where she starts: aiming at him she would telegraph on step 1.
+    const { states } = cycle(estrellaStart(DEF, 2), 90, () => at(400));
+    expect(states[0]!.x).toBeCloseTo(398, 6);
+    expect(states[78]).toMatchObject({ mode: 'glide' });
+    expect(states[79]).toMatchObject({ mode: 'telegraph', age: 0, x: 240, y: 40 });
+  });
+
+  it('GDD-BOS-03 the tear: her first phase 3 drop falls straight down at x 240 though Poncho moved', () => {
+    const last = posed('telegraph', 240, 40, 2, 29);
+    expect(moveEstrella(DEF, last, at(300), AWNINGS).estrella).toMatchObject({ mode: 'drop', age: 0, x: 240, tx: 240, ty: 224 });
+    expect(moveEstrella(DEF, last, at(20), AWNINGS).estrella).toMatchObject({ mode: 'drop', tx: 240, ty: 224 });
+  });
+
+  it('GDD-BOS-03 the tear: tore is set on the first drop step her bottom reaches y 176, not the step before', () => {
+    // Her drop starts on step 110 (80 steps of glide from x 400, 30 of telegraph); at 360 px/s she falls 6 px a step: her bottom is 172
+    // after 22 drop steps (step 132) and 178 after 23 (step 133).
+    const { states, tore } = cycle(estrellaStart(DEF, 2), 140, () => at(400));
+    expect(states[109]).toMatchObject({ mode: 'drop', age: 0, y: 40 });
+    expect(states[131]).toMatchObject({ mode: 'drop', y: 172, tore: false });
+    expect(states[132]).toMatchObject({ mode: 'drop', y: 178, tore: true });
+    expect(states.slice(0, 132).some((e) => e.tore)).toBe(false);
+    expect(states.slice(132).every((e) => e.tore)).toBe(true);
+    expect(tore).toEqual([133]);
+  });
+
+  it('GDD-BOS-03 the tear: she goes on to the floor and rests there, as any phase 3 drop', () => {
+    const { states, landed } = cycle(estrellaStart(DEF, 2), 300, () => at(400));
+    expect(states[139]).toMatchObject({ mode: 'drop', y: 220 });
+    expect(states[140]).toMatchObject({ mode: 'rest', x: 240, y: 224, tore: true });
+    expect(landed[0]).toEqual({ step: 141, on: 'floor' });
+    expect(states.some((e) => e.mode === 'bounce')).toBe(false);
+    expect(states[234]).toMatchObject({ mode: 'hang', age: 0, x: 240, y: 72, tore: true });
+  });
+
+  it('GDD-BOS-03 the tear is reported once: her second phase 3 drop tears nothing', () => {
+    const { states, tore } = cycle(estrellaStart(DEF, 2), 700, () => at(400));
+    const drops = states.flatMap((s, i) => (s.mode === 'drop' && s.age === 0 ? [i] : []));
+    expect(drops.length).toBeGreaterThanOrEqual(2);
+    // The second drop is aimed at him at x 400 and falls through y 176 as the first did; nothing more is torn.
+    expect(states[drops[1]!]).toMatchObject({ tx: 400, ty: 224, tore: true });
+    expect(states.slice(drops[1]).some((e) => e.y >= 176)).toBe(true);
+    expect(tore).toEqual([133]);
+  });
+
+  it('GDD-BOS-03 after the tear she glides to the spot above Poncho', () => {
+    const { states } = cycle(estrellaStart(DEF, 2, true), 60, () => at(300));
+    expect(states[0]!.x).toBeCloseTo(398, 6);
+    expect(states[48]).toMatchObject({ mode: 'glide' });
+    expect(states[49]).toMatchObject({ mode: 'telegraph', age: 0, x: 300, y: 40 });
+    // With him under her she telegraphs at once.
+    expect(cycle(estrellaStart(DEF, 2, true), 1, () => at(400)).states[0]).toMatchObject({ mode: 'telegraph', x: 400 });
+  });
+
+  it('GDD-BOS-03 after the tear her telegraph end aims at Poncho', () => {
+    const last = posed('telegraph', 240, 40, 2, 29, true);
+    expect(moveEstrella(DEF, last, at(300), AWNINGS).estrella).toMatchObject({ mode: 'drop', age: 0, x: 240, tx: 300, ty: 224 });
+  });
+
+  it('GDD-BOS-03 in phases 1 and 2 nothing tears', () => {
+    // Phase 1 drops onto the awnings (the left one's top is y 176 too) and phase 2 through a cordel and past y 176 to the floor.
+    expect(cycle(estrellaStart(DEF, 0), 1000).tore).toEqual([]);
+    expect(cycle(estrellaStart(DEF, 0), 1000).states.some((e) => e.tore)).toBe(false);
+    expect(cycle(estrellaStart(DEF, 1), 1000).tore).toEqual([]);
+    expect(cycle(estrellaStart(DEF, 1), 1000).states.some((e) => e.tore)).toBe(false);
+  });
+
+  it('GDD-BOS-03 the tear reaches the step report', () => {
+    const steps = play(estrellaStart(DEF, 2), 140, 400);
+    expect(steps.flatMap((r, i) => (r.tore ? [i + 1] : []))).toEqual([133]);
+    expect(steps[132]!.estrella.tore).toBe(true);
   });
 });
 
@@ -336,10 +420,10 @@ describe('GDD-BOS-03 after a hit', () => {
     expect(states[t - 1]).toMatchObject({ x: 320, y: 40 });
   });
 
-  it('GDD-BOS-03 after her second hurt she aims at Poncho', () => {
+  it('GDD-BOS-03 after her second hurt her first glide heads for the tear at x 240, not for Poncho', () => {
     const { states } = cycle(posed('hurt', 160, 72, 2), 300, () => at(300));
     const t = firstIn(states, 'telegraph');
-    expect(states[t - 1]).toMatchObject({ x: 300, y: 40 });
+    expect(states[t - 1]).toMatchObject({ x: 240, y: 40 });
   });
 
   it('GDD-BOS-03 defeated she falls at 120 px a second to the floor and lies there; clear 60 steps after the hit', () => {

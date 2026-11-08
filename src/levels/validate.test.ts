@@ -285,7 +285,7 @@ describe('GDD-TEC-04 and GDD-BOS-01 a boss level', () => {
 });
 
 /** GDD-BOS-03: a one-screen level with La Estrella and the spawn given. Her box's middle starts each phase at y = 24, over its first spot. */
-const star = (spots: Estrella['spots'], spawn: Point, o: Options = {}) => entry({ width: 30, ofrendas: [], exit: null, ...o, level: { spawn, estrella: { floor: 224, spots }, ...o.level } });
+const star = (spots: Estrella['spots'], spawn: Point, o: Options = {}) => entry({ width: 30, ofrendas: [], exit: null, ...o, level: { spawn, estrella: { floor: 224, spots, tear: { x: 240, y: 176, awning: 1 } }, ...o.level } });
 
 describe('GDD-TEC-04 and GDD-BOS-03 La Estrella level', () => {
 

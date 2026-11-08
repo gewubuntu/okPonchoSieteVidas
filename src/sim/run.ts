@@ -293,6 +293,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
     // GDD-LIFE-05: out of lives, the screen comes up instead of a respawn.
     if (isOutOfLives(run.lives)) return { ...run, phase: 'gameover', wait: 0, buttonsHeld: buttonsDown(input), stomped: false };
     const back = respawnPoint(run, level);
+    const keepTore = !run.restarting && (run.estrella?.tore ?? false);
     return {
       // Marked as already holding jump, so a button held through the respawn does not make Poncho jump at once.
       player: { ...spawn(back.x, back.y), jumpWasHeld: true },
@@ -335,12 +336,13 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
       boss: level.boss && run.boss ? bossStart(level.boss, run.restarting ? 0 : run.boss.hits) : null,
       fruit: [],
       rocks: freshRocks(level.rocks ?? []),
-      // GDD-WLD-10, GDD-WLD-11: the torn awnings are whole again and the rollos rolled up.
-      awningsGone: freshAwnings(level.awnings ?? []),
+      // GDD-WLD-10, GDD-WLD-11: the torn awnings are whole again and the rollos rolled up; GDD-BOS-03: but the awning La Estrella tore away
+      // stays gone after a life lost in the rest of her phase 3, not after the restart that follows the last life.
+      awningsGone: freshAwnings(level.awnings ?? []).map((_, i) => keepTore && i === level.estrella!.tear.awning),
       awningBounce: null,
       rollos: freshRollos(level.rollos ?? []),
       // GDD-BOS-01, GDD-BOS-03: La Estrella the same as the boss: her hits kept, her phase from its start, every tejocote gone.
-      estrella: level.estrella && run.estrella ? estrellaStart(level.estrella, run.restarting ? 0 : run.estrella.hits) : null,
+      estrella: level.estrella && run.estrella ? estrellaStart(level.estrella, run.restarting ? 0 : run.estrella.hits, keepTore) : null,
       tejocotes: [],
     };
   }
@@ -525,7 +527,9 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
       checkpointIndex = index;
     }
   });
-  const next: RunState = { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: inFlight, enemies, boss, fruit, rocks, awningsGone, awningBounce, rollos, estrella: fought?.estrella ?? null, tejocotes: fought?.tejocotes ?? [], stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
+  // GDD-BOS-03: the step her box's bottom reaches the middle awning's top she tears it away: gone from the next step on, with the rest.
+  const tornAway = fought?.tore ? awningsGone.map((g, i) => g || i === level.estrella!.tear.awning) : awningsGone;
+  const next: RunState = { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: inFlight, enemies, boss, fruit, rocks, awningsGone: tornAway, awningBounce, rollos, estrella: fought?.estrella ?? null, tejocotes: fought?.tejocotes ?? [], stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
   // GDD-WLD-03: reaching the exit ends the level. A hit in Base, a pit and a crush returned above, so they win; a hit the taco or
   // the Fuego absorbed does not. `wait` is already 0 in play. The buttons down now are held, so one held as Poncho reaches the exit
   // is no new press for the reveal (GDD-UI-02).

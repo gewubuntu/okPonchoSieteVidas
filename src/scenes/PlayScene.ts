@@ -415,9 +415,10 @@ export interface PonchoDebug {
   setBoss(hits: number): void;
   /**
    * GDD-BOS-03: La Estrella in the run, or null in a level without her: the middle of her box across, its bottom, her mode, the steps in
-   * it, the hits she has taken and where her drop, bounce, rise or yank goes (in a hang, the x she sways about).
+   * it, the hits she has taken, where her drop, bounce, rise or yank goes (in a hang, the x she sways about) and whether she has torn the
+   * middle awning away in this fight (`tore`, phase 3's first drop).
    */
-  estrella(): { x: number; y: number; mode: string; age: number; hits: number; tx: number; ty: number } | null;
+  estrella(): { x: number; y: number; mode: string; age: number; hits: number; tx: number; ty: number; tore: boolean } | null;
   /**
    * GDD-BOS-03: La Estrella as last drawn, or null when she was not: her middle as passed to Phaser (shaken 2 px in her telegraph), how
    * many cones and how many pale tips were drawn, the core's flash as the colour passed to Phaser ('red' 0xff5030, 'white' 0xffffff, null
@@ -1292,7 +1293,7 @@ export class PlayScene extends Phaser.Scene {
         },
         estrella: () => {
           const e = this.run.estrella;
-          return e ? { x: e.x, y: e.y, mode: e.mode, age: e.age, hits: e.hits, tx: e.tx, ty: e.ty } : null;
+          return e ? { x: e.x, y: e.y, mode: e.mode, age: e.age, hits: e.hits, tx: e.tx, ty: e.ty, tore: e.tore } : null;
         },
         estrellaDrawn: () => this.estrellaPainted,
         tejocotes: () => this.run.tejocotes.map((t) => ({ x: t.x, y: t.y, wait: t.wait })),
