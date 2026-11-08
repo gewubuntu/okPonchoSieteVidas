@@ -43,6 +43,7 @@ export function drawFrames() {
     const grid = frame(STRIP[i]);
     const problems = check(grid, { palette: PALETTE });
     if (problems.length) throw new Error(`${look}: ${problems.slice(0, 3).join('; ')}`);
-    return { look, grid, hand: null, holds: 'none', mirror: false };
+    // Nothing is held (the taco is drawn in), so the hand is only a point: the middle of his feet.
+    return { look, grid, hand: { x: POSE_FRAME.w / 2, y: POSE_FRAME.h }, holds: 'none' };
   });
 }

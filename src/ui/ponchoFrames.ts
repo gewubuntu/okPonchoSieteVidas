@@ -50,6 +50,10 @@ export const PONCHO_FRAMES: Readonly<Record<PonchoLook, PonchoFrameData>> = {
   eat1: { hand: { x: 81, y: 70 }, holds: 'food', mouth: { x: 72, y: 66 } },
   spit0: { hand: { x: 65, y: 80 }, holds: 'paw', mouth: { x: 68, y: 61 } },
   spit1: { hand: { x: 75, y: 81 }, holds: 'paw', mouth: { x: 79, y: 62 } },
+  victory0: { hand: { x: 48, y: 96 }, holds: 'none' },
+  victory1: { hand: { x: 48, y: 96 }, holds: 'none' },
+  victory2: { hand: { x: 48, y: 96 }, holds: 'none' },
+  victory3: { hand: { x: 48, y: 96 }, holds: 'none' },
 };
 
 /**

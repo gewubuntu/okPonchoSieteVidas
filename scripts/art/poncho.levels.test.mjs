@@ -3,9 +3,10 @@
 // stands (and blinks and glances at his taco), eats a chile, claws, spits a fireball, is hurt (his invulnerability set so the step gives
 // the hit's), runs, skids and jumps both ways; and he flips in at every respawn point. Each step he is posed as the scene poses him
 // (`stepPose`), placed as it places him (his feet where the run has them, or above the respawn point in the flip), and every painted pixel
-// of his frame is placed in the level, half a game px a pixel. Ground is a level tile and the sand under a slope's surface (GDD-MOV-09).
+// of his frame is placed in the level, half a game px a pixel. On the level clear screen he plays the victory where he reached the exit
+// (on its floor, a rooftop or a cliff top) or, in a boss arena, wherever he is as the screen comes up (GDD-ART-04, GDD-UI-02). Ground is a level tile and the sand under a slope's surface (GDD-MOV-09).
 import { describe, expect, it } from 'vitest';
-import { HIT, HITBOX, RESPAWN, TILE } from '../../src/config/tuning';
+import { EXIT, HIT, HITBOX, RESPAWN, TILE } from '../../src/config/tuning';
 import { LEVELS } from '../../src/levels/index';
 import { spawn } from '../../src/sim/movement';
 import { flipPose } from '../../src/sim/respawnFlip';
@@ -26,6 +27,8 @@ const PIXELS = Object.fromEntries(ponchoFrames().map((f) => {
 const levels = LEVELS.filter((e) => !e.test);
 /** How far apart the spots he is dropped at are, in tiles. */
 const EVERY = 6;
+/** The steps of the clear screen stepped (22 + 48 + 24 of the victory looks, and some more). */
+const CLEAR_STEPS = 120;
 /** Every look posed, over all the runs. */
 const POSED = new Set();
 
@@ -43,8 +46,11 @@ const ROUTINE = [
   [{ move: -1, jumpHeld: true }, 20], [{ move: -1, jumpHeld: false }, 60], // jumps left
 ];
 
-/** Every place a pixel of his frame lands in ground (level tiles and slope sand), stepping `steps` (a routine or a count) from `run`. */
-function overlaps(level, run, steps) {
+/**
+ * Every place a pixel of his frame lands in ground (level tiles and slope sand), stepping `steps` (a routine or a count) from `run`; a
+ * count first steps idle until the level is clear (at most 200 steps, L-064), if it is not already.
+ */
+function overlaps(level, run, steps, untilClear = false) {
   const ground = (x, y) => {
     const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
     if (level.world.solidTile(tx, ty)) return 'tile';
@@ -66,7 +72,7 @@ function overlaps(level, run, steps) {
       if (!flip.visible) return;
       const at = respawnPoint(run, level);
       [fx, fy] = [at.x, at.y - flip.dy];
-    } else if (run.phase !== 'playing') return;
+    } else if (run.phase !== 'playing' && run.phase !== 'clear') return;
     POSED.add(pose.look);
     const key = `${pose.look}${pose.flip}${fx},${fy}`;
     if (key === seen) return; // standing still in the same frame: checked already
@@ -81,7 +87,10 @@ function overlaps(level, run, steps) {
       if (what) found.push({ step, look: pose.look, x: run.player.x, what, beside: x < box.x0 || x > box.x1, below: y > box.y1, above: y < box.y0 });
     }
   };
-  if (typeof steps === 'number') for (let i = 0; i < steps; i++) one(idle);
+  if (typeof steps === 'number') {
+    for (let i = 0; i < 200 && run.phase === 'playing' && untilClear; i++) one(idle);
+    for (let i = 0; i < steps; i++) one(idle);
+  }
   else {
     for (const [input, n] of steps) {
       // Changes made to the run before a step: a chile put at his feet (eaten by touch, GDD-PWR-06), or his invulnerability set one above a
@@ -108,6 +117,19 @@ function spots(level) {
   return out;
 }
 
+/**
+ * The clear screen, 120 steps (the four victory looks pose in 22 + 48 + 24): at the exit, Poncho dropped from its top onto the floor below
+ * its middle, walking nowhere, stepped until he reaches it; in a boss arena (no exit) at every spot, the screen up from its first step.
+ */
+function clears(level) {
+  if (!level.exit) return spots(level).map((run) => ({ ...run, phase: 'clear', wait: 0 }));
+  const x = level.exit.x;
+  const col = Math.floor(x / TILE);
+  let y = level.exit.y - EXIT.height; // the exit's top
+  while (y < level.world.height * TILE && !level.world.solidTile(col, Math.floor(y / TILE))) y += TILE;
+  return [{ ...startRun(level), power: 'taco', player: { ...spawn(x, Math.floor(y / TILE) * TILE), grounded: false } }];
+}
+
 /** The respawn points: the level start and every ofrenda, each with a flip in from the start of its wait. */
 function respawns(level) {
   return [level.spawn, ...level.ofrendas.map((o) => ({ x: o.x, y: o.y }))].map((checkpoint) => ({ ...startRun(level), checkpoint, phase: 'respawning', wait: RESPAWN.delaySteps }));
@@ -126,6 +148,7 @@ describe('GDD-ART-04 Poncho\'s frames fit the real levels (L-059)', () => {
       const level = entry.level;
       const all = [];
       for (const run of spots(level)) all.push(...overlaps(level, run, ROUTINE));
+      for (const run of clears(level)) all.push(...overlaps(level, run, CLEAR_STEPS, true));
       for (const run of respawns(level)) all.push(...overlaps(level, run, RESPAWN.delaySteps + 2));
       const bad = all.filter((o) => (!o.beside && !o.above) || o.below).slice(0, 5).map((o) => `step ${o.step} at x ${o.x} ${o.look} in ${o.what}${o.below ? ', below his feet' : ''}${o.beside || o.above ? '' : ', over his box'}`);
       expect(bad).toEqual([]);

@@ -12,6 +12,10 @@ import { RUN_LEGS } from './poncho-run-legs.mjs';
 import { buildSheet, PONCHO_LOOKS as SHEET_LOOKS, ponchoFrames, SHEET_COLUMNS } from './make-sprites.mjs';
 import * as actions from './poncho/actions.mjs';
 import * as moves from './poncho/moves.mjs';
+import { ITEM_SHEETS } from './make-poncho-items.mjs';
+import { ITEM_COLOURS } from './poncho/items.mjs';
+import * as victory from './poncho/victory.mjs';
+import { STRIP } from './poncho/victory-pixels.mjs';
 import { BOX, check, pose, POSE_FRAME, RUN, STANDING } from './poncho/rig.mjs';
 
 const sheetFile = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'sprites', 'poncho.png');
@@ -92,7 +96,9 @@ describe('GDD-ART-04 Poncho\'s sheet: his animation frames', { timeout: 60_000 }
   it('GDD-ART-04 the sheet is rows of 8 frames of 192 x 192 art px (under 4096 px wide), in the order the game picks them', () => {
     expect(SHEET_LOOKS).toEqual([...PONCHO_LOOKS]);
     expect(PONCHO_LOOKS.slice(0, 5)).toEqual(['idle', 'run0', 'run1', 'run2', 'run3']);
-    expect(PONCHO_LOOKS).toEqual(['idle', 'run0', 'run1', 'run2', 'run3', ...moves.LOOKS.filter((l) => l !== 'idle'), ...actions.LOOKS]);
+    expect(PONCHO_LOOKS).toEqual(['idle', 'run0', 'run1', 'run2', 'run3', ...moves.LOOKS.filter((l) => l !== 'idle'), ...actions.LOOKS, ...victory.LOOKS]);
+    expect(PONCHO_LOOKS.slice(-4)).toEqual(['victory0', 'victory1', 'victory2', 'victory3']);
+    expect(PONCHO_LOOKS).toHaveLength(35);
     expect(FRAMES.map((f) => f.look)).toEqual([...PONCHO_LOOKS]);
     expect([SPRITE_FRAME, PONCHO_ART.frame]).toEqual([48, 48]);
     const s = sheet(FRAMES.map((f) => f.grid), POSE_FRAME, SHEET_COLUMNS);
@@ -117,20 +123,60 @@ describe('GDD-ART-04 Poncho\'s sheet: his animation frames', { timeout: 60_000 }
     expect(Object.keys(PONCHO_FRAMES)).toEqual([...PONCHO_LOOKS]);
   });
 
-  it('GDD-ART-03 his frames use only his 13 colours', () => {
+  it('GDD-ART-03 his frames use only his 13 colours, the victory frames only the victory palette', () => {
     const palette = Object.values(COLOURS);
     expect(palette).toHaveLength(13);
     for (const f of FRAMES) {
-      const off = new Set(f.grid.cells.filter((c) => c !== null && !palette.includes(c)));
+      const allowed = victory.LOOKS.includes(f.look) ? victory.PALETTE : palette;
+      const off = new Set(f.grid.cells.filter((c) => c !== null && !allowed.includes(c)));
       expect([...off], f.look).toEqual([]);
     }
+    // The victory palette: his 13, the taco's two greens and the gold.
+    expect(victory.PALETTE).toHaveLength(16);
+    expect(new Set(victory.PALETTE).size).toBe(16);
+  });
+
+  it('GDD-ART-03 his palette is 16 colours, full: his sheet and his item sheets together', () => {
+    const used = new Set(FRAMES.flatMap((f) => f.grid.cells.filter((c) => c !== null)));
+    for (const m of Object.values(ITEM_SHEETS)) for (const f of m.draw()) for (const c of f.grid.cells) if (c !== null) used.add(c);
+    expect(used.size).toBe(16);
+    expect([...used].sort()).toEqual([...Object.values(COLOURS), ...Object.values(ITEM_COLOURS), ...Object.values(victory.VICTORY_COLOURS)].sort());
+    // The gold the user asked for (GDD-ART-03: "Add gold").
+    expect(victory.VICTORY_COLOURS).toEqual({ y: '#F9D24C' });
   });
 
   it('GDD-ART-05 every frame is outlined and clear of the frame\'s edge but the feet\'s row', () => {
     // The run legs meet the poncho's hem open in a pixel or two, as today's run frames do (rig.mjs): only that is let pass, there.
     for (const f of FRAMES) {
-      const problems = check(f.grid).filter((p) => !(/^run/.test(f.look) && p.startsWith('open outline')));
+      const problems = check(f.grid, victory.LOOKS.includes(f.look) ? { palette: victory.PALETTE } : undefined).filter((p) => !(/^run/.test(f.look) && p.startsWith('open outline')));
       expect(problems, f.look).toEqual([]);
+    }
+  });
+
+  it('GDD-ART-04 the victory frames are the user\'s strip, pixel for pixel', () => {
+    // The strip's letters are colours; each frame stands on the bottom row, the middle of its soles (the second-to-last row, inside the
+    // outline) on column 48.
+    const KEY = { ...COLOURS, ...ITEM_COLOURS, ...victory.VICTORY_COLOURS };
+    victory.LOOKS.forEach((look, i) => {
+      const rows = STRIP[i];
+      const lit = [...rows[rows.length - 2]].flatMap((ch, x) => (ch === '.' || ch === '#' ? [] : [x]));
+      const ox = Math.round(POSE_FRAME.w / 2 - (Math.min(...lit) + Math.max(...lit) + 1) / 2), oy = POSE_FRAME.h - rows.length;
+      const want = Array.from({ length: POSE_FRAME.h }, () => Array.from({ length: POSE_FRAME.w }, () => null));
+      rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') want[oy + y][ox + x] = KEY[ch]; }));
+      expect(grids(FRAMES.find((f) => f.look === look).grid), look).toEqual(want);
+    });
+  });
+
+  it('GDD-ART-04 the victory frames stand on his feet: the strip\'s soles\' middle on the body box\'s middle', () => {
+    for (const look of victory.LOOKS) {
+      const g = FRAMES.find((f) => f.look === look).grid;
+      // The second-to-last painted row is the soles, inside the outline's last row.
+      const painted = [];
+      for (let y = 0; y < g.height; y++) if (Array.from({ length: g.width }, (_, x) => g.get(x, y)).some((c) => c !== null)) painted.push(y);
+      expect(painted.at(-1), look).toBe(POSE_FRAME.h - 1);
+      const y = painted.at(-2);
+      const xs = Array.from({ length: g.width }, (_, x) => x).filter((x) => g.get(x, y) !== null && g.get(x, y) !== COLOURS['#']);
+      expect(Math.abs((Math.min(...xs) + Math.max(...xs) + 1) / 2 - (BOX.x0 + BOX.x1) / 2), look).toBeLessThanOrEqual(0.5);
     }
   });
 
