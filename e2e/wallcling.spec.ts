@@ -67,8 +67,12 @@ test('GDD-MOV-08 real keys: hold left against the wall, then Space kicks off it'
   await page.evaluate((p) => window.__PONCHO__!.teleport(p.x, p.y), WALL);
   await page.keyboard.down('ArrowLeft');
   await page.waitForFunction(() => window.__PONCHO__!.state().clinging === true && window.__PONCHO__!.state().vy === 60);
+  // With this 60 ms press the kick moves away from the wall and up for only about 9 steps (the jump cut shortens the rise,
+  // and the held Left turns him back once the kick's lock ends), so the wait starts polling before the press, not after it
+  // returns: on a slow runner the press's hold and its round trip could outlast that window (L-042).
+  const kicked = page.waitForFunction(() => window.__PONCHO__!.state().vx > 0 && window.__PONCHO__!.state().vy < 0);
   await page.keyboard.press('Space', { delay: 60 });
-  await page.waitForFunction(() => window.__PONCHO__!.state().vx > 0 && window.__PONCHO__!.state().vy < 0);
+  await kicked;
   await page.keyboard.up('ArrowLeft');
 });
 
@@ -92,7 +96,9 @@ test('GDD-MOV-08 touch: hold the left button against the wall, then a Jump tap k
   await page.evaluate((p) => window.__PONCHO__!.teleport(p.x, p.y), WALL);
   await fingers(cdp, 'touchStart', [{ ...at('left'), id: 1 }]);
   await page.waitForFunction(() => window.__PONCHO__!.state().clinging === true);
+  // The wait polls from before the touch, as in the real-keys test above (L-042).
+  const kicked = page.waitForFunction(() => window.__PONCHO__!.state().vx > 0 && window.__PONCHO__!.state().vy < 0);
   await fingers(cdp, 'touchStart', [{ ...at('left'), id: 1 }, { ...at('jump'), id: 2 }]);
-  await page.waitForFunction(() => window.__PONCHO__!.state().vx > 0 && window.__PONCHO__!.state().vy < 0);
+  await kicked;
   await fingers(cdp, 'touchEnd', []);
 });
