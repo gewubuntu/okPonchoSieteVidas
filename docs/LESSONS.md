@@ -762,3 +762,23 @@ Retired IDs: L-046
 - **Rule:** A sprite sheet stays at most 4096 px on each side; a plan names the sheet's columns when its frames would pass that in one row, and the art test pins the width (`scripts/art/poncho.test.mjs` does).
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-069 A new state changed some of what the scene draws an object with, not all of it
+
+- **Date:** 2026-11-08
+- **Area:** ui, art
+- **What went wrong:** For the victory pose (PR #81) the plan gave Poncho's body a new depth and new frames on the clear screen, but `renderBody` also sets its alpha from the hit's invulnerability every frame; the clear screen freezes that counter, so a player who reached the exit mid-blink saw the whole victory at 30% (found by the review).
+- **Root cause:** The plan listed what the new state should change and not what the draw code already applies to the same object each frame, so a setting meant for play carried into the new state.
+- **Rule:** When a plan puts an object into a new state (a screen, a phase, a mode), list every property the scene sets on that object each frame (`setAlpha`, `setVisible`, `setDepth`, `setFlipX`, tints, positions; grep its draw function) and say for each what it is in the new state, with a test for each one that a counter frozen by the state could leave wrong.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-070 The PR description still described the first commit after the work had moved on
+
+- **Date:** 2026-11-08
+- **Area:** process
+- **What went wrong:** PR #81 opened as "design in progress, not in the game yet"; two commits later the game played the victory, but the description still listed that work as next and its checkboxes unchecked (a blocking finding of the review).
+- **Root cause:** The description was edited when the design changed, not when the scope changed; nothing ties a push to a reread of the description.
+- **Rule:** After every push that changes what the PR does (a phase landed, a GDD version, new playtests), rewrite the description's Scope, checks and Notes to match the head before launching the review.
+- **Recurrence:** 1
+- **Promoted:** no

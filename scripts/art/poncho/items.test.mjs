@@ -73,8 +73,8 @@ describe('GDD-ART-04 the taco, the chile, the held items, the claw swipe and the
     expect(MODULES.swipe.FRAME.w - SWIPE_BOX.x1).toBe(SWIPE_BOX.x0);
   });
 
-  it('GDD-ART-03 the items add at most 3 colours to his 13: 15 of the 16 used', () => {
-    expect(Object.keys(ITEM_COLOURS).length).toBeLessThanOrEqual(3);
+  it('GDD-ART-03 the items add 2 colours to his 13 (the victory\'s gold makes 16, poncho.test.mjs)', () => {
+    expect(Object.keys(ITEM_COLOURS)).toHaveLength(2);
     expect(new Set(PALETTE).size).toBe(15);
     for (const { sheet, look, grid } of all()) {
       const off = new Set(grid.cells.filter((c) => c !== null && !PALETTE.includes(c)));

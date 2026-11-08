@@ -221,6 +221,8 @@ export interface PonchoDebug {
   bodyPose(): { x: number; y: number; rotation: number };
   /** Poncho's sprite as passed to Phaser (GDD-ART-04): the sheet frame and its look (read from the image), whether it is mirrored, its displayed size and its bottom edge and middle in game px. */
   ponchoSprite(): { frame: number; look: PonchoLook; flipX: boolean; width: number; height: number; bottom: number; centerX: number };
+  /** The clear screen's layers as drawn (GDD-UI-02, GDD-ART-04): the depths of its veil, of Poncho's body and of its lines and menu, and whether the veil is shown. */
+  clearLayers(): { veil: number; poncho: number; lines: number; veilShown: boolean };
   /** Each ofrenda as drawn: its id and whether it is drawn as used. Read from what was drawn, not from the game state. */
   ofrendas(): { id: string; x: number; used: boolean }[];
   /** Every sound effect asked for so far, in order (GDD-AUD-02); a hilo note is `hilo:<semitones>`. Browsers keep audio locked until a first gesture. */
@@ -684,6 +686,8 @@ export class PlayScene extends Phaser.Scene {
   private gameOverPrompt!: Phaser.GameObjects.Text;
   /** GDD-UI-02: the level clear screen: its title, hilo, time and medal lines. */
   private clearScreen!: Phaser.GameObjects.Container;
+  /** The clear screen's dark veil: under Poncho (depth 9.1) while the screen's lines and menu (depth 9.2) are over him (GDD-UI-02). */
+  private clearVeil!: Phaser.GameObjects.Rectangle;
   private clearTitle!: Phaser.GameObjects.Text;
   private clearHilos!: Phaser.GameObjects.Text;
   private clearTime!: Phaser.GameObjects.Text;
@@ -896,7 +900,8 @@ export class PlayScene extends Phaser.Scene {
 
     // GDD-UI-02: the level clear screen, built like the game-over screen: over the level, under the HUD and the touch buttons.
     // Hidden until the exit is reached.
-    const clearVeil = this.add.rectangle(0, 0, BASE_WIDTH, BASE_HEIGHT, 0x0d1020, 0.82).setOrigin(0);
+    // The veil is its own object at depth 9, so Poncho (9.1) is drawn above it and under the lines and the menu (9.2), which are in the container.
+    this.clearVeil = this.add.rectangle(0, 0, BASE_WIDTH, BASE_HEIGHT, 0x0d1020, 0.82).setOrigin(0).setScrollFactor(0).setDepth(9).setVisible(false);
     this.clearTitle = this.add.text(BASE_WIDTH / 2, 92, 'Level clear!', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
     this.clearHilos = this.add.text(BASE_WIDTH / 2, 116, '', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3dc' }).setOrigin(0.5);
     this.clearTime = this.add.text(BASE_WIDTH / 2, 132, '', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3dc' }).setOrigin(0.5);
@@ -912,9 +917,9 @@ export class PlayScene extends Phaser.Scene {
     };
     this.resultsMarker = this.add.text(0, 0, '>', resultsStyle).setOrigin(1, 0.5);
     this.clearScreen = this.add
-      .container(0, 0, [clearVeil, this.clearTitle, this.clearHilos, this.clearTime, this.clearMedalDisc, this.clearMedalText, ...Object.values(this.resultsItems), this.resultsMarker])
+      .container(0, 0, [this.clearTitle, this.clearHilos, this.clearTime, this.clearMedalDisc, this.clearMedalText, ...Object.values(this.resultsItems), this.resultsMarker])
       .setScrollFactor(0)
-      .setDepth(9)
+      .setDepth(9.2)
       .setVisible(false);
 
     // GDD-UI-05: the tutorial tip's text box, top middle under the HUD, under the screens (depth 8), and its highlight in the level.
@@ -1155,6 +1160,7 @@ export class PlayScene extends Phaser.Scene {
         bodyVisible: () => this.body.visible,
         bodyAlpha: () => this.body.alpha,
         bodyPose: () => ({ x: this.body.x, y: this.body.y + HITBOX.height / 2, rotation: this.body.rotation }),
+        clearLayers: () => ({ veil: this.clearVeil.depth, poncho: this.body.depth, lines: this.clearScreen.depth, veilShown: this.clearVeil.visible }),
         ponchoSprite: () => ({
           frame: Number(this.bodySprite.frame.name),
           look: ponchoLookAt(Number(this.bodySprite.frame.name)),
@@ -1946,6 +1952,7 @@ export class PlayScene extends Phaser.Scene {
     const shown = this.run.phase === 'clear';
     if (shown && !this.clearScreen.visible) this.clearRevealLog = [];
     this.clearScreen.setVisible(shown);
+    this.clearVeil.setVisible(shown);
     if (shown) {
       const lines = revealedLines(this.run);
       const t = TEXT[this.settings.language];
@@ -2107,12 +2114,15 @@ export class PlayScene extends Phaser.Scene {
     } else {
       this.body.setPosition(lerp(this.prevPlayer.x, player.x), lerp(this.prevPlayer.y, player.y) - HITBOX.height / 2).setRotation(0).setVisible(true);
     }
+    // GDD-UI-02, GDD-ART-04: on the clear screen he plays the victory above the veil and under the screen's lines and menu.
+    this.body.setDepth(this.run.phase === 'clear' ? 9.1 : 3);
     this.bodySprite.setFrame(this.pose.frame).setFlipX(this.pose.flip);
     this.glideGfx.setVisible(this.run.phase === 'playing' && player.gliding === true);
     this.paintCling(this.run.phase === 'playing' && player.clinging === true ? (player.wallSide ?? 0) : 0);
     // The blink phase comes from the invulnerability counter, so it is the same every time: bright for the first
     // 0.1 s after a respawn, then dim and bright in turn.
-    this.body.setAlpha(Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
+    // GDD-ART-04: the victory on the clear screen is drawn whole, even when he reached the exit blinking after a hit.
+    this.body.setAlpha(this.run.phase !== 'clear' && Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
     // GDD-PWR-01, GDD-ART-04: in Taco he holds a taco at his frame's hand, mirrored with him; it follows the body, blink and all. The claw
     // swipe sits on the claw's box, the spit's flame and the crumbs of a bite at his frame's mouth (`ponchoParts`).
     const parts = ponchoParts(this.pose, { ...player, x: this.body.x, y: this.body.y + HITBOX.height / 2 }, this.run.claw);

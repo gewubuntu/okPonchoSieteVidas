@@ -63,10 +63,22 @@ const RUN = ['run0', 'run1', 'run2', 'run3'] as const;
 export const flipLook = (angle: number): PonchoLook => FLIP[((Math.round(angle / (Math.PI / 4)) % 8) + 8) % 8]!;
 
 /**
- * The pose after a step from `before` to `after`. Priority, the first that applies wins: the respawn flip; hurt (a hit that cost his
- * power, not a life); the claw (its wind-up, its swing and the follow-through after it); the spit (a fireball spat this step); eating (a
- * taco or chile that raised his power); in the air (the take-off, then by his vertical speed); landing from a fall; the skid; the run
- * frames; standing (with a blink, and a glance at the taco in Taco or Fuego). Every timed pose keeps counting while one before it shows.
+ * The victory look on step `n` (from 1) of the level clear screen: victory0 for `victorySteps[0]` steps, victory1 for the next, victory2 for
+ * the next, then victory3 and victory2 in turn, `victoryPumpSteps` each, for as long as the screen is up.
+ */
+export function victoryLook(n: number): PonchoLook {
+  const [ready, raise, up] = PONCHO_ART.victorySteps;
+  if (n <= ready) return 'victory0';
+  if (n <= ready + raise) return 'victory1';
+  if (n <= ready + raise + up) return 'victory2';
+  return Math.floor((n - ready - raise - up - 1) / PONCHO_ART.victoryPumpSteps) % 2 === 0 ? 'victory3' : 'victory2';
+}
+
+/**
+ * The pose after a step from `before` to `after`. Priority, the first that applies wins: the victory on the level clear screen; the
+ * respawn flip; hurt (a hit that cost his power, not a life); the claw (its wind-up, its swing and the follow-through after it); the spit
+ * (a fireball spat this step); eating (a taco or chile that raised his power); in the air (the take-off, then by his vertical speed);
+ * landing from a fall; the skid; the run frames; standing (with a blink, and a glance at the taco in Taco or Fuego). Every timed pose keeps counting while one before it shows.
  */
 export function stepPose(prev: PonchoPose, before: PoseRun, after: PoseRun): PonchoPose {
   const p = after.player;
@@ -75,6 +87,8 @@ export function stepPose(prev: PonchoPose, before: PoseRun, after: PoseRun): Pon
   const pose = (look: PonchoLook, flip: boolean, rest: Partial<PonchoPose> = {}): PonchoPose => ({
     ...startPose(p.x), anim, flip, ...rest, look, frame: ponchoFrame(look),
   });
+  // The screen's first step has `wait` 0 (src/sim/run.ts), so step n of it has wait n - 1. Front views: never mirrored, nothing held apart.
+  if (after.phase === 'clear') return pose(victoryLook(after.wait + 1), false);
   if (after.phase === 'respawning') {
     const flip = flipPose(after.wait);
     if (flip.visible) return pose(flipLook(flip.angle), p.facing < 0);

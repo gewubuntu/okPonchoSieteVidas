@@ -113,6 +113,9 @@ export const PONCHO_ART = {
   blinkEvery: 180,
   glanceSteps: 40,
   glanceEvery: 360,
+  /** GDD-ART-04: on the level clear screen victory0 for 12 steps, victory1 for 5, victory2 for 5, then victory3 and victory2 in turn for 24 steps each. */
+  victorySteps: [12, 5, 5],
+  victoryPumpSteps: 24,
   reach: {
     idle: { behind: 6, front: 10, above: 3.5, below: 0 },
     run0: { behind: 6, front: 10, above: 4, below: 0 },
@@ -145,6 +148,11 @@ export const PONCHO_ART = {
     eat1: { behind: 6.5, front: 13, above: 1.5, below: 0 },
     spit0: { behind: 13, front: 8.5, above: 4, below: 0 },
     spit1: { behind: 10.5, front: 10, above: 5, below: 0 },
+    // GDD-ART-04: the victory frames never mirror, so behind is the frame's left and front its right.
+    victory0: { behind: 8.5, front: 9.5, above: 5, below: 0 },
+    victory1: { behind: 9.5, front: 8.5, above: 7.5, below: 0 },
+    victory2: { behind: 10, front: 10, above: 8, below: 0 },
+    victory3: { behind: 9, front: 9.5, above: 10, below: 0 },
   },
   pickup: {
     bobSteps: 8,

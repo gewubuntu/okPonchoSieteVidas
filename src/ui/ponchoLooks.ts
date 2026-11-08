@@ -5,6 +5,7 @@ export const PONCHO_LOOKS = [
   'idle', 'run0', 'run1', 'run2', 'run3', 'blink', 'glance', 'jump0', 'jump1', 'apex', 'fall0', 'fall1', 'land', 'skid',
   'flip0', 'flip1', 'flip2', 'flip3', 'flip4', 'flip5', 'flip6', 'flip7',
   'clawWind', 'clawSwipe', 'clawFollow', 'hurt0', 'hurt1', 'eat0', 'eat1', 'spit0', 'spit1',
+  'victory0', 'victory1', 'victory2', 'victory3',
 ] as const;
 export type PonchoLook = (typeof PONCHO_LOOKS)[number];
 

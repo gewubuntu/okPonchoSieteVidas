@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { IDLE_CLAW, type ClawState } from '../sim/claw';
 import type { Fireball } from '../sim/fireball';
 import { spawn, type PlayerState } from '../sim/movement';
-import { flipLook, pickupLook, ponchoParts, startPose, stepPose, type PonchoPose, type PoseRun } from './ponchoPose';
+import { HIT } from '../config/tuning';
+import { flipLook, pickupLook, ponchoParts, startPose, stepPose, victoryLook, type PonchoPose, type PoseRun } from './ponchoPose';
 
 // GDD-ART-04: the expected values are the plan's numbers: hurt 6 + 18 steps, the follow-through 10 (swipe2 3, swipe3 3), the spit 2 + 8
 // (flame0 4, flame1 4), eating 10 + 14 (crumbs0 6, crumbs1 6), the take-off 4, rising under -120 px/s, the apex under 60, the fall under 250,
-// landing 6 steps from 150 px/s, the skid from 40 px/s, a blink the last 6 of every 180 idle steps, a glance 40 of every 360.
+// landing 6 steps from 150 px/s, the skid from 40 px/s, a blink the last 6 of every 180 idle steps, a glance 40 of every 360, the victory
+// on the clear screen: victory0 for 12 steps, victory1 for 5, victory2 for 5, then victory3 and victory2 in turn for 24 steps each.
 
 const player = (o: Partial<PlayerState> = {}): PlayerState => ({ ...spawn(100, 200), ...o });
 const run = (o: Partial<PoseRun> = {}): PoseRun => ({ phase: 'playing', wait: 0, player: player(), invulnerable: 0, claw: IDLE_CLAW, fireballs: [], power: 'base', items: [], ...o });
@@ -71,7 +73,7 @@ describe('GDD-ART-04 the respawn flip', () => {
   });
 
   it('GDD-ART-04 outside play and the flip he stands, holding nothing', () => {
-    const p = stepPose(startPose(100), run({ power: 'taco' }), run({ phase: 'clear', power: 'taco', player: player({ vx: 120 }) }));
+    const p = stepPose(startPose(100), run({ power: 'taco' }), run({ phase: 'gameover', power: 'taco', player: player({ vx: 120 }) }));
     expect([p.look, p.held]).toEqual(['idle', null]);
   });
 });
@@ -321,5 +323,46 @@ describe('GDD-ART-04 the taco and chile pickups', () => {
   it('GDD-ART-04 a pickup glints for the last 8 of every 120 steps', () => {
     expect([111, 112, 119, 120, 231, 232, 239, 240].map((c) => pickupLook('chile', c))).toEqual(['chileBob1', 'chileGlint', 'chileGlint', 'chileBob3', 'chileBob0', 'chileGlint', 'chileGlint', 'chileBob2']);
     expect(pickupLook('taco', 112)).toBe('tacoGlint');
+  });
+});
+
+/** A run on the level clear screen at `wait`. */
+const clear = (wait: number, o: Partial<PoseRun> = {}) => run({ phase: 'clear', wait, ...o });
+
+/** The pose on the clear screen's `wait`, stepped from a play run. */
+const onClear = (wait: number, o: Partial<PoseRun> = {}, from: PonchoPose = startPose(100)) => stepPose(from, run(), clear(wait, o));
+
+describe('GDD-ART-04 the victory', () => {
+  it('GDD-ART-04 victoryLook: victory0 for 12 steps, victory1 for 5, victory2 for 5, then victory3 and victory2 in turn for 24 steps each', () => {
+    const steps = Array.from({ length: 22 + 96 }, (_, i) => i + 1);
+    expect(steps.map(victoryLook)).toEqual([
+      ...rep(12, 'victory0'), ...rep(5, 'victory1'), ...rep(5, 'victory2'),
+      ...rep(24, 'victory3'), ...rep(24, 'victory2'), ...rep(24, 'victory3'), ...rep(24, 'victory2'),
+    ]);
+  });
+
+  it('GDD-ART-04 on the clear screen the victory shows by the screen\'s wait', () => {
+    // The screen's first step has wait 0 (src/sim/exit.test.ts), so step n is wait n - 1.
+    const at = [0, 11, 12, 16, 17, 21, 22, 45, 46];
+    expect(at.map((wait) => onClear(wait).look)).toEqual(['victory0', 'victory0', 'victory1', 'victory1', 'victory2', 'victory2', 'victory3', 'victory3', 'victory2']);
+  });
+
+  it('GDD-ART-04 the victory is never mirrored', () => {
+    expect(onClear(0, { player: player({ facing: -1 }) }).flip).toBe(false);
+    expect(onClear(30, { player: player({ facing: -1 }) }).flip).toBe(false);
+  });
+
+  it('GDD-ART-04 the victory holds nothing drawn apart, in every power', () => {
+    for (const power of ['base', 'taco', 'fuego'] as const) {
+      const p = onClear(30, { power });
+      expect([p.held, p.swipe, p.fx], power).toEqual([null, null, null]);
+    }
+  });
+
+  it('GDD-ART-04 the victory beats all', () => {
+    const busy: Partial<PoseRun> = { claw: claw('swing', 2), invulnerable: HIT.invulnerableSteps, fireballs: [fireball(0)], power: 'fuego', player: player({ grounded: false, vy: -300, facing: -1 }) };
+    const from: PonchoPose = { ...startPose(100), eat: 5 };
+    const p = onClear(0, busy, from);
+    expect([p.look, p.flip, p.held, p.swipe, p.fx]).toEqual(['victory0', false, null, null, null]);
   });
 });
