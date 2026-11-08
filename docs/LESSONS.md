@@ -782,3 +782,23 @@ Retired IDs: L-046
 - **Rule:** After every push that changes what the PR does (a phase landed, a GDD version, new playtests), rewrite the description's Scope, checks and Notes to match the head before launching the review.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-071 The implementer unstaged a deleted file with `git reset`
+
+- **Date:** 2026-11-08
+- **Area:** harness, process
+- **What went wrong:** the GDD-ENM-03 plan said to delete the placeholder module `src/ui/mercadoEnemies.ts` and its test. The implementer removed them with `git rm --cached`, then ran `git reset` to unstage them, a command its own rules forbid. The index was clean before and after, so nothing was lost.
+- **Root cause:** the plan named a deletion of tracked files but not how to make it. The implementer reached for git's own delete, which stages the deletion, and then needed a forbidden command to take the staging back.
+- **Rule:** a plan that deletes or moves a tracked file says to do it in the working tree only (`rm`, `mv`, or the Write and Edit tools), never with `git rm` or `git mv`. The main session stages everything when it commits.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-072 A plan asserted things about approved art without measuring the art first
+
+- **Date:** 2026-11-08
+- **Area:** art, tests
+- **What went wrong:** the GDD-ENM-03 plan's art tests said the Chapulín's leaf green is the most-painted colour in its crouch frame, and that the Paloma's flight frames leave the bottom row empty. On the approved drawings, iron outnumbers the leaf (its shadow), and the glide frame's dangling feet reach the bottom row. Neither test could pass without changing art the user had approved, so the implementer had to stop and choose its own reading.
+- **Root cause:** the main session wrote the expected values from what the art was meant to be, not from the drawing the user approved, which was already in the tree.
+- **Rule:** before a plan pins a property of an approved drawing (a dominant colour, a size, an edge, a reach), measure it on the drawing (a few lines over `drawFrames()`) and write the measured value, or a rule the drawing meets, into the plan.
+- **Recurrence:** 1
+- **Promoted:** no
