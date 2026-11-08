@@ -5,13 +5,15 @@ import { describe, expect, it } from 'vitest';
 import { ART_SCALE, ENEMY_ART } from '../../src/config/tuning';
 import { ENEMY_LOOKS } from '../../src/ui/enemyLooks';
 import { flashed, OUTLINE, W1, WORLD_1 } from './enemies1/kit.mjs';
-import { buildEnemies, enemySheet, KINDS } from './make-enemies.mjs';
+import { buildEnemies, enemySheet, KINDS as ALL_KINDS } from './make-enemies.mjs';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'sprites', 'enemies');
 
 // GDD-ART-06: the 24 colours of World 1, in the GDD's order (the same list as desert.test.mjs and boss.test.mjs).
 const W1_COLOURS = ['#E39A48', '#EDB15A', '#F4C66E', '#F9DA8E', '#FFF6D0', '#FFD25A', '#FFF4DC', '#E9B98A', '#8E6A96', '#A65B5B', '#4D5A9C', '#3A4580', '#9CC24E', '#6FA03A', '#4E7A2C', '#F4D29C', '#E8B87A', '#D19A5E', '#A0472F', '#7A3326', '#D8473A', '#F08A3C', '#6F9C8E', '#2F5A3A'];
 const PALE = [W1.cloudTop, W1.sunDisc];
+// World 1's kinds and the poof; World 2's three are checked by enemies2.test.mjs.
+const KINDS = Object.fromEntries(Object.entries(ALL_KINDS).filter(([name]) => !['paloma', 'chapulin', 'trompo'].includes(name)));
 // Drawing the frames takes a moment, so they are drawn once.
 const FRAMES = Object.fromEntries(Object.entries(KINDS).map(([name, m]) => [name, m.drawFrames()]));
 const frame = (kind, look) => FRAMES[kind].find((f) => f.look === look).grid;
@@ -37,7 +39,7 @@ const WALKERS = ['alacran', 'cactus', 'tlacuache'];
 describe('GDD-ENM-02 World 1\'s enemy sprites', { timeout: 60_000 }, () => {
   it('GDD-ENM-02 the committed PNGs are the ones the script makes', () => {
     const built = buildEnemies();
-    expect(Object.keys(built).sort()).toEqual(['alacran.png', 'cactus.png', 'poof.png', 'tlacuache.png', 'zopilote.png']);
+    expect(Object.keys(built).sort()).toEqual(['alacran.png', 'cactus.png', 'chapulin.png', 'paloma.png', 'poof.png', 'tlacuache.png', 'trompo.png', 'zopilote.png']);
     for (const [name, bytes] of Object.entries(built)) expect(bytes.equals(readFileSync(join(dir, name))), name).toBe(true);
   });
 
@@ -52,7 +54,7 @@ describe('GDD-ENM-02 World 1\'s enemy sprites', { timeout: 60_000 }, () => {
 
   it('GDD-ENM-02 the frame sizes the scene loads are each module\'s FRAME in game px', () => {
     for (const [kind, m] of Object.entries(KINDS)) expect(ENEMY_ART.frames[kind], kind).toEqual({ w: m.FRAME.w / 2, h: m.FRAME.h / 2 });
-    expect(ENEMY_ART.frames).toEqual({ alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, poof: { w: 24, h: 24 } });
+    expect(ENEMY_ART.frames).toMatchObject({ alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, poof: { w: 24, h: 24 } });
   });
 
   it('GDD-ART-06 every frame is its FRAME in size and uses only World 1\'s colours and the outline', () => {

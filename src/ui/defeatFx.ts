@@ -1,13 +1,13 @@
-// GDD-ENM-02, GDD-ART-05: a defeated World 1 enemy's last frames: squashed by a stomp or knocked by the claw or a fireball, then a poof.
+// GDD-ENM-02, GDD-ENM-03, GDD-ART-05: a defeated enemy's last frames: squashed by a stomp or knocked by the claw or a fireball, then a poof.
 // Cosmetic only: nothing in the run reads it. Pure, no Phaser: the scene draws what this says.
 import { ENEMY_ART } from '../config/tuning';
 import { enemyBox, kindOf, type EnemyKind } from '../sim/enemy';
 import type { Level, RunState } from '../sim/run';
 import { lookFrame, POOF_LOOKS, type EnemyLook, type Sheet } from './enemyLooks';
 
-/** The kinds that go in a poof: World 1's that can be defeated. The cactus buddy cannot, and World 2's kinds just vanish. */
-export type DefeatKind = 'alacran' | 'zopilote' | 'tlacuache';
-const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'tlacuache';
+/** The kinds that go in a poof: every one that can be defeated. The cactus buddy cannot. */
+export type DefeatKind = 'alacran' | 'zopilote' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo';
+const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'tlacuache' || kind === 'paloma' || kind === 'chapulin' || kind === 'trompo';
 
 export interface DefeatFx {
   readonly kind: DefeatKind;
@@ -66,7 +66,10 @@ export function defeatLook(e: DefeatFx): DefeatLook {
     const look = POOF_LOOKS[Math.floor((e.age - ENEMY_ART.defeatSteps) / ENEMY_ART.poofSteps)]!;
     return { sheet: 'poof', look, frame: lookFrame('poof', look), x: e.x, y: e.y, flip: false };
   }
-  const look: EnemyLook = e.stomped ? 'squash' : 'hit';
-  const rise = e.stomped ? 0 : (ENEMY_ART.hitRise * e.age) / ENEMY_ART.defeatSteps;
+  // A Trompo is only ever defeated by a stomp (GDD-ENM-03) and has no hit frame, so it shows its squash whatever `stomped` says (it cannot
+  // happen in play).
+  const squashed = e.stomped || e.kind === 'trompo';
+  const look: EnemyLook = squashed ? 'squash' : 'hit';
+  const rise = squashed ? 0 : (ENEMY_ART.hitRise * e.age) / ENEMY_ART.defeatSteps;
   return { sheet: e.kind, look, frame: lookFrame(e.kind, look), x: e.x, y: (e.kind === 'zopilote' ? e.y : e.feet) - rise, flip: e.flip };
 }

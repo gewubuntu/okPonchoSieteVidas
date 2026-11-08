@@ -388,7 +388,7 @@ export const ZOPILOTE = {
 } as const;
 
 /**
- * GDD-ENM-02, GDD-ART-05: World 1's enemy sprites. `frames` is each sheet's frame in game px (a walker's box's middle on the frame's middle
+ * GDD-ENM-02, GDD-ENM-03, GDD-ART-05: the enemy sprites, World 1's and World 2's. `frames` is each sheet's frame in game px (a walker's box's middle on the frame's middle
  * column and its feet on the bottom row; the Zopilote's and the poof's middle on the frame's middle). A walker shows the next walk frame every
  * `walkPx` px it walks, the Tlacuache the next run frame every `chargePx` px it charges; the Zopilote the next flap every `flapSteps` and the
  * next climb every `climbSteps`; a telegraph flashes red for `flashSteps` and plain for as many (GDD-ENM-01). A Zopilote dives steep while its
@@ -398,15 +398,18 @@ export const ZOPILOTE = {
  * `reach` is how far each kind's drawing reaches past its box at most, over all its frames, behind it, in front, above and below (L-059):
  * a tail, a claw, a wing, a flower or a spine; a walker never reaches below its feet. A tail, claw or wing beside the box may lie over a wall's
  * face or a slope's sand (user, 2026-11-05: "Allow it, pin it", "Allow beside the body"; checked over the real levels by
- * `scripts/art/enemies1.levels.test.mjs`).
+ * `scripts/art/enemies1.levels.test.mjs`, and World 2's by `scripts/art/enemies2.levels.test.mjs`). World 2's own pose steps are the last six.
  */
 export const ENEMY_ART = {
-  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, poof: { w: 24, h: 24 } },
+  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, poof: { w: 24, h: 24 } },
   reach: {
     alacran: { behind: 4.5, front: 1.5, above: 3, below: 0 },
     zopilote: { behind: 6, front: 0.5, above: 6.5, below: 3.5 },
     cactus: { behind: 1, front: 1.5, above: 2.5, below: 0 },
     tlacuache: { behind: 5.5, front: 3, above: 0.5, below: 0 },
+    paloma: { behind: 3.5, front: 3, above: 6, below: 0 },
+    chapulin: { behind: 3.5, front: 2, above: 3.5, below: 0 },
+    trompo: { behind: 1, front: 0.5, above: 3.5, below: 0 },
   },
   walkPx: 2,
   chargePx: 5,
@@ -421,6 +424,18 @@ export const ENEMY_ART = {
   defeatSteps: 8,
   hitRise: 6,
   poofSteps: 4,
+  /** GDD-ENM-03 (Proposed): the Paloma's wing clap while it rises shows a new flap frame every `riseFlapSteps`. */
+  riseFlapSteps: 4,
+  /** GDD-ENM-03 (Proposed): its flap while it hovers, a new frame every `hoverFlapSteps` (World 1's `flapSteps`). */
+  hoverFlapSteps: 6,
+  /** GDD-ENM-03 (Proposed): hovering, it is drawn `PALOMA.bobPx` lower on every other block of `bobSteps` steps. */
+  bobSteps: 15,
+  /** GDD-ENM-03 (Proposed): the Chapulín's crouch0/crouch1 chew, a new frame every `chewSteps`, before its telegraph. */
+  chewSteps: 3,
+  /** GDD-ENM-03 (Proposed): the Trompo's spin shows a new frame every `spinSteps`: a full turn in 4 frames, 12 steps. */
+  spinSteps: 3,
+  /** GDD-ENM-03 (Proposed): a stunned Trompo's rock in its last `TROMPO.wobbleSteps` shows stunWobble on every other block of `rockSteps` steps. */
+  rockSteps: 4,
 } as const;
 
 /**

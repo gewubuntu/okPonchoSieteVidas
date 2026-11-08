@@ -1,7 +1,7 @@
-// GDD-ENM-02, GDD-ART-05: which frame of its sheet each World 1 enemy shows, and where. Pure, no Phaser: the scene draws what this says.
-import { CACTUS, ENEMY_ART, TLACUACHE } from '../config/tuning';
+// GDD-ENM-02, GDD-ENM-03, GDD-ART-05: which frame of its sheet each enemy shows, and where. Pure, no Phaser: the scene draws what this says.
+import { CACTUS, CHAPULIN, ENEMY_ART, PALOMA, TLACUACHE, TROMPO } from '../config/tuning';
 import { feetOf, kindOf, type Enemy, type EnemyState } from '../sim/enemy';
-import { isWorld1, lookFrame, type EnemyLook, type World1Kind } from './enemyLooks';
+import { lookFrame, type EnemyLook, type EnemySheet } from './enemyLooks';
 
 /** What a pose is picked from: the run's clock (the cactus buddy's breathing and shiver) and the middle of Poncho's hurtbox (`centre`). */
 export interface PoseContext {
@@ -32,12 +32,22 @@ const FLAP = ['flap0', 'flap1', 'flap2', 'flap3'] as const;
 const CLIMB = ['climb0', 'climb1'] as const;
 const DOZE = ['doze0', 'doze1'] as const;
 const ALARM = ['alarm0', 'alarm1'] as const;
+const CROUCH = ['crouch0', 'crouch1'] as const;
+const SPIN = ['spin0', 'spin1', 'spin2', 'spin3'] as const;
 
 /** The telegraph's red flash (GDD-ENM-01): red for flashSteps, plain for as many. */
 const flash = (age: number): EnemyLook => (Math.floor(age / ENEMY_ART.flashSteps) % 2 === 0 ? 'teleRed' : 'tele');
 
-/** The look and the facing of each World 1 kind (see `enemyPose`). */
-function lookOf(kind: World1Kind, def: Enemy, state: EnemyState, ctx: PoseContext): { look: EnemyLook; flip: boolean } {
+/** How far above its feet a Paloma has flown, drawn lower by PALOMA.bobPx on every other bobSteps block while it hovers. */
+function liftOf(state: EnemyState): number {
+  const w = state.wing;
+  if (!w) return 0;
+  const bob = w.phase === 'hover' && Math.floor(w.age / ENEMY_ART.bobSteps) % 2 === 1 ? PALOMA.bobPx : 0;
+  return w.lift - bob;
+}
+
+/** The look and the facing of each kind (see `enemyPose`). */
+function lookOf(kind: EnemySheet, def: Enemy, state: EnemyState, ctx: PoseContext): { look: EnemyLook; flip: boolean } {
   const left = state.dir < 0;
   switch (kind) {
     case 'alacran':
@@ -72,21 +82,51 @@ function lookOf(kind: World1Kind, def: Enemy, state: EnemyState, ctx: PoseContex
       }
       return { look: WALK[cycle(state.x, ENEMY_ART.walkPx, 4)]!, flip: left };
     }
+    case 'paloma': {
+      const w = state.wing!;
+      if (w.phase === 'telegraph') return { look: flash(w.age), flip: left };
+      if (w.phase === 'rise') return { look: FLAP[cycle(w.age, ENEMY_ART.riseFlapSteps, 4)]!, flip: left };
+      if (w.phase === 'hover') return { look: FLAP[cycle(w.age, ENEMY_ART.hoverFlapSteps, 4)]!, flip: left };
+      if (w.phase === 'descend') return { look: 'glide', flip: left };
+      return { look: WALK[cycle(state.x, ENEMY_ART.walkPx, 4)]!, flip: left };
+    }
+    case 'chapulin': {
+      const h = state.hop!;
+      if (h.phase === 'crouch') {
+        // The telegraph is the last CHAPULIN.flashSteps of the crouch (GDD-ENM-01); before it, it chews.
+        const calm = CHAPULIN.crouchSteps - CHAPULIN.flashSteps;
+        return { look: h.age >= calm ? flash(h.age - calm) : CROUCH[cycle(h.age, ENEMY_ART.chewSteps, 2)]!, flip: left };
+      }
+      // Only an awning's throw rises faster than its own hop can.
+      return { look: h.vy < -CHAPULIN.hopUp ? 'boing' : h.vy < 0 ? 'rise' : 'fall', flip: left };
+    }
+    case 'trompo': {
+      const s = state.spin!;
+      if (s.phase === 'spin') return { look: SPIN[cycle(s.age, ENEMY_ART.spinSteps, 4)]!, flip: left };
+      // It rocks on every other block of rockSteps in the stun's last wobbleSteps.
+      const rock = s.age >= TROMPO.stunSteps - TROMPO.wobbleSteps && Math.floor(s.age / ENEMY_ART.rockSteps) % 2 === 0;
+      return { look: rock ? 'stunWobble' : 'stun', flip: left };
+    }
     default:
       return kind satisfies never;
   }
 }
 
 /**
- * The pose of a World 1 enemy (GDD-ENM-02), or null for World 2's kinds. An Alacrán and a walking Tlacuache show the next walk frame every
- * ENEMY_ART.walkPx px they walk (a charging Tlacuache the next run frame every chargePx), so their legs keep pace with the ground. A cruising
- * Zopilote flaps, climbing back it beats harder, and diving it shows the steep look when the dive's drop is at least steepRatio times its run.
- * A telegraph flashes red (GDD-ENM-01). The cactus buddy dozes, peeks when Poncho comes near and is alarmed when he is close. A Tlacuache
- * playing dead twitches in its last TLACUACHE.twitchSteps. Each faces the way it goes, a Zopilote the way it dives.
+ * The pose of an enemy (GDD-ENM-02, GDD-ENM-03). An Alacrán and a walking Tlacuache show the next walk frame every ENEMY_ART.walkPx px they walk
+ * (a charging Tlacuache the next run frame every chargePx), so their legs keep pace with the ground. A cruising Zopilote flaps, climbing back
+ * it beats harder, and diving it shows the steep look when the dive's drop is at least steepRatio times its run. A telegraph flashes red
+ * (GDD-ENM-01). The cactus buddy dozes, peeks when Poncho comes near and is alarmed when he is close. A Tlacuache playing dead twitches in
+ * its last TLACUACHE.twitchSteps. Each faces the way it goes, a Zopilote the way it dives.
+ *
+ * World 2's (Proposed): a Paloma walks like the Alacrán, claps its wings every riseFlapSteps as it rises, flaps every hoverFlapSteps as it
+ * hovers, glides down, and is drawn its flown height above its feet, PALOMA.bobPx lower on every other bobSteps while it hovers. A Chapulín
+ * chews (crouch0, crouch1) every chewSteps for the first part of its crouch, flashes in the last CHAPULIN.flashSteps, and in the air boings
+ * if thrown up faster than its own hop, else rises, else falls. A Trompo shows the next spin frame every spinSteps; stunned, it lies still
+ * and rocks (stunWobble) on every other rockSteps block of the last TROMPO.wobbleSteps. Each stands on its feet, facing the way it goes.
  */
-export function enemyPose(def: Enemy, state: EnemyState, ctx: PoseContext): EnemyPose | null {
+export function enemyPose(def: Enemy, state: EnemyState, ctx: PoseContext): EnemyPose {
   const kind = kindOf(def);
-  if (!isWorld1(kind)) return null;
   const { look, flip } = lookOf(kind, def, state, ctx);
-  return { look, frame: lookFrame(kind, look), x: state.x, y: state.flight?.y ?? feetOf(def, state), flip };
+  return { look, frame: lookFrame(kind, look), x: state.x, y: state.flight?.y ?? feetOf(def, state) - liftOf(state), flip };
 }
