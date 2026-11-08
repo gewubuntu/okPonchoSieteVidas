@@ -44,17 +44,24 @@ test('GDD-ENM-03 lab-2e draws a Paloma, a Chapulín and a Trompo as sprites wher
     expect(drawn[i]!.look, `enemy ${i}`).toMatch(looks[i]!);
   }
   // A walker is drawn mirrored exactly while it heads left: step on until each has been seen heading left (they turn at their pen's walls).
-  const left = new Set<number>();
-  for (let round = 0; round < 400 && left.size < 3; round++) {
-    await step(page, 5);
-    await frames(page);
-    const now = await page.evaluate(() => ({ sim: window.__PONCHO__!.enemies(), drawn: window.__PONCHO__!.enemiesDrawn() }));
-    now.drawn.forEach((d, i) => {
-      expect(d.flip, `${d.kind} dir ${now.sim[i]!.dir}`).toBe(now.sim[i]!.dir < 0);
-      if (now.sim[i]!.dir < 0) left.add(i);
-    });
-  }
-  expect([0, 1, 2].map((i) => left.has(i))).toEqual([true, true, true]);
+  // One page round trip for the whole loop (each round steps 5 and waits for a drawn frame), so it stays well inside the test's time.
+  const seen = await page.evaluate(async () => {
+    const d = window.__PONCHO__!;
+    const left = [false, false, false];
+    const wrong: string[] = [];
+    for (let round = 0; round < 400 && left.some((l) => !l); round++) {
+      d.step(5);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const sim = d.enemies();
+      d.enemiesDrawn().forEach((e, i) => {
+        if (e.flip !== sim[i]!.dir < 0) wrong.push(`${e.kind} round ${round} flip ${e.flip} dir ${sim[i]!.dir}`);
+        if (sim[i]!.dir < 0) left[i] = true;
+      });
+    }
+    return { left, wrong };
+  });
+  expect(seen.wrong).toEqual([]);
+  expect(seen.left).toEqual([true, true, true]);
   expect(errors).toEqual([]);
 });
 
