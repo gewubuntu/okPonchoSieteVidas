@@ -11,7 +11,14 @@ import { ROWS } from './victory-pixels.mjs';
 
 export { POSE_FRAME };
 
-const KEY = { ...COLOURS, ...ITEM_COLOURS };
+/**
+ * The colour the victory adds: the badge's gold (user, 2026-11-08: "Add gold"), Poncho's 16th and last colour (GDD-ART-03). The
+ * badge's shade is his fur and its letters his dark fur, as the drawing's darker golds read nearest to them.
+ */
+export const VICTORY_COLOURS = { y: '#F9D24C' };
+const KEY = { ...COLOURS, ...ITEM_COLOURS, ...VICTORY_COLOURS };
+/** Every colour these frames may use: his 13, the taco's two greens and the gold. */
+export const PALETTE = Object.values(KEY);
 const H = ROWS.length, W = ROWS[0].length;
 /** The column between his feet, in the drawing's px: it goes on the body box's middle (frame column 48). */
 const MIDDLE = 34;
@@ -50,10 +57,7 @@ const cells = (keep) => {
   return out;
 };
 
-/**
- * Rows in `doubled` drawn twice, each row at or above it moving up one; `from` and `to` limit it to a block of rows.
- * Returns the cells moved.
- */
+/** Rows in `doubled` drawn twice, each row at or above one of them moving up one. Returns the cells moved. */
 function stretch(layer, doubled) {
   const out = [];
   for (const [x, y, c] of layer) {
@@ -151,7 +155,7 @@ export const LOOKS = Object.keys(FRAMES);
 export function drawFrames() {
   return LOOKS.map((look) => {
     const grid = FRAMES[look]();
-    const problems = check(grid, { palette: Object.values(KEY) });
+    const problems = check(grid, { palette: PALETTE });
     if (problems.length) throw new Error(`${look}: ${problems.slice(0, 3).join('; ')}`);
     return { look, grid, hand: null, holds: 'none', mirror: false };
   });

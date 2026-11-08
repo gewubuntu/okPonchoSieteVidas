@@ -1,6 +1,7 @@
 // Poncho's victory drawing as the user drew it (user, 2026-11-08: "Victory pose take the image as reference and the sprite.";
 // assets/characters/poncho/victory/victory.jpg, GDD-ART-04): its 100 x 100 pixel grid read cell by cell, the figure's 69 x 80
-// pixels kept, the JPEG noise mapped to the nearest of Poncho's 13 colours and the two greens of the taco's lettuce (GDD-ART-03).
+// pixels kept, the JPEG noise mapped to the nearest of Poncho's 13 colours and the two greens of the taco's lettuce (GDD-ART-03); the badge's
+// gold is the gold victory.mjs adds ('y').
 // The dark shadow cells under the brim that read as the background are navy, and the outline is closed. Front view, facing the
 // player; the taco raised in his right paw (the viewer's left), his left paw a fist. One character per pixel; '.' is transparent.
 
@@ -52,10 +53,10 @@ export const ROWS = [
   '........#r#dnn#FF#dbrrbbdbbncpcnn#pppppF###nnccpc#...................',
   '........#r#dnn#FF#dwwrbwddrnccprbd#pppp#dnddccsrrd#..................',
   '........###dnnn#F#dwrrbbddrbnrcrrbd#pp#ddddccpFFdd#..................',
-  '.........#c#nnn###drrrbbbddbbrrrrbbd##dbcfffffFdddd#.................',
-  '.........#r#dnnn#c#bbrrbWddbbdrwwrbbnnbbfFsfFffddcd#.................',
-  '.........#r#dnnn#r#bwwrbWbdbbbbrwrrbbbbrfFffFffddddb#................',
-  '.........#r#dnnn#r#bwrrbbbddbbbrrwwrbbrwfFffFffdddWd#...#####........',
+  '.........#c#nnn###drrrbbbddbbrrrrbbd##dbcyyyyyFdddd#.................',
+  '.........#r#dnnn#c#bbrrbWddbbdrwwrbbnnbbfFfyFffddcd#.................',
+  '.........#r#dnnn#r#bwwrbWbdbbbbrwrrbbbbrfFfyFffddddb#................',
+  '.........#r#dnnn#r#bwrrbbbddbbbrrwwrbbrwfFyyFyfdddWd#...#####........',
   '.........#r#dnnn#r#drrrbbbbdbrbbrrwrrrrwcfffffcdddnnn#.#wpcww#.......',
   '..........##dnnnn###bbrrbwbddrbbbrrrwwrrrcccccddndnrrr#wwcpFww#......',
   '..........#c#dnnnn##bwwrbwwbdbbbbbrrwwrrrbbbrrdndnrrbb#pcwwwsw#......',
