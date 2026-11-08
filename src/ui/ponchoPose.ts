@@ -1,6 +1,6 @@
 // GDD-ART-04: which of Poncho's frames shows, step by step, and what is drawn with it (the taco or chile he holds, the claw swipe,
 // the flame of the spit and the crumbs of a bite), and where. Pure, no Phaser: the scene feeds it each simulation step and draws what it says.
-import { HIT, PONCHO_ART } from '../config/tuning';
+import { HIT, PONCHO_ART, TACO } from '../config/tuning';
 import { clawBox, type ClawState } from '../sim/claw';
 import type { PlayerState } from '../sim/movement';
 import { flipPose } from '../sim/respawnFlip';
@@ -176,4 +176,13 @@ export function pickupLook(kind: 'taco' | 'chile', clock: number): PickupLook {
   const looks: readonly PickupLook[] = ITEM_LOOKS[kind];
   if (clock % glintEvery >= glintEvery - glintSteps) return looks[4]!;
   return looks[Math.floor(clock / bobSteps) % 4]!;
+}
+
+/**
+ * Where a taco or chile out of a piñata is drawn, standing with its feet at (`x`, `feet`) (GDD-PWR-02, GDD-PWR-03): the middle of its frame,
+ * in game px. Its square's middle, lifted by how far its frames reach below the square (`PONCHO_ART.pickup.reach`), so that no bob frame
+ * reaches below its feet (L-059).
+ */
+export function itemAt(kind: 'taco' | 'chile', x: number, feet: number): { x: number; y: number } {
+  return { x, y: feet - TACO.size / 2 - PONCHO_ART.pickup.reach[kind].below };
 }

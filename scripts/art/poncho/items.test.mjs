@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { FX_MOUTH, HELD_HAND, ITEM_FRAMES, SWIPE_BOX } from '../../../src/ui/ponchoFrames';
 import { ITEM_LOOKS, ITEM_SHEETS } from '../../../src/ui/ponchoLooks';
-import { CLAW } from '../../../src/config/tuning';
+import { CLAW, PONCHO_ART, TACO } from '../../../src/config/tuning';
+import { itemAt } from '../../../src/ui/ponchoPose';
 import { buildItems, ITEM_SHEETS as MODULES, itemSheet } from '../make-poncho-items.mjs';
 import { COLOURS } from '../poncho-pixels.mjs';
 import { ITEM_COLOURS } from './items.mjs';
@@ -100,6 +101,42 @@ describe('GDD-ART-04 the taco, the chile, the held items, the claw swipe and the
       if (CHILES.has(look)) for (const [x, y] of glowOf(g)) g.set(x, y, null);
       expect(check(g, { palette: PALETTE }), `${sheet} ${look}`).toEqual([]);
       if (!CHILES.has(look)) expect(glowOf(grid), `${sheet} ${look} has no glow`).toEqual([]);
+    }
+  });
+
+  // L-059: the taco and chile frames of assets/sprites/poncho/ (taco.png, chile.png); scripts/art/poncho/items.levels.test.mjs fits them over
+  // the real levels.
+  it('GDD-ART-04 the taco and chile frames reach past their square exactly as far as PONCHO_ART.pickup.reach says (L-059)', () => {
+    // The 12 px square (GDD-PWR-06) with its middle on the frame's middle; how far the painted pixels stand past it, in game px.
+    const half = TACO.size; // drawing px
+    for (const kind of ['taco', 'chile']) {
+      const { w, h } = MODULES[kind].FRAME;
+      const box = { x0: w / 2 - half, x1: w / 2 + half, y0: h / 2 - half, y1: h / 2 + half };
+      const reach = { behind: 0, front: 0, above: 0, below: 0 };
+      for (const { grid } of FRAMES[kind]) {
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          if (grid.get(x, y) === null) continue;
+          reach.behind = Math.max(reach.behind, (box.x0 - x) / 2);
+          reach.front = Math.max(reach.front, (x + 1 - box.x1) / 2);
+          reach.above = Math.max(reach.above, (box.y0 - y) / 2);
+          reach.below = Math.max(reach.below, (y + 1 - box.y1) / 2);
+        }
+      }
+      expect(reach, kind).toEqual(PONCHO_ART.pickup.reach[kind]);
+    }
+  });
+
+  it('GDD-ART-04 a taco or chile standing on its feet is placed so no frame reaches below them (L-059)', () => {
+    for (const kind of ['taco', 'chile']) {
+      const { w, h } = MODULES[kind].FRAME;
+      const at = itemAt(kind, 100, 200);
+      expect(at.x).toBe(100);
+      let lowest = -Infinity;
+      for (const { grid } of FRAMES[kind]) {
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (grid.get(x, y) !== null) lowest = Math.max(lowest, at.y + (y + 1 - h / 2) / 2);
+      }
+      // The lowest painted pixel's bottom edge, over every frame: on the feet, not below and not floating.
+      expect(lowest, kind).toBe(200);
     }
   });
 

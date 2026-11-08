@@ -9,10 +9,10 @@ export const SCENERY = ['desierto', 'mercado'];
 export const EXEMPT = {};
 
 /**
- * The sheets the rule covers, from the entries of `assets/sprites/` (`{ name, dir }`): every folder but the scenery ones, and every PNG
- * at its top.
+ * The sheets the rule covers, from the entries of `assets/sprites/` (`{ name, dir }`): every folder but the scenery ones, named with its
+ * trailing slash (so `sprites/poncho.png` never counts for the `sprites/poncho/` folder, L-059), and every PNG at its top.
  */
-export const sheetsOf = (entries) => entries.filter((e) => (e.dir ? !SCENERY.includes(e.name) : e.name.endsWith('.png'))).map((e) => e.name);
+export const sheetsOf = (entries) => entries.filter((e) => (e.dir ? !SCENERY.includes(e.name) : e.name.endsWith('.png'))).map((e) => (e.dir ? `${e.name}/` : e.name));
 
 /** The errors for sheets with no test (`{ path, text }`) that cites L-059 and names them, but the exempt ones. */
 export function spriteFitErrors(sheets, tests, exempt = EXEMPT) {

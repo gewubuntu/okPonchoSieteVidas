@@ -122,6 +122,18 @@ describe('GDD-ART-04 the claw', () => {
     expect([p.flip, p.held]).toEqual([true, null]);
   });
 
+  it('GDD-ART-04 turning during the wind-up and the follow-through keeps him facing the way the claw swings', () => {
+    // The swing faces right (claw.dir 1); he turns left (facing -1) on the wind-up's second step and again in the follow-through.
+    const left = player({ facing: -1 });
+    const ps = poses([run({ claw: claw('windup', 1) }), run({ claw: claw('windup', 2), player: left }), run({ claw: claw('swing', 1), player: left }), run({ claw: claw('swing', 2), player: left }), run({ claw: claw('swing', 3), player: left }), run({ claw: { ...IDLE_CLAW, dir: 1 }, player: left }), run({ claw: { ...IDLE_CLAW, dir: 1 }, player: left })], run());
+    expect(looks(ps)).toEqual(['clawWind', 'clawWind', 'clawSwipe', 'clawSwipe', 'clawSwipe', 'clawFollow', 'clawFollow']);
+    expect(ps.map((p) => p.flip)).toEqual([false, false, false, false, false, false, false]);
+    // And the other way: a swing to the left while he turns right.
+    const right = player({ facing: 1 });
+    const back = poses([run({ claw: claw('windup', 1, -1), player: right }), run({ claw: claw('swing', 3, -1), player: right }), run({ claw: { ...IDLE_CLAW, dir: -1 }, player: right })], run());
+    expect(back.map((p) => [p.look, p.flip])).toEqual([['clawWind', true], ['clawSwipe', true], ['clawFollow', true]]);
+  });
+
   it('GDD-ART-04 a claw beats a spit', () => {
     expect(stepPose(startPose(100), run({ power: 'fuego' }), run({ power: 'fuego', claw: claw('windup', 1), fireballs: [fireball(0)] })).look).toBe('clawWind');
   });

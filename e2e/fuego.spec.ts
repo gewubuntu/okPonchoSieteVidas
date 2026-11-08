@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { itemFrame, type PickupLook } from '../src/ui/ponchoLooks';
-import { pickupLook } from '../src/ui/ponchoPose';
+import { itemAt, pickupLook } from '../src/ui/ponchoPose';
 import { boot, pixelsAt, readSheet, spotsIn } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
@@ -28,6 +28,7 @@ test('GDD-PWR-03 a piñata bumped in Taco releases a chile that stays put, and e
   const items = await api(page, () => window.__PONCHO__!.itemsDrawn());
   expect(items).toHaveLength(1);
   expect(items[0]).toMatchObject({ kind: 'chile', y: 112 }); // on top of the piñata (row 7, top y = 112)
+  expect(items[0]!.frameAt).toEqual(itemAt('chile', items[0]!.x, 112)); // drawn standing on it (GDD-ART-04, L-059)
   const { x } = items[0]!;
   await page.evaluate(() => window.__PONCHO__!.step(20));
   expect((await api(page, () => window.__PONCHO__!.itemsDrawn()))[0]!.x).toBe(x); // a chile does not walk
@@ -88,10 +89,12 @@ test('GDD-PWR-03 the chile is painted: on the piñata, in Poncho\'s hand in Fueg
   await page.evaluate(() => window.__PONCHO__!.step(25, { move: 0, jumpHeld: true }));
   await frames(page);
   const chile = (await api(page, () => window.__PONCHO__!.itemsDrawn()))[0]!;
-  // The pickup is centred on its 12 px box (GDD-PWR-06), in the bob frame of the run's clock (GDD-ART-04).
+  // The pickup stands on its feet, its frame's middle `itemAt` (GDD-ART-04), in the bob frame of the run's clock.
   const look = pickupLook('chile', await api(page, () => window.__PONCHO__!.clock()));
   const body = CHILE_RED(look)[0]!;
-  expect(await anyRed(page, chile.x + body.dx, chile.y - 6 + body.dy)).toBe(true); // the pepper's body
+  const middle = itemAt('chile', chile.x, chile.y);
+  expect(chile.frameAt).toEqual(middle); // standing on the piñata, no frame below its feet (L-059)
+  expect(await anyRed(page, middle.x + body.dx, middle.y + body.dy)).toBe(true); // the pepper's body
   // Poncho in the empty sky, facing right: the chile in his paw where the taco alone shows the sky.
   await page.evaluate(() => {
     window.__PONCHO__!.teleport(300, 100);

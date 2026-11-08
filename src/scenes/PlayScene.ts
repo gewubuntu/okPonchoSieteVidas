@@ -2,7 +2,7 @@
 // Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04), and the backdrop, the decor and the ground tiles are the level's
 // world's art (GDD-ART-06, `src/ui/scenery/`); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, BOSS_ART, BOSS_BAR, ENEMY_ART, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TACO, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
+import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, BOSS_ART, BOSS_BAR, ENEMY_ART, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
 import { bossCrown, bossStart } from '../sim/boss';
 import { isBossLevel, levelBoss } from '../sim/bossLevel';
 import { centre, enemyPhase, feetOf, kindOf, type EnemyKind } from '../sim/enemy';
@@ -83,7 +83,7 @@ import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
 import { gamePoint } from '../ui/gamePoint';
 import { ITEM_FRAMES } from '../ui/ponchoFrames';
 import { ITEM_LOOKS, ITEM_SHEETS, itemFrame, ponchoFrame, ponchoLookAt, type FxLook, type HeldLook, type ItemLook, type ItemSheet, type PonchoLook, type SwipeLook } from '../ui/ponchoLooks';
-import { pickupLook, ponchoParts, startPose, stepPose, type PonchoPose } from '../ui/ponchoPose';
+import { itemAt, pickupLook, ponchoParts, startPose, stepPose, type PonchoPose } from '../ui/ponchoPose';
 import { layoutPauseMenu, layoutResultsMenu, layoutTitleMenu, pauseMenuItemAt, resultsMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
 import { languageValueX, layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
 import { LANGUAGE_NAMES, TEXT } from '../ui/text';
@@ -333,9 +333,12 @@ export interface PonchoDebug {
    */
   heldDrawn(): { look: HeldLook; x: number; y: number; alpha: number } | null;
   fxDrawn(): { look: FxLook; x: number; y: number }[];
-  /** Each piñata as drawn: whether it is drawn open (GDD-PWR-05). And the walking tacos as drawn: where their feet are (GDD-PWR-02). */
+  /**
+   * Each piñata as drawn: whether it is drawn open (GDD-PWR-05). And the walking tacos and the chiles as drawn: where their feet are
+   * (GDD-PWR-02), and the middle of their frame, read from the image (GDD-ART-04).
+   */
   pinatasDrawn(): boolean[];
-  itemsDrawn(): { x: number; y: number; kind: string }[];
+  itemsDrawn(): { x: number; y: number; kind: string; frameAt: { x: number; y: number } }[];
   /** Keys Poncho carries, the keys still drawn on the floor, the doors drawn open, and the key icons on the HUD (GDD-WLD-05). Read from what was drawn. */
   keysHeld(): number;
   keysDrawn(): number;
@@ -541,7 +544,7 @@ export class PlayScene extends Phaser.Scene {
   private keyGfx!: Phaser.GameObjects.Graphics;
   private doorsKey = '';
   private hudKeyCount = 0;
-  private itemsDrawn: { x: number; y: number; kind: string }[] = [];
+  private itemsDrawn: { x: number; y: number; kind: string; frameAt: { x: number; y: number } }[] = [];
   private hudPower: Power = 'base';
   private heldPower: Power = 'base';
   private fireballGfx!: Phaser.GameObjects.Graphics;
@@ -1762,16 +1765,18 @@ export class PlayScene extends Phaser.Scene {
 
   /**
    * The tacos walking about after a piñata (GDD-PWR-02) and the chiles on top of them (GDD-PWR-03), drawn where the simulation has them:
-   * centred on their square, floating by the run's clock like the level's tacos (GDD-ART-04).
+   * standing on their feet, no bob frame below them (`itemAt`), floating by the run's clock like the level's tacos (GDD-ART-04).
    */
   private drawItems(): void {
-    this.itemsDrawn = this.run.items.map((it) => ({ x: it.x, y: it.y, kind: it.kind }));
     while (this.itemImages.length < this.run.items.length) this.itemImages.push(this.add.image(0, 0, 'poncho-taco', 0).setScale(1 / ART_SCALE).setDepth(2));
     this.itemImages.forEach((image, i) => {
       const it = this.run.items[i];
       image.setVisible(it !== undefined);
-      if (it) image.setTexture(`poncho-${it.kind}`, itemFrame(it.kind, pickupLook(it.kind, this.run.clock))).setPosition(it.x, it.y - TACO.size / 2);
+      if (!it) return;
+      const at = itemAt(it.kind, it.x, it.y);
+      image.setTexture(`poncho-${it.kind}`, itemFrame(it.kind, pickupLook(it.kind, this.run.clock))).setPosition(at.x, at.y);
     });
+    this.itemsDrawn = this.run.items.map((it, i) => ({ x: it.x, y: it.y, kind: it.kind, frameAt: { x: this.itemImages[i]!.x, y: this.itemImages[i]!.y } }));
   }
 
   /** Placeholder spring art (GDD-WLD-05): a red block with a pale zigzag coil and a bar on top, to read as springy and not as floor. */

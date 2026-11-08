@@ -89,7 +89,9 @@ export const ANIM = { runMinSpeed: 10, runFramePx: 8, runFrames: 4 } as const;
  * way he faces he skids. Standing, he blinks for the last `blinkSteps` of every `blinkEvery` and, in Taco or Fuego, glances at the taco for
  * `glanceSteps` of every `glanceEvery`. `reach` is how far each frame's drawing reaches past his body box (game px), behind it, in front,
  * above and below (L-059); only the respawn flip, drawn in the air, may reach below his feet. A pickup shows its next bob frame every
- * `pickup.bobSteps` of the run's clock and its glint for the last `pickup.glintSteps` of every `pickup.glintEvery`.
+ * `pickup.bobSteps` of the run's clock and its glint for the last `pickup.glintSteps` of every `pickup.glintEvery`; `pickup.reach` is how far
+ * its frames reach past its 12 px square at most (L-059), the square's middle on the frame's middle. A taco or chile out of a piñata, standing
+ * on its feet, is drawn `reach.below` higher than its square, so no bob frame reaches below its feet.
  */
 export const PONCHO_ART = {
   frame: SPRITE_FRAME,
@@ -144,7 +146,15 @@ export const PONCHO_ART = {
     spit0: { behind: 13, front: 8.5, above: 4, below: 0 },
     spit1: { behind: 10.5, front: 10, above: 5, below: 0 },
   },
-  pickup: { bobSteps: 8, glintEvery: 120, glintSteps: 8 },
+  pickup: {
+    bobSteps: 8,
+    glintEvery: 120,
+    glintSteps: 8,
+    reach: {
+      taco: { behind: 0.5, front: 0.5, above: 0.5, below: 0.5 },
+      chile: { behind: 0, front: 0.5, above: 1, below: 1 },
+    },
+  },
 } as const;
 
 /** GDD-WLD-05: a spike tile hurts only in its lower half, the full tile wide, so a graze over the points is safe. */
