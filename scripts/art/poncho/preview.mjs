@@ -1,12 +1,14 @@
 // Review sheet for one of Poncho's frame modules (not committed output): `node scripts/art/poncho/preview.mjs <module> <out.png> [--box]`.
 // <module> is a path or a name in this folder (rig's `demo`, `moves`, `actions`, `items`); it exports POSE_FRAME or FRAME ({ w, h }
-// in drawing px), LOOKS and drawFrames() → [{ look, grid, hand? }]. Draws Poncho's standing frame and then every frame, bottoms
+// in drawing px), LOOKS and drawFrames() → [{ look, grid, hand? }], or, like `items`, sheets that each have FRAME, LOOKS and draw()
+// (all of them are drawn, one after the other, and checked with the colours it adds in ITEM_COLOURS). Draws Poncho's standing frame and then every frame, bottoms
 // level, on three grounds (World 1's gold sky, its sand, World 2's pale blue), 8 screen px a game px (4 a drawing px). A frame's
 // hand anchor is a 1 px magenta dot; --box draws his body box as a magenta frame. Prints each frame's check() problems.
 import { writeFileSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { encodePng } from '../png.mjs';
+import { COLOURS } from '../poncho-pixels.mjs';
 import { Grid, hexToRgba } from '../raster.mjs';
 import { BOX, check, pose, POSE_FRAME, STANDING } from './rig.mjs';
 
@@ -15,10 +17,14 @@ if (!name || !out) {
   console.error('usage: node scripts/art/poncho/preview.mjs <module> <out.png> [--box]');
   process.exit(1);
 }
-const path = name.includes('/') || name.endsWith('.mjs') ? (isAbsolute(name) ? name : resolve(name)) : new URL(`./${name}.mjs`, import.meta.url).pathname;
+// A file path, not a URL's pathname: a folder with a space in its name would otherwise be encoded twice.
+const path = name.includes('/') || name.endsWith('.mjs') ? (isAbsolute(name) ? name : resolve(name)) : fileURLToPath(new URL(`./${name}.mjs`, import.meta.url));
 const mod = await import(pathToFileURL(path).href);
-const FRAME = mod.POSE_FRAME ?? mod.FRAME;
-const frames = [{ look: 'standing (reference)', grid: pose(STANDING), hand: null, box: true }, ...mod.drawFrames()];
+// A module of sheets (items.mjs) has no drawFrames(): every export with FRAME and draw() is one of its sheets.
+const sheets = mod.drawFrames ? [] : Object.values(mod).filter((v) => v && typeof v.draw === 'function' && v.FRAME);
+const drawn = mod.drawFrames ? mod.drawFrames() : sheets.flatMap((s) => s.draw());
+const FRAME = mod.POSE_FRAME ?? mod.FRAME ?? { w: Math.max(...sheets.map((s) => s.FRAME.w)), h: Math.max(...sheets.map((s) => s.FRAME.h)) };
+const frames = [{ look: 'standing (reference)', grid: pose(STANDING), hand: null, box: true }, ...drawn];
 
 const S = 4, PAD = 6, MAGENTA = '#FF00FF';
 const GROUNDS = [['#F4C66E', '#C9933F'], ['#E8B87A', '#B9824A'], ['#CFE8F1', '#9CC3D2']];
@@ -48,7 +54,7 @@ for (let y = 0; y < sheet.height * S; y++) {
 }
 writeFileSync(out, encodePng(sheet.width * S, sheet.height * S, rgba));
 console.log(`wrote ${out}: ${sheet.width * S} x ${sheet.height * S}`);
-const palette = mod.PALETTE;
+const palette = mod.PALETTE ?? (mod.ITEM_COLOURS ? [...Object.values(COLOURS), ...Object.values(mod.ITEM_COLOURS)] : undefined);
 frames.slice(1).forEach((f, i) => {
   const problems = check(f.grid, palette ? { palette } : {});
   console.log(`${String(i + 1).padStart(2)} ${f.look}: ${problems.length ? `${problems.length} problems: ${problems.slice(0, 4).join('; ')}` : 'clean'}`);

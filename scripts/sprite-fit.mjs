@@ -5,11 +5,8 @@
 /** Scenery folders: backdrops and tiles, not characters (one per art set, `src/ui/scenery/looks.ts`). */
 export const SCENERY = ['desierto', 'mercado'];
 
-/**
- * Sheets that have no fit test yet, each with the reason. Poncho's two looks are the user's drawing standing on the frame's bottom row;
- * his new frames (GDD-ART-04) bring his fit tests, and this entry goes with them.
- */
-export const EXEMPT = { 'poncho.png': "Poncho's standing frame and run cycle stand on the frame's bottom row; his GDD-ART-04 frames bring his fit tests" };
+/** Sheets that have no fit test yet, each with the reason. None now: Poncho's frames (GDD-ART-04) brought his. */
+export const EXEMPT = {};
 
 /**
  * The sheets the rule covers, from the entries of `assets/sprites/` (`{ name, dir }`): every folder but the scenery ones, and every PNG

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { inflateSync } from 'node:zlib';
 import type { Page } from '@playwright/test';
 import type { PonchoDebug } from '../src/scenes/PlayScene';
 import type { RunState } from '../src/sim/run';
@@ -194,3 +196,65 @@ export async function phase3Hit(page: Page): Promise<number> {
   });
   return bumpEstrella(page);
 }
+
+/**
+ * GDD-ART-04: a sprite sheet's pixels, read from its PNG under `assets/sprites/` as the game loads it (scripts/art/png.mjs writes 8-bit RGBA
+ * rows, each with filter byte 0), so a pixel test can find where a frame has a colour without copying the drawing. '#RRGGBB', or null where
+ * it is clear.
+ */
+export function readSheet(file: string): { width: number; height: number; at: (x: number, y: number) => string | null } {
+  const png = readFileSync(new URL(`../assets/sprites/${file}`, import.meta.url));
+  const width = png.readUInt32BE(16);
+  const height = png.readUInt32BE(20);
+  const data: Buffer[] = [];
+  for (let at = 8; at < png.length; ) {
+    const length = png.readUInt32BE(at);
+    if (png.toString('ascii', at + 4, at + 8) === 'IDAT') data.push(png.subarray(at + 8, at + 8 + length));
+    at += 12 + length;
+  }
+  const raw = inflateSync(Buffer.concat(data));
+  const stride = 1 + width * 4;
+  return {
+    width,
+    height,
+    at: (x, y) => {
+      const i = y * stride + 1 + x * 4;
+      if (raw[i + 3] === 0) return null;
+      return `#${[raw[i]!, raw[i + 1]!, raw[i + 2]!].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+    },
+  };
+}
+
+/**
+ * The places in frame `frame` of a sheet of `w` x `h` game px frames (in rows as wide as the sheet) where a square `size` game px across is all of `colour` (one
+ * colour, or any of several) and, with `not`, frame `not` is clear there: the middle of each, in game px from the frame's middle, for a
+ * frame shown facing right.
+ */
+export function spotsIn(sheet: ReturnType<typeof readSheet>, w: number, h: number, frame: number, colour: string | readonly string[], { size = 2, not }: { size?: number; not?: number } = {}): { dx: number; dy: number }[] {
+  const colours: readonly (string | null)[] = typeof colour === 'string' ? [colour] : colour;
+  const k = 4; // ART_SCALE: art px a game px
+  const [fw, fh, n] = [w * k, h * k, size * k];
+  const cols = Math.floor(sheet.width / fw);
+  const at = (f: number, x: number, y: number) => sheet.at((f % cols) * fw + x, Math.floor(f / cols) * fh + y);
+  const out: { dx: number; dy: number }[] = [];
+  for (let y = 0; y + n <= fh; y += 2) {
+    for (let x = 0; x + n <= fw; x += 2) {
+      let ok = true;
+      for (let j = 0; j < n && ok; j++) for (let i = 0; i < n && ok; i++) {
+        if (!colours.includes(at(frame, x + i, y + j))) ok = false;
+        else if (not !== undefined && at(not, x + i, y + j) !== null) ok = false;
+      }
+      if (ok) out.push({ dx: (x + n / 2 - fw / 2) / k, dy: (y + n / 2 - fh / 2) / k });
+    }
+  }
+  return out;
+}
+
+/** Whether a point (game px) lies clear of the phone's touch buttons, with a margin (L-018). */
+export async function clearOfButtons(page: Page, points: { x: number; y: number }[], margin = 3): Promise<{ x: number; y: number }[]> {
+  const { buttons } = await page.evaluate(() => window.__PONCHO__!.touch());
+  return points.filter((p) => !buttons.some((b) => p.x > b.x - margin && p.x < b.x + b.w + margin && p.y > b.y - margin && p.y < b.y + b.h + margin));
+}
+
+/** Whether a pixel is near a '#RRGGBB' colour, give or take a little for the screen's scaling. */
+export const nearHex = (c: { r: number; g: number; b: number }, hex: string, by = 24) => [1, 3, 5].every((i, k) => Math.abs([c.r, c.g, c.b][k]! - parseInt(hex.slice(i, i + 2), 16)) <= by);

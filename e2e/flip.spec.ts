@@ -1,13 +1,22 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot, pixelsAt, stepUntil } from './helpers';
+import { PONCHO_LOOKS } from '../src/ui/ponchoLooks';
+import { boot, clearOfButtons, nearHex, pixelsAt, readSheet, spotsIn, stepUntil } from './helpers';
 
 const FLOOR = 224; // the sandbox floor, and the level start is at x = 56
-const pose = (page: Page) => page.evaluate(() => ({ ...window.__PONCHO__!.bodyPose(), visible: window.__PONCHO__!.bodyVisible() }));
-/**
- * A pixel of his poncho, a solid blue #3F66B1 in the user's drawing (GDD-ART-02): the drawing's cell (25, 48) and its eight neighbours are blue.
- * It is 0.75 px right of his x and 11.25 above his feet, low enough that turned upside down it stays clear of the phone's touch buttons (L-018).
- */
-const blue = (c: { r: number; g: number; b: number }) => Math.abs(c.r - 0x3f) <= 24 && Math.abs(c.g - 0x66) <= 24 && Math.abs(c.b - 0xb1) <= 24;
+// GDD-ART-04: the turn is drawn by the flip's frames (flip0 to flip7, 45 degrees apart), not by turning the body, so `look` says how far he has turned.
+const pose = (page: Page) => page.evaluate(() => ({ ...window.__PONCHO__!.bodyPose(), visible: window.__PONCHO__!.bodyVisible(), look: window.__PONCHO__!.ponchoSprite().look }));
+/** How far round a flip frame is, in eighths of a turn. */
+const eighths = (look: string) => Number(/^flip(\d)$/.exec(look)?.[1] ?? NaN);
+const BLUE = '#3F66B1'; // his poncho's blue (GDD-ART-02)
+// Close, so the blue mountains behind him (#4D5A9C, GDD-ART-06) do not count: the art's blue is drawn as it is.
+const blue = (c: { r: number; g: number; b: number }) => nearHex(c, BLUE, 12);
+// Where his frames have a square of solid blue 1.5 game px across (3 x 3 of the drawing's pixels), read from his sheet (game px from the
+// frame's middle, facing right): in flip4 (half a turn) where the standing frame is clear, and in the standing frame where flip4 is clear.
+const SHEET = readSheet('poncho.png');
+const FLIP4_BLUE = spotsIn(SHEET, 48, 48, PONCHO_LOOKS.indexOf('flip4'), BLUE, { size: 1.5, not: PONCHO_LOOKS.indexOf('idle') });
+const IDLE_BLUE = spotsIn(SHEET, 48, 48, PONCHO_LOOKS.indexOf('idle'), BLUE, { size: 1.5, not: PONCHO_LOOKS.indexOf('flip4') });
+/** A spot of his frame on the screen, his feet at (x, y): the frame's middle is 24 px above his feet. */
+const onScreen = (p: { x: number; y: number }, s: { dx: number; dy: number }) => ({ x: p.x + s.dx, y: p.y - 24 + s.dy });
 const step = (page: Page, n: number, input?: { move: number; jumpHeld: boolean }) =>
   page.evaluate(([k, i]) => window.__PONCHO__!.step(k, i), [n, input] as const);
 
@@ -32,63 +41,62 @@ test('GDD-LIFE-02 Poncho is hidden for the first part of the wait, then drops in
   expect(first.x).toBe(56);
   expect(FLOOR - first.y).toBeGreaterThan(46); // about 48 px above the ground
   expect(FLOOR - first.y).toBeLessThanOrEqual(48);
-  expect(first.rotation).toBeGreaterThan(0);
-  expect(first.rotation).toBeLessThan(0.5);
+  expect(first.look).toBe('flip0'); // turned 17 degrees: the nearest frame is the first
+  expect(first.rotation).toBe(0);
 });
 
 test('GDD-MOV-05 he turns once and lands feet-first on the last step of the wait, and does not jump when control returns', async ({ page }) => {
   await fallIntoPit(page);
   await step(page, 27); // the first step of the flip
   let last = await pose(page);
-  // The engine reports the angle wrapped to -pi..pi, so follow the turn as the sum of the small changes.
-  let turned = last.rotation;
+  // Follow the turn as the sum of the frame changes, an eighth each: never back, never more than one at a step.
+  let turned = 0;
   for (let i = 0; i < 19; i++) {
     await step(page, 1);
     const now = await pose(page);
     expect(now.y).toBeGreaterThan(last.y); // falling
-    const delta = (now.rotation - last.rotation + 2 * Math.PI) % (2 * Math.PI);
-    expect(delta).toBeGreaterThan(0.1); // and turning the same way every step
-    expect(delta).toBeLessThan(0.5);
+    const delta = (eighths(now.look) - eighths(last.look) + 8) % 8;
+    expect(delta, `${last.look} to ${now.look}`).toBeLessThanOrEqual(1); // and turning the same way every step
     turned += delta;
     last = now;
   }
   await step(page, 1); // one step of the wait left: on the ground, a whole turn done
+  turned += (eighths((await pose(page)).look) - eighths(last.look) + 8) % 8;
   last = await pose(page);
   expect(last.y).toBe(FLOOR);
-  expect(Math.cos(last.rotation)).toBeCloseTo(1, 5); // upright, feet down
-  expect(turned).toBeGreaterThan(2 * Math.PI - 0.5); // after one whole turn, not a half or two
-  expect(turned).toBeLessThan(2 * Math.PI);
+  expect(last.look).toBe('flip0'); // upright, feet down
+  expect(last.rotation).toBe(0);
+  expect(turned).toBe(8); // after one whole turn, not a half or two
   await step(page, 1); // the wait is over: playing, upright, same place
   expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('playing');
   const landed = await pose(page);
   expect(landed.y).toBe(FLOOR);
   expect(landed.rotation).toBe(0);
+  expect(landed.look).toBe('idle');
   expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ x: 56, y: FLOOR, grounded: true });
 });
 
 test('GDD-MOV-05 the drawn body really turns: his poncho is where it should be upside down, and upright after', async ({ page }) => {
   await fallIntoPit(page);
-  // A point of the body in its own frame (x to the right, y down from the middle), where it is on the screen now.
-  const onScreen = async (lx: number, ly: number) => {
-    const p = await pose(page);
-    const cy = p.y - 16; // the middle of the 32 px body
-    return { x: p.x + lx * Math.cos(p.rotation) - ly * Math.sin(p.rotation), y: cy + lx * Math.sin(p.rotation) + ly * Math.cos(p.rotation) };
-  };
-
   await step(page, 27 + 10); // wait 11: upside down, about 188 degrees
-  // The blue pixel is 0.75 right of the middle and 16 - 11.25 = 4.75 below it, in his own frame.
-  const [mark] = await pixelsAt(page, [await onScreen(0.75, 4.75)]);
-  expect(blue(mark!)).toBe(true); // it has turned with him
   const p0 = await pose(page);
-  const [ifUpright] = await pixelsAt(page, [{ x: p0.x + 0.75, y: p0.y - 11.25 }]); // where it would be if he had not turned
+  expect(p0.look).toBe('flip4');
+  // Spots clear of the phone's touch buttons (L-018): where flip4 is blue and the standing frame clear, and the other way round.
+  const turned = await clearOfButtons(page, FLIP4_BLUE.map((s) => onScreen(p0, s)));
+  const upright = await clearOfButtons(page, IDLE_BLUE.map((s) => onScreen(p0, s)));
+  expect(turned.length).toBeGreaterThan(0);
+  expect(upright.length).toBeGreaterThan(0);
+  const [mark] = await pixelsAt(page, [turned[0]!]);
+  expect(blue(mark!), JSON.stringify(mark)).toBe(true); // it has turned with him
+  const [ifUpright] = await pixelsAt(page, [upright[0]!]); // where it would be if he had not turned
   expect(blue(ifUpright!)).toBe(false); // that is sky now
 
   await step(page, 10); // wait 1 left, then 1 more: landed, upright
   await step(page, 1);
   await step(page, 120); // out of the blink, fully opaque
   const p = await pose(page);
-  const [upright] = await pixelsAt(page, [{ x: p.x + 0.75, y: p.y - 11.25 }]);
-  expect(blue(upright!)).toBe(true);
+  const [standing] = await pixelsAt(page, (await clearOfButtons(page, IDLE_BLUE.map((s) => onScreen(p, s)))).slice(0, 1));
+  expect(blue(standing!)).toBe(true);
 });
 
 test('GDD-LIFE-02 the flip lands at the latest ofrenda, not the level start', async ({ page }) => {
@@ -146,11 +154,12 @@ test('GDD-LIFE-02 a skip in the middle of the flip puts him upright at the respa
   await step(page, 27 + 10); // wait 11: upside down in mid-air
   const before = await pose(page);
   expect(before.y).toBeLessThan(FLOOR - 20);
-  expect(Math.abs(Math.cos(before.rotation) - 1)).toBeGreaterThan(0.5); // clearly not upright
+  expect(before.look).toBe('flip4'); // clearly not upright
   await step(page, 1, { move: 1, jumpHeld: false }); // any input after 0.3 s skips the rest of the wait
   expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('playing');
   const after = await pose(page);
   expect(after).toMatchObject({ x: 56, y: FLOOR, rotation: 0, visible: true });
+  expect(after.look).not.toMatch(/^flip/);
 });
 
 test('GDD-LIFE-02 a skip before the flip starts never shows a flip', async ({ page }) => {

@@ -731,3 +731,33 @@ Retired IDs: L-046
 - **Rule:** A brief for parallel agents gives each one its own scratch folder (`<scratchpad>/<agent's task>/`) for every file it writes there, and names any shared output path (a preview image) per agent.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-066 The user rejected art the main session had passed on without its own side-by-side review
+
+- **Date:** 2026-11-08
+- **Area:** art, process
+- **What went wrong:** For Poncho's front-view victory pose, the main session sent the artist's previews to the user after checking only the numbers it had asked for (rows, widths). The user answered "now your slacking ... do consistent work": next to the side drawing the front view was flat, its poncho a plain box, its ears cut-outs. Three more rounds followed, two of them failing the main session's own later side-by-side review (a noisy poncho, a pompom crown, round "innocent" eyes against the references' determined ones).
+- **Root cause:** The main session reviewed the artist's measurements, not the picture: it did not set the new art beside the approved sprite and the user's references at the same scale before showing it, so craft gaps a glance would catch reached the user.
+- **Rule:** Before showing art to the user, the main session builds one sheet with the new art, the approved art it must match and the user's references, at the same height and at game size, and reviews it against a written list (silhouette, shading depth, pattern, face, proportions); it sends the art only when every item passes, and says in the message what it checked.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-067 A plan too big for one implementer run stopped at the turn limit
+
+- **Date:** 2026-11-08
+- **Area:** process, harness
+- **What went wrong:** The plan for Poncho's animations in the game (the sheet, the pose module, the scene, the items, the stand-in specs, the level fit test, 80 mutants, the shots) ran the implementer into its 150-turn limit with no report; it had to be resumed to finish.
+- **Root cause:** One plan held several features' worth of work, and nothing sized a plan against the implementer's turn budget.
+- **Rule:** A plan with more than about four independent parts (art build, pure logic, scene wiring, playtests, rewritten specs, mutants) is split into phases, each its own implementer run with its own report; the main session checks each before starting the next.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-068 A one-row sprite sheet grew past the texture size a phone can load
+
+- **Date:** 2026-11-08
+- **Area:** art
+- **What went wrong:** The plan asked for Poncho's 31 frames in one row; the sheet came out 5952 px wide, past the 4096 px texture limit of some phones' WebGL, and had to be wrapped into rows of 8.
+- **Root cause:** The plan copied the one-row layout of smaller sheets without checking the width the frame count gives.
+- **Rule:** A sprite sheet stays at most 4096 px on each side; a plan names the sheet's columns when its frames would pass that in one row, and the art test pins the width (`scripts/art/poncho.test.mjs` does).
+- **Recurrence:** 1
+- **Promoted:** no

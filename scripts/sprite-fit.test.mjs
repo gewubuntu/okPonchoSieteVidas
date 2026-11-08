@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
+import { EXEMPT, sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 
 describe('L-059 sprite-fit: every character sheet has a fit test', () => {
   it('covers every folder but the scenery ones, and the PNGs at the top', () => {
@@ -28,6 +28,10 @@ describe('L-059 sprite-fit: every character sheet has a fit test', () => {
 
   it('fails a sheet only named bare, not by its path, in a test citing L-059', () => {
     expect(spriteFitErrors(['boss'], [{ path: 'd.test.mjs', text: '// L-059, see boss.test.mjs' }], {})).toHaveLength(1);
+  });
+
+  it('exempts no sheet now: Poncho\'s frames brought his fit tests (GDD-ART-04)', () => {
+    expect(EXEMPT).toEqual({});
   });
 
   it('skips an exempt sheet', () => {

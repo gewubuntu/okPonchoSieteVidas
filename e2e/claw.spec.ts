@@ -32,6 +32,10 @@ test('GDD-CMB-02 a press winds up for 2 steps, swings for 3, and what is drawn f
   await page.waitForFunction(() => window.__PONCHO__!.clawDrawn() === 'swing'); // painted by the game's own frame loop
   await idle(page, 3);
   expect(await api(page, () => window.__PONCHO__!.claw())).toBe('idle');
+  // GDD-ART-04: the swipe fades in the follow-through, swipe2 and swipe3 for 3 steps each, so it is drawn for 6 steps after the swing.
+  await page.waitForFunction(() => window.__PONCHO__!.swipeDrawn()?.look === 'swipe2'); // painted by the game's own frame loop
+  expect(await api(page, () => window.__PONCHO__!.clawDrawn())).toBe('swing'); // a swipe frame is shown
+  await idle(page, 6);
   await page.waitForFunction(() => window.__PONCHO__!.clawDrawn() === 'none'); // painted by the game's own frame loop
 });
 

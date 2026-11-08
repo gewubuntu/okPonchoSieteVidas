@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot, pixelsAt } from './helpers';
+import { itemFrame, type PickupLook } from '../src/ui/ponchoLooks';
+import { pickupLook } from '../src/ui/ponchoPose';
+import { boot, pixelsAt, readSheet, spotsIn } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
@@ -68,10 +70,17 @@ test('GDD-PWR-03 only in Fuego: a press in Taco spits nothing', async ({ page })
 type Colour = { r: number; g: number; b: number };
 const orange = (c: Colour) => c.r > 200 && c.g > 60 && c.g < 140 && c.b < 90; // the fireball's ring, 232 96 45
 const gold = (c: Colour) => Math.abs(c.r - 242) < 30 && Math.abs(c.g - 194) < 30 && Math.abs(c.b - 48) < 30; // the key, 242 194 48 (not the golden sky, 227 154 72)
-const red = (c: Colour) => c.r > 170 && c.g < 90 && c.b < 80; // the chile's red, 209 40 28
+const red = (c: Colour) => c.r > 170 && c.g < 90 && c.b < 90; // the chile's red, 210 63 66
 /** A few points around a spot, so a pixel that lands on an edge of a small shape still finds it. */
 const around = (x: number, y: number) => [-1, 0, 1].flatMap((dx) => [-1, 0, 1].map((dy) => ({ x: x + dx, y: y + dy })));
 const anyRed = async (page: Page, x: number, y: number) => (await pixelsAt(page, around(x, y))).some(red);
+
+// GDD-ART-04: where the chile's red is, read from the sheets: in each pickup frame (squares 2 game px across), and in the held frame with
+// the chile (1 game px across: the held chile is small); game px from each frame's middle.
+const CHILES = readSheet('poncho/chile.png');
+const HELD = readSheet('poncho/held.png');
+const CHILE_RED = (look: PickupLook) => spotsIn(CHILES, 16, 16, itemFrame('chile', look), '#D23F42', { size: 2 });
+const HELD_RED = spotsIn(HELD, 12, 12, itemFrame('held', 'chileHeld'), '#D23F42', { size: 1 });
 
 test('GDD-PWR-03 the chile is painted: on the piñata, in Poncho\'s hand in Fuego (not in Taco), and on the HUD', async ({ page }) => {
   await start(page, 372, 176);
@@ -79,19 +88,34 @@ test('GDD-PWR-03 the chile is painted: on the piñata, in Poncho\'s hand in Fueg
   await page.evaluate(() => window.__PONCHO__!.step(25, { move: 0, jumpHeld: true }));
   await frames(page);
   const chile = (await api(page, () => window.__PONCHO__!.itemsDrawn()))[0]!;
-  expect(await anyRed(page, chile.x + 1, chile.y - 6)).toBe(true); // the pepper's body, in the middle of its 12 px box
-  // Poncho in the empty sky: the chile in his hand sits 12 px out and 20 px up from his feet (the hand is half the 32 px body up, GDD-MOV-06), facing right.
+  // The pickup is centred on its 12 px box (GDD-PWR-06), in the bob frame of the run's clock (GDD-ART-04).
+  const look = pickupLook('chile', await api(page, () => window.__PONCHO__!.clock()));
+  const body = CHILE_RED(look)[0]!;
+  expect(await anyRed(page, chile.x + body.dx, chile.y - 6 + body.dy)).toBe(true); // the pepper's body
+  // Poncho in the empty sky, facing right: the chile in his paw where the taco alone shows the sky.
   await page.evaluate(() => {
     window.__PONCHO__!.teleport(300, 100);
     window.__PONCHO__!.step(2);
   });
   await frames(page);
-  const { x, y } = await api(page, () => window.__PONCHO__!.state());
-  expect(await anyRed(page, x + 12.5, y - 20)).toBe(false); // Taco: a taco, no chile
-  await page.evaluate(() => window.__PONCHO__!.setPower('fuego'));
+  const taco = (await api(page, () => window.__PONCHO__!.heldDrawn()))!;
+  expect(taco.look).toBe('tacoHeld');
+  // Taco: a taco, no chile. The spots of the chile's red where nothing red shows now (not the taco's tomato, nor his own red behind it).
+  const clear: { dx: number; dy: number }[] = [];
+  for (const s of HELD_RED) if (!(await anyRed(page, taco.x + s.dx, taco.y + s.dy))) clear.push(s);
+  expect(clear.length).toBeGreaterThan(0);
+  const spot = clear[0]!;
+  await page.evaluate(() => {
+    window.__PONCHO__!.setPower('fuego');
+    window.__PONCHO__!.teleport(300, 100);
+    window.__PONCHO__!.step(2);
+  });
   await frames(page);
-  expect(await anyRed(page, x + 12.5, y - 20)).toBe(true);
-  expect(await anyRed(page, 8 + 7 * 13 + 6 + 13 * 0.55 + 1, 8 + 3 - 13 * 0.35)).toBe(true); // the HUD icon, right of the triangles
+  const both = (await api(page, () => window.__PONCHO__!.heldDrawn()))!;
+  expect(both.look).toBe('chileHeld');
+  expect(await anyRed(page, both.x + spot.dx, both.y + spot.dy)).toBe(true);
+  // The HUD icon, right of the triangles: the taco and the chile in his paw, its middle at (8 + 7 * 13 + 6, 8 + 5).
+  expect(await anyRed(page, 8 + 7 * 13 + 6 + spot.dx, 8 + 5 + spot.dy)).toBe(true);
 });
 
 test('GDD-CTL-03 the Fuego button has its flame drawn', async ({ page, isMobile }) => {

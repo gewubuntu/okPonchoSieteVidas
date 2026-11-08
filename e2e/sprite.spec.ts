@@ -5,9 +5,10 @@ const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 /** Waits for Poncho to stand on the floor after the title screen. */
 const settled = (page: Page) => page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
 // A pixel of the user's drawing (GDD-ART-02) where the poncho is a solid blue, #3F66B1: the drawing's cell (50, 10) and its eight
-// neighbours are all blue. The frame is 160 art px square and its middle column is on his x, its bottom row on his feet; the
-// drawing starts 16 art px from the frame's left (with the tail's room) and 18 from its top, each cell 2 x 2 art px.
-// That cell's middle is at art pixel (133, 39), which is 13.25 game px right of his x and 30.25 above his feet.
+// neighbours are all blue. The frame is 192 art px square (GDD-ART-04: 48 game px) and its middle column is on his x, its bottom row on
+// his feet; the drawing starts 48 art px from the frame's left (with the tail's room) and 50 from its top (scripts/art/poncho/rig.mjs
+// ORIGIN, 24 and 25 drawing px), each cell 2 x 2 art px. That cell's middle is at art pixel (149, 71), which is 13.25 game px right of his
+// x and 30.25 above his feet, as in the 40 px frame before it: the drawing keeps its place on his body box.
 const BLUE = { r: 0x3f, g: 0x66, b: 0xb1 };
 const BLUE_AT = { right: 13.25, above: 30.25 };
 const near = (c: { r: number; g: number; b: number }, want: { r: number; g: number; b: number }) =>
@@ -18,13 +19,15 @@ test('GDD-ART-01 the canvas is 1920 x 1080', async ({ page }) => {
   expect(await api(page, () => ({ w: document.querySelector('canvas')!.width, h: document.querySelector('canvas')!.height }))).toEqual({ w: 1920, h: 1080 });
 });
 
-test('GDD-ART-04 standing, Poncho shows the standing frame, 40 game px wide, feet on the floor', async ({ page }) => {
+test('GDD-ART-04 standing, Poncho shows the standing frame, 48 game px wide, feet on the floor', async ({ page }) => {
   await boot(page);
   await settled(page);
   await page.waitForTimeout(100);
   const sprite = await api(page, () => window.__PONCHO__!.ponchoSprite());
   const s = await api(page, () => window.__PONCHO__!.state());
-  expect(sprite).toMatchObject({ frame: 0, width: 40, height: 40 });
+  expect(sprite).toMatchObject({ width: 48, height: 48 });
+  expect([0, 5]).toContain(sprite.frame); // idle, or blink (GDD-ART-04: the last 6 of every 180 steps standing)
+  expect(['idle', 'blink']).toContain(sprite.look);
   expect(sprite.bottom).toBe(s.y);
   expect(sprite.centerX).toBe(s.x);
 });
@@ -63,10 +66,10 @@ test('GDD-ART-04 facing left mirrors him', async ({ page, isMobile }) => {
   await page.waitForTimeout(100);
   const sprite = await api(page, () => window.__PONCHO__!.ponchoSprite());
   expect(sprite.flipX).toBe(true);
-  expect(sprite.frame).toBe(0);
+  expect(['idle', 'blink']).toContain(sprite.look);
 });
 
-test('GDD-ART-04 in the air he shows the standing frame', async ({ page, isMobile }) => {
+test('GDD-ART-04 in the air he shows the air frames by his speed, not the run frames', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard test');
   await boot(page);
   await settled(page);
@@ -74,19 +77,22 @@ test('GDD-ART-04 in the air he shows the standing frame', async ({ page, isMobil
   const seen = await page.evaluate(() => {
     const p = window.__PONCHO__!;
     p.pause(true);
-    for (let i = 0; i < 60 && p.ponchoSprite().frame === 0; i++) p.step(1, { move: 1, jumpHeld: false });
-    const running = p.ponchoSprite().frame;
-    const air: number[] = [];
+    for (let i = 0; i < 60 && !p.ponchoSprite().look.startsWith('run'); i++) p.step(1, { move: 1, jumpHeld: false });
+    const running = p.ponchoSprite().look;
+    const air: { look: string; vy: number }[] = [];
     p.step(1, { move: 1, jumpHeld: true });
     for (let i = 0; i < 120 && !p.state().grounded; i++) {
-      air.push(p.ponchoSprite().frame);
+      air.push({ look: p.ponchoSprite().look, vy: p.state().vy });
       p.step(1, { move: 1, jumpHeld: true });
     }
     return { running, air };
   });
-  expect(seen.running).not.toBe(0);
+  expect(seen.running).toMatch(/^run/);
   expect(seen.air.length).toBeGreaterThan(10);
-  expect(new Set(seen.air)).toEqual(new Set([0]));
+  // GDD-ART-04: jump0 for the first 4 steps of the take-off, then by his speed (px/s, down positive): jump1 under -120, the apex under 60,
+  // the fall under 250, the fast fall from 250.
+  expect(seen.air.slice(0, 4).map((s) => s.look)).toEqual(['jump0', 'jump0', 'jump0', 'jump0']);
+  for (const s of seen.air.slice(4)) expect(s.look, `vy ${s.vy}`).toBe(s.vy < -120 ? 'jump1' : s.vy < 60 ? 'apex' : s.vy < 250 ? 'fall0' : 'fall1');
 });
 
 test('GDD-ART-02 his sprite is drawn on screen', async ({ page }) => {
@@ -105,6 +111,6 @@ test('GDD-UI-02 the title screen shows the standing frame beside the title', asy
   expect(title.ponchoShown).toBe(true);
   expect(title.ponchoBottom).toBe(104);
   expect(title.ponchoRight).toBeLessThan(240 - 57); // left of both lines: "PONCHO" is the wider, 115 px
-  const [poncho] = await pixelsAt(page, [{ x: title.ponchoRight - 20 + BLUE_AT.right, y: title.ponchoBottom - BLUE_AT.above }]); // his frame is 40 px wide
+  const [poncho] = await pixelsAt(page, [{ x: title.ponchoRight - 24 + BLUE_AT.right, y: title.ponchoBottom - BLUE_AT.above }]); // his frame is 48 px wide
   expect(near(poncho!, BLUE), JSON.stringify(poncho)).toBe(true);
 });
