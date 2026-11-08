@@ -25,6 +25,9 @@ function age(fx: readonly DefeatFx[], enemies: readonly EnemyState[], n: number)
   for (let i = 0; i < n; i++) out = stepDefeats(out, { enemies }, after(enemies), LEVEL);
   return out;
 }
+/** The effect of the enemy `i` defeated alone, by a stomp (`squashed`) or by the claw (`swiped`). */
+const squashed = (i: number): DefeatFx => stepDefeats([], { enemies: ALIVE }, after(without(ALIVE, i), true), LEVEL)[0]!;
+const swiped = (i: number): DefeatFx => stepDefeats([], { enemies: ALIVE }, after(without(ALIVE, i)), LEVEL)[0]!;
 const stompedAlacran = (): readonly DefeatFx[] => stepDefeats([], { enemies: ALIVE }, after(without(ALIVE, 0), true), LEVEL);
 
 describe('GDD-ENM-02 the defeat poof', () => {
@@ -81,8 +84,40 @@ describe('GDD-ENM-02 the defeat poof', () => {
     expect([0, 7].map((a) => at(a).y)).toEqual([160, 160]); // the squash stays on the ground
   });
 
-  it('GDD-ENM-02 the cactus buddy and World 2\'s kinds add no effect', () => {
-    expect(stepDefeats([], { enemies: ALIVE }, after(without(ALIVE, 2, 4, 5, 6), true), LEVEL)).toEqual([]);
+  it('GDD-ENM-02 the cactus buddy adds no effect', () => {
+    expect(stepDefeats([], { enemies: ALIVE }, after(without(ALIVE, 2), true), LEVEL)).toEqual([]);
+  });
+
+  it('GDD-ENM-03 a stomped Paloma, Chapulín or Trompo leaves its squash frame, then the poof', () => {
+    // Their boxes (14 x 12, 12 x 10 and 14 x 14 px) stand on their feet at y = 224; the sheets' squash frames are 11, 7 and 6.
+    const paloma = squashed(4), chapulin = squashed(5), trompo = squashed(6);
+    expect(paloma).toEqual({ kind: 'paloma', x: 40, y: 218, feet: 224, flip: false, stomped: true, age: 0 });
+    expect(chapulin).toEqual({ kind: 'chapulin', x: 60, y: 219, feet: 224, flip: false, stomped: true, age: 0 });
+    expect(trompo).toEqual({ kind: 'trompo', x: 80, y: 217, feet: 224, flip: false, stomped: true, age: 0 });
+    expect(defeatLook(paloma)).toEqual({ sheet: 'paloma', look: 'squash', frame: 11, x: 40, y: 224, flip: false });
+    expect(defeatLook(chapulin)).toEqual({ sheet: 'chapulin', look: 'squash', frame: 7, x: 60, y: 224, flip: false });
+    expect(defeatLook(trompo)).toEqual({ sheet: 'trompo', look: 'squash', frame: 6, x: 80, y: 224, flip: false });
+    for (const e of [paloma, chapulin, trompo]) {
+      expect(defeatLook({ ...e, age: 7 }).look, e.kind).toBe('squash');
+      expect(defeatLook({ ...e, age: 8 }), e.kind).toMatchObject({ sheet: 'poof', look: 'poof0', x: e.x, y: e.y });
+    }
+  });
+
+  it('GDD-ENM-03 a Paloma or a Chapulín knocked by the claw shows its hit frame rising 6 px', () => {
+    const paloma = swiped(4), chapulin = swiped(5);
+    expect(paloma.stomped).toBe(false);
+    expect(defeatLook(paloma)).toEqual({ sheet: 'paloma', look: 'hit', frame: 12, x: 40, y: 224, flip: false });
+    expect(defeatLook(chapulin)).toEqual({ sheet: 'chapulin', look: 'hit', frame: 8, x: 60, y: 224, flip: false });
+    expect([0, 4, 7].map((a) => defeatLook({ ...paloma, age: a }).y)).toEqual([224, 221, 224 - 5.25]);
+    expect([0, 4, 7].map((a) => defeatLook({ ...chapulin, age: a }).y)).toEqual([224, 221, 224 - 5.25]);
+  });
+
+  it('GDD-ENM-03 a Trompo is only ever stomped, so one that is not shows its squash frame anyway', () => {
+    // It cannot happen in play: a stunned Trompo is defeated by a stomp, and a spinning one by nothing.
+    const trompo = stepDefeats([], { enemies: ALIVE }, after(without(ALIVE, 6)), LEVEL)[0]!;
+    expect(trompo.stomped).toBe(false);
+    expect(defeatLook(trompo)).toEqual({ sheet: 'trompo', look: 'squash', frame: 6, x: 80, y: 224, flip: false });
+    expect(defeatLook({ ...trompo, age: 7 }).y).toBe(224); // it does not rise
   });
 
   it('GDD-LIFE-02 a life lost empties the list', () => {

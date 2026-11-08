@@ -1,0 +1,261 @@
+<title>Bestiario del Mercado</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Work+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: the sister page of World 1's approved bestiary; the market after closing, under papel picado. Deliberately single dark look. */
+:root {
+  --night: #1d1830;      /* the market hall after closing */
+  --panel: #2a2244;
+  --line: #4e4a78;       /* World 2 street slate */
+  --ink: #f4efe2;        /* talavera glaze */
+  --muted: #c3c6de;
+  --gold: #e9b53f;       /* talavera yellow */
+  --rosa: #d9327e;
+  --teal: #2aa198;
+  --display: "Pixelify Sans", ui-monospace, "Courier New", monospace;
+  --body: "Work Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--night); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.55; }
+.picado { height: 26px; background:
+  conic-gradient(from 135deg at 50% 100%, transparent 0 90deg, var(--night) 0) 0 14px / 24px 12px repeat-x,
+  linear-gradient(90deg, var(--rosa) 0 25%, var(--gold) 0 50%, var(--teal) 0 75%, #1c3f9e 0) 0 0 / 96px 26px repeat-x; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 64px; display: grid; gap: 36px; }
+header { display: grid; gap: 10px; max-width: 72ch; }
+.eyebrow { font-family: var(--display); color: var(--gold); letter-spacing: .08em; text-transform: uppercase; font-size: 13px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(34px, 6vw, 56px); line-height: 1; margin: 0; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); }
+.ground { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+button { font: 500 13px var(--body); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 3px; padding: 6px 10px; cursor: pointer; }
+button:hover { border-color: var(--gold); }
+button[aria-pressed="true"] { background: var(--gold); color: var(--night); border-color: var(--gold); }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.enemy { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px 32px; padding-block: 28px; border-top: 1px solid var(--line); }
+@media (max-width: 760px) { .enemy { grid-template-columns: minmax(0, 1fr); } }
+.stage { display: grid; gap: 10px; min-width: 0; }
+canvas.scene { width: 100%; height: auto; image-rendering: pixelated; border: 2px solid #070509; display: block; }
+.moves { display: flex; flex-wrap: wrap; gap: 6px; }
+.info { display: grid; gap: 12px; align-content: start; min-width: 0; }
+h2 { font-family: var(--display); font-size: 30px; margin: 0; line-height: 1.05; }
+h2 small { display: block; font-family: var(--body); font-size: 13px; color: var(--gold); font-weight: 500; letter-spacing: .04em; margin-top: 6px; }
+.info p { margin: 0; max-width: 62ch; }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 14px; }
+dt { color: var(--muted); }
+dd { margin: 0; }
+.frames { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; }
+figure { margin: 0; display: grid; gap: 4px; justify-items: center; }
+figure canvas { image-rendering: pixelated; background: #e07f8e; border: 1px solid #070509; }
+figcaption { font: 12px var(--display); color: var(--muted); }
+.family { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 28px; }
+.family h2 { font-size: 24px; }
+.family ul { margin: 0; padding-left: 20px; max-width: 72ch; color: var(--ink); }
+.family li { margin-bottom: 6px; }
+footer { color: var(--muted); font-size: 13px; max-width: 72ch; }
+</style>
+
+<div class="picado" aria-hidden="true"></div>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">PONCHO: Siete Vidas · Mundo 2, el Mercado</div>
+    <h1>Bestiario del Mercado</h1>
+    <p>World 2's three new enemies, drawn in code at Poncho's scale (one drawing pixel is half a game pixel) in the market's colours and his outline, as World 1's four were. A pigeon of the plaza, the grasshopper of Chapultepec and a top from the toy stall: one idea each, each one a new verb for the player. Every stage plays at game speed, 60 steps a second, with the timings the game already uses. Nothing about how they play changes.</p>
+    <div class="ground" role="group" aria-label="Ground">Ground:
+      <button type="button" id="g-calle" aria-pressed="true">Tianguis street</button>
+      <button type="button" id="g-azotea" aria-pressed="false">Rooftop at the sky</button>
+    </div>
+  </header>
+  <main id="list" style="display:grid"></main>
+  <section class="family" aria-labelledby="h-family">
+    <h2 id="h-family">One family across two worlds</h2>
+    <ul>
+      <li><b>Same hand as World 1.</b> Half-game-pixel drawing, the near-black outline Poncho has, light from the upper left in three tones, big readable eyes, nobody dressed up: real animals and real toys, each with a true Mexican story.</li>
+      <li><b>Market colours only.</b> Every pixel is one of World 2's 24 colours (the Chapulín keeps the darker leaf you chose so it reads on the pink walls), plus the outline and the telegraph red every world shares.</li>
+      <li><b>Danger reads the same everywhere.</b> Pale points mean "do not land on me" (the Trompo's three glaze tacks, like the Zopilote's cholla spines); a 0.5 s red flash means "about to move" (the Paloma's puff, the Chapulín's wind-up).</li>
+      <li><b>Three silhouettes, three verbs.</b> Round and puffed (wait or go under), a zig-zag of legs (read the arc), a pear on a spike (claw, then stomp). Told apart from each other, from the Alacrán and the Tlacuache and from Poncho at a glance.</li>
+      <li><b>Defeats as in World 1.</b> A squashed or knocked-over frame for 8 steps, then the same poof.</li>
+    </ul>
+  </section>
+  <footer>Design for approval. In the game each frame is picked from what the enemy is doing (distance walked, phase and step), so the cycles stay in step with the ground.</footer>
+</div>
+
+<script>
+const SHEETS = {"poncho":{"w":80,"h":80,"looks":["idle"],"png":"iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAYAAACOEfKtAAAFKklEQVR4nO3cPW4UQRAF4EnQiktwAkjIiFYQcQ0IkLgCEokDMkISUi5gIk5ASOIMUlISkxIY1YpnPZ6qumt+7OkeT0mlXXbH65mPmu6enl4Pwx577LHHHnvssccee+yxjTjcu3/l5dr71XwA6uzx06uL47P/0l7bIQsBOA/Pg1x7f5uKLF4N8U5WaA0PKDVEe37++vkp7xRiCdDeu/z04pSKeHz1+erh8c01MPCw7drHdWsRAQIFgIAxOE4gLgHYXa/PeAyoePbenx9fFkX0hkn2e76+f3mdzSMqoKWB8KkLwN8f3p4QPUD8TAnQw1IwJH/mejqJUECuJMUDoFahdioMWKswxor+U9Y2KobtoKFxlgC5CkvDmzloXQPqaah4WoXecCeCy6KhqrsGjKrPq8K5aMCKmoS1jYrBgADIAE5BUyjGwnta0Wv7VAOA3AFEgNq+jW3XGMoD7PJ6m3thDxCXZXOrTYH0NR4JdDOIHgqAS7RrjBhhKVo3cAgFnIKWOS03hYZYarwWnZYMt5nZ7Tlo2U4gqrJup7k8NLR1lmMGt2M6AW5TObtBLKHx4HmJdq2Ghl4dA/C1bcLQaovQNKNqQ4V6HUENTecSAdjkNNUUNAygMQvjXUqVes8smofYFKB3MDU4BQRiDW0snGEhmwccU20e4FJoNcTmTmNvTm9qtWXQanCPHjy5TkVsEnBwELXaspU2t9r4GpohGbRJwEEQS2BLVlsG0MC8amwWMVtpS1VbtgK9NrHJgbUH5V1/eoAKoROsUxE9PMZtDjETCujhZbF4tjrbIzPi5gDH4ClghKh4jLg5wEtajcCD4KlZwusWcEgintGyjqXggNfcVcnYqHUkXIXeZdlYNMXrHnBIINp4LYMyNr99fNc/HqKGaAe741XCm3hlSDvouZD4jM3hIaIZbCQAOMfCbRqPl3mUMD3IUnYFN2VnGe/Xz++nxBAG4zRLe56FPKcb9Dd3tAuH7eyU4UFpEoJvJBmwN03lZXfVZzup7VJmxxmvdsMJkKhSvX+Cn1HELq42PMAMIgAzd+uie8SMiW0AuWlA73YAv2YQNjlQg2RA/R4JqhGffbsqyUDbNxdQ8bw0rNqyD4ByNR5bXrIbAWbw+PRVQG9VaaYatSKxTfOAY9u+qPpKgF5lZaux2aW7Cpjtfceevl5HUdrWq8bmAA+yXvky+TUrDJrHAGqic8gsSkLbuTlAS70lGi3+ViAGjLbhamxyAfkcQP2KAxLVEo318JpWYKaT2SwgTmcA4mAZUBExzvNOX2+4Y9kc4CCINUBvGQgAoxvx3mmM7QGoeAyouJsBZKzS+j/G1DbNAMeMF1HpTSEqYAmRsVBFOgd4kO/McWpVGqB3LRxV3yYA0QMr3hl94cYevbtsPEXFn2W/u9QT86mNnv/2pYIYC6h4fBozYDRFr9XKnY322B7kJipQASJAvrbGcz6NFdHrrRWyOcCBELW98raLKs/rPBSQgQF4Efx9magimxzKDP9wvEZft9HK8/C8HjjqnS/oL33wa+ioeEKhyU4EkQXkysNsMR5Lq1Wj9KqSOxmd6mq2AocCYlR5JcBo/Yu9F618BWBpZWyzeAgPkTFLB5ZZ5sunaumLOPxvbS/XNipG7VTkg9S2K1N9Ws3RSgavMrsAHBKIJVQAetvxjfZDYRmIV+XYr7Vt0lHrYUuAlpmBdG3ZRxdtXia8g/baQO/OHmPiuW7vLe3YHCLCOyAPBGi8UhXPa4C2HR43BxhF1DMvlTexz38BRI7HkB+BPWUAAAAASUVORK5CYII="},"ponchoRun":{"w":80,"h":80,"looks":["run0","run1","run2","run3"],"png":"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"},"poof":{"w":48,"h":48,"box":{"x0":0,"y0":0,"x1":48,"y1":48},"looks":["poof0","poof1","poof2","poof3"],"png":"iVBORw0KGgoAAAANSUhEUgAAAMAAAAAwCAYAAABHTnUeAAADd0lEQVR4nO2aQW7lIAyGsxlVc8UeqWfoReYWo657gdlX3b7Ri0TE87ONIWBM+n8Sm5cSHPL/wYZuGwAAAAAAAAAAAAAAAAAAQAMvv37f7m12HAC4cxf+7eN1bzAB+HHAAOBHAwP4cTbVTP1Hvqd8jNF68BxLDeIqBqATGqG2yeP49+dtb7Vxpb+/fX0238M6zn0MOk7PMWaMVQ5kEQNoAt+f4/vvQ5s6seQl560mrh73sIzBjTNi/jzHMge0ggFKAj9+DzKxknBr4upxD484e4zl8p64m+fika4PC8hISeDStRkmyFcmTVhSXDX9zz4bTUOke/eYO6vRhr2n9KWnk71//ZOAhOszTaCJ/2jaNUcDWEUrxXa2f22sueipAXJB9lhlrGMNFT9NdTQDSH28OQygCSGAAVrES2M727823tSXE3zvr7/XWGoQVNBcXn38HkD8W8kAQk3gbYCz4uUMwD1Hb3PnwhwtSM+x1CDyL75kACklmgFrgDxmRRQuy6tggDT+18f73koGkPrXGKg1dnqfUVvInmOpQVDRSy2C+Gn+WKwHhBw2n/ARcWomtIi/xQQ9c3QvEboLnhvYYoIp7iTxivFVphijzwWeTFowATWmZgBL/9kfqjBQ0T4IPuX0xq9/ngblNQPXRjwHK/YK8UsCGiEaWuRpqxAnfu2Lb7kHDMAUuQ+tVvQFM9DWW0yi+CsNMMsE1tYido+UbkkuZwAq5gbxexpgU0xAV0xrbaDdA8JnuEIKtLIBNuEd0OtWA0DsHVmlCF7dANZnpHEhr3ci+jaotqPSKn5JaBEMoNUCMEFnVjgI03ZUOJHXHDRF+soeK3HBvDBBJ2iRLKVCTzXDZBOUdk5qi8nZwnpIQ43PABOcRBI0XREi/TPcGRNEFn9rGgcTnCQJOp9IzQBSH++YuS3Emn30KNuHLeKHATrDTWKeBknX3QI0UHPgFCX2VvHDAA7kqc4qk8ytBpFPSDkD1KZykZ7nUqxogITHwVwPJAOUTLCSASLPv8rKBlgF7WyD+z1t7a4g/nxHa4V4n4ABxiOdbVh2rCILSlvZosb8BAzgQ03xHl38eQ22fOEOA/hRKty5rdvZMVMueYAXdbKviFa4r/AeqAHoKpDXL9GfBYBqaOoT9X+tABiCtZaB+MFlKZkA4geXR6plIH4AAAAAAABAD/4D3PXFIOqJ7FgAAAAASUVORK5CYII="},"paloma":{"w":48,"h":40,"box":{"x0":10,"y0":16,"x1":38,"y1":40},"looks":["walk0","walk1","walk2","walk3","tele","teleRed","flap0","flap1","flap2","flap3","glide","squash","hit"],"png":"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"},"chapulin":{"w":40,"h":32,"box":{"x0":8,"y0":12,"x1":32,"y1":32},"looks":["crouch0","crouch1","tele","teleRed","rise","fall","boing","squash","hit"],"png":"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"},"trompo":{"w":40,"h":40,"box":{"x0":6,"y0":12,"x1":34,"y1":40},"looks":["spin0","spin1","spin2","spin3","stun","stunWobble","squash"],"png":"iVBORw0KGgoAAAANSUhEUgAAARgAAAAoCAYAAAAlg+WVAAAFT0lEQVR4nO2dvW7UUBCFt0ER78ATQINog+AdKHmUFKGjoKBGFJFoqGloaZCoQNQ0KEIUUCEQfdCscqLxMPf6en1/ZrPnSKPVejfs5+uZ4/tjm82GoiiKoiiKoiiKoiiKoiiKokRHN25eSIzmyCkyI9koKiFJvr+/vm0jaiJGZiQbRWW0D0kYmZFsFJXpKuskfP/h63/f6dnFjsxINopKKHUm09u9JOx5BozMSDaKymgfkjAyI9koKqNUV9luzyWh18U+FEayUVRCqTOZxPePZ5P4+fbhxfnJo6vPc2fAQ2EkG0VllEomJJ0XSMTRBhOBkWwUlZHXVZYElETLxenjB9ku9qEwko2iEvK6y3PJ5yUjosWyZmRGslFUQmuTL5WISMbrzkg2ikpIkuTl60+TuPXwbFUc37k/iRpFEpWRbDQZKiFJjvMnzyfx5d7pf6ETyvvc+86z47uTWFMkJYwlYfdBuLBtF8aabDbWtp9mk/3TbHPHsjUbdSDSSfjnzettlBiITs7U9hYGM8e4xGRgKnhdW8Q12FoYDPZV2EpOFDQYqppsgeTOwFhBkCj5rJXBrO0laE7hwvsaBrOUTZaCWxsM9g9sqWMYxWAwgZyKWr9zXflCqbSLj6TE2U8naOqziEMkyzlyiKSvN+nRg4HZeMcwisFgzsi2KWJ0b6mUj0ZzKRrMGIPxLmo7dIPBaleugEcWseXTvXbdS9zG5QWKPflCigbDHkxUg8kVsHxPVrR6FrHmszmP9gTjCL6QkgaQBCk1GG+uJfVZTYMpYSw1GB015mB2ZYOxtDQYvX9e0UYxGH2tTmkBP3133q2IPT7NpN+P4AutXUxm7rMWCVjbZMC2q7m0YKtdwNpkwBbNXDaqgGVoIUWZK2BhQAFL9LjgL8dnX3HS6Mnn8YaahN52p08eTe6mXRK5qz9bXckbiTFy+4ENfJHYNqZ4lxTw7VcvtgUsf9uyiOf4vGEn+CQ0Xw8j9Ibto+evruCk8eSgff7xextopLlIXfVZe/myBV9NA4zaftjPaHy2eHcpYBhnC5PJ8Xm9rBRfS0bLijksazaT9+pRHC1YspBIQok1CdgCnnzXh+9IPSqiRgHjXqnaPWaPb25eMsVXm9Gy2lU4OzzSk+R6jqir0ciPSSPAcZfeANd6zKn5ckyR+TRjFL7UsW7F17qAWxpgyQR+ik8C93DVNkOPD79j+XCS6TmEmwCXmsyIO2znijhnMBH4cgYziq/UYHr1ENYW8NoibmWAmm8No+6Z2Dkiay7WZLwhZnejKTGZkbfv54p4ZPHuM589zi359ORzywLe9Y7vHF9uGX0XvqWMekgkv6VZ0X7WVPT7JT2spitQSMKS3suImWny7TcfCkMzrC1g+bds4a41GY8vt4zu8em29Ap4KZdeEfQMpkYPsMujOXJJGOHBQ+Tbbz78PqK0gDHZnJoj0oW7hn+Oz1tGR6F7fLXmh+yxwra1BuMZdPNh09HlTV7SgPLa3NXId1B8uohThatv75gr4J58dhk9x1d7iKl7WNZgSodIJQbdTPYsYBMwQnFA5FunkXw1CrhlQXh8qWV0j68XG/j0VdY6sD1ngN1yEgn3Xv3/OXjsYtQCicinDToiHzSaD4WytIB7FYXm0/d4WTaPrxebNRhtMnpbTwNMAqPR0HXWJhOtOKBofGhHazKWLwLrZnD7LS3g3kVh+XIRhW+uB9PdWDQszAWBQol49oUi8ek21AZt+awJjWYe2X7e2da7uXJUW+0D37F69Ihm1e9HMk5gbejtQ+EyisTnTZZ5fFF4N0Haz8u9CFxQZL4cWyvGf6Wl2JWRO1kdAAAAAElFTkSuQmCC"}};
+const ENEMIES = [
+  { kind: 'paloma', name: 'Paloma', sub: 'Rock pigeon · Columba livia · the bird of “Cucurrucucú paloma”',
+    lore: 'Every Mexican plaza has its pigeons, fat and fearless, strutting under the stalls with that head-bob as if they ran the place, and Tomás Méndez’s huapango made their coo the most famous refrain in Mexico. Walk up and it puffs itself up the way a courting pigeon does, neck ruff flared, tail fanned, then claps its wings and hops into the air to let you pass. Rush it and you meet the puff head-on.',
+    facts: [['Box', '14 × 12 px'], ['Beaten by', 'stomp, claw, fireball; or walk under it'], ['Telegraph', '0.5 s puff, flashing red'], ['Colours', 'pigeon grey, a teal and rosa sheen, pink feet']],
+    moves: ['Strut', 'Startled', 'Stomped', 'Clawed'] },
+  { kind: 'chapulin', name: 'Chapulín', sub: 'Sphenarium purpurascens · the grasshopper of Chapultepec',
+    lore: 'Chapultepec, the great hill park of Mexico City, is Chapoltepēc in Nahuatl, “hill of the grasshopper”, and its glyph in the Codex Mendoza is a green chapulín with a red mouth. This is that grasshopper. The real species has no wings, only tiny wing pads, so it can only hop: wind up, spring, land, again. Read the arc and step past. Land on an awning and the cloth flings it sky-high.',
+    facts: [['Box', '12 × 10 px'], ['Beaten by', 'stomp, claw, fireball'], ['Telegraph', 'the last 0.5 s of its crouch, flashing red'], ['Colours', 'the darker leaf green, yellow belly, rosa shins and mouth']],
+    moves: ['Hop', 'On an awning', 'Stomped', 'Clawed'] },
+  { kind: 'trompo', name: 'Trompo', sub: 'The wooden top of the toy stall · la troya',
+    lore: 'Turned wood, lacquer bands and an iron nail for a tip: the trompo every Mexican kid winds with a cord and throws, and plays la troya with, trying to split a rival’s top. This one spins on its own, its painted face going round and round, three pale tacks on its crown saying “don’t land here”. Knock it over with a claw and it lies there dizzy for a second: that is when a stomp beats it.',
+    facts: [['Box', '14 × 14 px'], ['Beaten by', 'claw or fireball to topple it, then a stomp'], ['Not stompable', 'while it spins: three pale tacks'], ['Colours', 'warm wood, rosa, teal, yellow and cobalt bands']],
+    moves: ['Spin', 'Claw, then stomp', 'Gets back up'] },
+];
+const images = {};
+let roof = false;
+const W = 360, H = 200, FLOOR = 184; // drawing px; the floor line
+const look = (kind, name) => SHEETS[kind].looks.indexOf(name);
+const mod = (n, m) => ((n % m) + m) % m;
+const flash = (age) => Math.floor(age / 4) % 2 === 0;
+
+function paintGround(ctx) {
+  if (roof) {
+    ctx.fillStyle = '#86BEE0'; ctx.fillRect(0, 0, W, 70); ctx.fillStyle = '#A9D3EA'; ctx.fillRect(0, 70, W, 60); ctx.fillStyle = '#CFE8F1'; ctx.fillRect(0, 130, W, FLOOR - 130);
+    ctx.fillStyle = '#C3C6DE'; for (let i = 0; i < 6; i++) ctx.fillRect(10 + i * 62, 150 - (i % 3) * 8, 40, FLOOR - 150 + (i % 3) * 8);
+    ctx.fillStyle = '#E07A52'; ctx.fillRect(0, FLOOR, W, 4); ctx.fillStyle = '#C45E3E'; ctx.fillRect(0, FLOOR + 4, W, 6); ctx.fillStyle = '#8A3B30'; ctx.fillRect(0, FLOOR + 10, W, H);
+  } else {
+    ctx.fillStyle = '#A9D3EA'; ctx.fillRect(0, 0, W, 40);
+    ctx.fillStyle = '#F2B0A6'; ctx.fillRect(0, 40, W, FLOOR - 40);
+    ctx.fillStyle = '#E07F8E'; for (let x = 0; x < W; x += 90) ctx.fillRect(x + 50, 40, 40, FLOOR - 40);
+    ctx.fillStyle = '#1C3F9E'; ctx.fillRect(0, 120, W, 3); ctx.fillStyle = '#F4EFE2'; for (let x = 0; x < W; x += 8) ctx.fillRect(x, 121, 4, 1);
+    ctx.fillStyle = '#4E4A78'; ctx.fillRect(0, FLOOR, W, H);
+    ctx.fillStyle = '#E4CC9E'; ctx.fillRect(0, FLOOR, W, 2);
+  }
+}
+/** Draws frame `i` of `kind`, its middle across at x, its bottom at y (or its middle at y when centred). */
+function sprite(ctx, kind, i, x, y, { flip = false, centred = false } = {}) {
+  const s = SHEETS[kind];
+  const mid = s.box ? (s.box.x0 + s.box.x1) / 2 : s.w / 2;
+  const dx = Math.round(flip ? x - (s.w - mid) : x - mid), dy = Math.round(centred ? y - s.h / 2 : y - s.h);
+  ctx.save();
+  if (flip) { ctx.translate(dx * 2 + s.w, 0); ctx.scale(-1, 1); }
+  ctx.drawImage(images[kind], i * s.w, 0, s.w, s.h, dx, dy, s.w, s.h);
+  ctx.restore();
+}
+const poncho = (ctx, x = 34, flip = false, y = FLOOR) => sprite(ctx, 'poncho', 0, x, y + 1, { flip });
+const ponchoWalk = (ctx, x, flip = false) => sprite(ctx, 'ponchoRun', mod(Math.floor(x / 16), 4), x, FLOOR + 1, { flip });
+/** The defeat: `squash` or `hit` (rising 12 drawing px) for 8 steps, then the four poof frames, 4 steps each, centred on the box. */
+function defeat(ctx, kind, t, x, feet, how, flip) {
+  const s = SHEETS[kind];
+  if (t < 8) return sprite(ctx, kind, look(kind, how), x, how === 'hit' ? feet - Math.round(12 * t / 8) : feet, { flip });
+  if (t < 24) sprite(ctx, 'poof', Math.floor((t - 8) / 4), x, feet - (s.box.y1 - s.box.y0) / 2, { centred: true });
+}
+function awning(ctx, x0, w, top) {
+  ctx.fillStyle = '#3B2B3C'; ctx.fillRect(x0 + 2, top, 3, FLOOR - top); ctx.fillRect(x0 + w - 5, top, 3, FLOOR - top);
+  ctx.fillStyle = '#070509'; ctx.fillRect(x0 - 1, top - 1, w + 2, 10);
+  for (let x = 0; x < w; x += 8) { ctx.fillStyle = (x / 8) % 2 ? '#F4EFE2' : '#D9327E'; ctx.fillRect(x0 + x, top, 8, 6); ctx.beginPath(); ctx.arc(x0 + x + 4, top + 6, 4, 0, Math.PI); ctx.fill(); }
+}
+/** A claw swipe: a pale arc in front of Poncho. */
+function swipe(ctx, x, k) {
+  ctx.strokeStyle = '#F4EFE2'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, FLOOR - 36, 30, -1.2 + k * 1.4, -0.2 + k * 1.4); ctx.stroke();
+}
+
+// Speeds in game px per step are doubled into drawing px.
+const PAL = { walk: 2 / 3, sight: 96, tele: 30, rise: 20, hover: 60, descend: 40, lift: 80 };
+/** The Paloma's flight after a startle at step 0: [look, lift]. */
+function palomaFlight(t) {
+  if (t < PAL.tele) return [flash(t) ? 'teleRed' : 'tele', 0];
+  t -= PAL.tele;
+  if (t < PAL.rise) return ['flap' + mod(Math.floor(t / 4), 4), (t + 1) * 4];
+  t -= PAL.rise;
+  if (t < PAL.hover) return ['flap' + mod(Math.floor(t / 6), 4), PAL.lift + (Math.floor(t / 15) % 2 ? -4 : 0)];
+  t -= PAL.hover;
+  if (t < PAL.descend) return ['glide', PAL.lift - (t + 1) * 2];
+  return null;
+}
+/** Steps a hopper from (x, feet) — crouch 36, hop at 5 game px/step up and 1 across, gravity 0.4 — with awnings [x0, x1, top]. */
+function chapulin(t, x0, dir, awnings = [], bounds = [20, W - 20]) {
+  let x = x0, y = FLOOR, vy = 0, phase = 'crouch', age = 0, boing = false;
+  for (let i = 0; i < t; i++) {
+    if (phase === 'crouch') {
+      if (++age >= 36) { const nx = x + dir * 50; if (nx < bounds[0] || nx > bounds[1]) { dir = -dir; age = 0; } else { phase = 'air'; vy = -10; age = 0; boing = false; } }
+      continue;
+    }
+    const py = y; vy += 0.8; y += vy; x += dir * 2; age++;
+    const a = awnings.find(([a0, a1, top]) => x >= a0 && x <= a1 && py <= top && y >= top && vy > 0);
+    if (a) { y = a[2]; vy = -16; boing = true; continue; }
+    if (y >= FLOOR) { y = FLOOR; phase = 'crouch'; age = 0; if (x < bounds[0] || x > bounds[1]) dir = -dir; }
+  }
+  const lk = phase === 'crouch' ? (age >= 6 ? (flash(age - 6) ? 'teleRed' : 'tele') : 'crouch0') : boing && vy < 0 ? 'boing' : vy < 0 ? 'rise' : 'fall';
+  const idle = phase === 'crouch' && age < 6 ? 'crouch' + (Math.floor(t / 20) % 2) : lk;
+  return { x, y, dir, look: idle };
+}
+const TRO = { speed: 7 / 3 };
+
+const MOVES = {
+  paloma: [
+    [600, (c, t) => { poncho(c); const d = t % 600, fwd = d < 300; const x = 120 + (fwd ? d : 600 - d) * PAL.walk; sprite(c, 'paloma', look('paloma', 'walk' + mod(Math.floor(x / 4), 4)), x, FLOOR, { flip: !fwd }); }],
+    [420, (c, t) => {
+      const bird = 230; const px = Math.min(30 + t * 1.2, 400);
+      const start = Math.ceil((bird - PAL.sight - 30) / 1.2);
+      let lk = 'walk0', lift = 0;
+      if (t >= start) { const f = palomaFlight(t - start); if (f) [lk, lift] = f; else lk = 'walk' + mod(Math.floor((t - start) / 6), 4); }
+      sprite(c, 'paloma', look('paloma', lk), bird, FLOOR - lift, { flip: true });
+      const waiting = t >= start && t < start + PAL.tele + 18;
+      const wx = waiting ? 30 + start * 1.2 : px - (Math.min(PAL.tele + 18, Math.max(0, t - start))) * 1.2;
+      ponchoWalk(c, Math.min(wx, 400));
+    }],
+    [110, (c, t) => { poncho(c); const x = 260 - Math.min(t, 60) * PAL.walk; if (t < 60) sprite(c, 'paloma', look('paloma', 'walk' + mod(Math.floor(x / 4), 4)), x, FLOOR, { flip: true }); else defeat(c, 'paloma', t - 60, x, FLOOR, 'squash', true); }],
+    [110, (c, t) => { poncho(c); const x = 260 - Math.min(t, 60) * PAL.walk; if (t < 60) sprite(c, 'paloma', look('paloma', 'walk' + mod(Math.floor(x / 4), 4)), x, FLOOR, { flip: true }); else defeat(c, 'paloma', t - 60, x, FLOOR, 'hit', true); }],
+  ],
+  chapulin: [
+    [480, (c, t) => { poncho(c); const h = chapulin(t, 120, 1, [], [100, 330]); sprite(c, 'chapulin', look('chapulin', h.look), h.x, h.y, { flip: h.dir < 0 }); }],
+    [300, (c, t) => { poncho(c); awning(c, 150, 128, FLOOR - 20); const h = chapulin(t, 110, 1, [[150, 278, FLOOR - 20]], [0, W]); sprite(c, 'chapulin', look('chapulin', h.look), h.x, h.y, { flip: h.dir < 0 }); }],
+    [110, (c, t) => { poncho(c); if (t < 60) { const h = chapulin(t + 24, 240, -1, [], [0, W]); return sprite(c, 'chapulin', look('chapulin', h.look), h.x, h.y, { flip: true }); } defeat(c, 'chapulin', t - 60, 240, FLOOR, 'squash', true); }],
+    [110, (c, t) => { poncho(c); if (t < 60) { const h = chapulin(t + 24, 240, -1, [], [0, W]); return sprite(c, 'chapulin', look('chapulin', h.look), h.x, h.y, { flip: true }); } defeat(c, 'chapulin', t - 60, 240, FLOOR, 'hit', true); }],
+  ],
+  trompo: [
+    [300, (c, t) => { poncho(c); const span = 300 - 110, d = mod(t * TRO.speed, span * 2), fwd = d < span; const x = 110 + (fwd ? d : span * 2 - d); sprite(c, 'trompo', look('trompo', 'spin' + mod(Math.floor(t / 3), 4)), x, FLOOR + 1, { flip: !fwd }); }],
+    [190, (c, t) => {
+      const px = 120, hitAt = Math.ceil((320 - (px + 48)) / TRO.speed);
+      const x = 320 - Math.min(t, hitAt) * TRO.speed;
+      if (t < hitAt) { poncho(c, px); return sprite(c, 'trompo', look('trompo', 'spin' + mod(Math.floor(t / 3), 4)), x, FLOOR + 1, { flip: true }); }
+      const s = t - hitAt;
+      const hop = 24, air = 26;
+      if (s < 8) { poncho(c, px); swipe(c, px + 12, s / 8); }
+      else if (s < hop) poncho(c, px);
+      else if (s < hop + air) { const k = (s - hop) / air; poncho(c, px + (x - px) * k, false, FLOOR - 60 * 4 * k * (1 - k) - (k > 0.5 ? 0 : 0)); }
+      else poncho(c, x - 4, false, FLOOR - 16);
+      if (s < hop + air) sprite(c, 'trompo', look('trompo', s >= 30 && Math.floor(s / 4) % 2 === 0 ? 'stunWobble' : 'stun'), x, FLOOR + 1, { flip: true });
+      else defeat(c, 'trompo', s - hop - air, x, FLOOR + 1, 'squash', true);
+    }],
+    [200, (c, t) => { poncho(c); const x = 200; if (t < 60) return sprite(c, 'trompo', look('trompo', t >= 30 && Math.floor(t / 4) % 2 === 0 ? 'stunWobble' : 'stun'), x, FLOOR + 1, { flip: true }); sprite(c, 'trompo', look('trompo', 'spin' + mod(Math.floor(t / 3), 4)), x - (t - 60) * TRO.speed * 0.5, FLOOR + 1, { flip: true }); }],
+  ],
+};
+
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const stages = [];
+function frameStrip(kind, el) {
+  const s = SHEETS[kind];
+  s.looks.forEach((name, i) => { const f = document.createElement('figure'); const fc = document.createElement('canvas'); fc.width = s.w; fc.height = s.h; fc.style.width = s.w * 2 + 'px'; fc.getContext('2d').drawImage(images[kind], i * s.w, 0, s.w, s.h, 0, 0, s.w, s.h); const cap = document.createElement('figcaption'); cap.textContent = name; f.append(fc, cap); el.append(f); });
+}
+function build() {
+  const list = document.getElementById('list');
+  for (const e of ENEMIES) {
+    const sec = document.createElement('section'); sec.className = 'enemy'; sec.setAttribute('aria-labelledby', 'h-' + e.kind);
+    const stage = document.createElement('div'); stage.className = 'stage';
+    const cv = document.createElement('canvas'); cv.className = 'scene'; cv.width = W; cv.height = H; cv.setAttribute('role', 'img'); cv.setAttribute('aria-label', e.name + ' animation');
+    const moves = document.createElement('div'); moves.className = 'moves'; moves.setAttribute('role', 'group'); moves.setAttribute('aria-label', e.name + ' moves');
+    const st = { kind: e.kind, ctx: cv.getContext('2d'), move: 0, t: 0, buttons: [] };
+    e.moves.forEach((m, i) => { const b = document.createElement('button'); b.type = 'button'; b.id = `m-${e.kind}-${i}`; b.textContent = m; b.setAttribute('aria-pressed', String(i === 0)); b.onclick = () => { st.move = i; st.t = 0; st.buttons.forEach((x, j) => x.setAttribute('aria-pressed', String(j === i))); if (reduce) draw(st); }; st.buttons.push(b); moves.append(b); });
+    stage.append(cv, moves);
+    const info = document.createElement('div'); info.className = 'info';
+    info.innerHTML = `<h2 id="h-${e.kind}">${e.name}<small>${e.sub}</small></h2><p>${e.lore}</p><dl>${e.facts.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>`;
+    const frames = document.createElement('div'); frames.className = 'frames';
+    frameStrip(e.kind, frames);
+    sec.append(stage, info, frames); list.append(sec); stages.push(st);
+  }
+}
+function draw(st) { const [, fn] = MOVES[st.kind][st.move]; st.ctx.imageSmoothingEnabled = false; paintGround(st.ctx); fn(st.ctx, st.t); }
+function setGround(r) { roof = r; document.getElementById('g-calle').setAttribute('aria-pressed', String(!r)); document.getElementById('g-azotea').setAttribute('aria-pressed', String(r)); stages.forEach(draw); }
+document.getElementById('g-calle').onclick = () => setGround(false);
+document.getElementById('g-azotea').onclick = () => setGround(true);
+
+async function start() {
+  await Promise.all(Object.entries(SHEETS).map(([k, s]) => new Promise((ok) => { const im = new Image(); im.onload = ok; im.src = 'data:image/png;base64,' + s.png; images[k] = im; })));
+  build();
+  window.__setStep = (n) => stages.forEach((st) => { st.t = n % MOVES[st.kind][st.move][0]; draw(st); });
+  window.__setMove = (k, i) => document.getElementById(`m-${k}-${i}`).click();
+  stages.forEach(draw);
+  if (reduce) return;
+  let last = performance.now(), acc = 0;
+  const tick = (now) => { acc += Math.min(250, now - last); last = now; let n = 0; while (acc >= 1000 / 60) { acc -= 1000 / 60; n++; } if (n) stages.forEach((st) => { st.t = (st.t + n) % MOVES[st.kind][st.move][0]; draw(st); }); requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+}
+start();
+</script>
