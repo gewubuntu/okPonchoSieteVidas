@@ -67,8 +67,11 @@ test('GDD-MOV-08 real keys: hold left against the wall, then Space kicks off it'
   await page.evaluate((p) => window.__PONCHO__!.teleport(p.x, p.y), WALL);
   await page.keyboard.down('ArrowLeft');
   await page.waitForFunction(() => window.__PONCHO__!.state().clinging === true && window.__PONCHO__!.state().vy === 60);
+  // The kick rises for only about 15 steps once Space is let go, so the wait starts polling before the press, not after
+  // it returns: on a slow runner the press's 60 ms hold and its round trip could outlast the rise.
+  const kicked = page.waitForFunction(() => window.__PONCHO__!.state().vx > 0 && window.__PONCHO__!.state().vy < 0);
   await page.keyboard.press('Space', { delay: 60 });
-  await page.waitForFunction(() => window.__PONCHO__!.state().vx > 0 && window.__PONCHO__!.state().vy < 0);
+  await kicked;
   await page.keyboard.up('ArrowLeft');
 });
 
