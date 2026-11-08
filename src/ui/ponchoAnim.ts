@@ -1,4 +1,5 @@
-// GDD-ART-04: which frame of Poncho's sheet shows. Pure, no Phaser: the scene feeds it one simulation step at a time.
+// GDD-ART-04: the run frames of Poncho's sheet, by the distance run. Pure, no Phaser: `ponchoPose.ts` feeds it one simulation step at a
+// time and shows its run frame when no other pose comes first.
 import { ANIM } from '../config/tuning';
 
 export interface PonchoAnim {

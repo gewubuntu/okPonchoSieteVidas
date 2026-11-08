@@ -5,17 +5,14 @@
 /** Scenery folders: backdrops and tiles, not characters (one per art set, `src/ui/scenery/looks.ts`). */
 export const SCENERY = ['desierto', 'mercado'];
 
-/**
- * Sheets that have no fit test yet, each with the reason. Poncho's two looks are the user's drawing standing on the frame's bottom row;
- * his new frames (GDD-ART-04) bring his fit tests, and this entry goes with them.
- */
-export const EXEMPT = { 'poncho.png': "Poncho's standing frame and run cycle stand on the frame's bottom row; his GDD-ART-04 frames bring his fit tests" };
+/** Sheets that have no fit test yet, each with the reason. None now: Poncho's frames (GDD-ART-04) brought his. */
+export const EXEMPT = {};
 
 /**
- * The sheets the rule covers, from the entries of `assets/sprites/` (`{ name, dir }`): every folder but the scenery ones, and every PNG
- * at its top.
+ * The sheets the rule covers, from the entries of `assets/sprites/` (`{ name, dir }`): every folder but the scenery ones, named with its
+ * trailing slash (so `sprites/poncho.png` never counts for the `sprites/poncho/` folder, L-059), and every PNG at its top.
  */
-export const sheetsOf = (entries) => entries.filter((e) => (e.dir ? !SCENERY.includes(e.name) : e.name.endsWith('.png'))).map((e) => e.name);
+export const sheetsOf = (entries) => entries.filter((e) => (e.dir ? !SCENERY.includes(e.name) : e.name.endsWith('.png'))).map((e) => (e.dir ? `${e.name}/` : e.name));
 
 /** The errors for sheets with no test (`{ path, text }`) that cites L-059 and names them, but the exempt ones. */
 export function spriteFitErrors(sheets, tests, exempt = EXEMPT) {

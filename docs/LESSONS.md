@@ -199,7 +199,8 @@ Retired IDs: L-046
 - **Recurrence 9 (2026-11-01, PR #68, found by the review):** after the mirrored layout, GDD-CTL-03's slide stick and claw bullets still said Jump stays on the right, the switch sits above the left thumb zone and the claw sits left of Jump. The hunt searched for the stick's quarter but not for the words a mirror makes false: the sides ("left", "right") in the section the change edits.
 - **Recurrence 10 (2026-11-03, PR #74, GDD-BOS-02, found by the review):** after the boss arena 1-4 joined World 1, GDD-UI-05 still said "1-1, 1-2 and 1-3 have neither" (tips nor placeholder lines) and GDD-LIFE-03's veladora list named no boss arena; the backlog rows of PWR-03, TEC-04, CMB-01, CMB-03 and UI-01 still described the game without him. The skill's family-list search was run, but by a regex that demanded 90 characters before each match, so a list near the start of a line never showed; and `harness-gdd-update` step 1 already asked for the touched IDs' backlog rows to be searched, but I did not do it. Both skills' family-list search now names `docs/BACKLOG.md` and a plain pattern with no context length.
 - **Recurrence 11 (2026-11-04, PR #77, found by the review):** the GDD still said "Only his lowered wings reach below his box's bottom" after the tumbling frames that also reach below it were added; the hunt for "only" was skipped because the sentence sat in a paragraph the PR edited elsewhere. Fixed in 02fae7d; the art test already pinned the frames' depths, so the code was right and only the prose went stale.
-- **Recurrence:** 11
+- **Recurrence 12 (2026-11-08, PR #80, GDD-ART-04, found by the review):** after Poncho's animations were built, GDD-CMB-02 still said "Not built yet: the swing pose" a sentence after describing it, GDD-MOV-05 still gave an 80 ms landing squash on every landing, GDD-ART-04's Built bullet still said five frames of 160 x 160, and the backlog rows of CMB-02 and MOV-05 still said "pending". The hunt searched for "placeholder" and the frame sizes but not for "Not built yet" and "pending" across the sections whose features the PR draws.
+- **Recurrence:** 12
 - **Promoted:** .claude/skills/harness-feature (Update docs step, which now also searches for the path of every test file or block the feature deletes or moves, and since recurrence 8 for the lists a new member of a family must join and a full re-read of each edited section, since recurrence 10 in `docs/BACKLOG.md` too, with a plain pattern; its Push and pull request step runs the retro on the review's findings) and .claude/skills/harness-gdd-update (step 1, the same hunt for GDD edits made outside a feature, with the same plain list pattern since recurrence 10). Guard: none (which sentences a change makes false takes reading the GDD; the pr-reviewer's consistency audit is the backstop).
 
 ## L-014 A claim about where things are in the sandbox level had no test
@@ -669,8 +670,8 @@ Retired IDs: L-046
 - **Root cause:** The frames were designed one by one as poses, not against the places the game draws them: the plan listed which mode picks each frame, but not where his box is in that mode.
 - **Rule:** When planning a sprite's frames, list for each frame every place the game shows it (in the air, resting on the floor, rising from it, against a wall, on a sand slope), pin in an art test how far each frame reaches past its box and that none is cut off by its frame's edge, and test over the real level or fight that at every step the frame shown fits the room it has there, slope sand counting as ground and the player placed so that every frame is posed (`scripts/art/boss.test.mjs`, `src/levels/level1-4.test.ts`, `scripts/art/enemies1.levels.test.mjs`).
 - **Recurrence 2 (2026-11-04, PR #75 re-review):** my fix for the first finding checked only the frames shown resting on the floor; the reviewer measured the fight and found the flap's lowered wings 2 to 14 px into the floor for the last 5 steps of every phase 2 drop and the climb's for 4 steps off the floor. The same check also showed the lowered wings had been cut off by the frame's bottom edge, which the outline test missed because it treated the edge as filled. Now: the lowered wings are shorter and fit their frame, an edge counts as empty in the outline test, the art test pins that only the lowered wings reach below his box (14 px, `BOSS_ART.wingsBelow`), `bossPose` keeps them raised within 14 px of the floor, and a test runs the bot through the whole 1-4 fight checking every frame shown against the floor.
-- **Recurrence:** 4
-- **Promoted:** .claude/skills/harness-feature step 5 (Sprite frames; since the fourth time it names slopes and asks that every frame be posed: 2026-11-05, PR #79 re-review, the first level test counted only level tiles as ground and kept Poncho at his spawn, so slope sand and every reaction frame went unchecked; the guard below ensures a fit test exists, not that it covers the frames). Guard for Don Zopilote: `scripts/art/boss.test.mjs` ("only his lowered wings reach below his box") and `src/levels/level1-4.test.ts` ("through the whole fight no frame of his reaches into the floor"); a new sprite got its own only from the skill step, until the third time (2026-11-05, PR #79 review: World 1's enemy sprites shipped with neither test; the plan, written from the art brief, never applied the skill step, and the Tlacuache's tail was drawn 5 px over pen walls unpinned). Guard: `scripts/check.mjs` (`sprite-fit`, `scripts/sprite-fit.mjs`): every character sprite sheet must be named by a test that cites L-059.
+- **Recurrence:** 5
+- **Promoted:** .claude/skills/harness-feature step 5 (Sprite frames; the fifth time, 2026-11-08, PR #80 review: the walking taco's and the piñata chile's bob frames reached below their feet, unpinned, and the guard passed because it matched names as substrings, so `sprites/poncho.png` counted for the `sprites/poncho/` folder; the guard now names folders with their trailing slash; since the fourth time it names slopes and asks that every frame be posed: 2026-11-05, PR #79 re-review, the first level test counted only level tiles as ground and kept Poncho at his spawn, so slope sand and every reaction frame went unchecked; the guard below ensures a fit test exists, not that it covers the frames). Guard for Don Zopilote: `scripts/art/boss.test.mjs` ("only his lowered wings reach below his box") and `src/levels/level1-4.test.ts` ("through the whole fight no frame of his reaches into the floor"); a new sprite got its own only from the skill step, until the third time (2026-11-05, PR #79 review: World 1's enemy sprites shipped with neither test; the plan, written from the art brief, never applied the skill step, and the Tlacuache's tail was drawn 5 px over pen walls unpinned). Guard: `scripts/check.mjs` (`sprite-fit`, `scripts/sprite-fit.mjs`): every character sprite sheet must be named by a test that cites L-059.
 
 ## L-060 Parallel worktrees on one machine would run their playtests against each other's dev server
 
@@ -729,5 +730,35 @@ Retired IDs: L-046
 - **What went wrong:** Four artist agents drew World 1's enemies in parallel and each wrote its zoom helper to the scratchpad's top level as `zoom.mjs`; they overwrote one another's, and three of them lost a review round finding out and moving their files into subfolders.
 - **Root cause:** The brief gave every agent the same scratchpad path and no folder of its own, so the same obvious file names collided.
 - **Rule:** A brief for parallel agents gives each one its own scratch folder (`<scratchpad>/<agent's task>/`) for every file it writes there, and names any shared output path (a preview image) per agent.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-066 The user rejected art the main session had passed on without its own side-by-side review
+
+- **Date:** 2026-11-08
+- **Area:** art, process
+- **What went wrong:** For Poncho's front-view victory pose, the main session sent the artist's previews to the user after checking only the numbers it had asked for (rows, widths). The user answered "now your slacking ... do consistent work": next to the side drawing the front view was flat, its poncho a plain box, its ears cut-outs. Three more rounds followed, two of them failing the main session's own later side-by-side review (a noisy poncho, a pompom crown, round "innocent" eyes against the references' determined ones).
+- **Root cause:** The main session reviewed the artist's measurements, not the picture: it did not set the new art beside the approved sprite and the user's references at the same scale before showing it, so craft gaps a glance would catch reached the user.
+- **Rule:** Before showing art to the user, the main session builds one sheet with the new art, the approved art it must match and the user's references, at the same height and at game size, and reviews it against a written list (silhouette, shading depth, pattern, face, proportions); it sends the art only when every item passes, and says in the message what it checked.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-067 A plan too big for one implementer run stopped at the turn limit
+
+- **Date:** 2026-11-08
+- **Area:** process, harness
+- **What went wrong:** The plan for Poncho's animations in the game (the sheet, the pose module, the scene, the items, the stand-in specs, the level fit test, 80 mutants, the shots) ran the implementer into its 150-turn limit with no report; it had to be resumed to finish.
+- **Root cause:** One plan held several features' worth of work, and nothing sized a plan against the implementer's turn budget.
+- **Rule:** A plan with more than about four independent parts (art build, pure logic, scene wiring, playtests, rewritten specs, mutants) is split into phases, each its own implementer run with its own report; the main session checks each before starting the next.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-068 A one-row sprite sheet grew past the texture size a phone can load
+
+- **Date:** 2026-11-08
+- **Area:** art
+- **What went wrong:** The plan asked for Poncho's 31 frames in one row; the sheet came out 5952 px wide, past the 4096 px texture limit of some phones' WebGL, and had to be wrapped into rows of 8.
+- **Root cause:** The plan copied the one-row layout of smaller sheets without checking the width the frame count gives.
+- **Rule:** A sprite sheet stays at most 4096 px on each side; a plan names the sheet's columns when its frames would pass that in one row, and the art test pins the width (`scripts/art/poncho.test.mjs` does).
 - **Recurrence:** 1
 - **Promoted:** no

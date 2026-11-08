@@ -75,9 +75,87 @@ export const SLOPE = { stepPx: 4 } as const;
 /** GDD-MOV-06: body hitbox for ground and walls, hurtbox for enemies and hazards, sprite frame. */
 export const HITBOX = { width: 12, height: 32 } as const;
 export const HURTBOX = { width: 10, height: 30 } as const;
-export const SPRITE_FRAME = 40;
+export const SPRITE_FRAME = 48;
 /** GDD-ART-04: the run frames play on the ground at `runMinSpeed` px/s or more, one frame for every `runFramePx` px run, `runFrames` of them. */
 export const ANIM = { runMinSpeed: 10, runFramePx: 8, runFrames: 4 } as const;
+
+/**
+ * GDD-ART-04: Poncho's frames (`frame` game px square, `SPRITE_FRAME`) and which one shows (`src/ui/ponchoPose.ts`). A hit that costs his
+ * power shows hurt0 then hurt1 for `hurtSteps`; after a claw swing clawFollow shows for `followSteps`, with swipe2 then swipe3 for
+ * `followSwipeSteps`; a fireball spat shows spit0 then spit1 for `spitSteps`, spit1 with flame0 then flame1 for `flameSteps`; a taco or
+ * chile eaten shows eat0 then eat1 for `eatSteps`, eat1 with crumbs0 then crumbs1 for `crumbSteps`. In the air: jump0 for `takeoffSteps`
+ * from a takeoff, then by his vertical speed (px/s, down positive) jump1 under `riseVy`, apex under `apexVy`, fall0 under `fastFallVy`,
+ * else fall1. Landing from a fall at `landMinVy` or faster shows land for `landSteps`. On the ground at `skidMinSpeed` or more against the
+ * way he faces he skids. Standing, he blinks for the last `blinkSteps` of every `blinkEvery` and, in Taco or Fuego, glances at the taco for
+ * `glanceSteps` of every `glanceEvery`. `reach` is how far each frame's drawing reaches past his body box (game px), behind it, in front,
+ * above and below (L-059); only the respawn flip, drawn in the air, may reach below his feet. A pickup shows its next bob frame every
+ * `pickup.bobSteps` of the run's clock and its glint for the last `pickup.glintSteps` of every `pickup.glintEvery`; `pickup.reach` is how far
+ * its frames reach past its 12 px square at most (L-059), the square's middle on the frame's middle. A taco or chile out of a piñata, standing
+ * on its feet, is drawn `reach.below` higher than its square, so no bob frame reaches below its feet.
+ */
+export const PONCHO_ART = {
+  frame: SPRITE_FRAME,
+  hurtSteps: [6, 18],
+  followSteps: 10,
+  followSwipeSteps: [3, 3],
+  spitSteps: [2, 8],
+  flameSteps: [4, 4],
+  eatSteps: [10, 14],
+  crumbSteps: [6, 6],
+  takeoffSteps: 4,
+  riseVy: -120,
+  apexVy: 60,
+  fastFallVy: 250,
+  landSteps: 6,
+  landMinVy: 150,
+  skidMinSpeed: 40,
+  blinkSteps: 6,
+  blinkEvery: 180,
+  glanceSteps: 40,
+  glanceEvery: 360,
+  reach: {
+    idle: { behind: 6, front: 10, above: 3.5, below: 0 },
+    run0: { behind: 6, front: 10, above: 4, below: 0 },
+    run1: { behind: 6, front: 10, above: 6, below: 0 },
+    run2: { behind: 6, front: 10, above: 5, below: 0 },
+    run3: { behind: 6.5, front: 10, above: 4.5, below: 0 },
+    blink: { behind: 6, front: 10, above: 3.5, below: 0 },
+    glance: { behind: 6, front: 10, above: 3, below: 0 },
+    jump0: { behind: 11.5, front: 9.5, above: 5.5, below: 0 },
+    jump1: { behind: 12, front: 10, above: 6.5, below: 0 },
+    apex: { behind: 6, front: 10, above: 5, below: 0 },
+    fall0: { behind: 8.5, front: 10, above: 6, below: 0 },
+    fall1: { behind: 8, front: 9.5, above: 7.5, below: 0 },
+    land: { behind: 12, front: 11, above: 0.5, below: 0 },
+    skid: { behind: 7.5, front: 8, above: 3, below: 0 },
+    flip0: { behind: 6.5, front: 10.5, above: 5, below: 0 },
+    flip1: { behind: 9.5, front: 13.5, above: 2, below: 0 },
+    flip2: { behind: 9.5, front: 12, above: 1.5, below: 0 },
+    flip3: { behind: 10.5, front: 9, above: 4.5, below: 0 },
+    flip4: { behind: 8.5, front: 8.5, above: 4.5, below: 0 },
+    flip5: { behind: 11.5, front: 11.5, above: 5.5, below: 0 },
+    flip6: { behind: 10, front: 11.5, above: 3.5, below: 0 },
+    flip7: { behind: 7, front: 12.5, above: 6.5, below: 0 },
+    clawWind: { behind: 13, front: 9, above: 3, below: 0 },
+    clawSwipe: { behind: 10.5, front: 14.5, above: 3, below: 0 },
+    clawFollow: { behind: 5.5, front: 11.5, above: 3, below: 0 },
+    hurt0: { behind: 8, front: 5, above: 5, below: 0 },
+    hurt1: { behind: 8, front: 4.5, above: 11, below: 0 },
+    eat0: { behind: 6, front: 12, above: 4.5, below: 0 },
+    eat1: { behind: 6.5, front: 13, above: 1.5, below: 0 },
+    spit0: { behind: 13, front: 8.5, above: 4, below: 0 },
+    spit1: { behind: 10.5, front: 10, above: 5, below: 0 },
+  },
+  pickup: {
+    bobSteps: 8,
+    glintEvery: 120,
+    glintSteps: 8,
+    reach: {
+      taco: { behind: 0.5, front: 0.5, above: 0.5, below: 0.5 },
+      chile: { behind: 0, front: 0.5, above: 1, below: 1 },
+    },
+  },
+} as const;
 
 /** GDD-WLD-05: a spike tile hurts only in its lower half, the full tile wide, so a graze over the points is safe. */
 export const SPIKE = { height: TILE / 2 } as const;

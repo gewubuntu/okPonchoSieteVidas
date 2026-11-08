@@ -80,7 +80,7 @@ test('GDD-UI-02 the veil dims the level and the HUD, and Poncho stands on it in 
   await openGame(page);
   await page.waitForTimeout(300);
   const { ponchoRight } = await api(page, () => window.__PONCHO__!.titleDrawn());
-  const titlePoncho = { x: ponchoRight - 20 + 13.25, y: 104 - 30.25 }; // his frame is 40 px wide
+  const titlePoncho = { x: ponchoRight - 24 + 13.25, y: 104 - 30.25 }; // his frame is 48 px wide (GDD-ART-04)
   const [floorDim, hudDim, ponchoDim] = await pixelsAt(page, [floorTile, hudTriangle, titlePoncho]);
   await page.keyboard.press('Enter');
   await started(page);

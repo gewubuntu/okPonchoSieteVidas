@@ -22,6 +22,11 @@ import zopilotePng from '../../assets/sprites/enemies/zopilote.png';
 import cactusPng from '../../assets/sprites/enemies/cactus.png';
 import tlacuachePng from '../../assets/sprites/enemies/tlacuache.png';
 import poofPng from '../../assets/sprites/enemies/poof.png';
+import tacoPng from '../../assets/sprites/poncho/taco.png';
+import chilePng from '../../assets/sprites/poncho/chile.png';
+import heldPng from '../../assets/sprites/poncho/held.png';
+import swipePng from '../../assets/sprites/poncho/swipe.png';
+import fxPng from '../../assets/sprites/poncho/fx.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import jumpOgg from '../../assets/audio/sfx/jump.ogg';
@@ -48,7 +53,6 @@ import bossDefeatOgg from '../../assets/audio/sfx/boss-defeat.ogg';
 import bossDefeatMp3 from '../../assets/audio/sfx/boss-defeat.mp3';
 import { activateOfrenda, collectVeladora, isOutOfLives, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
-import { clawBox } from '../sim/claw';
 import { ESTRELLA, FIREBALL, FRUIT, ROCK } from '../config/tuning';
 import { estrellaStart } from '../sim/estrella';
 import { estrellaPose, tejocoteBoxes } from '../ui/estrellaPose';
@@ -77,7 +81,9 @@ import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
 import { HILO_COLOURS, HILO_HUD, hiloColour, hiloCounterRight, hiloCounterText } from '../ui/hiloCounter';
 import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
 import { gamePoint } from '../ui/gamePoint';
-import { startAnim, stepAnim, STAND, type PonchoAnim } from '../ui/ponchoAnim';
+import { ITEM_FRAMES } from '../ui/ponchoFrames';
+import { ITEM_LOOKS, ITEM_SHEETS, itemFrame, ponchoFrame, ponchoLookAt, type FxLook, type HeldLook, type ItemLook, type ItemSheet, type PonchoLook, type SwipeLook } from '../ui/ponchoLooks';
+import { itemAt, pickupLook, ponchoParts, startPose, stepPose, type PonchoPose } from '../ui/ponchoPose';
 import { layoutPauseMenu, layoutResultsMenu, layoutTitleMenu, pauseMenuItemAt, resultsMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
 import { languageValueX, layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
 import { LANGUAGE_NAMES, TEXT } from '../ui/text';
@@ -89,6 +95,8 @@ import { hasMarketThings, loadMarketThings, MarketThings, type MarketDrawn } fro
 
 /** GDD-ENM-02: World 1's enemy sheets and the defeat poof's. */
 const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, poof: poofPng };
+/** GDD-ART-04: the taco and chile pickups, what Poncho holds, the claw swipe and the effects at his mouth, one sheet each (`ITEM_LOOKS`). */
+const ITEM_PNGS: Readonly<Record<ItemSheet, string>> = { taco: tacoPng, chile: chilePng, held: heldPng, swipe: swipePng, fx: fxPng };
 /** A sheet's frames stand on their bottom middle (a walker's feet), or the Zopilote's and the poof's on their middle. */
 const centred = (sheet: Sheet): boolean => sheet === 'zopilote' || sheet === 'poof';
 
@@ -211,8 +219,8 @@ export interface PonchoDebug {
   bodyAlpha(): number;
   /** Where the body is drawn: feet position, and turn in radians (GDD-LIFE-02 respawn flip). */
   bodyPose(): { x: number; y: number; rotation: number };
-  /** Poncho's sprite as passed to Phaser (GDD-ART-04): the sheet frame, whether it is mirrored, its displayed size and its bottom edge and middle in game px. */
-  ponchoSprite(): { frame: number; flipX: boolean; width: number; height: number; bottom: number; centerX: number };
+  /** Poncho's sprite as passed to Phaser (GDD-ART-04): the sheet frame and its look (read from the image), whether it is mirrored, its displayed size and its bottom edge and middle in game px. */
+  ponchoSprite(): { frame: number; look: PonchoLook; flipX: boolean; width: number; height: number; bottom: number; centerX: number };
   /** Each ofrenda as drawn: its id and whether it is drawn as used. Read from what was drawn, not from the game state. */
   ofrendas(): { id: string; x: number; used: boolean }[];
   /** Every sound effect asked for so far, in order (GDD-AUD-02); a hilo note is `hilo:<semitones>`. Browsers keep audio locked until a first gesture. */
@@ -319,9 +327,18 @@ export interface PonchoDebug {
   hudHilos(): { text: string; right: number; top: number; iconX: number };
   /** Whether the taco in Poncho's hand and the power-up icon on the HUD are drawn. Read from what was drawn. */
   heldTacoVisible(): boolean;
-  /** Each piñata as drawn: whether it is drawn open (GDD-PWR-05). And the walking tacos as drawn: where their feet are (GDD-PWR-02). */
+  /**
+   * GDD-ART-04: what Poncho holds as drawn (the held image's look, its middle, game px, and its opacity, or null while it is hidden), and the effects
+   * drawn at his mouth (the spit's flame, the crumbs of a bite), read from the images.
+   */
+  heldDrawn(): { look: HeldLook; x: number; y: number; alpha: number } | null;
+  fxDrawn(): { look: FxLook; x: number; y: number }[];
+  /**
+   * Each piñata as drawn: whether it is drawn open (GDD-PWR-05). And the walking tacos and the chiles as drawn: where their feet are
+   * (GDD-PWR-02), and the middle of their frame, read from the image (GDD-ART-04).
+   */
   pinatasDrawn(): boolean[];
-  itemsDrawn(): { x: number; y: number; kind: string }[];
+  itemsDrawn(): { x: number; y: number; kind: string; frameAt: { x: number; y: number } }[];
   /** Keys Poncho carries, the keys still drawn on the floor, the doors drawn open, and the key icons on the HUD (GDD-WLD-05). Read from what was drawn. */
   keysHeld(): number;
   keysDrawn(): number;
@@ -331,7 +348,12 @@ export interface PonchoDebug {
   claw(): 'idle' | 'windup' | 'swing';
   /** How many swings have started since the page loaded (GDD-CMB-02). */
   swings(): number;
+  /**
+   * What was drawn for the claw (GDD-CMB-02, GDD-ART-04), read from the images: 'windup' while his frame is clawWind, 'swing' while a swipe
+   * frame is shown (the swing and the follow-through after it); and the swipe's look, its middle and whether it is mirrored, or null.
+   */
   clawDrawn(): 'none' | 'windup' | 'swing';
+  swipeDrawn(): { look: SwipeLook; x: number; y: number; flipX: boolean } | null;
   fragilesDrawn(): number;
   hudPowerIcon(): boolean;
   /** The power-up state painted in Poncho's hand and on the HUD, and the fireballs in the simulation and the ones painted (GDD-PWR-03). */
@@ -492,9 +514,13 @@ export class PlayScene extends Phaser.Scene {
   private blockGfx!: Phaser.GameObjects.Graphics;
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
-  private tacoGfx!: Phaser.GameObjects.Graphics;
-  private heldGfx!: Phaser.GameObjects.Graphics;
-  private tacosKey = '';
+  /** GDD-PWR-02, GDD-ART-04: the level's taco pickups, one image each, and what Poncho holds, the claw swipe and the effect at his mouth. */
+  private tacoImages: Phaser.GameObjects.Image[] = [];
+  private heldImage!: Phaser.GameObjects.Image;
+  private swipeImage!: Phaser.GameObjects.Image;
+  private fxImage!: Phaser.GameObjects.Image;
+  /** GDD-UI-01: the power-up icon on the HUD. */
+  private hudPowerImage!: Phaser.GameObjects.Image;
   private hiloGfx!: Phaser.GameObjects.Graphics;
   /** GDD-WLD-04, GDD-PRG-02: the hilos saved in an earlier run, painted at `HILO.savedAlpha`. */
   private hiloFadedGfx!: Phaser.GameObjects.Graphics;
@@ -511,13 +537,14 @@ export class PlayScene extends Phaser.Scene {
   private doorsPaintedShut: boolean[] = [];
   private keysPainted = 0;
   private pinataGfx!: Phaser.GameObjects.Graphics;
-  private itemGfx!: Phaser.GameObjects.Graphics;
+  /** GDD-PWR-02, GDD-PWR-03: the tacos and chiles out of the piñatas, a pool of images reused frame to frame. */
+  private itemImages: Phaser.GameObjects.Image[] = [];
   private pinatasKey = '';
   private doorGfx!: Phaser.GameObjects.Graphics;
   private keyGfx!: Phaser.GameObjects.Graphics;
   private doorsKey = '';
   private hudKeyCount = 0;
-  private itemsDrawn: { x: number; y: number; kind: string }[] = [];
+  private itemsDrawn: { x: number; y: number; kind: string; frameAt: { x: number; y: number } }[] = [];
   private hudPower: Power = 'base';
   private heldPower: Power = 'base';
   private fireballGfx!: Phaser.GameObjects.Graphics;
@@ -634,8 +661,8 @@ export class PlayScene extends Phaser.Scene {
   /** Poncho (GDD-ART-04): his sheet frame at the box's feet, in a container at the middle of the body box, with the glide and cling placeholders. */
   private body!: Phaser.GameObjects.Container;
   private bodySprite!: Phaser.GameObjects.Image;
-  /** GDD-ART-04: which frame shows, advanced by each simulation step. */
-  private anim: PonchoAnim;
+  /** GDD-ART-04: which frame shows and what is drawn with it, advanced by each simulation step. */
+  private pose: PonchoPose;
   /** GDD-MOV-07: the poncho spread like a parachute over the body while gliding (placeholder). */
   private glideGfx!: Phaser.GameObjects.Graphics;
   /** GDD-MOV-08: claw marks on the wall side of the body while sliding down a wall (placeholder), and the side drawn. */
@@ -646,7 +673,6 @@ export class PlayScene extends Phaser.Scene {
   private readonly pad = new GamepadReader();
   private keys!: Record<'left' | 'right' | 'jump' | 'claw' | 'fuego', Phaser.Input.Keyboard.Key[]>;
   private fragileGfx!: Phaser.GameObjects.Graphics;
-  private clawGfx!: Phaser.GameObjects.Graphics;
   private fragilesKey = '';
   private fragilesPainted = 0;
   /** L-006: key presses latched from raw key events, so a tap shorter than a frame still reaches a step. */
@@ -727,13 +753,15 @@ export class PlayScene extends Phaser.Scene {
     this.restartsWorld = restart;
     this.run = startRun(this.level);
     this.prevPlayer = this.run.player;
-    this.anim = startAnim(this.run.player.x);
+    this.pose = startPose(this.run.player.x);
     this.tipsDoneNow = (entry.tips ?? []).map(() => false);
   }
 
   preload(): void {
-    // GDD-ART-04: the standing frame and the four run frames, each SPRITE_FRAME game px wide (160 art px).
+    // GDD-ART-04: his frames in one row (`PONCHO_LOOKS`), each SPRITE_FRAME game px square (192 art px), and the item sheets (always, they
+    // are small): the pickups, what he holds, the claw swipe and the effects, their frames in drawing px, two to a game px.
     this.load.spritesheet('poncho', ponchoPng, { frameWidth: SPRITE_FRAME * ART_SCALE, frameHeight: SPRITE_FRAME * ART_SCALE });
+    for (const sheet of ITEM_SHEETS) this.load.spritesheet(`poncho-${sheet}`, ITEM_PNGS[sheet], { frameWidth: (ITEM_FRAMES[sheet].w / 2) * ART_SCALE, frameHeight: (ITEM_FRAMES[sheet].h / 2) * ART_SCALE });
     // GDD-ART-06: the backdrop, the decor and the ground sheet of the level's world, and of no other.
     this.scenery.preload(this.load);
     // GDD-BOS-02: Don Zopilote's sheet (BOSS_ART.columns frames across, 35 in all), his cactus fruit (falling, lying) and the arena's rock.
@@ -807,6 +835,7 @@ export class PlayScene extends Phaser.Scene {
 
     // GDD-UI-01: seven life triangles, top-left, above the camera so they stay put.
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(10);
+    this.hudPowerImage = this.add.image(0, 0, 'poncho-held', 0).setScale(1 / ART_SCALE).setScrollFactor(0).setDepth(10).setVisible(false);
     this.drawHud();
     // GDD-UI-01: the boss bar, top middle, in a boss level only: his name over one pip per hit he has left. Drawn with the HUD.
     this.bossName = this.add.text(BASE_WIDTH / 2, BOSS_BAR.nameY, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff3dc', stroke: BOSS_BAR.nameStroke, strokeThickness: BOSS_BAR.nameStrokePx }).setOrigin(0.5).setScrollFactor(0).setDepth(10).setVisible(isBossLevel(this.level));
@@ -819,12 +848,15 @@ export class PlayScene extends Phaser.Scene {
     this.drawVeladora();
     this.drawSpikes();
     this.drawSprings();
-    this.tacoGfx = this.add.graphics().setDepth(2);
+    this.tacoImages = this.level.tacos.map(() => this.add.image(0, 0, 'poncho-taco', 0).setScale(1 / ART_SCALE).setDepth(2));
     this.drawTacos();
     this.hiloGfx = this.add.graphics().setDepth(2);
     this.hiloFadedGfx = this.add.graphics().setDepth(2).setAlpha(HILO.savedAlpha);
     this.drawHilos();
-    this.heldGfx = this.add.graphics().setDepth(4);
+    // GDD-ART-04: just above his body; the swipe in front of what he holds.
+    this.heldImage = this.add.image(0, 0, 'poncho-held', 0).setScale(1 / ART_SCALE).setDepth(3.5).setVisible(false);
+    this.fxImage = this.add.image(0, 0, 'poncho-fx', 0).setScale(1 / ART_SCALE).setDepth(3.5).setVisible(false);
+    this.swipeImage = this.add.image(0, 0, 'poncho-swipe', 0).setScale(1 / ART_SCALE).setDepth(3.6).setVisible(false);
     this.fireballGfx = this.add.graphics().setDepth(4);
     this.enemyGfx = this.add.graphics().setDepth(3);
     this.bossSprite = this.add.image(0, 0, 'boss', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3).setVisible(false);
@@ -833,13 +865,11 @@ export class PlayScene extends Phaser.Scene {
     this.estrellaGfx = this.add.graphics().setDepth(3);
     this.pinataGfx = this.add.graphics().setDepth(1);
     this.drawPinatas();
-    this.itemGfx = this.add.graphics().setDepth(2);
     this.doorGfx = this.add.graphics().setDepth(1);
     this.keyGfx = this.add.graphics().setDepth(2);
     this.drawDoorsAndKeys();
     this.fragileGfx = this.add.graphics().setDepth(1);
     this.drawFragiles();
-    this.clawGfx = this.add.graphics().setDepth(5);
     this.platformGfx = this.add.graphics().setDepth(1);
     this.market = hasMarketThings(this.level) ? new MarketThings(this, this.level) : null;
     this.blockGfx = this.add.graphics().setDepth(1);
@@ -897,7 +927,7 @@ export class PlayScene extends Phaser.Scene {
     // bottom), scaled from art pixels to game pixels.
     this.body = this.add
       .container(this.run.player.x, this.run.player.y - HITBOX.height / 2, [
-        (this.bodySprite = this.add.image(0, HITBOX.height / 2, 'poncho', STAND).setOrigin(0.5, 1).setScale(1 / ART_SCALE)),
+        (this.bodySprite = this.add.image(0, HITBOX.height / 2, 'poncho', ponchoFrame('idle')).setOrigin(0.5, 1).setScale(1 / ART_SCALE)),
         (this.glideGfx = this.paintGlide()),
         (this.clingGfx = this.add.graphics().setVisible(false)),
       ])
@@ -1060,7 +1090,7 @@ export class PlayScene extends Phaser.Scene {
     this.titleSubtitle = this.add.text(BASE_WIDTH / 2, 96, 'Siete Vidas', { fontFamily: 'monospace', fontSize: '16px', color: '#fff3dc' }).setOrigin(0.5);
     // GDD-UI-02: his standing frame beside the title, placed by `drawTitle` once the lines' widths are known.
     this.titlePoncho = this.add.container(BASE_WIDTH / 2, TITLE_PONCHO.feetY, [
-      (this.titlePonchoSprite = this.add.image(0, 0, 'poncho', STAND).setOrigin(0.5, 1).setScale(1 / ART_SCALE)),
+      (this.titlePonchoSprite = this.add.image(0, 0, 'poncho', ponchoFrame('idle')).setOrigin(0.5, 1).setScale(1 / ART_SCALE)),
     ]);
     this.titlePromptText = this.add.text(BASE_WIDTH / 2, 190, '', { fontFamily: 'monospace', fontSize: '12px', color: '#9ba3c4' }).setOrigin(0.5);
     // The title menu, drawn like the pause menu; upright it gives way to the prompt.
@@ -1127,6 +1157,7 @@ export class PlayScene extends Phaser.Scene {
         bodyPose: () => ({ x: this.body.x, y: this.body.y + HITBOX.height / 2, rotation: this.body.rotation }),
         ponchoSprite: () => ({
           frame: Number(this.bodySprite.frame.name),
+          look: ponchoLookAt(Number(this.bodySprite.frame.name)),
           flipX: this.bodySprite.flipX,
           width: this.bodySprite.displayWidth,
           height: this.bodySprite.displayHeight,
@@ -1225,7 +1256,9 @@ export class PlayScene extends Phaser.Scene {
         hilos: () => ({ taken: hilosCollected(this.run.hilosTaken), total: this.level.hilos?.length ?? 0, drawn: this.hilosPainted, faded: this.hilosFaded }),
         progress: () => this.progress,
         hudHilos: () => ({ text: this.hiloText.text, right: this.hiloText.x, top: this.hiloText.y, iconX: this.hiloIconX }),
-        heldTacoVisible: () => this.heldGfx.visible,
+        heldTacoVisible: () => this.heldImage.visible,
+        heldDrawn: () => (this.heldImage.visible ? { look: ITEM_LOOKS.held[Number(this.heldImage.frame.name)]!, x: this.heldImage.x, y: this.heldImage.y, alpha: this.heldImage.alpha } : null),
+        fxDrawn: () => (this.fxImage.visible ? [{ look: ITEM_LOOKS.fx[Number(this.fxImage.frame.name)]!, x: this.fxImage.x, y: this.fxImage.y }] : []),
         hudPowerIcon: () => this.hudPower !== 'base',
         heldPowerDrawn: () => this.heldPower,
         hudPowerDrawn: () => this.hudPower,
@@ -1277,6 +1310,7 @@ export class PlayScene extends Phaser.Scene {
         claw: () => this.run.claw.phase,
         swings: () => this.swings,
         clawDrawn: () => this.clawPainted,
+        swipeDrawn: () => (this.swipeImage.visible ? { look: ITEM_LOOKS.swipe[Number(this.swipeImage.frame.name)]!, x: this.swipeImage.x, y: this.swipeImage.y, flipX: this.swipeImage.flipX } : null),
         fragilesDrawn: () => this.fragilesPainted,
         sfx: () => this.sfxLog,
         touch: () => this.touch.debug(),
@@ -1373,38 +1407,6 @@ export class PlayScene extends Phaser.Scene {
       this.blockGfx.fillStyle(0x3a3a3a, 1);
       for (const [sx, sy] of [[1, 1], [at.w - 3, 1], [1, at.h - 3], [at.w - 3, at.h - 3]] as const) this.blockGfx.fillRect(at.x + sx, at.y + sy, 2, 2);
     }
-  }
-
-  /**
-   * Placeholder taco (GDD-PWR-02, GDD-VIS-01): a tan shell folded into a half circle, green lettuce along the open edge and
-   * two red tomato dots. `size` is the width in px. Used for the pickup, the taco in Poncho's hand and the HUD icon.
-   */
-  private paintTaco(g: Phaser.GameObjects.Graphics, cx: number, cy: number, size: number): void {
-    const r = size / 2;
-    g.fillStyle(0xe8b755, 1).beginPath().arc(cx, cy + r / 2, r, Math.PI, 0, false).closePath().fillPath();
-    g.fillStyle(0x6fae4a, 1).fillRect(cx - r, cy + r / 2 - 1, size, 1);
-    g.fillStyle(0xc2392d, 1).fillRect(cx - r / 2, cy - 1, 1.5, 1.5).fillRect(cx + r / 4, cy - 1.5, 1.5, 1.5);
-    g.lineStyle(1, 0x5a3a14, 1).beginPath().arc(cx, cy + r / 2, r, Math.PI, 0, false).strokePath();
-  }
-
-  /**
-   * Placeholder chile (GDD-PWR-03): a curved red pepper with a green stem, on a soft orange glow so it reads as hot. `size` is
-   * its length in px. Used for the pepper from a piñata, the chile in Poncho's hand and the HUD icon.
-   */
-  private paintChile(g: Phaser.GameObjects.Graphics, cx: number, cy: number, size: number): void {
-    const r = size / 2;
-    g.fillStyle(0xffd27a, 0.45).fillCircle(cx, cy, r + 1.5);
-    g.fillStyle(0xd1281c, 1).fillTriangle(cx - r, cy - r * 0.2, cx + r * 0.5, cy - r * 0.6, cx + r, cy + r * 0.7);
-    g.fillStyle(0xd1281c, 1).fillTriangle(cx - r, cy - r * 0.2, cx + r, cy + r * 0.7, cx - r * 0.1, cy + r * 0.5);
-    g.fillStyle(0x4f9a3a, 1).fillRect(cx - r - 1, cy - r * 0.5, 2.5, 2.5);
-    g.lineStyle(1, 0x5e0f0a, 1).lineBetween(cx - r, cy - r * 0.2, cx + r, cy + r * 0.7);
-  }
-
-  /** The tacos and the chile in Poncho's hand: a taco, and for Fuego a glowing chile tucked beside it. */
-  private paintHeld(g: Phaser.GameObjects.Graphics, cx: number, cy: number, power: Power, size: number): void {
-    if (power === 'base') return;
-    this.paintTaco(g, cx, cy, size);
-    if (power === 'fuego') this.paintChile(g, cx + size * 0.55, cy - size * 0.35, size * 0.8);
   }
 
   /**
@@ -1613,15 +1615,17 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-  /** The taco pickups still waiting in the level (GDD-PWR-02). Redrawn when one is picked up or they all come back. */
+  /**
+   * The taco pickups still waiting in the level (GDD-PWR-02), each centred on its square in the middle of its tile, floating by the run's
+   * clock (`pickupLook`, GDD-ART-04). Drawn every frame.
+   */
   private drawTacos(): void {
-    this.tacosKey = this.run.tacosTaken.join();
-    this.tacoGfx.clear();
     this.tacosPainted = 0;
     this.level.tacos.forEach((t, i) => {
-      if (this.run.tacosTaken[i]) return;
+      const image = this.tacoImages[i]!.setVisible(!this.run.tacosTaken[i]);
+      if (!image.visible) return;
       this.tacosPainted++;
-      this.paintTaco(this.tacoGfx, t.col * TILE + TILE / 2, t.row * TILE + TILE / 2 - 1, 12);
+      image.setFrame(itemFrame('taco', pickupLook('taco', this.run.clock))).setPosition(t.col * TILE + TILE / 2, t.row * TILE + TILE / 2);
     });
   }
 
@@ -1723,32 +1727,6 @@ export class PlayScene extends Phaser.Scene {
     });
   }
 
-  /**
-   * The claw swipe (GDD-CMB-02): while winding up, a small raised paw mark in front of Poncho; while swinging, three slanted
-   * pale slashes across the hit box, so the reach shows. Read from the simulation, drawn every frame.
-   */
-  private drawClaw(): void {
-    const { player, claw } = this.run;
-    this.clawGfx.clear();
-    this.clawPainted = 'none';
-    if (this.run.phase !== 'playing' || claw.phase === 'idle') return;
-    const dir = claw.dir;
-    if (claw.phase === 'windup') {
-      this.clawPainted = 'windup';
-      const px = player.x + dir * (HITBOX.width / 2 + 2);
-      this.clawGfx.fillStyle(0xfff3dc, 1).fillCircle(px, player.y - HITBOX.height - 1, 2);
-      return;
-    }
-    const box = clawBox(player, claw);
-    if (!box) return;
-    this.clawPainted = 'swing';
-    this.clawGfx.lineStyle(2, 0xfff3dc, 1);
-    for (let i = 0; i < 3; i++) {
-      const x = dir > 0 ? box.x0 + 3 + i * 6 : box.x1 - 3 - i * 6;
-      this.clawGfx.lineBetween(x, box.y0, x + dir * 4, box.y1);
-    }
-  }
-
   /** A small golden key: a ring for the head, a shaft and two teeth. `size` is the height in px. */
   private paintKey(g: Phaser.GameObjects.Graphics, cx: number, cy: number, size: number): void {
     const u = size / 12;
@@ -1785,14 +1763,20 @@ export class PlayScene extends Phaser.Scene {
     });
   }
 
-  /** The tacos walking about after a piñata (GDD-PWR-02), drawn where the simulation has them. */
+  /**
+   * The tacos walking about after a piñata (GDD-PWR-02) and the chiles on top of them (GDD-PWR-03), drawn where the simulation has them:
+   * standing on their feet, no bob frame below them (`itemAt`), floating by the run's clock like the level's tacos (GDD-ART-04).
+   */
   private drawItems(): void {
-    this.itemGfx.clear();
-    this.itemsDrawn = this.run.items.map((it) => ({ x: it.x, y: it.y, kind: it.kind }));
-    for (const it of this.run.items) {
-      if (it.kind === 'chile') this.paintChile(this.itemGfx, it.x, it.y - 6, 12);
-      else this.paintTaco(this.itemGfx, it.x, it.y - 7, 12);
-    }
+    while (this.itemImages.length < this.run.items.length) this.itemImages.push(this.add.image(0, 0, 'poncho-taco', 0).setScale(1 / ART_SCALE).setDepth(2));
+    this.itemImages.forEach((image, i) => {
+      const it = this.run.items[i];
+      image.setVisible(it !== undefined);
+      if (!it) return;
+      const at = itemAt(it.kind, it.x, it.y);
+      image.setTexture(`poncho-${it.kind}`, itemFrame(it.kind, pickupLook(it.kind, this.run.clock))).setPosition(at.x, at.y);
+    });
+    this.itemsDrawn = this.run.items.map((it, i) => ({ x: it.x, y: it.y, kind: it.kind, frameAt: { x: this.itemImages[i]!.x, y: this.itemImages[i]!.y } }));
   }
 
   /** Placeholder spring art (GDD-WLD-05): a red block with a pale zigzag coil and a bar on top, to read as springy and not as floor. */
@@ -1911,9 +1895,11 @@ export class PlayScene extends Phaser.Scene {
     this.cracks = updateCracks(this.cracks, this.drawnLives, this.run.lives.lives, this.ticks);
     this.drawnLives = this.run.lives.lives;
     this.cracksDrawn = [];
-    // GDD-UI-01: a small icon of the power-up state, to the right of the triangles. Nothing in Base.
+    // GDD-UI-01: a small icon of the power-up state, to the right of the triangles: the taco (GDD-ART-04's tacoFood), in Fuego the taco
+    // and the chile in his paw (chileHeld). Nothing in Base.
     this.hudPower = this.run.power;
-    this.paintHeld(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 6, LIVES_HUD.top + 3, this.run.power, 13);
+    this.hudPowerImage.setVisible(this.run.power !== 'base').setFrame(itemFrame('held', this.run.power === 'fuego' ? 'chileHeld' : 'tacoFood'));
+    this.hudPowerImage.setPosition(LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 6, LIVES_HUD.top + 5);
     // GDD-WLD-05: one small key per key Poncho carries, after the power-up icon.
     this.hudKeyCount = this.run.keysHeld;
     for (let i = 0; i < this.run.keysHeld; i++) this.paintKey(this.hud, LIVES_HUD.left + 7 * (LIVES_HUD.width + LIVES_HUD.gap) + 34 + i * 9, LIVES_HUD.top + 5, 12);
@@ -2090,7 +2076,7 @@ export class PlayScene extends Phaser.Scene {
       this.tipFade = stepTipFade(this.tipFade, activeTip(tips, this.run.player.x, this.run.phase, this.tipsDoneNow));
       this.tipStep++;
     }
-    this.anim = stepAnim(this.anim, this.run.player, this.run.phase === 'playing');
+    this.pose = stepPose(this.pose, before, this.run);
     if (before.claw.phase === 'idle' && this.run.claw.phase === 'windup') this.swings++;
     this.spits += this.run.fireballs.filter((f) => f.age === 0).length;
     const { player } = this.run;
@@ -2116,20 +2102,32 @@ export class PlayScene extends Phaser.Scene {
       // GDD-LIFE-02: hidden at first, then he drops in above the respawn point, turning once, and lands feet-first.
       const pose = flipPose(this.run.wait);
       const at = respawnPoint(this.run, this.level);
-      this.body.setPosition(at.x, at.y - pose.dy - HITBOX.height / 2).setRotation(pose.angle).setVisible(pose.visible);
+      // GDD-ART-04: the turn is drawn by the flip's frames (`stepPose`), so the body itself is not turned.
+      this.body.setPosition(at.x, at.y - pose.dy - HITBOX.height / 2).setRotation(0).setVisible(pose.visible);
     } else {
       this.body.setPosition(lerp(this.prevPlayer.x, player.x), lerp(this.prevPlayer.y, player.y) - HITBOX.height / 2).setRotation(0).setVisible(true);
     }
-    this.bodySprite.setFrame(this.anim.frame).setFlipX(player.facing < 0);
+    this.bodySprite.setFrame(this.pose.frame).setFlipX(this.pose.flip);
     this.glideGfx.setVisible(this.run.phase === 'playing' && player.gliding === true);
     this.paintCling(this.run.phase === 'playing' && player.clinging === true ? (player.wallSide ?? 0) : 0);
     // The blink phase comes from the invulnerability counter, so it is the same every time: bright for the first
     // 0.1 s after a respawn, then dim and bright in turn.
     this.body.setAlpha(Math.floor(this.run.invulnerable / BLINK_STEPS) % 2 === 1 ? 0.3 : 1);
-    // GDD-PWR-01: in Taco he holds a taco in front of him, on the side he faces. It follows the body, blink and all.
-    this.heldGfx.clear().setVisible(this.run.power !== 'base' && this.run.phase === 'playing').setAlpha(this.body.alpha);
-    this.heldPower = this.heldGfx.visible ? this.run.power : 'base';
-    if (this.heldGfx.visible) this.paintHeld(this.heldGfx, this.body.x + player.facing * (HITBOX.width / 2 + 1), this.body.y - 1, this.run.power, 10);
+    // GDD-PWR-01, GDD-ART-04: in Taco he holds a taco at his frame's hand, mirrored with him; it follows the body, blink and all. The claw
+    // swipe sits on the claw's box, the spit's flame and the crumbs of a bite at his frame's mouth (`ponchoParts`).
+    const parts = ponchoParts(this.pose, { ...player, x: this.body.x, y: this.body.y + HITBOX.height / 2 }, this.run.claw);
+    const place = (image: Phaser.GameObjects.Image, sheet: ItemSheet, part: { look: ItemLook; x: number; y: number } | null, flip: boolean) => {
+      image.setVisible(part !== null && this.body.visible);
+      if (part) image.setFrame(itemFrame(sheet, part.look)).setPosition(part.x, part.y).setFlipX(flip);
+    };
+    place(this.heldImage, 'held', parts.held, this.pose.flip);
+    this.heldImage.setAlpha(this.body.alpha);
+    place(this.swipeImage, 'swipe', parts.swipe, this.run.claw.dir < 0);
+    place(this.fxImage, 'fx', parts.fx, this.pose.flip);
+    this.heldPower = this.heldImage.visible ? this.run.power : 'base';
+    // L-010: what was drawn for the claw, read back from the images: his wind-up frame, or a swipe frame shown.
+    const look = ponchoLookAt(Number(this.bodySprite.frame.name));
+    this.clawPainted = this.swipeImage.visible ? 'swing' : this.body.visible && look === 'clawWind' ? 'windup' : 'none';
   }
 
   override update(_time: number, deltaMs: number): void {
@@ -2254,7 +2252,7 @@ export class PlayScene extends Phaser.Scene {
     // Redraw when the lives change, and on every step while a triangle is cracking.
     if (this.run.lives.lives !== this.drawnLives || this.cracks.length > 0 || this.pulseDrawn !== null || this.run.power !== this.hudPower || this.run.keysHeld !== this.hudKeyCount) this.drawHud();
     if (`${this.run.doorsOpen.join()}|${this.run.keysTaken.join()}` !== this.doorsKey) this.drawDoorsAndKeys();
-    if (this.run.tacosTaken.join() !== this.tacosKey) this.drawTacos();
+    this.drawTacos();
     if (this.hilosState() !== this.hilosKey) this.drawHilos();
     this.drawHiloCounter();
     this.drawBossBar();
@@ -2282,7 +2280,6 @@ export class PlayScene extends Phaser.Scene {
     if (this.level.veladora && veladoraUsed(this.run.lives, this.level.veladora) !== this.veladoraUsedDrawn) this.drawVeladora();
     this.renderBody(alpha);
     this.followBody();
-    this.drawClaw();
     // GDD-UI-02: from the frame of a language change every text is drawn in the new language.
     if (this.settings.language !== this.textLanguage) this.applyLanguage();
     // GDD-CTL-03: the touch buttons are drawn at the Button opacity in use from this frame.
@@ -2495,7 +2492,7 @@ export class PlayScene extends Phaser.Scene {
     }
     this.run = startRun(this.level, this.progress[this.entry.id]?.hilos, start.lives);
     this.prevPlayer = this.run.player;
-    this.anim = startAnim(this.run.player.x);
+    this.pose = startPose(this.run.player.x);
     this.peak = 0;
     this.hiloCombo = NO_COMBO;
     this.defeats = [];
