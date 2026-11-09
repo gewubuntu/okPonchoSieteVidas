@@ -815,3 +815,13 @@ Retired IDs: L-046
 - **Rule:** a playtest that steps and reads back in a loop runs the whole loop inside one `page.evaluate` (stepping, waiting for frames and collecting what it reads), and asserts on what it returns, as the Chapulín test in `e2e/enemies2.spec.ts` does.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-074 A per-frame value was worked out from the upright screen's layout while the rows were hidden
+
+- **Date:** 2026-11-09
+- **Area:** ui
+- **What went wrong:** the settings list's scroll (GDD-UI-02, PR #87) was worked out on every frame from the rows' height, upright frames included, where the rows are taller and fewer fit. Turned upright and back, the list had scrolled (`first` 0, then 3, then 1), against the GDD's "the list keeps its scroll". The upright playtest passed only because it picked Back, where the clamp happens to give the same scroll (found by the review).
+- **Root cause:** the plan said where the scroll is used but not on which frames it may change; the hidden (upright) state was not listed as a state the value must survive, and the test chose the one row for which the bug cancels out.
+- **Rule:** a value the scene keeps across frames and works out from a layout (a scroll, a chosen place) is only changed on frames where that layout is shown; a plan names each state that hides it (upright, paused, a screen over it) and plans a test through each with a case where the value would change (not one where a clamp lands on the same value).
+- **Recurrence:** 1
+- **Promoted:** no

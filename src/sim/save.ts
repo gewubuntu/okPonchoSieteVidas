@@ -2,7 +2,7 @@
 import { LIVES_MAX, VOLUME } from '../config/tuning';
 import { betterMedal, medal, type Medal } from './results';
 import type { Level, RunState } from './run';
-import { BUTTON_OPACITIES, DEFAULT_SETTINGS, LANGUAGES, TOUCH_LAYOUTS, type ButtonOpacity, type Language, type Settings, type TouchLayout } from './settings';
+import { BUTTON_OPACITIES, DEFAULT_SETTINGS, LANGUAGES, SCREEN_SHAKES, TOUCH_LAYOUTS, type ButtonOpacity, type Language, type ScreenShake, type Settings, type TouchLayout } from './settings';
 
 /** The local storage key of the save. */
 export const SAVE_KEY = 'poncho-siete-vidas';
@@ -62,6 +62,9 @@ const buttonOpacity = (value: unknown): ButtonOpacity => BUTTON_OPACITIES.find((
 /** GDD-CTL-03: a saved Layout: exactly `standard` or `mirrored`, else standard alone. */
 const layout = (value: unknown): TouchLayout => TOUCH_LAYOUTS.find((l) => l === value) ?? 'standard';
 
+/** GDD-UI-02, GDD-PRG-02: a saved Screen shake: exactly `on` or `off`, else on alone. */
+const shake = (value: unknown): ScreenShake => SCREEN_SHAKES.find((s) => s === value) ?? 'on';
+
 /** One saved level, or undefined when it is not an object. A part that does not read as the GDD says reads as none. */
 function levelProgress(value: unknown, hiloCount: number): LevelProgress | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
@@ -120,7 +123,7 @@ export function readSave(raw: string | null, fallback: Language = 'en', hiloCoun
   if (typeof data !== 'object' || data === null) return defaults;
   const { version, settings, progress, levels, run } = data as { version?: unknown; settings?: unknown; progress?: unknown; levels?: unknown; run?: unknown };
   if (version !== 1 || typeof settings !== 'object' || settings === null) return defaults;
-  const saved = settings as { master?: unknown; effects?: unknown; language?: unknown; buttonOpacity?: unknown; layout?: unknown };
+  const saved = settings as { master?: unknown; effects?: unknown; language?: unknown; buttonOpacity?: unknown; layout?: unknown; shake?: unknown };
   const tutorialPlayed = typeof progress === 'object' && progress !== null && (progress as { tutorialPlayed?: unknown }).tutorialPlayed === true;
   // GDD-LIFE-05: the lives of each world in `worlds`, a whole number from 0 to LIVES_MAX; anything else is left out (none kept).
   const kept = typeof progress === 'object' && progress !== null ? (progress as { worldLives?: unknown }).worldLives : undefined;
@@ -146,7 +149,7 @@ export function readSave(raw: string | null, fallback: Language = 'en', hiloCoun
     if (one) read[id] = one;
   }
   return {
-    settings: { master: volume(saved.master, DEFAULT_SETTINGS.master), effects: volume(saved.effects, DEFAULT_SETTINGS.effects), language: language(saved.language, fallback), buttonOpacity: buttonOpacity(saved.buttonOpacity), layout: layout(saved.layout) },
+    settings: { master: volume(saved.master, DEFAULT_SETTINGS.master), effects: volume(saved.effects, DEFAULT_SETTINGS.effects), language: language(saved.language, fallback), buttonOpacity: buttonOpacity(saved.buttonOpacity), layout: layout(saved.layout), shake: shake(saved.shake) },
     tutorialPlayed,
     worldLives,
     worldAt,
@@ -159,7 +162,7 @@ export function readSave(raw: string | null, fallback: Language = 'en', hiloCoun
 export const saveText = (data: SaveData): string =>
   JSON.stringify({
     version: 1,
-    settings: { master: data.settings.master, effects: data.settings.effects, language: data.settings.language, buttonOpacity: data.settings.buttonOpacity, layout: data.settings.layout },
+    settings: { master: data.settings.master, effects: data.settings.effects, language: data.settings.language, buttonOpacity: data.settings.buttonOpacity, layout: data.settings.layout, shake: data.settings.shake },
     progress: { tutorialPlayed: data.tutorialPlayed, worldLives: data.worldLives, worldAt: data.worldAt },
     levels: Object.fromEntries(
       Object.entries(data.levels).map(([id, p]) => [id, { hilos: p.hilos.map((h) => (h ? '1' : '0')).join(''), medal: p.medal, bestSteps: p.bestSteps, cleared: p.cleared }]),

@@ -65,7 +65,7 @@ import { buttonsDown, respawnPoint, restartRun, restarts, resumeRun, startRun, s
 import type { TileGrid } from '../sim/tilemap';
 import { isPortrait, pauseFrame, PLAYING, resumeHeld, type MenuItem, type PauseEvent, type PauseState } from '../sim/pause';
 import { checkpointRun, DEFAULT_SAVE, mergeLevels, readSave, recordClear, recordHilos, SAVE_KEY, saveText, type LevelProgress, type SavedRun } from '../sim/save';
-import { browserLanguage, DEFAULT_SETTINGS, sfxVolume, type Language, type Settings, type SettingsRow } from '../sim/settings';
+import { browserLanguage, DEFAULT_SETTINGS, SETTINGS_ROWS, sfxVolume, type Language, type Settings, type SettingsRow } from '../sim/settings';
 import { TITLE, titleAfterQuit, titleFrame, titleOpen, titlePonchoX, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
 import { hitStopSteps } from '../sim/hitStop';
@@ -89,6 +89,7 @@ import { ITEM_LOOKS, ITEM_SHEETS, itemFrame, ponchoFrame, ponchoLookAt, type FxL
 import { itemAt, pickupLook, ponchoParts, startPose, stepPose, type PonchoPose } from '../ui/ponchoPose';
 import { layoutPauseMenu, layoutResultsMenu, layoutTitleMenu, pauseMenuItemAt, resultsMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
 import { languageValueX, layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
+import { arrowTapTarget, rowsThatFit, scrollArrowAt, scrollArrows, scrollFirst, shownSettingsRows, type ScrollArrow } from '../ui/settingsScroll';
 import { LANGUAGE_NAMES, TEXT } from '../ui/text';
 import { BOSS_NAMES, bossBar } from '../ui/bossBar';
 import { bossFrame, bossFrameInfo, bossPipBoxes, bossPose, type BossLook } from '../ui/bossPose';
@@ -283,7 +284,7 @@ export interface PonchoDebug {
   /**
    * The settings screen as drawn (GDD-UI-02): whether it is shown, its title and its prompt line ("Turn your device sideways"
    * upright, empty otherwise), the menu it was opened from, its rows (the label, the bars drawn filled for a volume row, the language
-   * name for the Language row, the step's name for the Button opacity and Layout rows, null for Back, and the colour; for those three rows also the x of the name, in game px) and the row
+   * name for the Language row, the step's name for the Button opacity, Layout and Screen shake rows, null for Back, and the colour; for those four rows also the x of the name, in game px) and the row
    * the chosen look is on. The rows are empty and `chosen` null while it is hidden or upright.
    */
   settingsDrawn(): {
@@ -294,9 +295,15 @@ export interface PonchoDebug {
     rows: { item: SettingsRow; label: string; value: number | string | null; color: string; valueX?: number }[];
     chosen: SettingsRow | null;
   };
-  /** The settings screen's rows as laid out now, in game px, for tapping them (GDD-UI-02). */
+  /** The settings screen's rows shown now, each at its shown place in game px, for tapping them: a row scrolled out of the list is not there (GDD-UI-02). */
   settingsMenu(): SettingsMenuRow[];
-  /** The volumes, the language, the Button opacity and the Layout in use now (GDD-UI-02, GDD-AUD-01, GDD-CTL-03). */
+  /**
+   * The settings list's scroll as drawn (GDD-UI-02, "Scrolling"): the index in `SETTINGS_ROWS` of the first row shown (0 while the screen is
+   * closed), how many rows fit, the arrows drawn now (up first), each with its triangle's box and the box a tap on it is read in, in game px,
+   * and the rows whose name is drawn. `arrows` is empty while the screen is hidden or upright, or when all the rows fit.
+   */
+  settingsScroll(): { first: number; fit: number; arrows: ScrollArrow[]; labels: SettingsRow[] };
+  /** The volumes, the language, the Button opacity, the Layout and the Screen shake in use now (GDD-UI-02, GDD-AUD-01, GDD-CTL-03). */
   settings(): Settings;
   /** Whether the tutorial 0-1 has been started, in the browser's save or in this visit (GDD-UI-02, GDD-PRG-02). */
   tutorialPlayed(): boolean;
@@ -642,9 +649,13 @@ export class PlayScene extends Phaser.Scene {
   private settingsLanguageValue!: Phaser.GameObjects.Text;
   private settingsOpacityValue!: Phaser.GameObjects.Text;
   private settingsLayoutValue!: Phaser.GameObjects.Text;
+  private settingsShakeValue!: Phaser.GameObjects.Text;
   private settingsBars!: Phaser.GameObjects.Graphics;
   private settingsMarker!: Phaser.GameObjects.Text;
   private settingsRows: SettingsMenuRow[] = layoutSettingsMenu(1);
+  /** GDD-UI-02: the index of the first row the list shows (0 with the list at its top, where it opens), kept by `drawSettings` from the chosen row. */
+  private settingsFirst = 0;
+  private settingsScrollPainted: ReturnType<PonchoDebug['settingsScroll']> = { first: 0, fit: SETTINGS_ROWS.length, arrows: [], labels: [] };
   /** GDD-UI-02: the language every text was last set in, so a change is seen and the texts are set again. */
   private textLanguage: Language = DEFAULT_SETTINGS.language;
   private settingsPainted: ReturnType<PonchoDebug['settingsDrawn']> = { shown: false, title: '', prompt: '', from: null, rows: [], chosen: null };
@@ -1005,20 +1016,23 @@ export class PlayScene extends Phaser.Scene {
       language: this.add.text(0, 0, 'Language', menuStyle).setOrigin(0, 0.5),
       buttonOpacity: this.add.text(0, 0, 'Button opacity', menuStyle).setOrigin(0, 0.5),
       layout: this.add.text(0, 0, 'Layout', menuStyle).setOrigin(0, 0.5),
+      shake: this.add.text(0, 0, 'Screen shake', menuStyle).setOrigin(0, 0.5),
       back: this.add.text(0, 0, 'Back', menuStyle).setOrigin(0.5),
     };
-    // "<" and ">" for the two volume rows, the language row, the Button opacity row and the Layout row, left then right, row by row.
-    this.settingsArrows = ['<', '>', '<', '>', '<', '>', '<', '>', '<', '>'].map((c) => this.add.text(0, 0, c, menuStyle).setOrigin(0.5));
+    // "<" and ">" for the two volume rows, the language row, the Button opacity row, the Layout row and the Screen shake row, left then right, row by row.
+    this.settingsArrows = ['<', '>', '<', '>', '<', '>', '<', '>', '<', '>', '<', '>'].map((c) => this.add.text(0, 0, c, menuStyle).setOrigin(0.5));
     // GDD-UI-02: the chosen language's own name, where a volume row's bars are.
     this.settingsLanguageValue = this.add.text(0, 0, '', menuStyle).setOrigin(0.5);
     // GDD-CTL-03: the Button opacity step's name, in the same place.
     this.settingsOpacityValue = this.add.text(0, 0, '', menuStyle).setOrigin(0.5);
     // GDD-CTL-03: the Layout step's name, in the same place.
     this.settingsLayoutValue = this.add.text(0, 0, '', menuStyle).setOrigin(0.5);
+    // GDD-UI-02: the Screen shake step's name (On or Off), in the same place.
+    this.settingsShakeValue = this.add.text(0, 0, '', menuStyle).setOrigin(0.5);
     this.settingsBars = this.add.graphics();
     this.settingsMarker = this.add.text(0, 0, '>', menuStyle).setOrigin(1, 0.5);
     this.settingsScreen = this.add
-      .container(0, 0, [this.settingsVeil, this.settingsTitle, this.settingsPrompt, ...Object.values(this.settingsLabels), ...this.settingsArrows, this.settingsLanguageValue, this.settingsOpacityValue, this.settingsLayoutValue, this.settingsBars, this.settingsMarker])
+      .container(0, 0, [this.settingsVeil, this.settingsTitle, this.settingsPrompt, ...Object.values(this.settingsLabels), ...this.settingsArrows, this.settingsLanguageValue, this.settingsOpacityValue, this.settingsLayoutValue, this.settingsShakeValue, this.settingsBars, this.settingsMarker])
       .setScrollFactor(0)
       .setDepth(9.5)
       .setVisible(false);
@@ -1065,11 +1079,16 @@ export class PlayScene extends Phaser.Scene {
         return;
       }
       const k = this.scale.displaySize.width / BASE_WIDTH;
+      // GDD-UI-02: the settings list as drawn last: an arrow's tap box first, else the rows shown at their shown places.
+      const all = layoutSettingsMenu(k);
+      const fit = rowsThatFit(all[0]!.h);
+      const first = this.settingsFirst;
+      const arrow = scrollArrowAt(scrollArrows(all, first, fit, k), at.x, at.y);
       this.pauseEvents.push({
         pause: pauseMenuItemAt(layoutPauseMenu(k), at.x, at.y),
         title: titleMenuItemAt(layoutTitleMenu(k, this.title.hasContinue), at.x, at.y),
         results: resultsMenuItemAt(layoutResultsMenu(k), at.x, at.y),
-        settings: settingsTapAt(layoutSettingsMenu(k), at.x, at.y),
+        settings: arrow ? { row: arrowTapTarget(arrow, first, fit, all.length).row, side: null } : settingsTapAt(shownSettingsRows(all, first, fit), at.x, at.y),
       });
     });
     // It pauses by itself when the tab or window loses focus, or a phone is turned upright, and never resumes by itself.
@@ -1235,6 +1254,7 @@ export class PlayScene extends Phaser.Scene {
         clock: () => this.run.clock,
         settingsDrawn: () => this.settingsPainted,
         settingsMenu: () => this.settingsRows,
+        settingsScroll: () => this.settingsScrollPainted,
         settings: () => this.settings,
         tutorialPlayed: () => this.tutorialPlayed,
         step: (n, input = { move: 0, jumpHeld: false }) => {
@@ -2151,7 +2171,8 @@ export class PlayScene extends Phaser.Scene {
     const languageChanged = () => this.settings.language !== settingsBefore.language;
     const opacityChanged = () => this.settings.buttonOpacity !== settingsBefore.buttonOpacity;
     const layoutChanged = () => this.settings.layout !== settingsBefore.layout;
-    const settingsChanged = () => volumeChanged() || languageChanged() || opacityChanged() || layoutChanged();
+    const shakeChanged = () => this.settings.shake !== settingsBefore.shake;
+    const settingsChanged = () => volumeChanged() || languageChanged() || opacityChanged() || layoutChanged() || shakeChanged();
 
     // GDD-UI-02: the title screen. While it is up no step runs, and the pause events go to it: the title menu, its settings screen,
     // a tap that starts the level; Escape, P and losing focus do nothing on the menu. The button that started the level counts as
@@ -2222,7 +2243,7 @@ export class PlayScene extends Phaser.Scene {
     }
 
     // GDD-PRG-02: a change is saved at once. GDD-UI-02: a volume change plays the jump sound at the new volume, so the player hears
-    // it, and a language, Button opacity or Layout change plays nothing; a setting already at its end changes nothing, so nothing is saved or played.
+    // it, and a language, Button opacity, Layout or Screen shake change plays nothing; a setting already at its end changes nothing, so nothing is saved or played.
     if (settingsChanged()) this.writeSave();
     if (volumeChanged()) this.playSfx('jump');
 
@@ -2375,6 +2396,7 @@ export class PlayScene extends Phaser.Scene {
     this.settingsLabels.language.setText(t.language);
     this.settingsLabels.buttonOpacity.setText(t.buttonOpacity);
     this.settingsLabels.layout.setText(t.layout);
+    this.settingsLabels.shake.setText(t.shake);
     this.settingsLabels.back.setText(t.back);
     this.gameOverSubtitle.setText(t.gameOver);
     this.gameOverPrompt.setText(t.retry);
@@ -2569,10 +2591,12 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * GDD-UI-02: the settings screen, open from the pause menu or the title menu. Sideways it shows the six rows, the chosen one
+   * GDD-UI-02: the settings screen, open from the pause menu or the title menu. Sideways it shows the rows that fit, the chosen one
    * pale and the others grey; a volume row has "<" and ">" and its bars, the Language row "<" and ">" and the language's own name
-   * where the bars would be, the Button opacity and Layout rows "<" and ">" and the step's name there (GDD-CTL-03), Back a ">" in front of it when chosen. Upright the rows
-   * are hidden and the prompt asks to turn the device sideways; the chosen row is kept. The rows follow the window.
+   * where the bars would be, the Button opacity, Layout and Screen shake rows "<" and ">" and the step's name there (GDD-CTL-03), Back a ">" in front of it when chosen.
+   * Where not all seven fit the list scrolls by whole rows, just far enough to show the chosen one, with a triangle on the title's line
+   * while rows are hidden below (at the right) or above (at the left). Upright the rows and arrows
+   * are hidden and the prompt asks to turn the device sideways; the chosen row and the scroll are kept. The rows follow the window.
    */
   private drawSettings(): void {
     const fromTitle = this.title.shown && this.title.settings !== null;
@@ -2584,7 +2608,14 @@ export class PlayScene extends Phaser.Scene {
     this.settingsVeil.setFillStyle(0x0d1020, fromTitle ? 0.82 : 0.75);
     const prompt = row !== null && upright ? TEXT[this.settings.language].sideways : '';
     if (this.settingsPrompt.text !== prompt) this.settingsPrompt.setText(prompt);
-    this.settingsRows = layoutSettingsMenu(this.scale.displaySize.width / BASE_WIDTH);
+    const k = this.scale.displaySize.width / BASE_WIDTH;
+    const all = layoutSettingsMenu(k);
+    const fit = rowsThatFit(all[0]!.h);
+    // GDD-UI-02: the list scrolls just far enough to show the chosen row; with the screen closed it is at its top (row 0), so it opens there.
+    // Upright the rows are hidden and the list keeps its scroll: the upright rows' height would scroll it. (A screen closed while upright
+    // needs no reset here: it opens with Master volume chosen, which brings the list to its top, L-025.)
+    if (!upright) this.settingsFirst = scrollFirst(row === null ? 0 : SETTINGS_ROWS.indexOf(row), this.settingsFirst, fit, all.length);
+    this.settingsRows = shownSettingsRows(all, this.settingsFirst, fit);
     const painted: ReturnType<PonchoDebug['settingsDrawn']>['rows'] = [];
     const show = row !== null && !upright;
     this.settingsBars.clear();
@@ -2592,7 +2623,15 @@ export class PlayScene extends Phaser.Scene {
     this.settingsLanguageValue.setVisible(false);
     this.settingsOpacityValue.setVisible(false);
     this.settingsLayoutValue.setVisible(false);
+    this.settingsShakeValue.setVisible(false);
     this.settingsArrows.forEach((a) => a.setVisible(false));
+    Object.values(this.settingsLabels).forEach((l) => l.setVisible(false));
+    const arrows = show ? scrollArrows(all, this.settingsFirst, fit, k) : [];
+    for (const a of arrows) {
+      this.settingsBars.fillStyle(0xfff3dc, 1);
+      if (a.dir === 'below') this.settingsBars.fillTriangle(a.x, a.y, a.x + a.w, a.y, a.x + a.w / 2, a.y + a.h);
+      else this.settingsBars.fillTriangle(a.x + a.w / 2, a.y, a.x, a.y + a.h, a.x + a.w, a.y + a.h);
+    }
     let arrow = 0;
     for (const r of this.settingsRows) {
       const label = this.settingsLabels[r.item];
@@ -2628,6 +2667,12 @@ export class PlayScene extends Phaser.Scene {
         if (show) painted.push({ item: r.item, label: label.text, value: name, color: colour, valueX: this.settingsLayoutValue.x });
         continue;
       }
+      if (r.item === 'shake') {
+        const name = TEXT[this.settings.language][this.settings.shake];
+        this.settingsShakeValue.setText(name).setPosition(languageValueX(r), r.y + r.h / 2).setColor(colour).setVisible(show);
+        if (show) painted.push({ item: r.item, label: label.text, value: name, color: colour, valueX: this.settingsShakeValue.x });
+        continue;
+      }
       if (!show) continue;
       const value = this.settings[r.item];
       for (const bar of volumeBars(r, value)) {
@@ -2636,6 +2681,7 @@ export class PlayScene extends Phaser.Scene {
       }
       painted.push({ item: r.item, label: label.text, value, color: colour });
     }
+    this.settingsScrollPainted = { first: this.settingsFirst, fit, arrows, labels: SETTINGS_ROWS.filter((r) => this.settingsLabels[r].visible) };
     this.settingsPainted = {
       shown: this.settingsScreen.visible,
       title: this.settingsTitle.text,
