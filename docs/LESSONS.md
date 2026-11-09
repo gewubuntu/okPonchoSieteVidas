@@ -824,8 +824,10 @@ Retired IDs: L-046
 - **Root cause:** the dry run reused what was at hand (one build, sequential runs) instead of listing what differs on the runner: a fresh checkout and build each time, runs that overlap and can be re-run.
 - **Rule:** before a dry run of a CI or deploy step, list what differs on the runner (a fresh build with new mtimes, overlapping runs, re-runs, missing secrets) and make the dry run reproduce each of them, or say in the PR which ones it does not cover.
 - **Recurrence 2 (2026-11-09, PR #88):** the fix deployed only `main`'s tip and skipped any other commit, saying the tip's own run would deploy it; but a later deploy run can replace that waiting run in the concurrency queue and then skip, so the newest commit stayed off the site (found in the re-review). The rule was written in the same PR, as a lesson, and the fix was reasoned about one run at a time instead of listing how runs overlap.
-- **Recurrence:** 2
-- **Promoted:** CLAUDE.md (Conventions: a dry run of a CI or deploy step reproduces what differs on the runner)
+- **Recurrence 3 (2026-11-09, PR #88):** with every run deploying `main`'s newest commit, several check runs could wake deploys of the same commit, and the repeat build pushed out the hashed files kept for tabs opened before it and took a rollback slot (found in the third review). The CLAUDE.md rule landed in the same push as the design it should have guided, and its list named overlapping runs but not several runs for one commit.
+- **Recurrence 4 (2026-11-09, PR #88):** the skip for a commit already live also skipped the smoke test, so re-running a deploy whose smoke test had failed went green without checking the site (found in the fourth review). The convention named re-runs, but it was applied to the check runs that wake a deploy and not to a re-run of the deploy itself.
+- **Recurrence:** 4
+- **Promoted:** CLAUDE.md (Conventions: a dry run of a CI or deploy step reproduces what differs on the runner, naming several runs for one commit and a re-run of the workflow itself). Guard: none (which runner conditions a workflow's design must survive is a judgement about that workflow; no check over the files can tell a covered case from a missed one, and the deploy's steps that need GitHub's runner cannot run in the gate)
 
 ## L-075 A changelog said the playtests passed while they were still running
 
@@ -837,3 +839,14 @@ Retired IDs: L-046
 - **Recurrence 2 (2026-11-09, PR #88):** the review fix moved vite to 8.3.7 and kept the changelog's "the full playtest suite passing in CI", which held for the earlier head while CI's playtests on the new head were still running (found in the re-review). The lesson was a day old and in no step that a changelog edit goes through.
 - **Recurrence:** 2
 - **Promoted:** .claude/skills/harness-gdd-update (step 3: a changelog claim that a check passed names a finished run on the head it describes)
+
+## L-076 A command blocked by a hook was re-run only in part, and its edits were lost
+
+- **Date:** 2026-11-09
+- **Area:** harness, process
+- **What went wrong:** in PR #88 one command held a lessons and CLAUDE.md edit, the gate and the commit. The L-012 hook blocked it as a whole; the next command re-ran only the gate and the commit, so c9fd671 shipped without the edit while its message and the PR description said it was in. The fourth review's fix then showed the lesson text missing.
+- **Root cause:** a blocked command runs none of its parts, but the retry was written from the hook's message, which named only the commit part.
+- **Rule:** after a hook blocks a command, re-run every part of it, or read `git status --short` (it must list each file the command was meant to change) before committing.
+- **Recurrence 2 (2026-11-09, PR #88):** the same slip had happened in PR #67, noted only inside L-010's recurrence 12 ("blocked by the L-012 hook and the rerun left it out"), not as a lesson of its own, so nothing changed after it.
+- **Recurrence:** 2
+- **Promoted:** scripts/hooks/gate-pipe.mjs (its denial now says that none of the command ran and to re-run every part of it; tested in scripts/hooks/gate-pipe.test.mjs)
