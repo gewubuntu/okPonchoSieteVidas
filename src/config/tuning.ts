@@ -560,6 +560,18 @@ export const ESTRELLA = {
 } as const;
 
 /**
+ * GDD-BOS-03: La Estrella's art (`scripts/art/estrella.mjs`, pinned by `scripts/art/estrella.test.mjs`): her frames are `frame` game px square,
+ * `columns` across, `looks` of them for each of 0, 1 and 2 hits (`ESTRELLA_LOOKS`), then her four defeat looks; her tejocote's frames (four, a
+ * quarter turn on each) are `tejocoteFrame` px square, her trolley's (two) `trolleyFrame` px square with the cable `trolleyCable` px down from
+ * the frame's top, its wheel `trolleyWheel` px in radius (a frame for each eighth turn). Her rope starts `ropeFrom` px under the cable, at the
+ * trolley's eye, and ends `ropeTie` px under her top cone's tip (`coneTip`), tied into the paper. She shows her landing look, the bottom
+ * cones splayed so nothing reaches below her box, from `landLook` px above a surface she drops onto and until she is that clear of the floor
+ * she rises from (the design's proposal, Proposed; her in-air looks reach 14 px below her box). Her defeated pot falls in a look that reaches `fallBelow` px
+ * below its box and lies, reaching none, once it is less than that above the floor.
+ */
+export const ESTRELLA_ART = { frame: 72, columns: 8, looks: 15, tejocoteFrame: 8, trolleyFrame: 16, trolleyCable: 8, trolleyWheel: 3.6, ropeFrom: 2.75, ropeTie: 4, landLook: 14, fallBelow: 2 } as const;
+
+/**
  * GDD-BOS-03: a tejocote, La Estrella's filling, is a `size` px square that rolls along the floor at `rollSpeed` px/s. Each time she thuds on
  * the floor `pairs` of them (one entry per phase) roll out, one each way per pair, a pair every `secondPairSteps` (0.4 s).
  */

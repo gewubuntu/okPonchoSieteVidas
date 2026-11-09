@@ -99,7 +99,8 @@ test('GDD-BOS-03 estrella: phase 1, hanging low over the left awning after its t
   expect(await stepToEstrellaMode(page, 'hang')).toBeLessThan(1000);
   await page.evaluate(() => window.__PONCHO__!.step(10));
   expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'hang', x: 80, y: 112 });
-  await drawnAs(page, { flash: null, cones: 7, pale: 3, rope: 72 });
+  // Her rope from the trolley's eye (y 10.75) to 4 px under her top cone's tip (her middle 96, 28 above it): 61.25 px. Poncho is to her right.
+  await drawnAs(page, { flash: null, look: 'hangR', cones: 7, rope: 61.25 });
   await shot(page, info, 'estrella-phase1-hang');
 });
 
@@ -156,7 +157,7 @@ test('GDD-BOS-03 estrella: phase 3, risen from the floor where the middle awning
   expect(await page.evaluate(() => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'rise', tx: 240, hits: 2, tore: true });
   expect(await page.evaluate(() => window.__PONCHO__!.tejocotes().length)).toBe(4);
   await middleTorn(page);
-  await drawnAs(page, { cones: 3, pale: 3 });
+  await drawnAs(page, { cones: 3 });
   await shot(page, info, 'estrella-phase3-rise');
 });
 

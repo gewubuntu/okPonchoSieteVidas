@@ -1,14 +1,16 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ESTRELLA } from '../config/tuning';
 import { awningTops } from '../sim/awning';
 import { isBossLevel } from '../sim/bossLevel';
 import { clawBox } from '../sim/claw';
 import { overlaps } from '../sim/enemy';
-import { aimAt, bumps, estrellaBox, estrellaStart, surfaceUnder, type EstrellaState } from '../sim/estrella';
+import { aimAt, bumps, estrellaBox, estrellaStart, moveEstrella, surfaceUnder, type EstrellaState } from '../sim/estrella';
 import { hurtbox } from '../sim/hazards';
 import { spawn, type PlayerInput } from '../sim/movement';
 import { medal } from '../sim/results';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
+import { estrellaFrameInfo, estrellaPose } from '../ui/estrellaPose';
 import { LEVEL_2_4, LEVEL_2_4_AWNINGS, LEVEL_2_4_CORDELES } from './level2-4';
 import { LEVELS, levelById } from './index';
 import { gaps, validateLevel } from './validate';
@@ -304,12 +306,13 @@ describe('GDD-BOS-03 only awning rebounds and cordel jumps reach her (user, 2026
  * across, a cordel jump bumps her. It lets go of jump for a step before
  * pressing it again (L-048).
  */
-function bot(level: Level, maxSteps: number): { run: RunState; steps: number; hitsAt: number[] } {
+function bot(level: Level, maxSteps: number, each: (run: RunState) => void = () => {}): { run: RunState; steps: number; hitsAt: number[] } {
   let run = startRun(level);
   let steps = 0;
   let held = false;
   const hitsAt: number[] = [];
   while (run.phase !== 'clear' && steps < maxSteps) {
+    each(run);
     const { x, y, grounded } = run.player;
     const e = run.estrella!;
     const floor = grounded && y === 224;
@@ -378,5 +381,78 @@ describe('GDD-BOS-03 playing 2-4', () => {
     // Measured: the hits on steps 344, 663 and 975, the clear 60 steps after the third.
     expect(hitsAt).toEqual([344, 663, 975]);
     expect(steps).toBe(1035);
+  });
+});
+
+// L-059: how far each frame of assets/sprites/boss/la-estrella.png reaches below her box, in game px, as the design measured it
+// (scripts/art/estrella-approved/report.json; scripts/art/estrella.test.mjs pins the art to it), over the real fight.
+interface ReachRow {
+  look: string;
+  hits: number;
+  below: number;
+}
+function reachRows(text: string): ReachRow[] {
+  const table: { reach: ReachRow[] } = JSON.parse(text);
+  return table.reach;
+}
+const BELOW = new Map(reachRows(readFileSync(new URL('../../scripts/art/estrella-approved/report.json', import.meta.url), 'utf8')).map((r) => [`${r.look}-${r.hits}`, r.below]));
+/** The look without its flash or its side: 'telegraphLRed' is a telegraph, 'hangL' a hang. */
+const kind = (look: string): string => look.replace(/(Red|White)$/, '').replace(/[LR]$/, '');
+
+/**
+ * How far the frame she is drawn with at this step reaches into the room under her, in game px (negative: clear of it). The room is the floor,
+ * the awning she is dropping onto, or the one she is thrown up from (she tears through the awnings in phase 3 and her pot falls through them).
+ */
+function intrusion(run: RunState): { look: string; px: number } {
+  const e = run.estrella!;
+  const pose = estrellaPose(e, run.player, DEF);
+  const info = estrellaFrameInfo(pose.frame);
+  const below = BELOW.get(`${info.look}-${info.hits}`)!;
+  const surface = e.mode === 'drop' ? e.ty : e.mode === 'bounce' ? surfaceUnder(DEF, awningTops(LEVEL_2_4_AWNINGS, run.awningsGone), e.x) : DEF.floor;
+  return { look: info.look, px: e.y + below - surface };
+}
+
+describe('GDD-BOS-03 her frames over the real 2-4 fight (L-059)', () => {
+  it('GDD-BOS-03 through the whole fight no frame of hers reaches below the floor or into the awning she lands on, and every look is posed', () => {
+    const looks = new Set<string>();
+    let worst = -Infinity;
+    // Her three landings (drops onto the awning in phase 1, thuds on the floor in phases 2 and 3) and every step round them are in this run.
+    const { run } = bot(LEVEL_2_4, 1800, (r) => {
+      const { look, px } = intrusion(r);
+      looks.add(kind(look));
+      worst = Math.max(worst, px);
+    });
+    expect(run.phase).toBe('clear');
+    expect(worst).toBeLessThanOrEqual(0);
+    // The fight shows each of these; defeated she is checked below.
+    expect(looks).toEqual(new Set(['glide', 'telegraph', 'drop', 'land', 'bounce', 'rest', 'rise', 'hang', 'yank', 'hurt', 'fall']));
+  });
+
+  it('GDD-BOS-03 the check is not empty: her in-air looks do come within 14 px of a surface (the landing look keeps the rest of the frame off it)', () => {
+    // Her drops, in the 14 px above the surface, show the splayed look (reach 0 below), not the drop's 11 px.
+    const near: string[] = [];
+    bot(LEVEL_2_4, 1800, (r) => {
+      const e = r.estrella!;
+      if (e.mode === 'drop' && e.ty - e.y <= 14) near.push(intrusion(r).look);
+    });
+    expect(near.length).toBeGreaterThan(0);
+    expect(new Set(near)).toEqual(new Set(['rest']));
+  });
+
+  it('GDD-BOS-03 defeated from any height she can be hit at, her pot falls and lies on the floor, no frame below it', () => {
+    const awnings = awningTops(LEVEL_2_4_AWNINGS, [false, true, false]);
+    for (const y0 of [40, 41, 55, 72, 90, 111, 112]) {
+      let e: EstrellaState = { ...estrellaStart(DEF, 2), hits: 3, mode: 'defeated', age: 0, x: 240, y: y0 };
+      const looks: string[] = [];
+      for (let i = 0; i < 100; i++) {
+        const { look, px } = intrusion({ ...startRun(LEVEL_2_4), estrella: e });
+        expect(px, `y0 ${y0} step ${i} ${look}`).toBeLessThanOrEqual(0);
+        looks.push(kind(look));
+        e = moveEstrella(DEF, e, spawn(240, 224), awnings).estrella;
+      }
+      expect(new Set(looks), `y0 ${y0}`).toEqual(new Set(['fall', 'lie']));
+      expect(looks[0]).toBe('fall');
+      expect(looks[99]).toBe('lie');
+    }
   });
 });

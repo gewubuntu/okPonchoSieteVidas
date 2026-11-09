@@ -1,0 +1,466 @@
+{
+ "colours": [
+  "#070509",
+  "#2AA198",
+  "#F4EFE2",
+  "#E9B53F",
+  "#E4CC9E",
+  "#E07F8E",
+  "#8A3B30",
+  "#D9327E",
+  "#1C3F9E",
+  "#E07A52",
+  "#C45E3E",
+  "#3B2B3C",
+  "#9AA6CD",
+  "#D8473A",
+  "#A0472F",
+  "#C3C6DE",
+  "#7E5A3E",
+  "#7C86B5",
+  "#4E4A78"
+ ],
+ "reach": [
+  {
+   "look": "glide",
+   "hits": 0,
+   "above": 14,
+   "below": 13.5,
+   "left": 16,
+   "right": 13,
+   "edge": false
+  },
+  {
+   "look": "telegraphL",
+   "hits": 0,
+   "above": 15,
+   "below": 14,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "telegraphLRed",
+   "hits": 0,
+   "above": 15,
+   "below": 14,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "telegraphR",
+   "hits": 0,
+   "above": 15,
+   "below": 14,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "telegraphRRed",
+   "hits": 0,
+   "above": 15,
+   "below": 14,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "drop",
+   "hits": 0,
+   "above": 16,
+   "below": 11,
+   "left": 13.5,
+   "right": 13.5,
+   "edge": false
+  },
+  {
+   "look": "land",
+   "hits": 0,
+   "above": 13.5,
+   "below": 0,
+   "left": 15.5,
+   "right": 15.5,
+   "edge": false
+  },
+  {
+   "look": "bounce",
+   "hits": 0,
+   "above": 13.5,
+   "below": 0,
+   "left": 15.5,
+   "right": 15.5,
+   "edge": false
+  },
+  {
+   "look": "rest",
+   "hits": 0,
+   "above": 15,
+   "below": 0,
+   "left": 15.5,
+   "right": 15.5,
+   "edge": false
+  },
+  {
+   "look": "rise",
+   "hits": 0,
+   "above": 13.5,
+   "below": 0,
+   "left": 15.5,
+   "right": 15.5,
+   "edge": false
+  },
+  {
+   "look": "hangL",
+   "hits": 0,
+   "above": 14,
+   "below": 14,
+   "left": 16,
+   "right": 13,
+   "edge": false
+  },
+  {
+   "look": "hangR",
+   "hits": 0,
+   "above": 14,
+   "below": 14,
+   "left": 13,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "yank",
+   "hits": 0,
+   "above": 13.5,
+   "below": 14,
+   "left": 14.5,
+   "right": 14.5,
+   "edge": false
+  },
+  {
+   "look": "hurt",
+   "hits": 0,
+   "above": 15,
+   "below": 14,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "hurtWhite",
+   "hits": 0,
+   "above": 15,
+   "below": 14,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "glide",
+   "hits": 1,
+   "above": 14,
+   "below": 2,
+   "left": 16,
+   "right": 13,
+   "edge": false
+  },
+  {
+   "look": "telegraphL",
+   "hits": 1,
+   "above": 15,
+   "below": 2,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "telegraphLRed",
+   "hits": 1,
+   "above": 15,
+   "below": 2,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "telegraphR",
+   "hits": 1,
+   "above": 15,
+   "below": 2,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "telegraphRRed",
+   "hits": 1,
+   "above": 15,
+   "below": 2,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "drop",
+   "hits": 1,
+   "above": 16,
+   "below": 2,
+   "left": 13.5,
+   "right": 13.5,
+   "edge": false
+  },
+  {
+   "look": "land",
+   "hits": 1,
+   "above": 13.5,
+   "below": 0,
+   "left": 15.5,
+   "right": 15.5,
+   "edge": false
+  },
+  {
+   "look": "bounce",
+   "hits": 1,
+   "above": 13.5,
+   "below": 0,
+   "left": 15.5,
+   "right": 15.5,
+   "edge": false
+  },
+  {
+   "look": "rest",
+   "hits": 1,
+   "above": 15,
+   "below": 0,
+   "left": 15.5,
+   "right": 15.5,
+   "edge": false
+  },
+  {
+   "look": "rise",
+   "hits": 1,
+   "above": 13.5,
+   "below": 0,
+   "left": 15.5,
+   "right": 15.5,
+   "edge": false
+  },
+  {
+   "look": "hangL",
+   "hits": 1,
+   "above": 14,
+   "below": 2,
+   "left": 16,
+   "right": 13,
+   "edge": false
+  },
+  {
+   "look": "hangR",
+   "hits": 1,
+   "above": 14,
+   "below": 2,
+   "left": 13,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "yank",
+   "hits": 1,
+   "above": 13.5,
+   "below": 2,
+   "left": 14.5,
+   "right": 14.5,
+   "edge": false
+  },
+  {
+   "look": "hurt",
+   "hits": 1,
+   "above": 15,
+   "below": 2,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "hurtWhite",
+   "hits": 1,
+   "above": 15,
+   "below": 2,
+   "left": 16,
+   "right": 16,
+   "edge": false
+  },
+  {
+   "look": "glide",
+   "hits": 2,
+   "above": 14,
+   "below": 2,
+   "left": 11,
+   "right": 7.5,
+   "edge": false
+  },
+  {
+   "look": "telegraphL",
+   "hits": 2,
+   "above": 15,
+   "below": 2,
+   "left": 10,
+   "right": 10,
+   "edge": false
+  },
+  {
+   "look": "telegraphLRed",
+   "hits": 2,
+   "above": 15,
+   "below": 2,
+   "left": 10,
+   "right": 10,
+   "edge": false
+  },
+  {
+   "look": "telegraphR",
+   "hits": 2,
+   "above": 15,
+   "below": 2,
+   "left": 10,
+   "right": 10,
+   "edge": false
+  },
+  {
+   "look": "telegraphRRed",
+   "hits": 2,
+   "above": 15,
+   "below": 2,
+   "left": 10,
+   "right": 10,
+   "edge": false
+  },
+  {
+   "look": "drop",
+   "hits": 2,
+   "above": 16,
+   "below": 2,
+   "left": 9.5,
+   "right": 9.5,
+   "edge": false
+  },
+  {
+   "look": "land",
+   "hits": 2,
+   "above": 13.5,
+   "below": 0,
+   "left": 10,
+   "right": 10,
+   "edge": false
+  },
+  {
+   "look": "bounce",
+   "hits": 2,
+   "above": 13.5,
+   "below": 0,
+   "left": 9,
+   "right": 9,
+   "edge": false
+  },
+  {
+   "look": "rest",
+   "hits": 2,
+   "above": 15,
+   "below": 0,
+   "left": 10,
+   "right": 10,
+   "edge": false
+  },
+  {
+   "look": "rise",
+   "hits": 2,
+   "above": 13.5,
+   "below": 0,
+   "left": 9,
+   "right": 9,
+   "edge": false
+  },
+  {
+   "look": "hangL",
+   "hits": 2,
+   "above": 14,
+   "below": 2,
+   "left": 10.5,
+   "right": 8,
+   "edge": false
+  },
+  {
+   "look": "hangR",
+   "hits": 2,
+   "above": 14,
+   "below": 2,
+   "left": 8,
+   "right": 10.5,
+   "edge": false
+  },
+  {
+   "look": "yank",
+   "hits": 2,
+   "above": 13.5,
+   "below": 2,
+   "left": 9,
+   "right": 9,
+   "edge": false
+  },
+  {
+   "look": "hurt",
+   "hits": 2,
+   "above": 15,
+   "below": 2,
+   "left": 10,
+   "right": 10,
+   "edge": false
+  },
+  {
+   "look": "hurtWhite",
+   "hits": 2,
+   "above": 15,
+   "below": 2,
+   "left": 10,
+   "right": 10,
+   "edge": false
+  },
+  {
+   "look": "fall",
+   "hits": 3,
+   "above": 2.5,
+   "below": 2,
+   "left": 2.5,
+   "right": 2.5,
+   "edge": false
+  },
+  {
+   "look": "fallWhite",
+   "hits": 3,
+   "above": 2.5,
+   "below": 2,
+   "left": 2.5,
+   "right": 2.5,
+   "edge": false
+  },
+  {
+   "look": "lie",
+   "hits": 3,
+   "above": 2,
+   "below": 0,
+   "left": 3.5,
+   "right": 1,
+   "edge": false
+  },
+  {
+   "look": "lieWhite",
+   "hits": 3,
+   "above": 2,
+   "below": 0,
+   "left": 3.5,
+   "right": 1,
+   "edge": false
+  }
+ ]
+}
