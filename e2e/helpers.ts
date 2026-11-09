@@ -182,17 +182,31 @@ export function bumpEstrella(page: Page): Promise<number> {
 }
 
 /**
- * GDD-BOS-03: in the paused game, in her phase 3, a hit the way the arena's bot makes it: Poncho waits on the middle awning at x 248 so
- * she aims there; as her drop starts (it tears through the awning) he is put on the end of the right cordel (x 275), clear of her line;
- * once she hangs and her sway brings her within 12 px across, a cordel jump bumps her (`bumpEstrella`). Returns her hits.
+ * GDD-BOS-03: steps the paused game one step at a time, in the page, until La Estrella has torn the middle awning away (`estrella().tore`,
+ * checked before each step) or `max` steps have run, and returns how many it took (one round trip, L-042). The caller checks she tore it.
+ */
+export function stepToEstrellaTear(page: Page, max = 400): Promise<number> {
+  return page.evaluate((n) => {
+    const d = window.__PONCHO__!;
+    let i = 0;
+    while (i < n && !d.estrella()?.tore) {
+      d.step(1);
+      i++;
+    }
+    return i;
+  }, max);
+}
+
+/**
+ * GDD-BOS-03: in the paused game, in her phase 3, a hit the way the arena's bot makes it: Poncho waits on the end of the left cordel at
+ * x 205, clear of her first drop at x 240, which tears the middle awning away; once she hangs and her sway brings her within 21 px
+ * across, a cordel jump bumps her (`bumpEstrella`). Returns her hits.
  */
 export async function phase3Hit(page: Page): Promise<number> {
-  await page.evaluate(() => window.__PONCHO__!.teleport(248, 176));
-  await stepToEstrellaMode(page, 'drop', 1000);
   await page.evaluate(() => {
     const d = window.__PONCHO__!;
-    d.teleport(275, 136);
-    for (let i = 0; i < 300 && !(d.estrella()!.mode === 'hang' && Math.abs(d.estrella()!.x - 275) < 12); i++) d.step(1);
+    d.teleport(205, 136);
+    for (let i = 0; i < 400 && !(d.estrella()!.mode === 'hang' && Math.abs(d.estrella()!.x - 205) < 21); i++) d.step(1);
   });
   return bumpEstrella(page);
 }

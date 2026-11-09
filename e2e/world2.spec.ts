@@ -210,8 +210,8 @@ test('GDD-UI-02 2-4, the last level built, names no next level: its clear greys 
   // GDD-ART-06: World 2's arena is drawn with the plaza in place of the rooftops; GDD-UI-01: its boss bar names its boss.
   expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'mercado', midKey: 'mercado:plaza' });
   expect(await api(page, () => window.__PONCHO__!.bossBar())).toMatchObject({ shown: true, name: 'La Estrella', pips: 3 });
-  // La Estrella set to two hits (phase 3): her drop aimed at the middle awning tears through it beside Poncho, and from the right
-  // cordel a jump bumps her as she hangs, the third hit (GDD-BOS-03).
+  // La Estrella set to two hits (phase 3): her first drop tears the middle awning away beside Poncho on the left cordel, and from there a
+  // jump bumps her as she hangs, the third hit (GDD-BOS-03).
   await api(page, () => window.__PONCHO__!.setEstrella(2));
   expect(await phase3Hit(page)).toBe(3);
   expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ hits: 3, mode: 'defeated' });

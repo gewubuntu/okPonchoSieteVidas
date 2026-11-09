@@ -520,7 +520,7 @@ describe('GDD-AUD-02 Don Zopilote', () => {
 describe('GDD-AUD-02 La Estrella', () => {
   // An arena laid out like 2-4 (GDD-BOS-03): floor top at y = 224, the left awning's top at y = 176 (x 48 to 112).
   const world = parseTiles([...Array<string>(14).fill('.'.repeat(30)), ...Array<string>(3).fill('#'.repeat(30))]);
-  const arena: Level = { ...base, world, spawn: { x: 240, y: 224 }, awnings: [{ x: 48, y: 176, w: 64 }], estrella: { floor: 224, spots: [[400, 80], [320, 160], [400]] } };
+  const arena: Level = { ...base, world, spawn: { x: 240, y: 224 }, awnings: [{ x: 48, y: 176, w: 64 }], estrella: { floor: 224, spots: [[400, 80], [320, 160], [400]], tear: { x: 80, y: 176, awning: 0 } } };
   const posed = (mode: EstrellaMode, x: number, y: number, ty: number, hits = 0): EstrellaState => ({ ...estrellaStart(arena.estrella!, hits), mode, age: 0, x, y, tx: x, ty });
   // Hanging low beside Poncho at x 60 (her box 74 to 106), where his claw's swing reaches her.
   const near = (estrella: EstrellaState) => withPlayer(arena, { ...spawn(60, 224), grounded: true }, { estrella });

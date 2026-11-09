@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boot, bumpEstrella, openGame, phase3Hit, pixelsAt, stepToEstrellaMode, stepUntil, tapAt, waitForResults } from './helpers';
+import { boot, bumpEstrella, openGame, phase3Hit, pixelsAt, stepToEstrellaMode, stepToEstrellaTear, stepUntil, tapAt, waitForResults } from './helpers';
 
 // GDD-BOS-01, GDD-BOS-03: La Estrella in her arena, level 2-4, opened by its address (GDD-UI-02). Timed in simulation steps, never by
 // polling around an event (L-042): the stepped tests pause the game and step it in the page; one test runs through the game's own frames
@@ -107,9 +107,9 @@ test('GDD-BOS-03 the third hit defeats her; 1.0 s later the level clear screen, 
   await arena(page);
   await api(page, () => window.__PONCHO__!.setEstrella(2));
   const heard = (await api(page, () => window.__PONCHO__!.sfx())).length;
-  // Her phase 3 drop tears through the middle awning beside him; from the right cordel a jump bumps her as she hangs.
+  // Her first phase 3 drop tears the middle awning away beside him on the left cordel; from there a jump bumps her as she hangs.
   expect(await phase3Hit(page)).toBe(3);
-  expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ hits: 3, mode: 'defeated', age: 0 });
+  expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ hits: 3, mode: 'defeated', age: 0, tore: true });
   // Her rope snapped and no cone left; the bar's three pips are outlines.
   await page.waitForFunction(() => {
     const d = window.__PONCHO__!;
@@ -145,4 +145,60 @@ test('GDD-BOS-01 a life lost mid-fight keeps her hits and starts her phase again
   expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ x: 320, y: 40, mode: 'glide', age: 0, hits: 1 });
   expect(await api(page, () => window.__PONCHO__!.tejocotes())).toEqual([]);
   await page.waitForFunction(() => window.__PONCHO__!.bossBar().pips === 2 && window.__PONCHO__!.estrellaDrawn()?.cones === 5);
+});
+
+test('GDD-BOS-03 the tear: in phase 3 her first drop tears the middle awning away, drawn as its two halves, and Poncho on it falls', async ({ page }) => {
+  const errors = await arena(page);
+  // Phase 3 from its start, Poncho standing on the middle awning (x 208 to 272) beside her line: her box spans x 224 to 256, his body 260 to 272.
+  await api(page, () => {
+    window.__PONCHO__!.setEstrella(2);
+    window.__PONCHO__!.teleport(266, 176);
+  });
+  expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ hits: 2, tore: false });
+  // Her first glide heads for x 240, not for the spot above him (x 266); the awning is whole and drawn whole until she tears it.
+  expect(await stepToEstrellaMode(page, 'telegraph')).toBeLessThan(1000);
+  expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'telegraph', x: 240, tore: false });
+  expect(await api(page, () => window.__PONCHO__!.market().gone)).toEqual([false, false, false]);
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 266, y: 176, grounded: true });
+  // Steps until the tear, in the page (L-042): the awning is gone from the run on that step, the side two whole.
+  expect(await stepToEstrellaTear(page)).toBeLessThan(400);
+  expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'drop', x: 240, tx: 240, tore: true });
+  expect(await api(page, () => window.__PONCHO__!.market().gone)).toEqual([false, true, false]);
+  // Drawn torn apart in the next frame (L-033): the awning's post and its two halves, read together with the run's flag.
+  await page.waitForFunction(() => {
+    const m = window.__PONCHO__!.market();
+    return m.awnings[1]!.gone && m.gone[1]! && !m.awnings[0]!.gone && !m.awnings[2]!.gone;
+  });
+  // A few steps later he has left the awning's top: he falls, without a rebound.
+  await api(page, () => window.__PONCHO__!.step(3));
+  const fall = await api(page, () => window.__PONCHO__!.state());
+  expect(fall.y).toBeGreaterThan(176);
+  expect(fall.grounded).toBe(false);
+  expect(await api(page, () => window.__PONCHO__!.market().bounce)).toBeNull();
+  expect(errors).toEqual([]);
+});
+
+test('GDD-BOS-01 GDD-BOS-03 a life lost after the tear: the middle awning stays drawn torn and her first glide heads for the spot above him', async ({ page }) => {
+  await arena(page);
+  await api(page, () => {
+    window.__PONCHO__!.setEstrella(2);
+    window.__PONCHO__!.teleport(400, 224);
+  });
+  expect(await stepToEstrellaTear(page)).toBeLessThan(400);
+  // Under her drop on the floor: her thud costs the life.
+  await api(page, () => window.__PONCHO__!.teleport(240, 224));
+  expect(await stepUntil(page, { phase: 'respawning' }, 100)).toBeLessThan(100);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(6);
+  expect(await stepUntil(page, { phase: 'playing' }, 100)).toBeLessThan(100);
+  expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ x: 400, y: 40, mode: 'glide', age: 0, hits: 2, tore: true });
+  expect(await api(page, () => window.__PONCHO__!.market().gone)).toEqual([false, true, false]);
+  // Drawn torn in the frame after the respawn, read with the run's flag (L-033).
+  await page.waitForFunction(() => {
+    const m = window.__PONCHO__!.market();
+    return m.awnings[1]!.gone && m.gone[1]!;
+  });
+  // Poncho put at x 300: she glides to the spot above him, not to x 240, and telegraphs there.
+  await api(page, () => window.__PONCHO__!.teleport(300, 224));
+  expect(await stepToEstrellaMode(page, 'telegraph', 200)).toBeLessThan(200);
+  expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ mode: 'telegraph', x: 300 });
 });

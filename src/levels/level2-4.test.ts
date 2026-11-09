@@ -36,6 +36,17 @@ const withLives = (lives: number): RunState => ({ ...startRun(LEVEL_2_4), lives:
 /** Whether Poncho standing at x on an awning top loses a life in her first 1000 steps of phase 1. */
 const lostOnAwning = (x: number): boolean => play(standing(x, 176, estrellaStart(DEF, 0)), 1000).lives.lives < 7;
 
+/** Whether Poncho standing still on the floor at x loses a life to her drop in phase 3 from `estrella` with these awnings gone, and her mode and drop target on the step that costs it. */
+function dropReaches(x: number, estrella: EstrellaState, gone: boolean[]): { lives: number; mode: string; tx: number } {
+  let run: RunState = { ...standing(x, 224, estrella), awningsGone: gone };
+  let mode = '';
+  for (let i = 0; i < 600 && run.lives.lives === 7; i++) {
+    mode = run.estrella!.mode;
+    run = stepRun(run, STILL, LEVEL_2_4);
+  }
+  return { lives: run.lives.lives, mode, tx: run.estrella!.tx };
+}
+
 describe('GDD-BOS-03 level 2-4', () => {
   it('GDD-BOS-03 2-4 is 30 by 17 tiles, World 2 last level after 2-3, a boss level the validator passes', () => {
     expect([world.width, world.height]).toEqual([30, 17]);
@@ -67,9 +78,16 @@ describe('GDD-BOS-03 level 2-4', () => {
       { x: 272, y: 136, w: 96 },
     ]);
     expect(LEVEL_2_4.spawn).toEqual({ x: 240, y: 224 });
-    expect(DEF).toEqual({ floor: 224, spots: [[400, 80], [320, 160], [400]] });
+    expect(DEF).toEqual({ floor: 224, spots: [[400, 80], [320, 160], [400]], tear: { x: 240, y: 176, awning: 1 } });
     for (const empty of ['ofrendas', 'spikes', 'crumbles', 'springs', 'platforms', 'tacos', 'pinatas', 'doors', 'keys', 'fragiles', 'enemies'] as const) expect(LEVEL_2_4[empty], empty).toEqual([]);
     for (const none of ['exit', 'hilos', 'veladora', 'blocks', 'abilities', 'boss', 'rocks', 'rollos'] as const) expect(LEVEL_2_4[none], none).toBeUndefined();
+  });
+
+  it('GDD-BOS-03 the tear is the middle awning: its middle across and its top', () => {
+    const middle = LEVEL_2_4_AWNINGS[1]!;
+    expect(middle.x + middle.w / 2).toBe(240);
+    expect(middle.y).toBe(176);
+    expect(DEF.tear).toEqual({ x: 240, y: 176, awning: 1 });
   });
 
   it('GDD-BOS-03 her box middle starts each phase 256, 215 and 256 px from the spawn, over 3 tiles', () => {
@@ -156,30 +174,34 @@ describe('GDD-BOS-03 2-4 measured', () => {
     expect([58, 60, 420, 422].map(lostOnAwning)).toEqual([false, true, true, false]);
   });
 
-  it('GDD-BOS-03 in phase 3 an awning is no shelter: standing still under the one she aims at, her drop through it reaches him', () => {
-    for (const x of [80, 240, 400]) {
-      let run = standing(x, 224, estrellaStart(DEF, 2));
-      let mode = '';
-      for (let i = 0; i < 600 && run.lives.lives === 7; i++) {
-        mode = run.estrella!.mode;
-        run = stepRun(run, STILL, LEVEL_2_4);
-      }
-      expect([run.lives.lives, mode], `x ${x}`).toEqual([6, 'drop']);
-      expect(run.estrella!.tx, `x ${x}`).toBe(x);
+  it('GDD-BOS-03 in phase 3 an awning is no shelter: before the tear, standing still under the middle awning, her tear drop reaches him', () => {
+    expect(dropReaches(240, estrellaStart(DEF, 2), [false, false, false])).toEqual({ lives: 6, mode: 'drop', tx: 240 });
+  });
+
+  it('GDD-BOS-03 in phase 3 an awning is no shelter: after the tear, standing still under a side awning she aims at, her drop reaches him', () => {
+    for (const x of [80, 400]) {
+      expect(dropReaches(x, estrellaStart(DEF, 2, true), [false, true, false]), `x ${x}`).toEqual({ lives: 6, mode: 'drop', tx: x });
     }
+  });
+
+  it('GDD-BOS-03 the tear: untorn, standing under a side awning she does not aim at, her first drop does not reach him', () => {
+    // Her first drop is at x 240 whoever stands where: at x 80 the first thing to reach him is the tejocotes rolling out of her thud.
+    const out = dropReaches(80, estrellaStart(DEF, 2), [false, false, false]);
+    expect(out).toMatchObject({ lives: 6 });
+    expect(out.mode).not.toBe('drop');
   });
 
   it('GDD-BOS-03 her box stays on screen and under the cable, and never ends a drop inside a tile, wherever she aims', () => {
     const awnings = awningTops(LEVEL_2_4_AWNINGS, [false, false, false]);
-    for (let x = 0; x <= 480; x++) {
-      const tx = aimAt(spawn(x, 224));
+    // The tear's drop too, at x 240 down to the floor, and every aimed drop after it.
+    for (const tx of [DEF.tear.x, ...Array.from({ length: 481 }, (_, x) => aimAt(spawn(x, 224)))]) {
       const bottom = surfaceUnder(DEF, awnings, tx);
       const box = estrellaBox({ ...estrellaStart(DEF, 2), x: tx, y: bottom });
       // Swaying 16 px either way as she hangs.
-      expect(box.x0 - ESTRELLA.swayPx[2], `aim at ${x}`).toBeGreaterThanOrEqual(0);
-      expect(box.x1 + ESTRELLA.swayPx[2], `aim at ${x}`).toBeLessThanOrEqual(480);
-      expect(bottom === 224 || bottom === 176, `aim at ${x}`).toBe(true);
-      for (let c = Math.floor(box.x0 / 16); c * 16 < box.x1; c++) for (let r = Math.floor(box.y0 / 16); r * 16 < box.y1; r++) expect(world.solidTile(c, r), `aim at ${x}`).toBe(false);
+      expect(box.x0 - ESTRELLA.swayPx[2], `aim at ${tx}`).toBeGreaterThanOrEqual(0);
+      expect(box.x1 + ESTRELLA.swayPx[2], `aim at ${tx}`).toBeLessThanOrEqual(480);
+      expect(bottom === 224 || bottom === 176, `aim at ${tx}`).toBe(true);
+      for (let c = Math.floor(box.x0 / 16); c * 16 < box.x1; c++) for (let r = Math.floor(box.y0 / 16); r * 16 < box.y1; r++) expect(world.solidTile(c, r), `aim at ${tx}`).toBe(false);
     }
     for (const hits of [0, 1, 2]) expect(estrellaBox(estrellaStart(DEF, hits)).y0).toBe(ESTRELLA.cableY);
   });
@@ -276,11 +298,10 @@ describe('GDD-BOS-03 only awning rebounds and cordel jumps reach her (user, 2026
 /**
  * A bot for 2-4 (GDD-BOS-03), reading her state each step. Phase 1: it walks from the spawn to the floor under the left awning (x 80);
  * when she hangs over it, a floor jump held through its landing on the awning: the tier 1 rebound bumps her. Phase 2: from the left
- * awning it jumps right onto the left cordel and stands at x 127, clear of her drop at x 160; when she hangs, it steps under the middle of
- * her sway and a cordel jump bumps her. Phase 3, the GDD's way (she drops away from him, then a cordel jump): it walks off the cordel
- * onto the middle awning and waits at x 248, so she aims there; as her telegraph ends it runs right and slides to a stop 26 px from her
- * line while her drop tears through the awning to the floor; as she rests it jumps up onto the end of the right cordel (x 272 on), above
- * the tejocotes; when she hangs and her sway brings her within 12 px across, a cordel jump bumps her. It lets go of jump for a step before
+ * awning it jumps right onto the left cordel and stands at x 127, clear of her drop at 160; when she hangs, it steps under the middle of
+ * her sway and a cordel jump bumps her. Phase 3: her first drop is the tear, at x 240 whatever he does, and takes the middle awning away; he
+ * stays on the left cordel, clear of her line, and waits at its right end (x 205); once she hangs and her sway brings her within 21 px
+ * across, a cordel jump bumps her. It lets go of jump for a step before
  * pressing it again (L-048).
  */
 function bot(level: Level, maxSteps: number): { run: RunState; steps: number; hitsAt: number[] } {
@@ -321,18 +342,13 @@ function bot(level: Level, maxSteps: number): { run: RunState; steps: number; hi
           jump = held;
         }
       } else {
-        // Phase 3: waits on the middle awning at x 248, so she aims there; as her telegraph ends it runs right along the awning and slides
-        // to a stop about 26 px from her line, and her drop tears through the awning beside it to the floor, the tejocotes rolling below.
-        // As she rests, a jump straight up from there lands on the end of the right cordel (x 272 on); when her sway brings her within
-        // 12 px across, a cordel jump bumps her.
-        const dodging = e.mode === 'drop' || e.mode === 'rest' || e.mode === 'rise' || (e.mode === 'telegraph' && e.age === ESTRELLA.telegraphSteps - 1);
+        // Phase 3: he stays on the left cordel (x 112 to 208), clear of her tear drop at x 240 (her box 224 to 256), and waits at its right
+        // end, x 205. Once she hangs and her sway brings her within 21 px across (a bump needs under 22), a cordel jump bumps her.
         if (!grounded) jump = held && run.player.vy < 0;
-        else if (y === 136 && x > 240) jump = e.mode === 'hang' && Math.abs(e.x - x) < 12;
-        else if (dodging) {
-          target = e.tx + 26;
-          near = 8;
-          jump = (e.mode === 'rest' || e.mode === 'rise') && y === 176 && run.player.vx === 0;
-        } else target = 248;
+        else {
+          target = 205;
+          jump = e.mode === 'hang' && y === 136 && Math.abs(e.x - x) < 21;
+        }
       }
     }
     const move = Math.abs(target - x) < near ? 0 : Math.sign(target - x);
@@ -356,9 +372,11 @@ describe('GDD-BOS-03 playing 2-4', () => {
     expect(run.phase).toBe('clear');
     expect(steps).toBeLessThan(1800);
     expect(run.lives.lives).toBe(7);
-    expect(run.estrella).toMatchObject({ hits: 3, mode: 'defeated' });
-    // Measured: the hits on steps 344, 663 and 949, the clear 60 steps after the third.
-    expect(hitsAt).toEqual([344, 663, 949]);
-    expect(steps).toBe(1009);
+    expect(run.estrella).toMatchObject({ hits: 3, mode: 'defeated', tore: true });
+    // She tore the middle awning away on her way, and it stays gone.
+    expect(run.awningsGone).toEqual([false, true, false]);
+    // Measured: the hits on steps 344, 663 and 975, the clear 60 steps after the third.
+    expect(hitsAt).toEqual([344, 663, 975]);
+    expect(steps).toBe(1035);
   });
 });

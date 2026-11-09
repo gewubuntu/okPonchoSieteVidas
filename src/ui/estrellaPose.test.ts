@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { estrellaStart, type Estrella, type EstrellaMode, type EstrellaState } from '../sim/estrella';
 import { estrellaPose, tejocoteBoxes } from './estrellaPose';
 
-const DEF: Estrella = { floor: 224, spots: [[400, 80], [320, 160], [400]] };
+const DEF: Estrella = { floor: 224, spots: [[400, 80], [320, 160], [400]], tear: { x: 240, y: 176, awning: 1 } };
 /** Her in `mode` at age `age` with `hits` taken, her middle across at x and her box's bottom at y. */
 const posed = (mode: EstrellaMode, age = 0, hits = 0, x = 240, y = 112): EstrellaState => ({ ...estrellaStart(DEF, hits), mode, age, x, y, tx: x, ty: y });
 
