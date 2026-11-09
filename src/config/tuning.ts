@@ -235,9 +235,14 @@ export const RESULTS_MENU = { width: 160, rowHeight: 28, top: 162, greyed: 0x5c6
 /**
  * GDD-UI-02: the settings screen, in game pixels. Rows grow like the pause menu's. A volume row has its label `labelInset`
  * from its left edge, "<" and ">" `arrowInset` inside its edges, and its bars (`barWidth` wide, `barGap` apart) ending
- * `barsInset` inside its right edge.
+ * `barsInset` inside its right edge. Where the rows do not all fit the list scrolls (GDD-UI-02, "Scrolling"): `scrollArrow` is the
+ * pale triangle on the title's line (`titleY`), `width` by `height`, its middle `inset` inside the rows' right edge (pointing down) or
+ * left edge (pointing up); a tap on it is read in a square of `scrollArrow.tapCssPx` CSS px about it.
  */
-export const SETTINGS_MENU = { width: 260, rowHeight: 28, top: 62, titleY: 44, labelInset: 20, arrowInset: 8, barWidth: 5, barHeight: 10, barGap: 2, barsInset: 20 } as const;
+export const SETTINGS_MENU = {
+  width: 260, rowHeight: 28, top: 62, titleY: 44, labelInset: 20, arrowInset: 8, barWidth: 5, barHeight: 10, barGap: 2, barsInset: 20,
+  scrollArrow: { width: 8, height: 5, inset: 8, tapCssPx: 48 },
+} as const;
 
 /** GDD-CTL-03: the factor each Button opacity step puts on every alpha the touch controls draw (capped at 1); medium is the look as it was. */
 export const TOUCH_OPACITY = { low: 0.5, medium: 1, high: 1.5 } as const;

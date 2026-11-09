@@ -49,9 +49,52 @@ test('GDD-UI-02 the settings screen from the pause menu, after changes, and Back
   await press(page, 'ArrowDown', 40);
   await chosen(page, 'layout');
   await press(page, 'ArrowDown', 40);
+  await chosen(page, 'shake');
+  await press(page, 'ArrowDown', 40);
   await chosen(page, 'back');
-  expect(await page.evaluate(() => window.__PONCHO__!.settings())).toEqual({ master: 6, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+  expect(await page.evaluate(() => window.__PONCHO__!.settings())).toEqual({ master: 6, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard', shake: 'on' });
   await shot(page, info, 'settings-pause-back');
+});
+
+// GDD-UI-02, "Scrolling": the seventh row, Screen shake, set to Off (the screen shows it on a desktop and a phone alike).
+test('GDD-UI-02 the settings screen with Screen shake chosen and Off', async ({ page }, info) => {
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10 && window.__PONCHO__!.state().grounded);
+  await press(page, 'Escape', 27);
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
+  await press(page, 'ArrowDown', 40);
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.chosen === 'settings');
+  await press(page, 'Enter', 13);
+  await chosen(page, 'master');
+  for (const row of ['effects', 'language', 'buttonOpacity', 'layout', 'shake']) {
+    await press(page, 'ArrowDown', 40);
+    await chosen(page, row);
+  }
+  await press(page, 'ArrowRight', 39);
+  await page.waitForFunction(() => window.__PONCHO__!.settings().shake === 'off' && window.__PONCHO__!.settingsDrawn().rows.find((r) => r.item === 'shake')?.value === 'Off');
+  expect(await page.evaluate(() => window.__PONCHO__!.settingsDrawn())).toMatchObject({ shown: true, from: 'pause', chosen: 'shake' });
+  await shot(page, info, 'settings-shake-off');
+});
+
+// The landscape phone's list scrolled to Back with the up arrow drawn, reached by touch as a phone player does (L-045): the pause button,
+// the pause menu's Settings row, then the down arrow, which brings Back into view and chooses it.
+test('GDD-UI-02 the settings list scrolled to Back on a landscape phone, with the up arrow', async ({ page, isMobile }, info) => {
+  test.skip(!isMobile, 'touch device only');
+  await start(page, isMobile);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  await tapPause(page);
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.shown);
+  await tapPauseSettings(page);
+  await chosen(page, 'master');
+  expect((await page.evaluate(() => window.__PONCHO__!.settingsScroll())).arrows.map((a) => a.dir)).toEqual(['below']);
+  await shot(page, info, 'settings-top');
+  const down = (await page.evaluate(() => window.__PONCHO__!.settingsScroll())).arrows[0]!;
+  await tap(page, down.tap.x + down.tap.w / 2, down.tap.y + down.tap.h / 2);
+  await chosen(page, 'back');
+  expect(await page.evaluate(() => window.__PONCHO__!.settingsScroll())).toMatchObject({ first: 1 });
+  expect((await page.evaluate(() => window.__PONCHO__!.settingsScroll())).arrows.map((a) => a.dir)).toEqual(['above']);
+  expect((await page.evaluate(() => window.__PONCHO__!.settingsDrawn())).rows.map((r) => r.item)).not.toContain('master');
+  await shot(page, info, 'settings-scrolled');
 });
 
 test('GDD-UI-02 the settings screen from the title menu', async ({ page }, info) => {
@@ -175,6 +218,10 @@ test('GDD-CTL-03 the touch buttons at Low and at High opacity', async ({ page, i
       await tapRow('buttonOpacity', side);
       await page.waitForFunction((o) => window.__PONCHO__!.touch().opacity === o, step);
     }
+    // Back is scrolled out of sight on the phone: the down arrow brings it into view and chooses it.
+    const down = (await page.evaluate(() => window.__PONCHO__!.settingsScroll())).arrows.find((a) => a.dir === 'below')!;
+    await tap(page, down.tap.x + down.tap.w / 2, down.tap.y + down.tap.h / 2);
+    await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'back');
     await tapRow('back', 0.5); // back to the pause menu
     await page.waitForFunction(() => !window.__PONCHO__!.settingsDrawn().shown && window.__PONCHO__!.pauseDrawn().menu.shown);
     await tapPause(page); // resume

@@ -5,20 +5,21 @@ import { languageValueX, layoutSettingsMenu, settingsTapAt, volumeBars } from '.
 import { layoutTouchButtons } from './touchLayout';
 
 describe('GDD-UI-02 settings rows', () => {
-  it('six rows, Master volume, Effects volume, Language, Button opacity, Layout and Back, 260 by 28, centred, the first at 62, each next right below', () => {
+  it('seven rows, Master volume, Effects volume, Language, Button opacity, Layout, Screen shake and Back, 260 by 28, centred, the first at 62, each next right below', () => {
     expect(layoutSettingsMenu(2)).toEqual([
       { item: 'master', x: 110, y: 62, w: 260, h: 28 },
       { item: 'effects', x: 110, y: 90, w: 260, h: 28 },
       { item: 'language', x: 110, y: 118, w: 260, h: 28 },
       { item: 'buttonOpacity', x: 110, y: 146, w: 260, h: 28 },
       { item: 'layout', x: 110, y: 174, w: 260, h: 28 },
-      { item: 'back', x: 110, y: 202, w: 260, h: 28 },
+      { item: 'shake', x: 110, y: 202, w: 260, h: 28 },
+      { item: 'back', x: 110, y: 230, w: 260, h: 28 },
     ]);
   });
 
   it('on a small screen the rows grow to 48 CSS px', () => {
-    expect(layoutSettingsMenu(390 / 270).map((r) => [r.item, r.y, r.h])).toEqual([['master', 62, 34], ['effects', 96, 34], ['language', 130, 34], ['buttonOpacity', 164, 34], ['layout', 198, 34], ['back', 232, 34]]);
-    expect(layoutSettingsMenu(1).map((r) => [r.y, r.h])).toEqual([[62, 48], [110, 48], [158, 48], [206, 48], [254, 48], [302, 48]]);
+    expect(layoutSettingsMenu(390 / 270).map((r) => [r.item, r.y, r.h])).toEqual([['master', 62, 34], ['effects', 96, 34], ['language', 130, 34], ['buttonOpacity', 164, 34], ['layout', 198, 34], ['shake', 232, 34], ['back', 266, 34]]);
+    expect(layoutSettingsMenu(1).map((r) => [r.y, r.h])).toEqual([[62, 48], [110, 48], [158, 48], [206, 48], [254, 48], [302, 48], [350, 48]]);
   });
 });
 
@@ -41,9 +42,11 @@ describe('GDD-UI-02 a tap on a settings row picks its half', () => {
     expect(settingsTapAt(rows, 300, 146)).toEqual({ row: 'buttonOpacity', side: 'right' });
     expect(settingsTapAt(rows, 300, 174)).toEqual({ row: 'layout', side: 'right' });
     expect(settingsTapAt(rows, 200, 174)).toEqual({ row: 'layout', side: 'left' });
-    expect(settingsTapAt(rows, 300, 202)).toEqual({ row: 'back', side: 'right' });
+    expect(settingsTapAt(rows, 300, 202)).toEqual({ row: 'shake', side: 'right' });
+    expect(settingsTapAt(rows, 200, 202)).toEqual({ row: 'shake', side: 'left' });
+    expect(settingsTapAt(rows, 300, 230)).toEqual({ row: 'back', side: 'right' });
     expect(settingsTapAt(rows, 200, 61.9)).toBeNull();
-    expect(settingsTapAt(rows, 200, 230)).toBeNull();
+    expect(settingsTapAt(rows, 200, 258)).toBeNull();
   });
 });
 
@@ -71,17 +74,18 @@ describe('GDD-UI-02 volume bars', () => {
 });
 
 describe('GDD-UI-02 settings menu with the language row', () => {
-  it('six rows, language third, Button opacity fourth, Layout fifth', () => {
+  it('seven rows, language third, Button opacity fourth, Layout fifth, Screen shake sixth', () => {
     const rows = layoutSettingsMenu(2);
-    expect(rows.map((r) => r.item)).toEqual(['master', 'effects', 'language', 'buttonOpacity', 'layout', 'back']);
+    expect(rows.map((r) => r.item)).toEqual(['master', 'effects', 'language', 'buttonOpacity', 'layout', 'shake', 'back']);
     expect(rows[2]!.y).toBe(118);
     expect(rows[3]!.y).toBe(146);
     expect(rows[4]!.y).toBe(174);
     expect(rows[5]!.y).toBe(202);
+    expect(rows[6]!.y).toBe(230);
     expect(rows.every((r) => r.x === 110 && r.w === 260 && r.h === 28)).toBe(true);
   });
 
-  it('on a landscape phone the six rows grow to 34 px and end at 266', () => {
+  it('on a landscape phone the rows grow to 34 px, so six of the seven end at 266', () => {
     const rows = layoutSettingsMenu(390 / 270);
     expect(rows.every((r) => r.h === 34)).toBe(true);
     expect(rows[0]!.y).toBe(62);
@@ -99,9 +103,9 @@ describe('GDD-UI-02 settings menu with the language row', () => {
     expect(languageValueX({ ...row, x: 100 })).toBe(306);
   });
 
-  it('on a desktop the six rows end at 230', () => {
+  it('on a desktop the seven rows end at 258', () => {
     const rows = layoutSettingsMenu(2);
-    expect(rows[5]!.y + rows[5]!.h).toBe(230);
+    expect(rows[6]!.y + rows[6]!.h).toBe(258);
   });
 
   it("a tap on the language row's halves", () => {
