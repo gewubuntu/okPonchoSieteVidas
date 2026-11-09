@@ -70,7 +70,7 @@ Add these environment secrets:
 | `DEPLOY_HOST` | the server's IP address or host name |
 | `DEPLOY_USER` | `deploy` |
 | `DEPLOY_SSH_KEY` | the whole private key file `poncho_deploy` |
-| `DEPLOY_KNOWN_HOSTS` | the output of `ssh-keyscan -t ed25519 <server-ip>`, run from your machine; compare its key with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on the server |
+| `DEPLOY_KNOWN_HOSTS` | the output of `ssh-keyscan -p <port> -t ed25519 <host>`, run from your machine with exactly the `DEPLOY_HOST` value and the SSH port (22 unless `DEPLOY_PORT` says otherwise); ssh matches the line by that name and port. Compare its key with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on the server |
 | `DEPLOY_PORT` | optional, only if SSH is not on port 22 |
 
 An environment variable `DEPLOY_PATH` changes the site folder from `/var/www/poncho.forkfall.xyz`. Then delete the
@@ -78,8 +78,8 @@ local `poncho_deploy` private key, or keep it somewhere safe.
 
 ## 7. First deploy
 
-Actions, `deploy`, Run workflow on `main`. It builds, uploads, switches `current` and checks that
-`https://poncho.forkfall.xyz` serves the new `index.html`. From then on every green push to `main` deploys by itself.
+Actions, `deploy`, Run workflow on `main`. It deploys `main`'s newest commit only if that commit's `check` run passed;
+it builds, uploads, switches `current` and checks that `https://poncho.forkfall.xyz` serves the new `index.html`. From then on every green push to `main` deploys by itself.
 Until the secrets exist the workflow passes with a "Deploy skipped" notice.
 
 ## Rollback

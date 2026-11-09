@@ -17,6 +17,7 @@ project get better at itself over time.
 | `.claude/settings.json` | Project hooks, each a script in `scripts/hooks/` with a test beside it. After the GitHub tool creates a PR, `after-pr.mjs` tells Claude to run the reviewer and not to merge before it reports (L-043), and after a `git push`, `after-push.mjs` tells it to open a draft PR or have the new commits re-reviewed (L-043). Before a shell command, `gate-pipe.mjs` denies one that commits (`git commit`, and `cherry-pick`, `merge`, `revert`, `am` or `rebase`) after a run of the gate (`node scripts/check.mjs` or `npm run check`) with anything but `&&` between them (L-012). Before a `git push` or a new PR, `stale-main.mjs` fetches `main` and asks the user first when the branch lacks some of it (L-052, L-030). Before a merge, `before-merge.mjs` asks the user, with the reason that a PR is merged only after its review (L-043). |
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
 | `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a visible change has no screenshots. |
+| `.github/workflows/deploy.yml` | Deploys `main`'s newest commit to https://poncho.forkfall.xyz once its `check` run passes (GDD-TEC-08, `docs/deploy.md`). Not part of the gate. |
 | `.github/pull_request_template.md` | The PR description every PR follows, including screenshots for visible changes. |
 
 ## What `scripts/check.mjs` enforces

@@ -3,7 +3,10 @@
 poncho.forkfall.xyz {
 	root * /var/www/poncho.forkfall.xyz/current
 	encode zstd gzip
-	file_server
+	file_server {
+		# The deploy's list of a release's own files (docs/deploy.md), not part of the game.
+		hide .release-files
+	}
 
 	# Vite names built files by their content hash: cache them for a year.
 	@hashed path /assets/*

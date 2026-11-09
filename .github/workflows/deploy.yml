@@ -16,6 +16,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read # to look up the check run of a manual deploy's commit
 
 jobs:
   deploy:
@@ -29,6 +30,7 @@ jobs:
       url: https://poncho.forkfall.xyz
     env:
       SITE_URL: https://poncho.forkfall.xyz
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
@@ -52,23 +54,47 @@ jobs:
         if: steps.configured.outputs.ok == 'true'
         with:
           # The commit the check workflow passed, not whatever main is now.
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ env.SHA }}
+
+      - name: Still main's tip, and checked?
+        id: go
+        if: steps.configured.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Check runs can finish out of order, and an old one can be re-run: deploy only main's newest commit,
+          # so an older build never replaces a newer one.
+          tip=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$tip" != "$SHA" ]; then
+            echo "::notice::Deploy skipped: $SHA is no longer the tip of main ($tip), whose own run deploys it."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A manual run must not skip the gate and the playtests either.
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/check.yml/runs?head_sha=$SHA&event=push&status=success" --jq '.total_count')
+          if [ "$passed" -lt 1 ]; then
+            echo "::error::$SHA has no passed check run of a push; deploy it after check passes."
+            exit 1
+          fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v6
-        if: steps.configured.outputs.ok == 'true'
+        if: steps.go.outputs.ok == 'true'
         with:
           node-version: 24
           cache: npm
 
       - name: Build
-        if: steps.configured.outputs.ok == 'true'
+        if: steps.go.outputs.ok == 'true'
         run: |
           npm ci
           npm run build
+          # This build's own hashed files, so the next deploy can keep them for tabs opened before it.
+          (cd dist && find assets -type f | sort) > dist/.release-files
           echo "RELEASE=$(date -u +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
       - name: SSH setup
-        if: steps.configured.outputs.ok == 'true'
+        if: steps.go.outputs.ok == 'true'
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
@@ -89,15 +115,22 @@ jobs:
           EOF
 
       - name: Upload release
-        if: steps.configured.outputs.ok == 'true'
+        if: steps.go.outputs.ok == 'true'
         run: |
           ssh deploy "mkdir -p '$DEPLOY_PATH/releases'"
-          # Reuse the previous release's files so only changed ones travel.
-          ssh deploy "if [ -d '$DEPLOY_PATH/current/' ]; then cp -al '$DEPLOY_PATH/current/.' '$DEPLOY_PATH/releases/$RELEASE'; fi"
-          rsync -az --delete --chmod=D755,F644 dist/ "deploy:$DEPLOY_PATH/releases/$RELEASE/"
+          # Files equal by content to the live release's are hard-linked, not sent again. A fresh build has new mtimes,
+          # and link-dest only links files whose preserved attributes match, so mtimes are not preserved.
+          rsync -a --no-times --checksum --chmod=D755,F644 --link-dest="$DEPLOY_PATH/current/" \
+            dist/ "deploy:$DEPLOY_PATH/releases/$RELEASE/"
+          # Keep the live release's own hashed files: a tab opened before this deploy loads a world's art only
+          # when its first level starts, and must not get a 404 then.
+          ssh deploy "set -e; prev='$DEPLOY_PATH/current'; new='$DEPLOY_PATH/releases/$RELEASE'
+            if [ -f \"\$prev/.release-files\" ]; then
+              while read -r f; do [ -e \"\$new/\$f\" ] || ln \"\$prev/\$f\" \"\$new/\$f\"; done < \"\$prev/.release-files\"
+            fi"
 
       - name: Switch current to the new release
-        if: steps.configured.outputs.ok == 'true'
+        if: steps.go.outputs.ok == 'true'
         run: |
           # ln + mv -T replaces the link in one rename, so a visitor never sees half a release.
           ssh deploy "cd '$DEPLOY_PATH' && ln -sfn 'releases/$RELEASE' current.tmp && mv -T current.tmp current"
@@ -105,7 +138,7 @@ jobs:
           ssh deploy "cd '$DEPLOY_PATH/releases' && ls -1 | sort -r | tail -n +$((KEEP_RELEASES + 1)) | xargs -r rm -rf --"
 
       - name: Smoke test
-        if: steps.configured.outputs.ok == 'true'
+        if: steps.go.outputs.ok == 'true'
         run: |
           # The live index.html must be the one just built (it names the hashed bundles).
           for attempt in 1 2 3 4 5; do

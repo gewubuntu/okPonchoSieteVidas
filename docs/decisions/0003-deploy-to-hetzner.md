@@ -13,9 +13,12 @@ on its own.
 ## Decision
 
 - `.github/workflows/deploy.yml` runs when the `check` workflow passes on a push to `main` (the gate, the build and the
-  playtests), and by hand on `main`. It builds the commit the check passed, not a later one.
+  playtests), and by hand on `main` for a commit whose `check` passed. It deploys only `main`'s newest commit: check
+  runs can finish out of order or be re-run, and an older build must never replace a newer one.
 - It copies `dist/` with rsync over SSH into `releases/<UTC time>-<short sha>/` under `/var/www/poncho.forkfall.xyz`
-  (the `DEPLOY_PATH` variable changes it), first hard-linking the previous release so only changed files travel. A
+  (the `DEPLOY_PATH` variable changes it). Files equal by content to the live release's are hard-linked instead of
+  sent (`--link-dest` with `--checksum`, mtimes not preserved). The live release's own hashed files are kept beside
+  the new ones, since a tab opened before a deploy loads a world's art only when its first level starts. A
   `current` symlink is then replaced in one rename (`mv -T`), so no visitor sees half a release. The newest 5 releases
   are kept; a rollback points `current` back at an older one.
 - Caddy serves `current` and gets the HTTPS certificate itself (`deploy/Caddyfile`). Hashed files are cached for a
