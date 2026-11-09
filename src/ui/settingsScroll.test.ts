@@ -78,6 +78,16 @@ describe('GDD-UI-02 the settings list scrolls', () => {
     expect(big!.tap).toEqual({ x: 358, y: 41.5, w: 8, h: 5 });
   });
 
+  it('GDD-UI-02 the arrow tap box stops at the first row top, so a tap on the row is the row', () => {
+    // 1 CSS px per game px (a window 270 CSS px tall): 48 game px about y 44 would reach 68, past the first row top at 62.
+    const rows = layoutSettingsMenu(1);
+    const [down] = scrollArrows(rows, 0, 4, 1);
+    expect(rows[0]!.y).toBe(62);
+    expect(down!.tap).toEqual({ x: 338, y: 20, w: 48, h: 42 });
+    expect(scrollArrowAt(scrollArrows(rows, 0, 4, 1), 362, 61.9)).toBe('below');
+    expect(scrollArrowAt(scrollArrows(rows, 0, 4, 1), 362, 62)).toBeNull();
+  });
+
   it('GDD-UI-02 a tap on the down arrow moves the list one row and chooses the row that comes into view, and the same for the up arrow', () => {
     // Six shown from the top: Back comes into view.
     expect(arrowTapTarget('below', 0, 6, COUNT)).toEqual({ row: 'back', first: 1 });

@@ -2612,7 +2612,9 @@ export class PlayScene extends Phaser.Scene {
     const all = layoutSettingsMenu(k);
     const fit = rowsThatFit(all[0]!.h);
     // GDD-UI-02: the list scrolls just far enough to show the chosen row; with the screen closed it is at its top (row 0), so it opens there.
-    this.settingsFirst = scrollFirst(row === null ? 0 : SETTINGS_ROWS.indexOf(row), this.settingsFirst, fit, all.length);
+    // Upright the rows are hidden and the list keeps its scroll: the upright rows' height would scroll it. (A screen closed while upright
+    // needs no reset here: it opens with Master volume chosen, which brings the list to its top, L-025.)
+    if (!upright) this.settingsFirst = scrollFirst(row === null ? 0 : SETTINGS_ROWS.indexOf(row), this.settingsFirst, fit, all.length);
     this.settingsRows = shownSettingsRows(all, this.settingsFirst, fit);
     const painted: ReturnType<PonchoDebug['settingsDrawn']>['rows'] = [];
     const show = row !== null && !upright;

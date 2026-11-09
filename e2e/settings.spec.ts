@@ -879,3 +879,18 @@ test('GDD-UI-02 on a landscape phone turned upright the settings list hides its 
     return window.__PONCHO__!.settingsDrawn().chosen === 'back' && s.first === 1 && s.arrows.map((a) => a.dir).join() === 'above';
   });
 });
+
+test('GDD-UI-02 on a landscape phone turned upright and back with Screen shake chosen the list stays at its top', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'a landscape phone');
+  await started(page);
+  await openFromPause(page);
+  await chooseRow(page, 'shake');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'shake' && window.__PONCHO__!.settingsScroll().first === 0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().prompt === 'Turn your device sideways' && window.__PONCHO__!.settingsScroll().first === 0);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.waitForFunction(() => {
+    const s = window.__PONCHO__!.settingsScroll();
+    return window.__PONCHO__!.settingsDrawn().prompt === '' && window.__PONCHO__!.settingsDrawn().chosen === 'shake' && s.first === 0 && s.arrows.map((a) => a.dir).join() === 'below';
+  });
+});

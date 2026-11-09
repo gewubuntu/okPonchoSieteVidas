@@ -37,7 +37,8 @@ export interface ScrollArrow {
 /**
  * The arrows now drawn, up first: the down one while rows are hidden below, the up one while rows are hidden above, none when all
  * fit. The triangle is centred on the title's line, 8 px inside the rows' right edge (down) or left edge (up); a tap on it is read in
- * a square of `tapCssPx` CSS px about its middle, never smaller than the triangle.
+ * a square of `tapCssPx` CSS px about its middle, never smaller than the triangle, cut off at the first row's top so it never takes a tap
+ * on a row (GDD-UI-02; it reaches that far on windows under 360 CSS px tall).
  */
 export function scrollArrows(rows: readonly SettingsMenuRow[], first: number, fit: number, cssPerVirtualPx: number): ScrollArrow[] {
   const { width, height, inset, tapCssPx } = SETTINGS_MENU.scrollArrow;
@@ -47,7 +48,8 @@ export function scrollArrows(rows: readonly SettingsMenuRow[], first: number, fi
     const cy = SETTINGS_MENU.titleY;
     const tw = Math.max(width, side);
     const th = Math.max(height, side);
-    return { dir, x: cx - width / 2, y: cy - height / 2, w: width, h: height, tap: { x: cx - tw / 2, y: cy - th / 2, w: tw, h: th } };
+    const top = cy - th / 2;
+    return { dir, x: cx - width / 2, y: cy - height / 2, w: width, h: height, tap: { x: cx - tw / 2, y: top, w: tw, h: Math.min(th, edge.y - top) } };
   };
   const arrows: ScrollArrow[] = [];
   if (first > 0) arrows.push(arrow('above', edge.x + inset));
