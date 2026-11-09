@@ -560,6 +560,12 @@ export const ESTRELLA = {
  */
 export const TEJOCOTE = { size: 8, rollSpeed: 90, secondPairSteps: Math.round(0.4 * TICK_HZ), pairs: [1, 1, 2] } as const;
 
+/**
+ * GDD-BOS-01: the hit-stop. On the step a hit lands on a boss the scene's loop runs no step for `hurtSteps` (67 ms) after a hit that
+ * leaves him hurt and `defeatSteps` (200 ms) after the hit that defeats him, so everything waits and the hit's frame stays on screen.
+ */
+export const HIT_STOP = { hurtSteps: 4, defeatSteps: 12 } as const;
+
 /** GDD-UI-01: the boss bar at the top middle: the name's middle `nameY` px from the top, and pips `pipSize` px square, `pipGap` apart, their top `pipTop` px from the top. */
 export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4, nameStroke: '#2a1f2e', nameStrokePx: 2 } as const;
 
