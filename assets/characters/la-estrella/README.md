@@ -6,7 +6,7 @@ The design of La Estrella de Siete Picos, World 2's boss (GDD-BOS-03), as the us
 - `concept-arena-hang.png`: key art: a real 2-4 screenshot with her frames pasted at true size, hanging low over the left awning in phase 1 while Poncho rebounds up at her.
 - `concept-arena-tear.png`: key art: her phase 3 tear, mid-drop where the middle awning was, Poncho on the left cordel.
 
-The look, which the sprite follows (the drawing these images were made with is to be built into `scripts/art/`):
+The look, which the sprite follows (drawn by `scripts/art/estrella.mjs`, built pixel for pixel from the drawing these images were made with):
 
 - **A posada star piñata:** a terracotta clay olla (World 2's tejas colours) with a neck and lip at the top and a cobalt talavera band with glaze dots: her 32 x 32 box and her only solid part.
 - **Cut-out eyes:** almond holes cut into the clay, a little slanted, each with a one-pixel yellow "curse light" pupil: neutral, glancing left or right at Poncho, wide in a drop or a yank, squinted (> <) when hurt, X's when defeated. They stay dark through both flashes.

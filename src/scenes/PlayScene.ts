@@ -457,7 +457,7 @@ export interface PonchoDebug {
    * the frame of her sheet and what it shows (its look, the hits it shows, the cones left, the flash), whether it is mirrored, the trolley's
    * middle and frame, and the rope's length in px (0 while she is too high for it to show, null once it snapped).
    */
-  estrellaDrawn(): { x: number; y: number; frame: number; look: string; hits: number; cones: number; flash: 'red' | 'white' | null; flipX: boolean; trolleyX: number; trolleyFrame: number; rope: number | null } | null;
+  estrellaDrawn(): { x: number; y: number; frame: number; look: string; hits: number; cones: number; flash: 'red' | 'white' | null; flipX: boolean; trolleyX: number; trolleyFrame: number; trolleyCableY: number; rope: number | null; ropeX: number | null; ropeTop: number | null } | null;
   /** GDD-BOS-03: her tejocotes in the run (the middle x, the bottom y, steps before it comes out), and the images drawn last frame (the box's left and top, the frame of the calyx). */
   tejocotes(): { x: number; y: number; wait: number }[];
   tejocotesDrawn(): { x: number; y: number; frame: number }[];
@@ -1602,7 +1602,11 @@ export class PlayScene extends Phaser.Scene {
       flipX: sprite.flipX,
       trolleyX: this.estrellaTrolley.x,
       trolleyFrame: Number(this.estrellaTrolley.frame.name),
+      // The row of the cable the trolley's image rides on, and where the rope's image starts: read back from the images (L-010).
+      trolleyCableY: this.estrellaTrolley.y + ESTRELLA_ART.trolleyCable,
       rope: pose.rope ? (rope ? this.estrellaRope.displayHeight : 0) : null,
+      ropeX: rope ? this.estrellaRope.x : null,
+      ropeTop: rope ? this.estrellaRope.y : null,
     };
     const boxes = tejocoteBoxes(this.run.tejocotes);
     while (this.tejocoteImages.length < boxes.length) this.tejocoteImages.push(this.add.image(0, 0, 'estrella-tejocote', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3));

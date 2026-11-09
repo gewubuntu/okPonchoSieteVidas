@@ -238,6 +238,9 @@ test('GDD-BOS-03 the frame drawn is the one estrellaPose picks for the run, in e
     expect(read.run.mode).toBe(mode);
     const pose = estrellaPose({ ...read.run, mode, spot: 0 }, read.player, LEVEL_2_4.estrella!);
     expect(read.drawn, mode).toMatchObject({ frame: pose.frame, x: pose.x, y: pose.y, flipX: pose.flipX, trolleyFrame: pose.trolley.frame, ...estrellaFrameInfo(pose.frame) });
+    // The trolley rides the cable (y = 8) and the rope, where it shows, ties into her top cone's tip from the trolley's eye (GDD-BOS-03, "Her look").
+    expect(read.drawn!.trolleyCableY, mode).toBe(8);
+    if (mode === 'hang') expect({ x: read.drawn!.ropeX, top: read.drawn!.ropeTop }, mode).toEqual({ x: pose.rope!.x, top: pose.rope!.top });
   }
 });
 

@@ -565,7 +565,7 @@ export const ESTRELLA = {
  * quarter turn on each) are `tejocoteFrame` px square, her trolley's (two) `trolleyFrame` px square with the cable `trolleyCable` px down from
  * the frame's top, its wheel `trolleyWheel` px in radius (a frame for each eighth turn). Her rope starts `ropeFrom` px under the cable, at the
  * trolley's eye, and ends `ropeTie` px under her top cone's tip (`coneTip`), tied into the paper. She shows her landing look, the bottom
- * cones splayed so nothing reaches below her box, from `landLook` px above a surface she drops onto and until she is that clear of the floor
+ * cones splayed so nothing reaches below her box, from `landLook` px above a surface she drops onto, and in her own rise look (splayed, tassels down) until she is that clear of the floor
  * she rises from (the design's proposal, Proposed; her in-air looks reach 14 px below her box). Her defeated pot falls in a look that reaches `fallBelow` px
  * below its box and lies, reaching none, once it is less than that above the floor.
  */
