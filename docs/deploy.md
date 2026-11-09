@@ -78,9 +78,12 @@ local `poncho_deploy` private key, or keep it somewhere safe.
 
 ## 7. First deploy
 
-Actions, `deploy`, Run workflow on `main`. It deploys `main`'s newest commit only if that commit's `check` run passed;
+Actions, `deploy`, Run workflow on `main`. Every run deploys `main`'s newest commit, and only if its `check` run passed;
 it builds, uploads, switches `current` and checks that `https://poncho.forkfall.xyz` serves the new `index.html`. From then on every green push to `main` deploys by itself.
 Until the secrets exist the workflow passes with a "Deploy skipped" notice.
+
+Each release also holds a `.release-files` list of its own hashed files. The next deploy uses it to keep those files
+beside its own for one release, so a tab opened before a deploy can still load a world's art; Caddy does not serve it.
 
 ## Rollback
 

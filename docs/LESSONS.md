@@ -823,8 +823,9 @@ Retired IDs: L-046
 - **What went wrong:** the GDD-TEC-08 deploy workflow was dry-run locally seven times against one `dist/`, and the PR said files were hard-linked across releases. In CI every build has new mtimes, so `rsync -a` would have copied every file each time. The dry run also ran deploys one after another, so it missed that `workflow_run` deploys in the order the check runs finish, which can put an older commit live (both found in the review of PR #88).
 - **Root cause:** the dry run reused what was at hand (one build, sequential runs) instead of listing what differs on the runner: a fresh checkout and build each time, runs that overlap and can be re-run.
 - **Rule:** before a dry run of a CI or deploy step, list what differs on the runner (a fresh build with new mtimes, overlapping runs, re-runs, missing secrets) and make the dry run reproduce each of them, or say in the PR which ones it does not cover.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-09, PR #88):** the fix deployed only `main`'s tip and skipped any other commit, saying the tip's own run would deploy it; but a later deploy run can replace that waiting run in the concurrency queue and then skip, so the newest commit stayed off the site (found in the re-review). The rule was written in the same PR, as a lesson, and the fix was reasoned about one run at a time instead of listing how runs overlap.
+- **Recurrence:** 2
+- **Promoted:** CLAUDE.md (Conventions: a dry run of a CI or deploy step reproduces what differs on the runner)
 
 ## L-075 A changelog said the playtests passed while they were still running
 
@@ -833,5 +834,6 @@ Retired IDs: L-046
 - **What went wrong:** the GDD 0.11.0 changelog line said the full playtest suite passed for the GDD-TEC-07 dependency review, while the local run was still going (it was then stopped at 30 minutes) and the PR left the e2e box unticked (found in the review of PR #88).
 - **Root cause:** the changelog line was written while the run was planned and committed before its result came back; nothing ties a "passing" claim to a finished run.
 - **Rule:** write that a check passed only after its run has finished, naming where (local or CI); until then write that it is pending.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-09, PR #88):** the review fix moved vite to 8.3.7 and kept the changelog's "the full playtest suite passing in CI", which held for the earlier head while CI's playtests on the new head were still running (found in the re-review). The lesson was a day old and in no step that a changelog edit goes through.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-gdd-update (step 3: a changelog claim that a check passed names a finished run on the head it describes)

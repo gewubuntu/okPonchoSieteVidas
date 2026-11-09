@@ -9,11 +9,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# One deploy at a time; a newer one waits instead of cancelling a switch half done.
-concurrency:
-  group: deploy-production
-  cancel-in-progress: false
-
 permissions:
   contents: read
   actions: read # to look up the check run of a manual deploy's commit
@@ -25,12 +20,16 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
+    # One deploy at a time; a newer one waits instead of cancelling a switch half done. At job level, so a run
+    # whose job is skipped (a failed check, a pull request) never takes the one pending place in the queue.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     environment:
       name: production
       url: https://poncho.forkfall.xyz
     env:
       SITE_URL: https://poncho.forkfall.xyz
-      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
@@ -50,33 +49,30 @@ jobs:
             echo "ok=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v6
-        if: steps.configured.outputs.ok == 'true'
-        with:
-          # The commit the check workflow passed, not whatever main is now.
-          ref: ${{ env.SHA }}
-
-      - name: Still main's tip, and checked?
+      - name: Main's newest commit, and checked?
         id: go
         if: steps.configured.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Check runs can finish out of order, and an old one can be re-run: deploy only main's newest commit,
-          # so an older build never replaces a newer one.
-          tip=$(git ls-remote origin refs/heads/main | cut -f1)
-          if [ "$tip" != "$SHA" ]; then
-            echo "::notice::Deploy skipped: $SHA is no longer the tip of main ($tip), whose own run deploys it."
+          # Every run deploys main's newest commit, whichever check run woke it: check runs can finish out of order
+          # or be re-run, and a waiting deploy can be replaced by a later one, so an older build never replaces a
+          # newer one and the newest one is not left out.
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq '.sha')
+          # Nothing that has not passed the gate and the playtests is deployed, by hand either.
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/check.yml/runs?head_sha=$sha&event=push&status=success" --jq '.total_count')
+          if [ "$passed" -lt 1 ]; then
+            echo "::notice::Deploy skipped: main's newest commit $sha has no passed check run yet; its check run deploys it when it passes."
             echo "ok=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # A manual run must not skip the gate and the playtests either.
-          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/check.yml/runs?head_sha=$SHA&event=push&status=success" --jq '.total_count')
-          if [ "$passed" -lt 1 ]; then
-            echo "::error::$SHA has no passed check run of a push; deploy it after check passes."
-            exit 1
-          fi
+          echo "SHA=$sha" >> "$GITHUB_ENV"
           echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        if: steps.go.outputs.ok == 'true'
+        with:
+          ref: ${{ env.SHA }}
 
       - uses: actions/setup-node@v6
         if: steps.go.outputs.ok == 'true'
