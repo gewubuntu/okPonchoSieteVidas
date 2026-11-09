@@ -1,7 +1,7 @@
 // Screenshots of World 2's Mercado backdrop, ground and decor for visual review (GDD-ART-06), in level 2-1 (GDD-WLD-12) and the arena 2-4,
 // and La Estrella's placeholder in each phase (GDD-BOS-03). Run with `npm run shots`; images land in shots/ (not committed).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { bumpEstrella, phase3Hit, start, stepToEstrellaMode } from '../helpers';
+import { bumpEstrella, phase3Hit, start, stepToEstrellaMode, stepToEstrellaTear } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
   await page.waitForTimeout(250); // L-042: real time only lets the frame render before the picture; nothing is timed by it
@@ -173,6 +173,19 @@ test('GDD-BOS-03 estrella: phase 3 after the tear, the middle awning torn away, 
   await middleTorn(page);
   await drawnAs(page, { cones: 3 });
   await shot(page, info, 'estrella-tear');
+});
+
+test('GDD-BOS-01 shake: the tear shakes the world 4 px down, then 4 px up, the HUD still', async ({ page, isMobile }, info) => {
+  // Reached the way the game does (L-045): phase 3's first drop played out to the step of the tear, the shake's age 0.
+  await fight(page, isMobile, 2, 205, 136);
+  expect(await stepToEstrellaTear(page)).toBeLessThan(400);
+  expect(await page.evaluate(() => window.__PONCHO__!.shake())).toMatchObject({ age: 0, offset: 4 });
+  await page.waitForFunction(() => window.__PONCHO__!.cameraScrollY() === -4);
+  await shot(page, info, 'shake-down');
+  await page.evaluate(() => window.__PONCHO__!.step(2));
+  expect(await page.evaluate(() => window.__PONCHO__!.shake())).toMatchObject({ age: 2, offset: -4 });
+  await page.waitForFunction(() => window.__PONCHO__!.cameraScrollY() === 4);
+  await shot(page, info, 'shake-up');
 });
 
 test('GDD-BOS-03 estrella: defeated, her rope snapped, the empty pot falling', async ({ page, isMobile }, info) => {

@@ -3,7 +3,7 @@ import { SHAKE } from '../config/tuning';
 import { LEVEL_1_1 } from '../levels/level1-1';
 import { LEVEL_1_4 } from '../levels/level1-4';
 import { LEVEL_2_4 } from '../levels/level2-4';
-import { bossStart, hitBoss, type BossState } from './boss';
+import { bossStart, hitBoss, type BossState, type RockState } from './boss';
 import { estrellaStart, type EstrellaMode, type EstrellaState } from './estrella';
 import { spawn, type PlayerInput } from './movement';
 import { startRun, stepRun, type Level, type RunState } from './run';
@@ -24,6 +24,16 @@ const TEAR: ShakeDef = { px: 4, steps: 20, dying: true };
 const ESTRELLA_DEFEAT: ShakeDef = { px: 3, steps: 16, dying: false };
 const STUCK: ShakeDef = { px: 2, steps: 10, dying: false };
 const BOSS_DEFEAT: ShakeDef = { px: 3, steps: 16, dying: false };
+
+/** A run of 1-4 on the step after a flying rock hit Don Zopilote, in phase 3 in `mode` at (x, y): his third hit, the run being that hit's step. */
+function rockHit(mode: BossState['mode'], x: number, y: number): RunState {
+  const rock: RockState = { x, y, vx: 0, vy: 0, mode: 'flying', age: 0 };
+  const boss: BossState = { ...bossStart(DON, 2), mode, x, y: mode === 'dive' ? y - 5 : y, dir: 1, age: 5, tx: x, ty: 209 };
+  const rocks: RockState[] = [rock, { x: 424, y: 176, vx: 0, vy: 0, mode: 'rest', age: 0 }];
+  const hit = stepRun({ ...startRun(LEVEL_1_4), player: { ...spawn(40, 176), grounded: true }, boss, rocks }, STILL, LEVEL_1_4);
+  expect(hit.boss).toMatchObject({ mode: 'defeated', hits: 3, age: 0 });
+  return hit;
+}
 
 /** A run of 1-4, or 2-4, with Poncho standing at (x, y) facing right, and the boss as given. */
 const donFight = (x: number, y: number, boss: BossState): RunState => ({ ...startRun(LEVEL_1_4), player: { ...spawn(x, y), grounded: true }, boss });
@@ -118,12 +128,14 @@ describe('GDD-BOS-01 shake starts', () => {
   });
 
   it('GDD-BOS-01 shake: a hit on a boss starts no shake', () => {
-    // Don Zopilote stuck in the sand, a claw: a hit that leaves him hurt, and the one that defeats him, on the swing's own step and after.
-    for (const hits of [0, 2]) {
-      const { out, runs } = starts(donFight(200, 224, stuckAt(232, hits)), LEVEL_1_4, 8, claw);
-      expect(runs.some((r) => r.boss!.hits === hits + 1)).toBe(true);
-      expect(out.every((s) => s === null)).toBe(true);
-    }
+    // Don Zopilote stuck in the sand, a claw: a hit that leaves him hurt starts nothing on the swing's own step or after; the one that defeats
+    // him starts nothing on its own step (the slump after it is its own test).
+    const hurt = starts(donFight(200, 224, stuckAt(232, 0)), LEVEL_1_4, 8, claw);
+    expect(hurt.runs.some((r) => r.boss!.hits === 1)).toBe(true);
+    expect(hurt.out.every((s) => s === null)).toBe(true);
+    const defeat = starts(donFight(200, 224, stuckAt(232, 2)), LEVEL_1_4, 8, claw);
+    expect(defeat.runs[2]!.boss).toMatchObject({ hits: 3, mode: 'defeated', age: 0 });
+    expect(defeat.out[2]).toBeNull();
     // And a hit that defeats him in the air, from his states alone: he was not yet on the floor, and the hit's step is no landing.
     const flying: BossState = { ...bossStart(DON, 2), mode: 'lap', y: 100 };
     expect(shakeStarts({ ...startRun(LEVEL_1_4), boss: flying }, { ...startRun(LEVEL_1_4), boss: hitBoss(flying) }, LEVEL_1_4)).toBeNull();
@@ -141,6 +153,33 @@ describe('GDD-BOS-01 shake starts', () => {
     const last = starts(estrellaFight(60, 224, posed('hang', 90, 220, 2)), LEVEL_2_4, 6, claw);
     expect(last.runs[2]!.estrella).toMatchObject({ hits: 3, mode: 'defeated' });
     expect(last.out.slice(0, 3).every((s) => s === null)).toBe(true);
+  });
+
+  it("GDD-BOS-01 shake: a defeat while stuck in the sand starts no shake on the hit's step and 3 px for 16 steps on the next", () => {
+    // A claw swings on the third step; the third hit defeats him lying in the sand (his middle at 209, his box's bottom on the floor).
+    const { out, runs } = starts(donFight(200, 224, stuckAt(232, 2)), LEVEL_1_4, 12, claw);
+    expect(runs[2]!.boss).toMatchObject({ hits: 3, mode: 'defeated', age: 0, y: 209 });
+    expect(out[2]).toBeNull();
+    expect(out[3]).toEqual(BOSS_DEFEAT);
+    // Once, on that step alone: not on the steps after it, while he lies there.
+    expect(at(out)).toEqual([4]);
+    // A rock does the same: it breaks on him stuck in the sand.
+    const rocked = starts(rockHit('stuck', 232, 209), LEVEL_1_4, 6);
+    expect(at(rocked.out)).toEqual([1]);
+    expect(rocked.out[0]).toEqual(BOSS_DEFEAT);
+  });
+
+  it('GDD-BOS-01 shake: a defeat in the air starts only its landing shake', () => {
+    // A rock breaks on him diving at y 140 (his third hit): the hit's step and the step after it start nothing, he falls 2 px a step and
+    // lands, and the landing is the one shake. His middle lands at 209.
+    const hit = rockHit('dive', 232, 140);
+    expect(hit.boss).toMatchObject({ mode: 'defeated', hits: 3, age: 0 });
+    expect(hit.boss!.y).toBeLessThan(209);
+    const { out, runs } = starts(hit, LEVEL_1_4, 60);
+    expect(at(out)).toHaveLength(1);
+    expect(out[at(out)[0]! - 1]).toEqual(BOSS_DEFEAT);
+    expect(runs[at(out)[0]! - 1]!.boss!.y).toBe(209);
+    expect(at(out)[0]).toBeGreaterThan(2);
   });
 
   it('GDD-BOS-01 shake: a step with nothing landing starts none', () => {

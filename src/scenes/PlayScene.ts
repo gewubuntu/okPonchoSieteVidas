@@ -327,6 +327,8 @@ export interface PonchoDebug {
   shake(): { px: number; age: number; dying: boolean; size: number; offset: number } | null;
   /** The camera's y scroll as last set, in game px: minus the shake's `offset` (0 when none runs); everything with a scroll factor of 0 does not move with it. */
   cameraScrollY(): number;
+  /** GDD-BOS-01: how far each object of the far backdrop is drawn from where it rests, in game px: all the shake's offset (the whole picture shakes). */
+  backdropShifts(): number[];
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed, the Button opacity step and the outline alphas drawn (GDD-CTL-03). */
   touch(): TouchDebug;
   /** Where each moving platform is: the left end of its top surface and its width (GDD-WLD-05). */
@@ -1363,6 +1365,7 @@ export class PlayScene extends Phaser.Scene {
         hitStop: () => ({ left: this.hold, held: this.heldTicks }),
         shake: () => (this.shake === null ? null : { px: this.shake.px, age: this.shake.age, dying: this.shake.dying, size: shakeSize(this.shake), offset: shakeOffset(this.shake, this.settings.shake === 'on') }),
         cameraScrollY: () => this.cameras.main.scrollY,
+        backdropShifts: () => this.scenery.backdropShifts(),
         clawDrawn: () => this.clawPainted,
         swipeDrawn: () => (this.swipeImage.visible ? { look: ITEM_LOOKS.swipe[Number(this.swipeImage.frame.name)]!, x: this.swipeImage.x, y: this.swipeImage.y, flipX: this.swipeImage.flipX } : null),
         fragilesDrawn: () => this.fragilesPainted,
@@ -2056,11 +2059,13 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-UI-04: the camera follows the body where it is drawn, and stands still while it is hidden. */
   private followBody(): void {
     this.scrollX = followCamera(this.scrollX, this.body.visible ? this.body.x : null, this.world.width * TILE);
-    // GDD-BOS-01: the screen shake moves the camera up and down; everything with a scroll factor of 0 (the HUD, the touch buttons, the
-    // screens, the far backdrop) stays still. A positive offset draws the world down, so the camera goes up.
-    this.cameras.main.setScroll(this.scrollX, -shakeOffset(this.shake, this.settings.shake === 'on'));
+    // GDD-BOS-01: the screen shake moves the whole picture up and down: the camera draws the level `offset` lower (a positive offset draws it
+    // down, so the camera goes up) and the far backdrop, which the camera does not move (a scroll factor of 0), is drawn the same offset
+    // lower. The HUD, the touch buttons and the screens (scroll factor 0, not shifted) stay still.
+    const offset = shakeOffset(this.shake, this.settings.shake === 'on');
+    this.cameras.main.setScroll(this.scrollX, -offset);
     // GDD-ART-06: the far layers move at a share of the scroll, in art pixels of their textures.
-    this.scenery.follow(this.scrollX);
+    this.scenery.follow(this.scrollX, offset);
   }
 
   /** One fixed simulation step with the given input. */

@@ -16,8 +16,13 @@ export interface Scenery {
   preload(load: Phaser.Loader.LoaderPlugin): void;
   /** Draws the backdrop, the decor and the ground tiles of `level`, under everything else in the level. */
   create(scene: Phaser.Scene, level: Level): void;
-  /** Moves the far layers by their shares of the camera's scroll (game px). */
-  follow(scrollX: number): void;
+  /**
+   * Moves the far layers by their shares of the camera's scroll (game px), and draws the whole backdrop `offsetY` game px lower (negative:
+   * higher), the offset the camera draws the world at, so that a screen shake moves the backdrop with the level (GDD-BOS-01).
+   */
+  follow(scrollX: number, offsetY: number): void;
+  /** How far each object of the backdrop is drawn from where it rests (every one of them is `follow`'s `offsetY`), in game px. */
+  backdropShifts(): number[];
   /** How far the clouds, the far band and the mid band are shifted, in game px, read back from what was drawn. */
   backdrop(): { clouds: number; mountains: number; desert: number };
   /** Where the fixed parts are drawn, in game px: the sun's centre (null without a sun), the far band's top, its foot's top, the mid band's top. */
@@ -51,6 +56,9 @@ class BandScenery implements Scenery {
   private far!: Phaser.GameObjects.TileSprite;
   private foot!: Phaser.GameObjects.Rectangle;
   private midBand!: Phaser.GameObjects.TileSprite;
+  /** Every object of the backdrop and the y it rests at, which `follow` shifts by the screen shake's offset. */
+  private readonly layers: { readonly object: Phaser.GameObjects.Components.Transform; readonly rest: number }[] = [];
+  private offsetY = 0;
   private decorImages: Phaser.GameObjects.Image[] = [];
   private readonly groundImages = new Map<string, Phaser.GameObjects.Image>();
 
@@ -90,22 +98,29 @@ class BandScenery implements Scenery {
     const { skyBands, skyEnds, stripArt, sun } = this.look;
     scene.cameras.main.setBackgroundColor(skyBands[skyBands.length - 1]);
     const bands = scene.add.graphics().setScrollFactor(0).setDepth(-4);
+    this.layers.push({ object: bands, rest: 0 });
     let top = 0;
     skyEnds.forEach((end, i) => {
       // The band runs on to its end: the dither strip, drawn over its last rows, covers them.
       bands.fillStyle(skyBands[i]!, 1).fillRect(0, top * art, BASE_WIDTH, (end - top) * art);
       top = end;
-      scene.add.image(0, (end - stripArt) * art, this.key('sky-strips'), i).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3.5);
+      const strip = scene.add.image(0, (end - stripArt) * art, this.key('sky-strips'), i).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3.5);
+      this.layers.push({ object: strip, rest: strip.y });
     });
-    if (sun !== null) this.sun = scene.add.image(sun.x - sun.half, sun.y - sun.half, this.key('sun')).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3);
+    if (sun !== null) {
+      this.sun = scene.add.image(sun.x - sun.half, sun.y - sun.half, this.key('sun')).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3);
+      this.layers.push({ object: this.sun, rest: this.sun.y });
+    }
     this.cloudImages = this.look.clouds.map(({ x, y }, i) =>
       [x, x - BASE_WIDTH].map((at) => scene.add.image(at, y, this.key(`cloud-${i}`)).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-2)),
     );
+    this.look.clouds.forEach(({ y }, i) => this.cloudImages[i]!.forEach((image) => this.layers.push({ object: image, rest: y })));
     const { farTop, farBandArt, footColour, midTop, midBandArt } = this.look;
     this.far = scene.add.tileSprite(0, farTop, BASE_WIDTH * ART_SCALE, farBandArt, this.key('far')).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-1);
     const foot = farTop + farBandArt * art;
     this.foot = scene.add.rectangle(0, foot, BASE_WIDTH, BASE_HEIGHT - foot, footColour).setOrigin(0).setScrollFactor(0).setDepth(-1);
     this.midBand = scene.add.tileSprite(0, midTop, BASE_WIDTH * ART_SCALE, midBandArt, this.key(this.mid)).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-0.5);
+    this.layers.push({ object: this.far, rest: farTop }, { object: this.foot, rest: foot }, { object: this.midBand, rest: midTop });
   }
 
   private drawDecor(scene: Phaser.Scene, level: Level): void {
@@ -126,7 +141,9 @@ class BandScenery implements Scenery {
     }
   }
 
-  follow(scrollX: number): void {
+  follow(scrollX: number, offsetY: number): void {
+    this.offsetY = offsetY;
+    for (const { object, rest } of this.layers) object.y = rest + offsetY;
     const cloudShift = parallaxOffset(scrollX, this.look.cloudFactor);
     this.look.clouds.forEach(({ x }, i) => {
       const at = (((x - cloudShift) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH;
@@ -137,6 +154,10 @@ class BandScenery implements Scenery {
     this.midBand.tilePositionX = parallaxOffset(scrollX, this.look.midFactor) * ART_SCALE;
   }
 
+  backdropShifts(): number[] {
+    return this.layers.map(({ object, rest }) => object.y - rest);
+  }
+
   backdrop(): { clouds: number; mountains: number; desert: number } {
     const first = this.look.clouds[0]!.x;
     return { clouds: (((first - this.cloudImages[0]![0]!.x) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH, mountains: this.far.tilePositionX / ART_SCALE, desert: this.midBand.tilePositionX / ART_SCALE };
@@ -144,7 +165,7 @@ class BandScenery implements Scenery {
 
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number } {
     const half = this.look.sun?.half ?? 0;
-    return { sunX: this.sun === null ? null : this.sun.x + half, sunY: this.sun === null ? null : this.sun.y + half, mountainsY: this.far.y, footY: this.foot.y, desertY: this.midBand.y };
+    return { sunX: this.sun === null ? null : this.sun.x + half, sunY: this.sun === null ? null : this.sun.y - this.offsetY + half, mountainsY: this.far.y - this.offsetY, footY: this.foot.y - this.offsetY, desertY: this.midBand.y - this.offsetY };
   }
 
   drawn(): { set: ArtSet; midKey: string } {

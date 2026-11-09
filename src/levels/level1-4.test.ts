@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BOSS, BOSS_ART } from '../config/tuning';
 import { bossCrown, bossStart, type BossState, type RockState } from '../sim/boss';
+import { shakeStarts, type ShakeDef } from '../sim/shake';
 import { bossPose } from '../ui/bossPose';
 import { spawn, type PlayerInput } from '../sim/movement';
 import { medal } from '../sim/results';
@@ -240,6 +241,29 @@ describe('GDD-BOS-02 playing 1-4', () => {
     expect(steps).toBeLessThan(1500);
     expect(run.lives.lives).toBe(7);
     expect(run.boss).toMatchObject({ hits: 3, mode: 'defeated' });
+  });
+
+  it('GDD-BOS-01 shake: in the bot\'s real fight each dive that sticks him shakes 2 px and the third hit makes him slump with 3 px for 16 steps', () => {
+    // The bot claws him stuck in the sand three times (or knocks a rock on him in phase 2): the shakes the fight starts, with the step of each.
+    const seen: { step: number; shake: ShakeDef }[] = [];
+    let before = startRun(LEVEL_1_4);
+    let step = 0;
+    let third = -1;
+    bot(LEVEL_1_4, 1500, (run) => {
+      step++;
+      const shake = shakeStarts(before, run, LEVEL_1_4);
+      if (shake !== null) seen.push({ step, shake });
+      if (third < 0 && run.boss!.hits === 3) third = step;
+      before = run;
+    });
+    expect(third).toBeGreaterThan(0);
+    // The hit's own step shakes nothing; the step after it starts the defeat's 3 px for 16 steps, the last shake of the fight, once.
+    const slump = seen.filter((s) => s.step >= third);
+    expect(slump).toEqual([{ step: third + 1, shake: { px: 3, steps: 16, dying: false } }]);
+    // Before it, only dives that stuck him: 2 px for 10 steps (the bot hits him stuck in phases 1 and 3).
+    const before3 = seen.filter((s) => s.step < third);
+    expect(before3.length).toBeGreaterThanOrEqual(2);
+    expect(before3.every((s) => s.shake.px === 2 && s.shake.steps === 10)).toBe(true);
   });
 
   // L-059: the frames of assets/sprites/boss/ (scripts/art/boss.test.mjs pins their reach) over the real fight.

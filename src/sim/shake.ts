@@ -17,7 +17,8 @@ export interface Shake extends ShakeDef {
  * GDD-BOS-01: the shake the step `before` to `after` starts in `level`, or null. La Estrella: a drop that ends on an awning (drop to
  * bounce) or on the floor (drop to rest), the tear (`tore` turning true), her defeated pot reaching the floor (her bottom, `y`, at
  * `floor`). Don Zopilote: a dive that sticks (dive to stuck), his defeated body reaching the floor (his middle, `y`, at `floor` less half
- * his height). A hit on a boss starts none. A step that starts two (no real arena can) starts the bigger. Drawn only: the simulation never
+ * his height), or, when the hit that defeats him found him lying there (stuck in the sand), the step after that hit (his defeat's age 0). A hit on
+ * a boss starts none. A step that starts two (no real arena can) starts the bigger. Drawn only: the simulation never
  * reads a shake.
  */
 export function shakeStarts(before: RunState, after: RunState, level: Level): ShakeDef | null {
@@ -36,6 +37,8 @@ export function shakeStarts(before: RunState, after: RunState, level: Level): Sh
     if (b0.mode === 'dive' && b1.mode === 'stuck') found.push(SHAKE.bossStuck);
     const lying = level.boss.floor - BOSS.height / 2;
     if (b0.mode === 'defeated' && b1.mode === 'defeated' && b0.y < lying && b1.y >= lying) found.push(SHAKE.bossDefeat);
+    // The hit that defeats him while he is stuck in the sand: he already lies on the floor, so there is no landing; he slumps on the step after the hit.
+    if (b0.mode === 'defeated' && b0.age === 0 && b0.y >= lying) found.push(SHAKE.bossDefeat);
   }
   return found.reduce<ShakeDef | null>((best, s) => (best === null || s.px > best.px ? s : best), null);
 }
