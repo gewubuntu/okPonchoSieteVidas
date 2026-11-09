@@ -150,15 +150,23 @@ jobs:
           ssh deploy "cd '$DEPLOY_PATH/releases' && ls -1 | sort -r | tail -n +$((KEEP_RELEASES + 1)) | xargs -r rm -rf --"
 
       - name: Smoke test
-        if: steps.live.outputs.ok == 'true'
+        # Also when this commit was already live, so re-running a run whose smoke test failed tests the site again.
+        if: steps.go.outputs.ok == 'true'
+        env:
+          BUILT: ${{ steps.live.outputs.ok }}
         run: |
-          # The live index.html must be the one just built (it names the hashed bundles).
+          # The site must serve the live release's index.html (it names the hashed bundles): the one just built, or,
+          # when this commit was already live, the one on the server.
+          if [ "$BUILT" = true ]; then expected=dist/index.html; else
+            expected=expected.html
+            ssh deploy "cat '$DEPLOY_PATH/current/index.html'" > "$expected"
+          fi
           for attempt in 1 2 3 4 5; do
-            if curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "$SITE_URL/" -o live.html && cmp -s live.html dist/index.html; then
-              echo "$SITE_URL serves release $RELEASE"
+            if curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "$SITE_URL/" -o live.html && cmp -s live.html "$expected"; then
+              echo "$SITE_URL serves the live release of $SHA"
               exit 0
             fi
             sleep $((attempt * 3))
           done
-          echo "::error::$SITE_URL does not serve the new index.html"
+          echo "::error::$SITE_URL does not serve the live release's index.html"
           exit 1
