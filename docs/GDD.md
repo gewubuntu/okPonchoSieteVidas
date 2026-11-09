@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.10.7
+Version: 0.11.0
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.11.0** (2026-11-09) GDD-TEC-08, GDD-TEC-07: deployment, new and Decided (user, 2026-11-09: "I want to setup a ci/cd to deploy the game to my hetzner server the URL should be poncho.forkfall.xyz."): the game is published at `https://poncho.forkfall.xyz` from the user's Hetzner server. How, Proposed: each push to `main` that passes the `check` workflow is built and copied by rsync over SSH into a release folder, a `current` link switched to it at once, 5 releases kept, Caddy serving it with HTTPS, a check that the site serves the new build; skipped with a notice until the secrets are set (`.github/workflows/deploy.yml`, `docs/deploy.md`, ADR 0003). Open Question 11 partly answered. GDD-TEC-07, the minor version's dependency review: `npm outdated` gave @playwright/test 1.64.1 to 1.65.0, oxlint 1.91.0 to 1.92.0, oxlint-tsgolint 7.0.2005 to 7.0.2006 and vite 8.3.5 to 8.3.6, all upgraded, the gate and the full playtest suite passing; `@types/node` stays at 24 (ADR 0002).
 - **0.10.7** (2026-11-09) GDD-BOS-01, GDD-BOS-03: the hit-stop built (user, 2026-11-08: "Yes I like the idea"): 4 steps after a hit that leaves a boss hurt, 12 after the defeating one (`HIT_STOP`), held in the scene's loop so the simulation and its step counts are unchanged; presses during it are kept for the first step after it. The screen shake is still to come.
 - **0.10.6** (2026-11-08) GDD-BOS-03, GDD-BOS-01, GDD-WLD-10: the tear built (user, 2026-11-08: "Yes"): La Estrella's first phase 3 drop falls at x = 240 and tears the middle awning away for the rest of the fight, kept after a later lost life, whole again before the tear and in a fresh fight. Drawn as any gone torn awning, its two halves hanging at its posts (the main session's choice in place of a falling tarp, approved from screenshots: "Approved"). The bot's phase 3 route moves to the left cordel: 1035 steps, hits on 344, 663 and 975. Measured: she tears it on step 133 of phase 3.
 - **0.10.5** (2026-11-08) GDD-ENM-03, GDD-ENM-02, GDD-CMB-01, GDD-ART-06, GDD-ART-01: World 2's enemies get their art (user, 2026-11-08: "design the missing enemies in world 2. Do it as you are a Nintendo master designer with a consistent design."; the scope "Art for the three", the Zanate still later; "No, design them", no reference images; the designs approved from an animated design page, "Approved, build them into the game", saved in `assets/characters/world2-enemies/`). The Paloma is the rock pigeon of the plaza, the bird of "Cucurrucucú paloma", that puffs up like a courting pigeon; the Chapulín the wingless grasshopper of Chapultepec; the Trompo the wooden top of the toy stall with a painted face that goes round and three pale tacks on its crown. Sprites drawn in code in World 2's colours (`scripts/art/enemies2/`), their frames picked from their state (Proposed), and the defeat poof for them too (Proposed). How far each frame reaches past its box is pinned and checked over World 2's levels. GDD-ENM-02's poof and `ENEMY_ART` cover them; GDD-CMB-01's mark names the tacks; GDD-ART-06 and GDD-ART-01 no longer list them as not drawn. The Trompo's rock and the Paloma's puff are described as drawn; what stands beside a box may lie over a wall's face, as World 1's (user, 2026-11-08: "Allowed"). Screenshots approved in session (user, 2026-11-08: "Approved"; `docs/screenshots/world2-enemies/`). No rule of play changes. The placeholder shapes (`src/ui/mercadoEnemies.ts`) are gone.
@@ -1348,6 +1349,15 @@ Status: Proposed
 - Playwright playtests per the `harness-playtest` skill: boot, jump, life loss, touch input, console free of errors.
 - `scripts/check.mjs` runs all of these through npm scripts once they exist.
 
+### GDD-TEC-08 Deployment
+
+Status: Decided (user, 2026-11-09: "I want to setup a ci/cd to deploy the game to my hetzner server the URL should be poncho.forkfall.xyz."). How it deploys is Proposed (`docs/decisions/0003-deploy-to-hetzner.md`).
+
+- The game is published at `https://poncho.forkfall.xyz`, served from the user's Hetzner server.
+- **Continuous deployment (Proposed):** every push to `main` whose `check` workflow passes (the gate, the build and the playtests) is built and deployed by `.github/workflows/deploy.yml`, and it can also be started by hand. Nothing that fails the gate or a playtest reaches the site.
+- **How (Proposed):** the built `dist/` is copied over SSH with rsync into a new release folder named after the commit, then a `current` link is switched to it in one step, so a visitor never sees half a release; the last 5 releases are kept for a rollback by pointing the link back. A web server on the host (Caddy, which fetches and renews the HTTPS certificate itself) serves `current`. Files with a content hash in their name are cached for a year, `index.html` is always revalidated. After the switch the workflow fetches the site and fails unless it serves the new `index.html`.
+- The SSH key, host, user and the server's host key are GitHub secrets of a `production` environment; until they are set the workflow skips the deploy with a notice instead of failing. Server setup: `docs/deploy.md`.
+
 ---
 
 ## 15. Scope
@@ -1392,7 +1402,7 @@ Answer these to move items from Proposed to Decided. Until then the Proposed tex
 8. **Difficulty (GDD-VIS-02):** is assist mode and a kid-friendly tone right, or do you want a harder game?
 9. **Audio (GDD-AUD-01):** will you provide music, or should placeholders be generated and licensed assets chosen?
 10. **Score (GDD-PRG-03):** keep or cut? Medals are kept (user, 2026-10-30).
-11. **Distribution:** where will it be hosted (itch.io, own site, stores)? This drives PWA versus native packaging.
+11. **Distribution:** where will it be hosted (itch.io, own site, stores)? This drives PWA versus native packaging. Partly answered (user, 2026-11-09): the web build is published on the user's own site, `https://poncho.forkfall.xyz` (GDD-TEC-08); stores and itch.io are still open.
 12. **Taco pickups in Taco (GDD-PWR-02, GDD-PWR-06):** a taco lying on the floor is left where it is when Poncho is already Taco, but a walking taco released from a piñata is used up when he touches it. Should both behave the same?
 13. **Gap limits after World 1 (GDD-WLD-03, GDD-TEC-04):** World 1 has one (3 tiles), and World 2's is built at 4 tiles (Proposed), which needs a run-up, with a covered-pit rule: pit columns under a whole awning, a cordel or a rollo, within 3 tiles above the pit's nearer edge, do not count, and no uncovered run may be wider than 4. The level validator fails a level in any other world until that world has a limit. Is 4 right for World 2 (another way: keep 3 everywhere and let only awnings and rollos make wider pits)? Should the limit grow by world, up to the 5 tiles a running jump can cross?
 14. **Detail on phones (GDD-ART-01):** at 1920 x 1080, one art pixel is less than one screen pixel on most phones, so the finest detail blurs there. Fine as it is, or should the sprites keep their key details (eye, triangles) at least 2 art pixels wide?

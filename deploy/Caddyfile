@@ -1,0 +1,21 @@
+# Caddy site for the game (GDD-TEC-08). Copy to /etc/caddy/Caddyfile, or import it from there,
+# then `systemctl reload caddy`. Caddy fetches and renews the HTTPS certificate itself.
+poncho.forkfall.xyz {
+	root * /var/www/poncho.forkfall.xyz/current
+	encode zstd gzip
+	file_server
+
+	# Vite names built files by their content hash: cache them for a year.
+	@hashed path /assets/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+	# index.html names the current bundles: always revalidate it.
+	@html path / /index.html
+	header @html Cache-Control "no-cache"
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

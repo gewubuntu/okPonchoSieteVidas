@@ -1,0 +1,119 @@
+# Deploy the game to https://poncho.forkfall.xyz on the Hetzner server (GDD-TEC-08).
+# Runs after the `check` workflow passes on main, or by hand. Server setup: docs/deploy.md.
+name: deploy
+
+on:
+  workflow_run:
+    workflows: [check]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time; a newer one waits instead of cancelling a switch half done.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # Only a passed check run of a push to main, or a manual run on main; never a pull request's run.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://poncho.forkfall.xyz
+    env:
+      SITE_URL: https://poncho.forkfall.xyz
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/var/www/poncho.forkfall.xyz' }}
+      KEEP_RELEASES: 5
+    steps:
+      - name: Deploy configured?
+        id: configured
+        env:
+          HAS_KEY: ${{ secrets.DEPLOY_SSH_KEY != '' }}
+          HAS_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS != '' }}
+        run: |
+          if [ -n "$DEPLOY_HOST" ] && [ -n "$DEPLOY_USER" ] && [ "$HAS_KEY" = true ] && [ "$HAS_KNOWN_HOSTS" = true ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Deploy skipped: set DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS in the production environment (docs/deploy.md)."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v6
+        if: steps.configured.outputs.ok == 'true'
+        with:
+          # The commit the check workflow passed, not whatever main is now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-node@v6
+        if: steps.configured.outputs.ok == 'true'
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build
+        if: steps.configured.outputs.ok == 'true'
+        run: |
+          npm ci
+          npm run build
+          echo "RELEASE=$(date -u +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      - name: SSH setup
+        if: steps.configured.outputs.ok == 'true'
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # The server's host key is pinned from a secret, never trusted on first use.
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host deploy
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            Port $DEPLOY_PORT
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Upload release
+        if: steps.configured.outputs.ok == 'true'
+        run: |
+          ssh deploy "mkdir -p '$DEPLOY_PATH/releases'"
+          # Reuse the previous release's files so only changed ones travel.
+          ssh deploy "if [ -d '$DEPLOY_PATH/current/' ]; then cp -al '$DEPLOY_PATH/current/.' '$DEPLOY_PATH/releases/$RELEASE'; fi"
+          rsync -az --delete --chmod=D755,F644 dist/ "deploy:$DEPLOY_PATH/releases/$RELEASE/"
+
+      - name: Switch current to the new release
+        if: steps.configured.outputs.ok == 'true'
+        run: |
+          # ln + mv -T replaces the link in one rename, so a visitor never sees half a release.
+          ssh deploy "cd '$DEPLOY_PATH' && ln -sfn 'releases/$RELEASE' current.tmp && mv -T current.tmp current"
+          # Keep the newest releases for a rollback (names start with the UTC time, so they sort by age).
+          ssh deploy "cd '$DEPLOY_PATH/releases' && ls -1 | sort -r | tail -n +$((KEEP_RELEASES + 1)) | xargs -r rm -rf --"
+
+      - name: Smoke test
+        if: steps.configured.outputs.ok == 'true'
+        run: |
+          # The live index.html must be the one just built (it names the hashed bundles).
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "$SITE_URL/" -o live.html && cmp -s live.html dist/index.html; then
+              echo "$SITE_URL serves release $RELEASE"
+              exit 0
+            fi
+            sleep $((attempt * 3))
+          done
+          echo "::error::$SITE_URL does not serve the new index.html"
+          exit 1
