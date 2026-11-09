@@ -71,7 +71,8 @@ Retired IDs: L-046
 - **Recurrence 3 (2026-11-04, GDD-BOS-02 his defeat, found by the implementer):** my plan picked the crown's speed, gravity and bounce by hand and claimed it would rest before the clear screen 60 steps after the hit; measured over the real fight, a hit high in the air left it resting on step 61 to 76, frozen mid-bounce on the clear screen. The skill rule asks to measure a claim before it goes into the GDD, and it did not reach the plan, where I wrote it as a fact rather than a target. The constants are now tuned against a test that sweeps every height he can be defeated at (worst step 49).
 - **Recurrence 4 (2026-11-04, PR #77, found by the review):** my plan put the crown's start "17 px to the side he faces", worked out from the upright drawing; the frame he shows on the floor lies on his back, head on the other side, so the crown popped off his tail. The head's place is now measured from the art frames by a test (`BOSS_ART.headTumble`, `headLying`).
 - **Recurrence 5 (2026-11-09, GDD-BOS-01 screen shake, found by the implementer before it wrote code):** the GDD's shake rhythm gave the formula `round(4 * (1 - age / 20))` and, beside it, the sequence "4, 4, 4, 4, 3" and the claim that the tear's shake outlasts the thud 8 steps later, both worked out by hand; the formula gives 4, 4, 4, 3 and 2 px at the thud, which the overlap rule would replace. Fixed by rounding up (`Math.ceil`), with the sequence and the gap now measured in `src/sim/shake.test.ts`. The skill's rule covered it; it was skipped because the numbers came from a formula written in the same sentence, which felt checked.
-- **Recurrence:** 5
+- **Recurrence 6 (2026-11-09, PR #89, GDD-BOS-01, found by the review):** the GDD listed "3 px for 16 steps when he lands on the floor at his defeat" as a built shake, but in the usual fight he is defeated while stuck in the sand, already on the floor, so it never played; nothing had run the claim over the real 1-4 fight. Fixed by the user's "Shake as he slumps", now tested over the bot's real fight in `src/levels/level1-4.test.ts`.
+- **Recurrence:** 6
 - **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test). Guard: none (no script can tell a measured claim from one worked out by hand; the implementer measures every planned number in a test before the GDD takes it, which caught this one)
 
 ## L-004 Debug hook returned the wrong value after landing
@@ -112,8 +113,9 @@ Retired IDs: L-046
 - **What went wrong:** The lives HUD (PR #3) was built, reviewed and merged with the HUD checked only by screenshots that Claude looked at. The user never saw the images and had to ask for them.
 - **Root cause:** The harness had no step for visual approval. The playtest skill said to look at screenshots, but not to show them to the person who decides whether the result is good.
 - **Rule:** Anything the player can see is shown to the user, in the session, as desktop and phone screenshots, and approved before the PR is marked ready for review, a draft until then (user, 2026-11-01; before that, approved before the PR opened) (CLAUDE.md "Visible changes need the user's approval before the PR is marked ready"). Approved images are committed under `docs/screenshots/` and embedded in the PR.
-- **Recurrence:** 1
-- **Promoted:** scripts/pr-screenshots.mjs (CI warning), pr-reviewer subagent (blocking finding), CLAUDE.md
+- **Recurrence 2 (2026-11-09, PR #89, GDD-BOS-01, found by the review):** the screen shake was planned and opened with "no screenshots: a shake cannot be seen in a still frame"; a still frame shows the world 4 px off, and the user's first look at the frames changed the design ("Shake everything").
+- **Recurrence:** 2
+- **Promoted:** scripts/pr-screenshots.mjs (CI warning), pr-reviewer subagent (blocking finding), CLAUDE.md, and since recurrence 2 .claude/skills/harness-feature (step 5: motion counts as visible; plan screenshots of a motion's extreme frames)
 
 ## L-008 The no-model-names check missed a bare model alias
 
@@ -784,8 +786,9 @@ Retired IDs: L-046
 - **What went wrong:** PR #81 opened as "design in progress, not in the game yet"; two commits later the game played the victory, but the description still listed that work as next and its checkboxes unchecked (a blocking finding of the review).
 - **Root cause:** The description was edited when the design changed, not when the scope changed; nothing ties a push to a reread of the description.
 - **Rule:** After every push that changes what the PR does (a phase landed, a GDD version, new playtests), rewrite the description's Scope, checks and Notes to match the head before launching the review.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-09, PR #89, found by the review):** after the fix commit for the first review the description still said the backdrop stays still and there were no screenshots, and listed 49 mutants; the replies on the threads were updated, the description was not.
+- **Recurrence:** 2
+- **Promoted:** scripts/hooks/after-push.mjs (the reminder after every push now says to rewrite the description's Scope, checks, Screenshots and Notes to match the head before the re-review; tested in scripts/hooks/after-push.test.mjs)
 
 ## L-071 The implementer unstaged a deleted file with `git reset`
 
