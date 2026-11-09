@@ -11,7 +11,7 @@ on:
 
 permissions:
   contents: read
-  actions: read # to look up the check run of a manual deploy's commit
+  actions: read # to look up whether main's newest commit passed its check run
 
 jobs:
   deploy:
@@ -69,26 +69,6 @@ jobs:
           echo "SHA=$sha" >> "$GITHUB_ENV"
           echo "ok=true" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v6
-        if: steps.go.outputs.ok == 'true'
-        with:
-          ref: ${{ env.SHA }}
-
-      - uses: actions/setup-node@v6
-        if: steps.go.outputs.ok == 'true'
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Build
-        if: steps.go.outputs.ok == 'true'
-        run: |
-          npm ci
-          npm run build
-          # This build's own hashed files, so the next deploy can keep them for tabs opened before it.
-          (cd dist && find assets -type f | sort) > dist/.release-files
-          echo "RELEASE=$(date -u +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
-
       - name: SSH setup
         if: steps.go.outputs.ok == 'true'
         env:
@@ -110,8 +90,44 @@ jobs:
             StrictHostKeyChecking yes
           EOF
 
-      - name: Upload release
+      - name: Already live?
+        id: live
         if: steps.go.outputs.ok == 'true'
+        run: |
+          # Several check runs can wake a deploy for the same newest commit. Building it again would push the kept
+          # hashed files of the release before it out (only one release back is kept) and use up a rollback slot.
+          current=$(ssh deploy "readlink '$DEPLOY_PATH/current' || true")
+          case "$current" in
+            *"-$SHA")
+              echo "::notice::Deploy skipped: $SHA is already live ($current)."
+              echo "ok=false" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "ok=true" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - uses: actions/checkout@v6
+        if: steps.live.outputs.ok == 'true'
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: actions/setup-node@v6
+        if: steps.live.outputs.ok == 'true'
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build
+        if: steps.live.outputs.ok == 'true'
+        run: |
+          npm ci
+          npm run build
+          # This build's own hashed files, so the next deploy can keep them for tabs opened before it.
+          (cd dist && find assets -type f | sort) > dist/.release-files
+          # Named <UTC time>-<full sha>: the time sorts releases by age, the sha tells which commit is live.
+          echo "RELEASE=$(date -u +%Y%m%d%H%M%S)-$SHA" >> "$GITHUB_ENV"
+
+      - name: Upload release
+        if: steps.live.outputs.ok == 'true'
         run: |
           ssh deploy "mkdir -p '$DEPLOY_PATH/releases'"
           # Files equal by content to the live release's are hard-linked, not sent again. A fresh build has new mtimes,
@@ -126,7 +142,7 @@ jobs:
             fi"
 
       - name: Switch current to the new release
-        if: steps.go.outputs.ok == 'true'
+        if: steps.live.outputs.ok == 'true'
         run: |
           # ln + mv -T replaces the link in one rename, so a visitor never sees half a release.
           ssh deploy "cd '$DEPLOY_PATH' && ln -sfn 'releases/$RELEASE' current.tmp && mv -T current.tmp current"
@@ -134,7 +150,7 @@ jobs:
           ssh deploy "cd '$DEPLOY_PATH/releases' && ls -1 | sort -r | tail -n +$((KEEP_RELEASES + 1)) | xargs -r rm -rf --"
 
       - name: Smoke test
-        if: steps.go.outputs.ok == 'true'
+        if: steps.live.outputs.ok == 'true'
         run: |
           # The live index.html must be the one just built (it names the hashed bundles).
           for attempt in 1 2 3 4 5; do

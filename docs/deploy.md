@@ -78,7 +78,7 @@ local `poncho_deploy` private key, or keep it somewhere safe.
 
 ## 7. First deploy
 
-Actions, `deploy`, Run workflow on `main`. Every run deploys `main`'s newest commit, and only if its `check` run passed;
+Actions, `deploy`, Run workflow on `main`. Every run deploys `main`'s newest commit, and only if its `check` run passed and it is not already live;
 it builds, uploads, switches `current` and checks that `https://poncho.forkfall.xyz` serves the new `index.html`. From then on every green push to `main` deploys by itself.
 Until the secrets exist the workflow passes with a "Deploy skipped" notice.
 

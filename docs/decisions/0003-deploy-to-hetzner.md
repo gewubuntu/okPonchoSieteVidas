@@ -15,8 +15,8 @@ on its own.
 - `.github/workflows/deploy.yml` runs when the `check` workflow passes on a push to `main` (the gate, the build and the
   playtests), and by hand. Every run deploys `main`'s newest commit, and only if its `check` passed: check runs can
   finish out of order or be re-run, and a waiting deploy can be replaced by a later one, so an older build must never
-  replace a newer one and the newest must not be left out.
-- It copies `dist/` with rsync over SSH into `releases/<UTC time>-<short sha>/` under `/var/www/poncho.forkfall.xyz`
+  replace a newer one and the newest must not be left out. A run whose commit is already live does nothing.
+- It copies `dist/` with rsync over SSH into `releases/<UTC time>-<sha>/` under `/var/www/poncho.forkfall.xyz`
   (the `DEPLOY_PATH` variable changes it). Files equal by content to the live release's are hard-linked instead of
   sent (`--link-dest` with `--checksum`, mtimes not preserved). The live release's own hashed files are kept beside
   the new ones, since a tab opened before a deploy loads a world's art only when its first level starts. A
