@@ -69,6 +69,7 @@ import { browserLanguage, DEFAULT_SETTINGS, SETTINGS_ROWS, sfxVolume, type Langu
 import { TITLE, titleAfterQuit, titleFrame, titleOpen, titlePonchoX, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
 import { hitStopSteps } from '../sim/hitStop';
+import { nextShake, shakeOffset, shakeSize, shakeStarts, type Shake } from '../sim/shake';
 import { bestTimeSuffix, clearTime, medal, medalLine, medalSuffix, openResults, resultsFrame, resultsShown, revealedLines, type ResultsItem, type ResultsMenu } from '../sim/results';
 import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
@@ -309,7 +310,8 @@ export interface PonchoDebug {
   tutorialPlayed(): boolean;
   /**
    * While paused, runs exactly `n` simulation steps, with no input unless given, so a frame can be reached without timing luck. It calls the
-   * step directly, so the hit-stop (`hitStop`, GDD-BOS-01) never holds it: a test that steps by hand keeps its counts.
+   * step directly, so the hit-stop (`hitStop`, GDD-BOS-01) never holds it: a test that steps by hand keeps its counts. It moves the screen
+   * shake (`shake`) on like any step.
    */
   step(n: number, input?: PlayerInput): void;
   /**
@@ -317,6 +319,16 @@ export interface PonchoDebug {
    * loop ticks have been held since the page loaded (each a step that did not run). `step()` never holds, so only the game's own frames count.
    */
   hitStop(): { left: number; held: number };
+  /**
+   * GDD-BOS-01: the screen shake running (null when none): its `px` and steps `age` (0 on the frame of the step that started it), whether it
+   * `dying` away, its `size` in px now and the `offset` it is drawn at now (positive: the world drawn down; 0 with the Screen shake row
+   * Off). It moves on with each step that runs, including a step made by `step()`, never with a held tick or a pause.
+   */
+  shake(): { px: number; age: number; dying: boolean; size: number; offset: number } | null;
+  /** The camera's y scroll as last set, in game px: minus the shake's `offset` (0 when none runs); everything with a scroll factor of 0 does not move with it. */
+  cameraScrollY(): number;
+  /** GDD-BOS-01: how far each object of the far backdrop is drawn from where it rests, in game px: all the shake's offset (the whole picture shakes). */
+  backdropShifts(): number[];
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed, the Button opacity step and the outline alphas drawn (GDD-CTL-03). */
   touch(): TouchDebug;
   /** Where each moving platform is: the left end of its top surface and its width (GDD-WLD-05). */
@@ -758,6 +770,8 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-BOS-01: the steps of hit-stop left, in which the loop runs no step, and how many loop ticks have been held (the debug hook's count). */
   private hold = 0;
   private heldTicks = 0;
+  /** GDD-BOS-01: the screen shake running, moved on by each step that runs (a held tick or a pause does not), drawn as the camera's y scroll in `followBody`. */
+  private shake: Shake | null = null;
   private clawPainted: 'none' | 'windup' | 'swing' = 'none';
 
   /**
@@ -1349,6 +1363,9 @@ export class PlayScene extends Phaser.Scene {
         claw: () => this.run.claw.phase,
         swings: () => this.swings,
         hitStop: () => ({ left: this.hold, held: this.heldTicks }),
+        shake: () => (this.shake === null ? null : { px: this.shake.px, age: this.shake.age, dying: this.shake.dying, size: shakeSize(this.shake), offset: shakeOffset(this.shake, this.settings.shake === 'on') }),
+        cameraScrollY: () => this.cameras.main.scrollY,
+        backdropShifts: () => this.scenery.backdropShifts(),
         clawDrawn: () => this.clawPainted,
         swipeDrawn: () => (this.swipeImage.visible ? { look: ITEM_LOOKS.swipe[Number(this.swipeImage.frame.name)]!, x: this.swipeImage.x, y: this.swipeImage.y, flipX: this.swipeImage.flipX } : null),
         fragilesDrawn: () => this.fragilesPainted,
@@ -2042,9 +2059,13 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-UI-04: the camera follows the body where it is drawn, and stands still while it is hidden. */
   private followBody(): void {
     this.scrollX = followCamera(this.scrollX, this.body.visible ? this.body.x : null, this.world.width * TILE);
-    this.cameras.main.setScroll(this.scrollX, 0);
+    // GDD-BOS-01: the screen shake moves the whole picture up and down: the camera draws the level `offset` lower (a positive offset draws it
+    // down, so the camera goes up) and the far backdrop, which the camera does not move (a scroll factor of 0), is drawn the same offset
+    // lower. The HUD, the touch buttons and the screens (scroll factor 0, not shifted) stay still.
+    const offset = shakeOffset(this.shake, this.settings.shake === 'on');
+    this.cameras.main.setScroll(this.scrollX, -offset);
     // GDD-ART-06: the far layers move at a share of the scroll, in art pixels of their textures.
-    this.scenery.follow(this.scrollX);
+    this.scenery.follow(this.scrollX, offset);
   }
 
   /** One fixed simulation step with the given input. */
@@ -2059,6 +2080,7 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
     this.run = after;
+    this.shake = nextShake(this.shake, shakeStarts(before, after, this.level)); // GDD-BOS-01: also on the debug `step()`, which is a real step
     this.defeats = stepDefeats(this.defeats, before, this.run, this.level);
     const { sounds, combo } = stepSounds(before, this.run, this.hiloCombo);
     this.hiloCombo = combo;
@@ -2528,6 +2550,7 @@ export class PlayScene extends Phaser.Scene {
     this.tipStep = 0;
     this.stepper.reset();
     this.hold = 0; // GDD-BOS-01: the fresh run waits for no hit
+    this.shake = null; // and has no shake running
     // GDD-LIFE-05: the fresh run can have fewer lives than the one quit (World 1's saved lives, GDD-PRG-02): those are no lives just lost,
     // so no triangle cracks, and a last life pulses from the level's start (GDD-LIFE-04).
     this.drawnLives = this.run.lives.lives;

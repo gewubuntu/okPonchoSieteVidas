@@ -59,6 +59,8 @@ export interface TouchDebug {
   insets: Insets;
   /** How many times the buttons have been laid out since the controls were made; it stays the same on frames where nothing that places them changed. */
   layouts: number;
+  /** GDD-BOS-01: how far, in game px, the camera's scroll moves the drawn buttons and the tip outline on screen (the largest of the two); 0 while they stay where they are laid out, as in a screen shake. */
+  shiftY: number;
 }
 
 export class TouchControls {
@@ -251,7 +253,13 @@ export class TouchControls {
   }
 
   debug(): TouchDebug {
-    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick, highlighted: this.highlighted, opacity: this.opacity, layout: this.layout, alphas: this.drawnAlphas, styleAlphas: this.styleAlphas, highlightAlpha: this.drawnHighlightAlpha(), insets: this.insets, layouts: this.layouts };
+    return { visible: this.enabled && this.gfx.visible, buttons: this.buttons, pressed: this.drawnPressed, mode: this.mode, stick: this.stick, highlighted: this.highlighted, opacity: this.opacity, layout: this.layout, alphas: this.drawnAlphas, styleAlphas: this.styleAlphas, highlightAlpha: this.drawnHighlightAlpha(), insets: this.insets, layouts: this.layouts, shiftY: this.shiftY() };
+  }
+
+  /** The camera's y scroll moves a drawing by minus the scroll times its scroll factor. */
+  private shiftY(): number {
+    const scrollY = this.scene.cameras.main.scrollY;
+    return Math.max(...[this.gfx, this.highlightGfx].map((g) => Math.abs(-scrollY * g.scrollFactorY)));
   }
 
   /** GDD-CTL-03: the Button opacity step; the buttons are drawn again when it changes. */

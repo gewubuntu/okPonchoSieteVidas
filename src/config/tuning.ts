@@ -571,6 +571,22 @@ export const TEJOCOTE = { size: 8, rollSpeed: 90, secondPairSteps: Math.round(0.
  */
 export const HIT_STOP = { hurtSteps: 4, defeatSteps: 12 } as const;
 
+/**
+ * GDD-BOS-01: the screen shake, drawn only: the world is drawn `px` down for `flipSteps` steps, then `px` up for as many, and so on, for
+ * `steps` steps from the step the shake starts; a `dying` shake has the size `ceil(px * (1 - age / steps))` instead. La Estrella: landing on
+ * an awning, thudding on the floor, the tear, her empty pot reaching the floor at her defeat. Don Zopilote: a dive sticking him in the
+ * sand, his body reaching the floor at his defeat (GDD-BOS-02).
+ */
+export const SHAKE = {
+  flipSteps: 2,
+  estrellaAwning: { px: 1, steps: 6, dying: false },
+  estrellaFloor: { px: 2, steps: 10, dying: false },
+  estrellaTear: { px: 4, steps: 20, dying: true },
+  estrellaDefeat: { px: 3, steps: 16, dying: false },
+  bossStuck: { px: 2, steps: 10, dying: false },
+  bossDefeat: { px: 3, steps: 16, dying: false },
+} as const;
+
 /** GDD-UI-01: the boss bar at the top middle: the name's middle `nameY` px from the top, and pips `pipSize` px square, `pipGap` apart, their top `pipTop` px from the top. */
 export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4, nameStroke: '#2a1f2e', nameStrokePx: 2 } as const;
 
