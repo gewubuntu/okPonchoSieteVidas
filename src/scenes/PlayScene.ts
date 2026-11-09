@@ -68,6 +68,7 @@ import { checkpointRun, DEFAULT_SAVE, mergeLevels, readSave, recordClear, record
 import { browserLanguage, DEFAULT_SETTINGS, sfxVolume, type Language, type Settings, type SettingsRow } from '../sim/settings';
 import { TITLE, titleAfterQuit, titleFrame, titleOpen, titlePonchoX, titlePrompt, type TitleItem, type TitleState } from '../sim/title';
 import { hilosCollected } from '../sim/hilo';
+import { hitStopSteps } from '../sim/hitStop';
 import { bestTimeSuffix, clearTime, medal, medalLine, medalSuffix, openResults, resultsFrame, resultsShown, revealedLines, type ResultsItem, type ResultsMenu } from '../sim/results';
 import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
@@ -299,8 +300,16 @@ export interface PonchoDebug {
   settings(): Settings;
   /** Whether the tutorial 0-1 has been started, in the browser's save or in this visit (GDD-UI-02, GDD-PRG-02). */
   tutorialPlayed(): boolean;
-  /** While paused, runs exactly `n` simulation steps, with no input unless given, so a frame can be reached without timing luck. */
+  /**
+   * While paused, runs exactly `n` simulation steps, with no input unless given, so a frame can be reached without timing luck. It calls the
+   * step directly, so the hit-stop (`hitStop`, GDD-BOS-01) never holds it: a test that steps by hand keeps its counts.
+   */
   step(n: number, input?: PlayerInput): void;
+  /**
+   * GDD-BOS-01: the hit-stop of the real loop: `left`, the steps still to hold after a hit on a boss (0 when none), and `held`, how many
+   * loop ticks have been held since the page loaded (each a step that did not run). `step()` never holds, so only the game's own frames count.
+   */
+  hitStop(): { left: number; held: number };
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed, the Button opacity step and the outline alphas drawn (GDD-CTL-03). */
   touch(): TouchDebug;
   /** Where each moving platform is: the left end of its top surface and its width (GDD-WLD-05). */
@@ -735,6 +744,9 @@ export class PlayScene extends Phaser.Scene {
   private holdAtStart: boolean;
   private swings = 0;
   private spits = 0;
+  /** GDD-BOS-01: the steps of hit-stop left, in which the loop runs no step, and how many loop ticks have been held (the debug hook's count). */
+  private hold = 0;
+  private heldTicks = 0;
   private clawPainted: 'none' | 'windup' | 'swing' = 'none';
 
   /**
@@ -1316,6 +1328,7 @@ export class PlayScene extends Phaser.Scene {
         hudKeys: () => this.hudKeyCount,
         claw: () => this.run.claw.phase,
         swings: () => this.swings,
+        hitStop: () => ({ left: this.hold, held: this.heldTicks }),
         clawDrawn: () => this.clawPainted,
         swipeDrawn: () => (this.swipeImage.visible ? { look: ITEM_LOOKS.swipe[Number(this.swipeImage.frame.name)]!, x: this.swipeImage.x, y: this.swipeImage.y, flipX: this.swipeImage.flipX } : null),
         fragilesDrawn: () => this.fragilesPainted,
@@ -2216,8 +2229,18 @@ export class PlayScene extends Phaser.Scene {
     let stepped = false;
     if (!this.paused && !this.pauseState.paused && !this.title.shown) {
       this.alpha = this.stepper.advance(deltaMs / 1000, () => {
+        // GDD-BOS-01: the hit-stop. A held tick runs no step and is no step for the latched presses: they wait for the first step after it.
+        if (this.hold > 0) {
+          this.hold--;
+          this.heldTicks++;
+          return;
+        }
         stepped = true;
+        const before = this.run;
         this.simStep(input);
+        this.hold = hitStopSteps(before, this.run);
+        // The hit's frame stays on screen: Poncho is not drawn sliding from the step before it to the hit's during the hold.
+        if (this.hold > 0) this.prevPlayer = this.run.player;
       });
     } else if (this.paused) {
       this.alpha = 1;
@@ -2482,6 +2505,7 @@ export class PlayScene extends Phaser.Scene {
     this.tipsDoneNow = (this.entry.tips ?? []).map(() => false);
     this.tipStep = 0;
     this.stepper.reset();
+    this.hold = 0; // GDD-BOS-01: the fresh run waits for no hit
     // GDD-LIFE-05: the fresh run can have fewer lives than the one quit (World 1's saved lives, GDD-PRG-02): those are no lives just lost,
     // so no triangle cracks, and a last life pulses from the level's start (GDD-LIFE-04).
     this.drawnLives = this.run.lives.lives;
