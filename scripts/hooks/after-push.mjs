@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // PostToolUse hook for `git push` (see .claude/settings.json), the automated reminder for L-043: a review covers only the
 // head commit it saw, so commits pushed after it need a re-review before the PR is reported ready or merged, and a pushed
-// branch with no open PR gets a draft PR (CLAUDE.md). It never blocks and never fails: any problem prints nothing and exits 0.
+// branch with no open PR gets a draft PR (CLAUDE.md); and for L-070, the PR description is rewritten to match the head first. It never blocks and never fails: any problem prints nothing and exits 0.
 
 import { pathToFileURL } from 'node:url';
 import { isPush } from './stale-main.mjs';
@@ -16,7 +16,8 @@ export function buildContext(input) {
   return (
     'The branch was just pushed. Under CLAUDE.md (Pull requests): a branch with no open PR gets a draft PR now, and a PR ' +
     'that already has a pr-reviewer review gets a re-review of the new commits (the pr-reviewer subagent with the PR number), ' +
-    'because a review covers only the head commit it saw (L-043). The PR is not reported ready or merged before that review.'
+    'because a review covers only the head commit it saw (L-043). The PR is not reported ready or merged before that review. ' +
+    "Before launching it, rewrite the PR description's Scope, checks, Screenshots and Notes to match the head (L-070)."
   );
 }
 

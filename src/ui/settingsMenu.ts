@@ -22,8 +22,9 @@ export interface VolumeBar {
 }
 
 /**
- * Six rows, "Master volume", "Effects volume", "Language", "Button opacity", "Layout" and "Back", centred, the first's top at SETTINGS_MENU.top and each next
- * directly below, growing like the pause menu's rows so none is under TOUCH.minCssPx tall on the player's screen.
+ * Seven rows, "Master volume", "Effects volume", "Language", "Button opacity", "Layout", "Screen shake" and "Back", centred, the first's top at SETTINGS_MENU.top and each next
+ * directly below, growing like the pause menu's rows so none is under TOUCH.minCssPx tall on the player's screen. All seven, at the
+ * places they have with the list at its top: `shownSettingsRows` (settingsScroll.ts) picks the ones the screen shows.
  */
 export function layoutSettingsMenu(cssPerVirtualPx: number): SettingsMenuRow[] {
   const h = Math.max(SETTINGS_MENU.rowHeight, Math.ceil(TOUCH.minCssPx / cssPerVirtualPx));

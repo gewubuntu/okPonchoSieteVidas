@@ -70,7 +70,10 @@ Retired IDs: L-046
 - **Recurrence 2 (2026-11-02, PR #69, GDD-CTL-03, found by the review):** the known limit "a side inset of more than 4 px puts the claw button over the settings rows" was worked out by hand from the layout numbers; it named one button of three and missed the other side's 21 px. The `harness-gdd-update` rule asked for measuring only claims that follow from the simulation or a level, not from a layout. The thresholds are now measured over the real layouts in `src/ui/settingsMenu.test.ts`.
 - **Recurrence 3 (2026-11-04, GDD-BOS-02 his defeat, found by the implementer):** my plan picked the crown's speed, gravity and bounce by hand and claimed it would rest before the clear screen 60 steps after the hit; measured over the real fight, a hit high in the air left it resting on step 61 to 76, frozen mid-bounce on the clear screen. The skill rule asks to measure a claim before it goes into the GDD, and it did not reach the plan, where I wrote it as a fact rather than a target. The constants are now tuned against a test that sweeps every height he can be defeated at (worst step 49).
 - **Recurrence 4 (2026-11-04, PR #77, found by the review):** my plan put the crown's start "17 px to the side he faces", worked out from the upright drawing; the frame he shows on the floor lies on his back, head on the other side, so the crown popped off his tail. The head's place is now measured from the art frames by a test (`BOSS_ART.headTumble`, `headLying`).
-- **Recurrence:** 4
+- **Recurrence 5 (2026-11-09, GDD-BOS-01 screen shake, found by the implementer before it wrote code):** the GDD's shake rhythm gave the formula `round(4 * (1 - age / 20))` and, beside it, the sequence "4, 4, 4, 4, 3" and the claim that the tear's shake outlasts the thud 8 steps later, both worked out by hand; the formula gives 4, 4, 4, 3 and 2 px at the thud, which the overlap rule would replace. Fixed by rounding up (`Math.ceil`), with the sequence and the gap now measured in `src/sim/shake.test.ts`. The skill's rule covered it; it was skipped because the numbers came from a formula written in the same sentence, which felt checked.
+- **Recurrence 6 (2026-11-09, PR #89, GDD-BOS-01, found by the review):** the GDD listed "3 px for 16 steps when he lands on the floor at his defeat" as a built shake, but in the usual fight he is defeated while stuck in the sand, already on the floor, so it never played; nothing had run the claim over the real 1-4 fight. Fixed by the user's "Shake as he slumps", now tested over the bot's real fight in `src/levels/level1-4.test.ts`.
+- **Recurrence 7 (2026-11-09, PR #90, GDD-BOS-03, found by the review):** the GDD's "Her look" frame choices were written from the implementer's report, not read off the code: it called the trolley's 3.6 px wheel radius "3.6 px across" and said she shows her rest look as she rises, where `lookOf` shows her separate rise look. The tests pinned the code; only the prose was wrong.
+- **Recurrence:** 7
 - **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test). Guard: none (no script can tell a measured claim from one worked out by hand; the implementer measures every planned number in a test before the GDD takes it, which caught this one)
 
 ## L-004 Debug hook returned the wrong value after landing
@@ -111,8 +114,9 @@ Retired IDs: L-046
 - **What went wrong:** The lives HUD (PR #3) was built, reviewed and merged with the HUD checked only by screenshots that Claude looked at. The user never saw the images and had to ask for them.
 - **Root cause:** The harness had no step for visual approval. The playtest skill said to look at screenshots, but not to show them to the person who decides whether the result is good.
 - **Rule:** Anything the player can see is shown to the user, in the session, as desktop and phone screenshots, and approved before the PR is marked ready for review, a draft until then (user, 2026-11-01; before that, approved before the PR opened) (CLAUDE.md "Visible changes need the user's approval before the PR is marked ready"). Approved images are committed under `docs/screenshots/` and embedded in the PR.
-- **Recurrence:** 1
-- **Promoted:** scripts/pr-screenshots.mjs (CI warning), pr-reviewer subagent (blocking finding), CLAUDE.md
+- **Recurrence 2 (2026-11-09, PR #89, GDD-BOS-01, found by the review):** the screen shake was planned and opened with "no screenshots: a shake cannot be seen in a still frame"; a still frame shows the world 4 px off, and the user's first look at the frames changed the design ("Shake everything").
+- **Recurrence:** 2
+- **Promoted:** scripts/pr-screenshots.mjs (CI warning), pr-reviewer subagent (blocking finding), CLAUDE.md, and since recurrence 2 .claude/skills/harness-feature (step 5: motion counts as visible; plan screenshots of a motion's extreme frames)
 
 ## L-008 The no-model-names check missed a bare model alias
 
@@ -161,7 +165,9 @@ Retired IDs: L-046
 - **Recurrence 18 (2026-11-04, PR #75, Don Zopilote's art, found by the review):** the crown rule ("a point for each hit he has left") is drawn in 11 looks at three crowns, but its art test counted the crown's gold in the flap frame only, so a mutant giving every hurt frame three points survived. The skill step already says a helper used at several sites needs a test that reaches every site; the plan applied it to the pose code, not to the drawing's looks. The test now covers every look that shows his colours, and its mutant is caught.
 - **Recurrence 19 (2026-11-04, PR #77, found by the review):** the crown's floor check `y < def.floor` had no mutant for its boundary (`<=`), and two reachable hit heights put the crown exactly on the floor, where the mutant moved the bounce a step later. A test now pins a landing exactly on the floor.
 - **Recurrence 20 (2026-11-04, PR #78, World 2's awnings, found by the review):** the `onAwning &&` guard that keeps a torn awning whole on a step a stomp wins had no test that could fail; the stream's mutants covered the stomp's bounce and the chain, not this one clause of the run's tear, and the main session's diff read missed it in a large merge. A test in `src/sim/awning.test.ts` now pins it, and the reviewer's mutant is killed.
-- **Recurrence:** 20
+- **Recurrence 21 (2026-11-09, PR #90, GDD-BOS-03, found by the review):** the scene placed the trolley and the rope as images, and no test read back where: drawing the trolley 8 px off the cable or the rope 8 px beside her tip stayed green, because `estrellaDrawn()` reported the trolley's x and frame and the rope's length but not the trolley's y or the rope's x and top. Fixed by reading them back and asserting them in the per-mode e2e test (3 mutants killed).
+- **Recurrence 22 (2026-11-09, PR #90, GDD-BOS-03, found by the re-review):** the fix for the trolley's and rope's places read back each image's `x`/`y`, its origin, as its drawn top edge, so changing an image's `setOrigin` moved the picture and the test stayed green; it now reads `getTopCenter()`, and the two origin mutants are killed. A read-back of where something is drawn reads the drawn edge (`getTopCenter`, `getBounds`), never the anchor. The next re-review found the same object's `trolleyX` still read the anchor (an origin of `(0, 0)` drew the trolley off the rope's line, all green): the fix had been applied to the fields the review named, not to every field of the read-back; `trolleyX` now reads `getTopCenter().x` too. The re-review after that found the tejocotes' read-back in the same function still at the anchor; that fix swept every place field of the read-back at once (her sprite and the tejocotes now from `getCenter()`), with an origin mutant for each image. The review after that swept every drawn property, not only places: the read-back gave no drawn size and skipped the cable, so doubling an image's `setScale` or moving the cable stayed green. `estrellaDrawn()` now reports each image's `displayWidth`/`displayHeight` and the cable's `getTopLeft()`/`getBottomRight()`, the tejocotes their `getBounds()`, with a mutant for each. A read-back covers every image the function draws, and for each its place and its size. The next review found the rope's drawn length reported but never asserted (only a shots scenario, which CI does not run, checked it): a field the read-back reports needs an assertion in `test:e2e`, and the hang check now compares it. The review after that found visibility unread: the rope's length came from a local variable, not `visible`, and hidden tejocotes were still reported, so hiding either stayed green. A read-back reports what is shown (`visible`) as well as its place and size. The next review found the rope's "snapped" null still taken from the pose, so a rope left drawn after her defeat stayed green; it now comes from the image too, and the defeat test waits for no rope drawn.
+- **Recurrence:** 22
 - **Promoted:** .claude/skills/harness-feature (mutation step, now one mutation per new GDD rule; a condition over several fields, or a revert of several, is one change per field), .claude/skills/harness-retro (step 3: a new guard's own mutants), pr-reviewer subagent. (Fifth time, the Tlacuache: two play-dead tests read the 2.0 s from `TLACUACHE.playDeadSteps`, so moving it did not fail them; the mutation step caught it before the commit, and the tests now say 119 and 120 steps.) (Sixth time, the same PR: the reviewer found two Tlacuache rules with no test that could fail, the claw half of "the claw or a fireball wins over a first stomp" and the wake-up twitch. My mutations went bullet by bullet and missed clauses; the feature skill now asks for one mutation per clause.) (Seventh time, PR #35: the clause "so it always starts at its normal size" was tested only for the first drop to one; resetting the start when the lives leave one had no test. The start tracking moved into a pure helper with unit tests for each path.) (Eighth time, PR #44: the hilo playback rate was computed in `PlayScene`, and the plan left the scene out of the mutants, so the reviewer could set the rate to 1 with every test green. The rate moved into a pure helper (`noteRate`) and the scene logs the rate it passes, checked in e2e; the feature skill now names numbers computed in a scene.) Guard: none (only a mutant shows that a test can fail, and no script can tell which GDD clauses a plan left without one; the pr-reviewer mutates every new rule).
 
 ## L-011 Generated audio was never listened to or measured
@@ -783,8 +789,9 @@ Retired IDs: L-046
 - **What went wrong:** PR #81 opened as "design in progress, not in the game yet"; two commits later the game played the victory, but the description still listed that work as next and its checkboxes unchecked (a blocking finding of the review).
 - **Root cause:** The description was edited when the design changed, not when the scope changed; nothing ties a push to a reread of the description.
 - **Rule:** After every push that changes what the PR does (a phase landed, a GDD version, new playtests), rewrite the description's Scope, checks and Notes to match the head before launching the review.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-09, PR #89, found by the review):** after the fix commit for the first review the description still said the backdrop stays still and there were no screenshots, and listed 49 mutants; the replies on the threads were updated, the description was not.
+- **Recurrence:** 2
+- **Promoted:** scripts/hooks/after-push.mjs (the reminder after every push now says to rewrite the description's Scope, checks, Screenshots and Notes to match the head before the re-review; tested in scripts/hooks/after-push.test.mjs)
 
 ## L-071 The implementer unstaged a deleted file with `git reset`
 
@@ -816,7 +823,17 @@ Retired IDs: L-046
 - **Recurrence:** 1
 - **Promoted:** no
 
-## L-074 A local dry run of the deploy did not reproduce what differs in CI
+## L-074 A per-frame value was worked out from the upright screen's layout while the rows were hidden
+
+- **Date:** 2026-11-09
+- **Area:** ui
+- **What went wrong:** the settings list's scroll (GDD-UI-02, PR #87) was worked out on every frame from the rows' height, upright frames included, where the rows are taller and fewer fit. Turned upright and back, the list had scrolled (`first` 0, then 3, then 1), against the GDD's "the list keeps its scroll". The upright playtest passed only because it picked Back, where the clamp happens to give the same scroll (found by the review).
+- **Root cause:** the plan said where the scroll is used but not on which frames it may change; the hidden (upright) state was not listed as a state the value must survive, and the test chose the one row for which the bug cancels out.
+- **Rule:** a value the scene keeps across frames and works out from a layout (a scroll, a chosen place) is only changed on frames where that layout is shown; a plan names each state that hides it (upright, paused, a screen over it) and plans a test through each with a case where the value would change (not one where a clamp lands on the same value).
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-075 A local dry run of the deploy did not reproduce what differs in CI
 
 - **Date:** 2026-11-09
 - **Area:** harness, process
@@ -829,7 +846,7 @@ Retired IDs: L-046
 - **Recurrence:** 4
 - **Promoted:** CLAUDE.md (Conventions: a dry run of a CI or deploy step reproduces what differs on the runner, naming several runs for one commit and a re-run of the workflow itself). Guard: none (which runner conditions a workflow's design must survive is a judgement about that workflow; no check over the files can tell a covered case from a missed one, and the deploy's steps that need GitHub's runner cannot run in the gate)
 
-## L-075 A changelog said the playtests passed while they were still running
+## L-076 A changelog said the playtests passed while they were still running
 
 - **Date:** 2026-11-09
 - **Area:** gdd, process
@@ -840,7 +857,7 @@ Retired IDs: L-046
 - **Recurrence:** 2
 - **Promoted:** .claude/skills/harness-gdd-update (step 3: a changelog claim that a check passed names a finished run on the head it describes)
 
-## L-076 A command blocked by a hook was re-run only in part, and its edits were lost
+## L-077 A command blocked by a hook was re-run only in part, and its edits were lost
 
 - **Date:** 2026-11-09
 - **Area:** harness, process

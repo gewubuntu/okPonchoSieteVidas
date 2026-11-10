@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TAP_OFF, type PauseEvent } from './pause';
-import { browserLanguage, DEFAULT_SETTINGS, SETTINGS_ROWS, settingsEvent, sfxVolume, type ButtonOpacity, type Language, type Settings, type SettingsRow, type TouchLayout } from './settings';
+import { browserLanguage, DEFAULT_SETTINGS, SETTINGS_ROWS, settingsEvent, sfxVolume, type ButtonOpacity, type Language, type ScreenShake, type Settings, type SettingsRow, type TouchLayout } from './settings';
 
 /** The result of one event on the open settings screen, which does not leave it. */
 const on = (row: SettingsRow, settings: Settings, event: PauseEvent) => {
@@ -8,10 +8,12 @@ const on = (row: SettingsRow, settings: Settings, event: PauseEvent) => {
   if (result === 'back') throw new Error(`${JSON.stringify(event)} left`);
   return result;
 };
-const at = (master: number, effects: number): Settings => ({ master, effects, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
-const speaking = (language: Language, master = 10, effects = 10): Settings => ({ master, effects, language, buttonOpacity: 'medium', layout: 'standard' });
-const glowing = (buttonOpacity: ButtonOpacity, master = 10, effects = 10, language: Language = 'en'): Settings => ({ master, effects, language, buttonOpacity, layout: 'standard' });
-const laid = (layout: TouchLayout, master = 10, effects = 10, language: Language = 'en'): Settings => ({ master, effects, language, buttonOpacity: 'medium', layout });
+const at = (master: number, effects: number): Settings => ({ master, effects, language: 'en', buttonOpacity: 'medium', layout: 'standard', shake: 'on' });
+const speaking = (language: Language, master = 10, effects = 10): Settings => ({ master, effects, language, buttonOpacity: 'medium', layout: 'standard', shake: 'on' });
+const glowing = (buttonOpacity: ButtonOpacity, master = 10, effects = 10, language: Language = 'en'): Settings => ({ master, effects, language, buttonOpacity, layout: 'standard', shake: 'on' });
+const laid = (layout: TouchLayout, master = 10, effects = 10, language: Language = 'en'): Settings => ({ master, effects, language, buttonOpacity: 'medium', layout, shake: 'on' });
+
+const shaking = (shake: ScreenShake, master = 10, effects = 10, language: Language = 'en'): Settings => ({ master, effects, language, buttonOpacity: 'medium', layout: 'standard', shake });
 
 describe('GDD-UI-02 settings screen', () => {
   it('Up and Down choose the row above or below, with no wrap-around', () => {
@@ -19,9 +21,11 @@ describe('GDD-UI-02 settings screen', () => {
     expect(on('effects', DEFAULT_SETTINGS, 'menuDown').row).toBe('language');
     expect(on('language', DEFAULT_SETTINGS, 'menuDown').row).toBe('buttonOpacity');
     expect(on('buttonOpacity', DEFAULT_SETTINGS, 'menuDown').row).toBe('layout');
-    expect(on('layout', DEFAULT_SETTINGS, 'menuDown').row).toBe('back');
+    expect(on('layout', DEFAULT_SETTINGS, 'menuDown').row).toBe('shake');
+    expect(on('shake', DEFAULT_SETTINGS, 'menuDown').row).toBe('back');
     expect(on('back', DEFAULT_SETTINGS, 'menuDown').row).toBe('back');
-    expect(on('back', DEFAULT_SETTINGS, 'menuUp').row).toBe('layout');
+    expect(on('back', DEFAULT_SETTINGS, 'menuUp').row).toBe('shake');
+    expect(on('shake', DEFAULT_SETTINGS, 'menuUp').row).toBe('layout');
     expect(on('layout', DEFAULT_SETTINGS, 'menuUp').row).toBe('buttonOpacity');
     expect(on('buttonOpacity', DEFAULT_SETTINGS, 'menuUp').row).toBe('language');
     expect(on('language', DEFAULT_SETTINGS, 'menuUp').row).toBe('effects');
@@ -105,12 +109,13 @@ describe('GDD-CTL-02 gamepad start on the settings screen', () => {
 });
 
 describe('GDD-UI-02 language row', () => {
-  it('Down from effects chooses language, Down again Button opacity, Layout then back, Up from back chooses Layout', () => {
+  it('Down from effects chooses language, Down again Button opacity, Layout, Screen shake then back, Up from back chooses Screen shake', () => {
     expect(on('effects', DEFAULT_SETTINGS, 'menuDown').row).toBe('language');
     expect(on('language', DEFAULT_SETTINGS, 'menuDown').row).toBe('buttonOpacity');
     expect(on('buttonOpacity', DEFAULT_SETTINGS, 'menuDown').row).toBe('layout');
-    expect(on('layout', DEFAULT_SETTINGS, 'menuDown').row).toBe('back');
-    expect(on('back', DEFAULT_SETTINGS, 'menuUp').row).toBe('layout');
+    expect(on('layout', DEFAULT_SETTINGS, 'menuDown').row).toBe('shake');
+    expect(on('shake', DEFAULT_SETTINGS, 'menuDown').row).toBe('back');
+    expect(on('back', DEFAULT_SETTINGS, 'menuUp').row).toBe('shake');
   });
 
   it('Right on language goes en to es to de and stays at de', () => {
@@ -209,10 +214,6 @@ describe('GDD-UI-02 Button opacity row', () => {
 });
 
 describe('GDD-UI-02 Layout row', () => {
-  it('the rows are Master volume, Effects volume, Language, Button opacity, Layout and Back', () => {
-    expect(SETTINGS_ROWS).toEqual(['master', 'effects', 'language', 'buttonOpacity', 'layout', 'back']);
-  });
-
   it('Right steps standard to mirrored and stops there', () => {
     let state = on('layout', laid('standard'), 'menuRight');
     expect(state.settings.layout).toBe('mirrored');
@@ -241,16 +242,68 @@ describe('GDD-UI-02 Layout row', () => {
     expect(settingsEvent('layout', laid('mirrored', 4, 6, 'es'), 'pick')).toEqual({ row: 'layout', settings: laid('mirrored', 4, 6, 'es') });
   });
 
-  it('Down from Button opacity chooses Layout, and Down again Back', () => {
+  it('Down from Button opacity chooses Layout, and Down again Screen shake', () => {
     const first = on('buttonOpacity', DEFAULT_SETTINGS, 'menuDown');
     expect(first.row).toBe('layout');
-    expect(on(first.row, first.settings, 'menuDown').row).toBe('back');
+    expect(on(first.row, first.settings, 'menuDown').row).toBe('shake');
   });
 
   it('a change of Layout leaves every other setting alone', () => {
-    expect(on('layout', { master: 4, effects: 6, language: 'de', buttonOpacity: 'high', layout: 'standard' }, 'menuRight')).toEqual({ row: 'layout', settings: { master: 4, effects: 6, language: 'de', buttonOpacity: 'high', layout: 'mirrored' } });
+    expect(on('layout', { master: 4, effects: 6, language: 'de', buttonOpacity: 'high', layout: 'standard', shake: 'on' }, 'menuRight')).toEqual({ row: 'layout', settings: { master: 4, effects: 6, language: 'de', buttonOpacity: 'high', layout: 'mirrored', shake: 'on' } });
     expect(on('master', laid('mirrored', 5, 5), 'menuRight').settings).toEqual(laid('mirrored', 6, 5));
     expect(on('buttonOpacity', laid('mirrored'), 'menuLeft').settings).toEqual({ ...laid('mirrored'), buttonOpacity: 'low' });
+  });
+});
+
+describe('GDD-UI-02 Screen shake row', () => {
+  it('GDD-UI-02 the settings rows are Master volume, Effects volume, Language, Button opacity, Layout, Screen shake and Back', () => {
+    expect(SETTINGS_ROWS).toEqual(['master', 'effects', 'language', 'buttonOpacity', 'layout', 'shake', 'back']);
+  });
+
+  it('GDD-UI-02 Screen shake defaults to On', () => {
+    expect(DEFAULT_SETTINGS.shake).toBe('on');
+  });
+
+  it('GDD-UI-02 Right on Screen shake chooses Off, Left back to On, no wrap-around at either end', () => {
+    let state = on('shake', shaking('on'), 'menuRight');
+    expect(state).toEqual({ row: 'shake', settings: shaking('off') });
+    state = on('shake', state.settings, 'menuRight');
+    expect(state).toEqual({ row: 'shake', settings: shaking('off') });
+    state = on('shake', state.settings, 'menuLeft');
+    expect(state).toEqual({ row: 'shake', settings: shaking('on') });
+    state = on('shake', state.settings, 'menuLeft');
+    expect(state).toEqual({ row: 'shake', settings: shaking('on') });
+  });
+
+  it('GDD-UI-02 a tap on the Screen shake row left half chooses the step before, its right half the step after', () => {
+    expect(settingsEvent('master', shaking('off'), { ...TAP_OFF, settings: { row: 'shake', side: 'left' } })).toEqual({ row: 'shake', settings: shaking('on') });
+    expect(settingsEvent('master', shaking('on'), { ...TAP_OFF, settings: { row: 'shake', side: 'right' } })).toEqual({ row: 'shake', settings: shaking('off') });
+    expect(settingsEvent('back', shaking('on'), { ...TAP_OFF, settings: { row: 'shake', side: 'left' } })).toEqual({ row: 'shake', settings: shaking('on') });
+    expect(settingsEvent('back', shaking('off'), { ...TAP_OFF, settings: { row: 'shake', side: 'right' } })).toEqual({ row: 'shake', settings: shaking('off') });
+  });
+
+  it('GDD-UI-02 Enter, Space or Z on Screen shake does nothing', () => {
+    expect(settingsEvent('shake', shaking('off', 4, 6, 'es'), 'pick')).toEqual({ row: 'shake', settings: shaking('off', 4, 6, 'es') });
+    expect(settingsEvent('shake', shaking('on'), 'pick')).toEqual({ row: 'shake', settings: shaking('on') });
+  });
+
+  it('GDD-UI-02 Down from Layout chooses Screen shake, and Down from Screen shake chooses Back', () => {
+    const first = on('layout', DEFAULT_SETTINGS, 'menuDown');
+    expect(first.row).toBe('shake');
+    expect(on(first.row, first.settings, 'menuDown').row).toBe('back');
+    expect(on('back', DEFAULT_SETTINGS, 'menuUp').row).toBe('shake');
+    expect(on('shake', DEFAULT_SETTINGS, 'menuUp').row).toBe('layout');
+  });
+
+  it('GDD-UI-02 a change of Screen shake leaves every other setting alone, and they leave it alone', () => {
+    expect(on('shake', shaking('on', 4, 6, 'de'), 'menuRight').settings).toEqual(shaking('off', 4, 6, 'de'));
+    expect(on('master', shaking('off', 5, 5), 'menuRight').settings).toEqual(shaking('off', 6, 5));
+    expect(on('layout', shaking('off'), 'menuRight').settings).toEqual({ ...shaking('off'), layout: 'mirrored' });
+  });
+
+  it('GDD-UI-02 a tap with no side, on an arrow, chooses the row without changing anything, Back too', () => {
+    expect(settingsEvent('master', shaking('off'), { ...TAP_OFF, settings: { row: 'shake', side: null } })).toEqual({ row: 'shake', settings: shaking('off') });
+    expect(settingsEvent('master', DEFAULT_SETTINGS, { ...TAP_OFF, settings: { row: 'back', side: null } })).toEqual({ row: 'back', settings: DEFAULT_SETTINGS });
   });
 });
 

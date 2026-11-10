@@ -235,9 +235,14 @@ export const RESULTS_MENU = { width: 160, rowHeight: 28, top: 162, greyed: 0x5c6
 /**
  * GDD-UI-02: the settings screen, in game pixels. Rows grow like the pause menu's. A volume row has its label `labelInset`
  * from its left edge, "<" and ">" `arrowInset` inside its edges, and its bars (`barWidth` wide, `barGap` apart) ending
- * `barsInset` inside its right edge.
+ * `barsInset` inside its right edge. Where the rows do not all fit the list scrolls (GDD-UI-02, "Scrolling"): `scrollArrow` is the
+ * pale triangle on the title's line (`titleY`), `width` by `height`, its middle `inset` inside the rows' right edge (pointing down) or
+ * left edge (pointing up); a tap on it is read in a square of `scrollArrow.tapCssPx` CSS px about it.
  */
-export const SETTINGS_MENU = { width: 260, rowHeight: 28, top: 62, titleY: 44, labelInset: 20, arrowInset: 8, barWidth: 5, barHeight: 10, barGap: 2, barsInset: 20 } as const;
+export const SETTINGS_MENU = {
+  width: 260, rowHeight: 28, top: 62, titleY: 44, labelInset: 20, arrowInset: 8, barWidth: 5, barHeight: 10, barGap: 2, barsInset: 20,
+  scrollArrow: { width: 8, height: 5, inset: 8, tapCssPx: 48 },
+} as const;
 
 /** GDD-CTL-03: the factor each Button opacity step puts on every alpha the touch controls draw (capped at 1); medium is the look as it was. */
 export const TOUCH_OPACITY = { low: 0.5, medium: 1, high: 1.5 } as const;
@@ -555,6 +560,18 @@ export const ESTRELLA = {
 } as const;
 
 /**
+ * GDD-BOS-03: La Estrella's art (`scripts/art/estrella.mjs`, pinned by `scripts/art/estrella.test.mjs`): her frames are `frame` game px square,
+ * `columns` across, `looks` of them for each of 0, 1 and 2 hits (`ESTRELLA_LOOKS`), then her four defeat looks; her tejocote's frames (four, a
+ * quarter turn on each) are `tejocoteFrame` px square, her trolley's (two) `trolleyFrame` px square with the cable `trolleyCable` px down from
+ * the frame's top, its wheel `trolleyWheel` px in radius (a frame for each eighth turn). Her rope starts `ropeFrom` px under the cable, at the
+ * trolley's eye, and ends `ropeTie` px under her top cone's tip (`coneTip`), tied into the paper. She shows her landing look, the bottom
+ * cones splayed so nothing reaches below her box, from `landLook` px above a surface she drops onto, and in her own rise look (splayed, tassels down) until she is more than that clear of the floor
+ * she rises from (the design's proposal, Proposed; her in-air looks reach 14 px below her box). Her defeated pot falls in a look that reaches `fallBelow` px
+ * below its box and lies, reaching none, once it is less than that above the floor.
+ */
+export const ESTRELLA_ART = { frame: 72, columns: 8, looks: 15, tejocoteFrame: 8, trolleyFrame: 16, trolleyCable: 8, trolleyWheel: 3.6, ropeFrom: 2.75, ropeTie: 4, landLook: 14, fallBelow: 2 } as const;
+
+/**
  * GDD-BOS-03: a tejocote, La Estrella's filling, is a `size` px square that rolls along the floor at `rollSpeed` px/s. Each time she thuds on
  * the floor `pairs` of them (one entry per phase) roll out, one each way per pair, a pair every `secondPairSteps` (0.4 s).
  */
@@ -565,6 +582,22 @@ export const TEJOCOTE = { size: 8, rollSpeed: 90, secondPairSteps: Math.round(0.
  * leaves him hurt and `defeatSteps` (200 ms) after the hit that defeats him, so everything waits and the hit's frame stays on screen.
  */
 export const HIT_STOP = { hurtSteps: 4, defeatSteps: 12 } as const;
+
+/**
+ * GDD-BOS-01: the screen shake, drawn only: the world is drawn `px` down for `flipSteps` steps, then `px` up for as many, and so on, for
+ * `steps` steps from the step the shake starts; a `dying` shake has the size `ceil(px * (1 - age / steps))` instead. La Estrella: landing on
+ * an awning, thudding on the floor, the tear, her empty pot reaching the floor at her defeat. Don Zopilote: a dive sticking him in the
+ * sand, his body reaching the floor at his defeat (GDD-BOS-02).
+ */
+export const SHAKE = {
+  flipSteps: 2,
+  estrellaAwning: { px: 1, steps: 6, dying: false },
+  estrellaFloor: { px: 2, steps: 10, dying: false },
+  estrellaTear: { px: 4, steps: 20, dying: true },
+  estrellaDefeat: { px: 3, steps: 16, dying: false },
+  bossStuck: { px: 2, steps: 10, dying: false },
+  bossDefeat: { px: 3, steps: 16, dying: false },
+} as const;
 
 /** GDD-UI-01: the boss bar at the top middle: the name's middle `nameY` px from the top, and pips `pipSize` px square, `pipGap` apart, their top `pipTop` px from the top. */
 export const BOSS_BAR = { nameY: 10, pipTop: 18, pipSize: 6, pipGap: 4, nameStroke: '#2a1f2e', nameStrokePx: 2 } as const;

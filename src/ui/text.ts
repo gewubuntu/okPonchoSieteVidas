@@ -24,6 +24,10 @@ export interface UiText {
   readonly layout: string;
   readonly standard: string;
   readonly mirrored: string;
+  /** GDD-UI-02: the Screen shake row's name and its two steps. */
+  readonly shake: string;
+  readonly on: string;
+  readonly off: string;
   readonly back: string;
   readonly gameOver: string;
   readonly retry: string;
@@ -67,6 +71,9 @@ export const TEXT: Record<Language, UiText> = {
     layout: 'Layout',
     standard: 'Standard',
     mirrored: 'Mirrored',
+    shake: 'Screen shake',
+    on: 'On',
+    off: 'Off',
     back: 'Back',
     gameOver: 'Game over',
     retry: 'Press any button to Retry',
@@ -101,6 +108,9 @@ export const TEXT: Record<Language, UiText> = {
     layout: 'Disposición',
     standard: 'Estándar',
     mirrored: 'Invertida',
+    shake: 'Temblor de pantalla',
+    on: 'Sí',
+    off: 'No',
     back: 'Volver',
     gameOver: 'Fin del juego',
     retry: 'Presiona cualquier botón para reintentar',
@@ -135,6 +145,9 @@ export const TEXT: Record<Language, UiText> = {
     layout: 'Anordnung',
     standard: 'Standard',
     mirrored: 'Gespiegelt',
+    shake: 'Bildschirmwackeln',
+    on: 'An',
+    off: 'Aus',
     back: 'Zurück',
     gameOver: 'Spiel vorbei',
     retry: 'Drücke eine Taste für einen neuen Versuch',

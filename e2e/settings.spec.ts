@@ -7,6 +7,8 @@ const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAni
 const settingsDrawn = (page: Page) => api(page, () => window.__PONCHO__!.settingsDrawn());
 const settings = (page: Page) => api(page, () => window.__PONCHO__!.settings());
 const sfxPlayed = (page: Page) => api(page, () => window.__PONCHO__!.sfxPlayed());
+/** A landscape phone shows six of the seven rows, with Back scrolled out of sight at the top of the list (GDD-UI-02, "Scrolling"); a desktop shows all seven. */
+const shownRows = <T>(rows: T[], isMobile: boolean): T[] => (isMobile ? rows.slice(0, 6) : rows);
 const PALE = '#fff3dc';
 const GREY = '#9ba3c4';
 const SAVE_KEY = 'poncho-siete-vidas';
@@ -39,12 +41,13 @@ async function openFromPause(page: Page): Promise<void> {
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
 }
 /** Moves to a row of the open settings screen with Down and waits for it. */
-async function chooseRow(page: Page, row: 'effects' | 'buttonOpacity' | 'layout' | 'back'): Promise<void> {
+async function chooseRow(page: Page, row: 'effects' | 'buttonOpacity' | 'layout' | 'shake' | 'back'): Promise<void> {
   const path = {
     effects: ['effects'],
     buttonOpacity: ['effects', 'language', 'buttonOpacity'],
     layout: ['effects', 'language', 'buttonOpacity', 'layout'],
-    back: ['effects', 'language', 'buttonOpacity', 'layout', 'back'],
+    shake: ['effects', 'language', 'buttonOpacity', 'layout', 'shake'],
+    back: ['effects', 'language', 'buttonOpacity', 'layout', 'shake', 'back'],
   } as const;
   for (const want of path[row]) {
     await press(page, 'ArrowDown');
@@ -79,11 +82,18 @@ async function stickMode(page: Page, cdp: CDPSession): Promise<void> {
   await touchAt(page, cdp, 'touchEnd', []);
   await page.waitForFunction(() => window.__PONCHO__!.touch().mode === 'stick');
 }
-const settingsRow = async (page: Page, item: 'master' | 'effects' | 'language' | 'buttonOpacity' | 'layout' | 'back') => (await api(page, () => window.__PONCHO__!.settingsMenu())).find((r) => r.item === item)!;
+type Row = 'master' | 'effects' | 'language' | 'buttonOpacity' | 'layout' | 'shake' | 'back';
+const settingsRow = async (page: Page, item: Row) => (await api(page, () => window.__PONCHO__!.settingsMenu())).find((r) => r.item === item)!;
 /** Taps the left or right half of a settings row, in its vertical middle. */
-async function tapHalf(page: Page, item: 'master' | 'effects' | 'language' | 'buttonOpacity' | 'layout' | 'back', side: 'left' | 'right'): Promise<void> {
+async function tapHalf(page: Page, item: Row, side: 'left' | 'right'): Promise<void> {
   const r = await settingsRow(page, item);
   await tapVirtual(page, r.x + r.w * (side === 'left' ? 0.25 : 0.75), r.y + r.h / 2);
+}
+const scrollOf = (page: Page) => api(page, () => window.__PONCHO__!.settingsScroll());
+/** Taps the middle of a scroll arrow's tap box, as a finger does (GDD-UI-02, "Scrolling"). */
+async function tapArrow(page: Page, dir: 'above' | 'below'): Promise<void> {
+  const a = (await scrollOf(page)).arrows.find((x) => x.dir === dir)!;
+  await tapVirtual(page, a.tap.x + a.tap.w / 2, a.tap.y + a.tap.h / 2);
 }
 /** Taps the Settings row of the pause menu. */
 async function tapPauseSettings(page: Page): Promise<void> {
@@ -91,7 +101,7 @@ async function tapPauseSettings(page: Page): Promise<void> {
   await tapVirtual(page, r.x + r.w / 2, r.y + r.h / 2);
 }
 
-test('GDD-UI-02 Settings from the pause menu: Down, Enter opens it on Master volume; Escape comes back with Settings chosen', async ({ page }) => {
+test('GDD-UI-02 Settings from the pause menu: Down, Enter opens it on Master volume; Escape comes back with Settings chosen', async ({ page, isMobile }) => {
   await started(page);
   await openFromPause(page);
   const rows = await api(page, () => window.__PONCHO__!.settingsMenu());
@@ -100,17 +110,23 @@ test('GDD-UI-02 Settings from the pause menu: Down, Enter opens it on Master vol
     title: 'Settings',
     prompt: '',
     from: 'pause',
-    rows: [
-      { item: 'master', label: 'Master volume', value: 10, color: PALE },
-      { item: 'effects', label: 'Effects volume', value: 10, color: GREY },
-      { item: 'language', label: 'Language', value: 'English', color: GREY, valueX: 316 },
-      { item: 'buttonOpacity', label: 'Button opacity', value: 'Medium', color: GREY, valueX: 316 },
-      { item: 'layout', label: 'Layout', value: 'Standard', color: GREY, valueX: 316 },
-      { item: 'back', label: 'Back', value: null, color: GREY },
-    ],
+    rows: shownRows(
+      [
+        { item: 'master', label: 'Master volume', value: 10, color: PALE },
+        { item: 'effects', label: 'Effects volume', value: 10, color: GREY },
+        { item: 'language', label: 'Language', value: 'English', color: GREY, valueX: 316 },
+        { item: 'buttonOpacity', label: 'Button opacity', value: 'Medium', color: GREY, valueX: 316 },
+        { item: 'layout', label: 'Layout', value: 'Standard', color: GREY, valueX: 316 },
+        { item: 'shake', label: 'Screen shake', value: 'On', color: GREY, valueX: 316 },
+        { item: 'back', label: 'Back', value: null, color: GREY },
+      ],
+      isMobile,
+    ),
     chosen: 'master',
   });
-  expect(rows.map((r) => [r.item, r.x, r.y, r.w])).toEqual([['master', 110, 62, 260], ['effects', 110, expect.any(Number), 260], ['language', 110, expect.any(Number), 260], ['buttonOpacity', 110, expect.any(Number), 260], ['layout', 110, expect.any(Number), 260], ['back', 110, expect.any(Number), 260]]);
+  expect(rows.map((r) => [r.item, r.x, r.y, r.w])).toEqual(
+    shownRows([['master', 110, 62, 260], ['effects', 110, expect.any(Number), 260], ['language', 110, expect.any(Number), 260], ['buttonOpacity', 110, expect.any(Number), 260], ['layout', 110, expect.any(Number), 260], ['shake', 110, expect.any(Number), 260], ['back', 110, expect.any(Number), 260]], isMobile),
+  );
   expect((await api(page, () => window.__PONCHO__!.pauseDrawn())).shown).toBe(false); // it replaces the pause screen
   await press(page, 'Escape');
   await page.waitForFunction(() => !window.__PONCHO__!.settingsDrawn().shown);
@@ -128,7 +144,7 @@ test('GDD-UI-02 Left and Right change the volume and the sound effects play at M
   await change(page, 'ArrowLeft', 'master', 8);
   await chooseRow(page, 'effects');
   for (const v of [9, 8, 7, 6, 5]) await change(page, 'ArrowLeft', 'effects', v);
-  expect(await settingsDrawn(page)).toMatchObject({ rows: [{ value: 8, color: GREY }, { value: 5, color: PALE }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: null }], chosen: 'effects' });
+  expect(await settingsDrawn(page)).toMatchObject({ rows: shownRows([{ value: 8, color: GREY }, { value: 5, color: PALE }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: 'On' }, { value: null }], isMobile), chosen: 'effects' });
   // One jump sound after each of the seven changes, at the volume it changed to.
   const played = await sfxPlayed(page);
   expect(played).toHaveLength(7);
@@ -157,7 +173,7 @@ test('GDD-UI-02 a volume at its end plays and saves nothing', async ({ page }) =
   await press(page, 'ArrowRight'); // master is at 10 already
   await frames(page);
   await frames(page);
-  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard', shake: 'on' });
   expect(await sfxPlayed(page)).toEqual([]);
   expect(await page.evaluate((k) => localStorage.getItem(k), SAVE_KEY)).toBeNull();
   // The Left after it moves the volume, so the quiet above was the clamp and not a missed key.
@@ -170,10 +186,10 @@ test('GDD-UI-02 a volume at its end plays and saves nothing', async ({ page }) =
   await frames(page);
   await frames(page);
   expect(await sfxPlayed(page)).toHaveLength(n);
-  expect(await settings(page)).toEqual({ master: 0, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+  expect(await settings(page)).toEqual({ master: 0, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard', shake: 'on' });
 });
 
-test('GDD-PRG-02 the settings are kept after a reload', async ({ page }) => {
+test('GDD-PRG-02 the settings are kept after a reload', async ({ page, isMobile }) => {
   await started(page);
   await openFromPause(page);
   for (const v of [9, 8, 7]) await change(page, 'ArrowLeft', 'master', v);
@@ -182,13 +198,13 @@ test('GDD-PRG-02 the settings are kept after a reload', async ({ page }) => {
   expect(saved).toMatchObject({ version: 1, settings: { master: 7, effects: 10, language: 'en' } });
   await page.reload();
   await page.waitForFunction(() => window.__PONCHO__ !== undefined);
-  expect(await settings(page)).toEqual({ master: 7, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+  expect(await settings(page)).toEqual({ master: 7, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard', shake: 'on' });
   // The bars show it too: open the screen from the title.
   await press(page, 'ArrowDown');
   await press(page, 'ArrowDown');
   await press(page, 'Enter');
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
-  expect(await settingsDrawn(page)).toMatchObject({ from: 'title', rows: [{ value: 7 }, { value: 10 }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: null }] });
+  expect(await settingsDrawn(page)).toMatchObject({ from: 'title', rows: shownRows([{ value: 7 }, { value: 10 }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: 'On' }, { value: null }], isMobile) });
 });
 
 // ---- GDD-UI-02, GDD-CTL-03: the Button opacity row ----
@@ -408,7 +424,7 @@ test('GDD-PRG-02 Layout is kept after a reload', async ({ page }) => {
 test('GDD-PRG-02 something unreadable in the storage opens the game with the defaults', async ({ page }) => {
   await page.addInitScript((k) => localStorage.setItem(k, '{"version":1,"settings":{"master":4,"effects":99}}'), SAVE_KEY);
   await openGame(page);
-  expect(await settings(page)).toEqual({ master: 4, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+  expect(await settings(page)).toEqual({ master: 4, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard', shake: 'on' });
 });
 
 test('GDD-PRG-02 with storage refused the game plays with defaults and no error', async ({ page }) => {
@@ -421,7 +437,7 @@ test('GDD-PRG-02 with storage refused the game plays with defaults and no error'
     };
   });
   const errors = await boot(page);
-  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard', shake: 'on' });
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
   await openFromPause(page);
   await change(page, 'ArrowLeft', 'master', 9); // this visit's settings still work
@@ -446,7 +462,10 @@ test('GDD-UI-02 on touch, tapping a volume row\'s halves lowers and raises it, a
   // A tap on another volume row chooses it.
   await tapHalf(page, 'effects', 'left');
   await page.waitForFunction(() => window.__PONCHO__!.settings().effects === 9);
-  expect(await settingsDrawn(page)).toMatchObject({ chosen: 'effects', rows: [{ value: 9 }, { value: 9 }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: null }] });
+  expect(await settingsDrawn(page)).toMatchObject({ chosen: 'effects', rows: shownRows([{ value: 9 }, { value: 9 }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: 'On' }, { value: null }], isMobile) });
+  // Back is scrolled out of sight on the phone: the down arrow brings it into view and chooses it, and a tap on it leaves.
+  await tapArrow(page, 'below');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'back');
   await tapHalf(page, 'back', 'right');
   await page.waitForFunction(() => !window.__PONCHO__!.settingsDrawn().shown);
   expect(await api(page, () => window.__PONCHO__!.pauseDrawn())).toMatchObject({ shown: true, menu: { chosen: 'settings' } });
@@ -466,7 +485,7 @@ test('GDD-UI-02 a tap off the rows on the settings screen does nothing', async (
   await page.waitForTimeout(200);
   expect(await settingsDrawn(page)).toMatchObject({ shown: true, from: 'pause', chosen: 'master' });
   expect((await api(page, () => window.__PONCHO__!.playerPause()))).toMatchObject({ paused: true, settings: 'master' });
-  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard', shake: 'on' });
 });
 
 test('GDD-UI-02 a finger pressed on the settings screen is held back after the resume', async ({ page, isMobile }) => {
@@ -504,7 +523,7 @@ test('GDD-UI-02 Settings from the title: Down, Enter opens it, Left does not sta
   await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().menu.chosen === 'settings');
   await press(page, 'Enter');
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
-  expect(await settingsDrawn(page)).toMatchObject({ from: 'title', chosen: 'master', rows: [{ value: 10 }, { value: 10 }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: null }] });
+  expect(await settingsDrawn(page)).toMatchObject({ from: 'title', chosen: 'master', rows: shownRows([{ value: 10 }, { value: 10 }, { value: 'English' }, { value: 'Medium' }, { value: 'Standard' }, { value: 'On' }, { value: null }], isMobile) });
   expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false); // it replaces the title screen
   await page.keyboard.press('ArrowLeft'); // the game's Left button, which starts nothing here
   await page.waitForFunction(() => window.__PONCHO__!.settings().master === 9);
@@ -544,7 +563,9 @@ test('GDD-UI-02 on touch, a tap on the title\'s Settings row opens settings and 
   await page.waitForTimeout(250);
   expect(await settingsDrawn(page)).toMatchObject({ from: 'title', chosen: 'master' });
   expect(await ticks(page)).toBe(0);
-  // Back with a tap, then a finger held on the row across several frames.
+  // Back with a tap (the down arrow brings it into view first), then a finger held on the row across several frames.
+  await tapArrow(page, 'below');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'back');
   await tapHalf(page, 'back', 'left');
   await page.waitForFunction(() => !window.__PONCHO__!.settingsDrawn().shown);
   expect(await api(page, () => window.__PONCHO__!.titleDrawn())).toMatchObject({ shown: true, menu: { chosen: 'settings' } });
@@ -578,9 +599,10 @@ test('GDD-UI-02 on touch in slide-stick mode, a finger held on the title\'s Sett
 });
 
 // L-023: an overlay is checked for what it must dim and for what it must leave alone. The second life triangle on the HUD (x 21 to 31,
-// y 8 to 17) is red in its fill; a floor tile right of the spawn, clear of the touch buttons and of the rows, is blue.
+// y 8 to 17) is red in its fill; a floor tile right of the spawn, clear of the touch buttons and of the rows, is blue. It lies 2 px left of
+// the rows (x 110 to 370), which with six or seven rows reach down to it, and right of the slide stick (x 6 to 90) and the mirrored claw button (x 66 to 106).
 const hudTriangle = { x: 26, y: 14 };
-const floorTile = { x: 120, y: 248 };
+const floorTile = { x: 108, y: 248 };
 const brightness = (c: { r: number; g: number; b: number }) => c.r + c.g + c.b;
 
 test('GDD-UI-02 opened from the pause menu the settings screen dims the level and lies under the HUD', async ({ page }) => {
@@ -618,7 +640,7 @@ test('GDD-UI-02 a phone turned upright on the settings screen asks to turn sidew
   await press(page, 'ArrowLeft');
   await press(page, 'ArrowDown');
   await frames(page);
-  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard' });
+  expect(await settings(page)).toEqual({ master: 10, effects: 10, language: 'en', buttonOpacity: 'medium', layout: 'standard', shake: 'on' });
   await page.setViewportSize({ width: 844, height: 390 });
   await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().prompt === '' && window.__PONCHO__!.settingsDrawn().chosen !== null);
   expect(await settingsDrawn(page)).toMatchObject({ chosen: 'effects', from: 'pause' });
@@ -709,4 +731,166 @@ test('GDD-CTL-03 mirrored: a finger held on the Layout row, in the lower right q
   expect((await api(page, () => window.__PONCHO__!.state())).x).toBe(x0); // 20 steps with the finger down, none moved him
   expect((await touchState(page)).stick).toBe(0);
   await touchAt(page, cdp, 'touchEnd', []);
+});
+
+// ---- GDD-UI-02, GDD-PRG-02: the Screen shake row ----
+const shakeRow = async (page: Page) => (await settingsDrawn(page)).rows.find((r) => r.item === 'shake')!;
+
+test('GDD-UI-02 the Screen shake row: Right switches it to Off, it is saved and the game opens with it Off', async ({ page }) => {
+  await started(page);
+  await openFromPause(page);
+  expect(await settings(page)).toMatchObject({ shake: 'on' });
+  await chooseRow(page, 'shake');
+  expect(await shakeRow(page)).toMatchObject({ label: 'Screen shake', value: 'On', color: PALE, valueX: 316 });
+  await press(page, 'Enter'); // Enter on the row does nothing
+  await press(page, 'ArrowLeft'); // On is the first step: no wrap-around
+  await frames(page);
+  await frames(page);
+  expect(await settings(page)).toMatchObject({ shake: 'on' });
+  expect(await page.evaluate((k) => localStorage.getItem(k), SAVE_KEY)).toBeNull(); // nothing changed, nothing saved
+  await press(page, 'ArrowRight');
+  await page.waitForFunction(() => window.__PONCHO__!.settings().shake === 'off' && window.__PONCHO__!.settingsDrawn().rows.find((r) => r.item === 'shake')?.value === 'Off');
+  await press(page, 'ArrowRight'); // Off is the last step: no wrap-around
+  await frames(page);
+  await frames(page);
+  expect(await settings(page)).toMatchObject({ shake: 'off' });
+  expect(await sfxPlayed(page)).toEqual([]); // a change of Screen shake plays no sound
+  expect(await savedSettings(page)).toMatchObject({ shake: 'off' });
+  await page.reload();
+  await page.waitForFunction(() => window.__PONCHO__ !== undefined);
+  expect(await settings(page)).toMatchObject({ shake: 'off' });
+  // The row shows it too: open the screen from the title and go down to the row.
+  await press(page, 'ArrowDown');
+  await press(page, 'ArrowDown');
+  await press(page, 'Enter');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
+  await chooseRow(page, 'shake');
+  expect(await shakeRow(page)).toMatchObject({ value: 'Off', color: PALE });
+  await press(page, 'ArrowLeft');
+  await page.waitForFunction(() => window.__PONCHO__!.settings().shake === 'on');
+  expect(await savedSettings(page)).toMatchObject({ shake: 'on' });
+});
+
+test('GDD-UI-02 on a desktop all seven rows show and no arrow is drawn', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a desktop screen');
+  await started(page);
+  await openFromPause(page);
+  const rows = await api(page, () => window.__PONCHO__!.settingsMenu());
+  expect(rows.map((r) => r.item)).toEqual(['master', 'effects', 'language', 'buttonOpacity', 'layout', 'shake', 'back']);
+  expect(rows.map((r) => r.y)).toEqual([62, 90, 118, 146, 174, 202, 230]);
+  expect(await scrollOf(page)).toMatchObject({ first: 0, fit: 7, arrows: [] });
+  await chooseRow(page, 'back');
+  await frames(page);
+  expect(await scrollOf(page)).toMatchObject({ first: 0, fit: 7, arrows: [] });
+  expect((await settingsDrawn(page)).rows).toHaveLength(7);
+});
+
+test('GDD-UI-02 on a landscape phone the settings list scrolls: Down to Back shows it and the up arrow, and hides Master volume', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'a landscape phone');
+  await started(page);
+  await openFromPause(page);
+  // At the top: six rows of 34 px, Master volume first, Back hidden, only the down arrow, on the title's line (y 44), 8 px inside the rows' right edge.
+  expect((await api(page, () => window.__PONCHO__!.settingsMenu())).map((r) => [r.item, r.y, r.h])).toEqual([['master', 62, 34], ['effects', 96, 34], ['language', 130, 34], ['buttonOpacity', 164, 34], ['layout', 198, 34], ['shake', 232, 34]]);
+  const top = await scrollOf(page);
+  expect(top).toMatchObject({ first: 0, fit: 6, labels: ['master', 'effects', 'language', 'buttonOpacity', 'layout', 'shake'] });
+  expect(top.arrows.map((a) => a.dir)).toEqual(['below']);
+  expect(top.arrows[0]).toMatchObject({ x: 358, y: 41.5, w: 8, h: 5 });
+  await chooseRow(page, 'back');
+  // The list, the arrows and the drawn rows change together in one frame (L-033).
+  await page.waitForFunction(() => {
+    const s = window.__PONCHO__!.settingsScroll();
+    const drawn = window.__PONCHO__!.settingsDrawn();
+    const menu = window.__PONCHO__!.settingsMenu();
+    return s.first === 1 && s.arrows.map((a) => a.dir).join() === 'above' && s.labels.join() === 'effects,language,buttonOpacity,layout,shake,back' && drawn.rows.map((r) => r.item).join() === 'effects,language,buttonOpacity,layout,shake,back' && menu[0]!.item === 'effects' && menu[0]!.y === 62 && menu[5]!.item === 'back' && menu[5]!.y === 232;
+  });
+  expect((await scrollOf(page)).arrows[0]).toMatchObject({ x: 114, y: 41.5, w: 8, h: 5 });
+  expect(await settingsDrawn(page)).toMatchObject({ chosen: 'back' });
+  // Up to Screen shake and on up to Effects volume do not scroll; Master volume brings the list back to its top.
+  for (let i = 0; i < 5; i++) await press(page, 'ArrowUp');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'effects' && window.__PONCHO__!.settingsScroll().first === 1);
+  await press(page, 'ArrowUp');
+  await page.waitForFunction(() => {
+    const s = window.__PONCHO__!.settingsScroll();
+    return window.__PONCHO__!.settingsDrawn().chosen === 'master' && s.first === 0 && s.arrows.map((a) => a.dir).join() === 'below' && window.__PONCHO__!.settingsMenu()[0]!.item === 'master';
+  });
+});
+
+test('GDD-UI-02 on a landscape phone a tap on the down arrow scrolls one row and chooses Back', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'a landscape phone');
+  await started(page);
+  await tapButton(page, 'pause');
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().menu.shown);
+  await tapPauseSettings(page);
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
+  const arrow = (await scrollOf(page)).arrows.find((a) => a.dir === 'below')!;
+  // L-032: no touch control reads a finger on the arrow's tap box (the pause button, top right, is the nearest).
+  const buttons = (await api(page, () => window.__PONCHO__!.touch())).buttons;
+  for (const b of buttons) {
+    const apart = b.x + b.w <= arrow.tap.x || arrow.tap.x + arrow.tap.w <= b.x || b.y + b.h <= arrow.tap.y || arrow.tap.y + arrow.tap.h <= b.y;
+    expect(apart, `${b.id} is clear of the arrow`).toBe(true);
+  }
+  // A held finger, several frames (L-032), on the arrow: the list scrolls once, Back is chosen, and nothing else opens or resumes.
+  const cdp = await page.context().newCDPSession(page);
+  await touchAt(page, cdp, 'touchStart', [{ x: arrow.tap.x + arrow.tap.w / 2, y: arrow.tap.y + arrow.tap.h / 2, id: 1 }]);
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'back' && window.__PONCHO__!.settingsScroll().first === 1);
+  for (let i = 0; i < 6; i++) await frames(page);
+  expect(await scrollOf(page)).toMatchObject({ first: 1 });
+  expect((await scrollOf(page)).arrows.map((a) => a.dir)).toEqual(['above']);
+  expect(await settingsDrawn(page)).toMatchObject({ shown: true, from: 'pause', chosen: 'back' });
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toMatchObject({ paused: true, settings: 'back' });
+  expect((await api(page, () => window.__PONCHO__!.pauseDrawn())).shown).toBe(false);
+  await touchAt(page, cdp, 'touchEnd', []);
+  for (let i = 0; i < 3; i++) await frames(page);
+  expect(await api(page, () => window.__PONCHO__!.playerPause())).toMatchObject({ paused: true, settings: 'back' });
+  expect(await scrollOf(page)).toMatchObject({ first: 1 });
+  // A tap on a row shown is matched at its shown place: the first row drawn (y 62) is Effects volume now, not Master volume.
+  await tapHalf(page, 'effects', 'left');
+  await page.waitForFunction(() => window.__PONCHO__!.settings().effects === 9);
+  expect(await settings(page)).toMatchObject({ master: 10, effects: 9 });
+  expect(await settingsDrawn(page)).toMatchObject({ chosen: 'effects' });
+  // The up arrow moves the list back one row and chooses the row that comes into view: Master volume.
+  await tapArrow(page, 'above');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'master' && window.__PONCHO__!.settingsScroll().first === 0);
+  expect((await scrollOf(page)).arrows.map((a) => a.dir)).toEqual(['below']);
+  // A tap on Back, reached with the arrow again, leaves; reopened, the list is at its top with Master volume chosen.
+  await tapArrow(page, 'below');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'back');
+  await tapHalf(page, 'back', 'right');
+  // Closed, the list is at its top (read with the screen's visibility in one frame, L-033).
+  await page.waitForFunction(() => !window.__PONCHO__!.settingsDrawn().shown && window.__PONCHO__!.settingsScroll().first === 0);
+  await tapPauseSettings(page);
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().shown);
+  expect(await settingsDrawn(page)).toMatchObject({ chosen: 'master' });
+  expect(await scrollOf(page)).toMatchObject({ first: 0 });
+  expect((await api(page, () => window.__PONCHO__!.settingsMenu()))[0]).toMatchObject({ item: 'master', y: 62 });
+});
+
+test('GDD-UI-02 on a landscape phone turned upright the settings list hides its arrows and keeps its scroll', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'a landscape phone');
+  await started(page);
+  await openFromPause(page);
+  await chooseRow(page, 'back');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsScroll().first === 1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().prompt === 'Turn your device sideways' && window.__PONCHO__!.settingsScroll().arrows.length === 0);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.waitForFunction(() => {
+    const s = window.__PONCHO__!.settingsScroll();
+    return window.__PONCHO__!.settingsDrawn().chosen === 'back' && s.first === 1 && s.arrows.map((a) => a.dir).join() === 'above';
+  });
+});
+
+test('GDD-UI-02 on a landscape phone turned upright and back with Screen shake chosen the list stays at its top', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'a landscape phone');
+  await started(page);
+  await openFromPause(page);
+  await chooseRow(page, 'shake');
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().chosen === 'shake' && window.__PONCHO__!.settingsScroll().first === 0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(() => window.__PONCHO__!.settingsDrawn().prompt === 'Turn your device sideways' && window.__PONCHO__!.settingsScroll().first === 0);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.waitForFunction(() => {
+    const s = window.__PONCHO__!.settingsScroll();
+    return window.__PONCHO__!.settingsDrawn().prompt === '' && window.__PONCHO__!.settingsDrawn().chosen === 'shake' && s.first === 0 && s.arrows.map((a) => a.dir).join() === 'below';
+  });
 });

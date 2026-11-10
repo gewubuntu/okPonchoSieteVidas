@@ -11,6 +11,9 @@ describe('L-043 after-push hook', () => {
     expect(text).toContain('draft PR');
     expect(text).toContain('re-review');
     expect(text).toContain('L-043');
+    // L-070: the description is rewritten to match the head before the re-review.
+    expect(text).toContain('rewrite the PR description');
+    expect(text).toContain('L-070');
   });
 
   it('says nothing after a rejected, failed, interrupted or empty push', () => {

@@ -14,23 +14,28 @@ export const BUTTON_OPACITIES: readonly ButtonOpacity[] = ['low', 'medium', 'hig
 export type TouchLayout = 'standard' | 'mirrored';
 export const TOUCH_LAYOUTS: readonly TouchLayout[] = ['standard', 'mirrored'];
 
-/** The two volumes, each a whole number of shares from 0 to `VOLUME.steps`, the language, the touch buttons' opacity and the touch layout (GDD-UI-02, GDD-AUD-01, GDD-CTL-03). */
+/** The steps of the Screen shake row, in the order it goes through them (GDD-UI-02, GDD-BOS-01). */
+export type ScreenShake = 'on' | 'off';
+export const SCREEN_SHAKES: readonly ScreenShake[] = ['on', 'off'];
+
+/** The two volumes, each a whole number of shares from 0 to `VOLUME.steps`, the language, the touch buttons' opacity, the touch layout and the Screen shake (GDD-UI-02, GDD-AUD-01, GDD-CTL-03, GDD-BOS-01). */
 export interface Settings {
   readonly master: number;
   readonly effects: number;
   readonly language: Language;
   readonly buttonOpacity: ButtonOpacity;
   readonly layout: TouchLayout;
+  readonly shake: ScreenShake;
 }
 
-export const DEFAULT_SETTINGS: Settings = { master: VOLUME.default, effects: VOLUME.default, language: 'en', buttonOpacity: 'medium', layout: 'standard' };
+export const DEFAULT_SETTINGS: Settings = { master: VOLUME.default, effects: VOLUME.default, language: 'en', buttonOpacity: 'medium', layout: 'standard', shake: 'on' };
 
-export type SettingsRow = 'master' | 'effects' | 'language' | 'buttonOpacity' | 'layout' | 'back';
-export const SETTINGS_ROWS: readonly SettingsRow[] = ['master', 'effects', 'language', 'buttonOpacity', 'layout', 'back'];
+export type SettingsRow = 'master' | 'effects' | 'language' | 'buttonOpacity' | 'layout' | 'shake' | 'back';
+export const SETTINGS_ROWS: readonly SettingsRow[] = ['master', 'effects', 'language', 'buttonOpacity', 'layout', 'shake', 'back'];
 
 const clamp = (v: number): number => Math.max(0, Math.min(VOLUME.steps, v));
 
-/** One volume row moved by `delta` shares, or the language, Button opacity or Layout row by `delta` places (no wrap-around); Back changes nothing. */
+/** One volume row moved by `delta` shares, or the language, Button opacity, Layout or Screen shake row by `delta` places (no wrap-around); Back changes nothing. */
 function nudge(settings: Settings, row: SettingsRow, delta: number): Settings {
   if (row === 'back') return settings;
   if (row === 'language') {
@@ -44,6 +49,10 @@ function nudge(settings: Settings, row: SettingsRow, delta: number): Settings {
   if (row === 'layout') {
     const i = Math.max(0, Math.min(TOUCH_LAYOUTS.length - 1, TOUCH_LAYOUTS.indexOf(settings.layout) + delta));
     return { ...settings, layout: TOUCH_LAYOUTS[i]! };
+  }
+  if (row === 'shake') {
+    const i = Math.max(0, Math.min(SCREEN_SHAKES.length - 1, SCREEN_SHAKES.indexOf(settings.shake) + delta));
+    return { ...settings, shake: SCREEN_SHAKES[i]! };
   }
   return { ...settings, [row]: clamp(settings[row] + delta) };
 }
@@ -63,8 +72,9 @@ export function browserLanguage(languages: readonly string[]): Language {
 
 /**
  * One event on the open settings screen, which only the sideways screen takes (callers handle orientation). Up and Down choose
- * a row (no wrap-around), Left and Right move the chosen volume, the language, the Button opacity or the Layout, Enter, Space or Z picks Back, Escape, P, the pause button
- * and the gamepad's start leave. A tap on a volume, the language, the Button opacity or the Layout row chooses it and moves it by its half; a tap on Back leaves; any other tap does nothing.
+ * a row (no wrap-around), Left and Right move the chosen volume, the language, the Button opacity, the Layout or the Screen shake, Enter, Space or Z picks Back, Escape, P, the pause button
+ * and the gamepad's start leave. A tap on a volume, the language, the Button opacity, the Layout or the Screen shake row chooses it and moves it by its half; a tap on Back leaves; any other tap does nothing.
+ * A tap with no side is a tap on a scroll arrow (GDD-UI-02, "Scrolling"): it only chooses the row that came into view, Back too.
  * `'back'` when the event leaves the screen.
  */
 export function settingsEvent(row: SettingsRow, settings: Settings, event: PauseEvent): { row: SettingsRow; settings: Settings } | 'back' {
@@ -72,6 +82,7 @@ export function settingsEvent(row: SettingsRow, settings: Settings, event: Pause
   if (typeof event === 'object') {
     const tap = event.settings;
     if (tap === null) return { row, settings };
+    if (tap.side === null) return { row: tap.row, settings };
     if (tap.row === 'back') return 'back';
     return { row: tap.row, settings: nudge(settings, tap.row, tap.side === 'left' ? -1 : 1) };
   }
