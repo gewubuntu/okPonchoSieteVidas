@@ -14,7 +14,7 @@ project get better at itself over time.
 | `.claude/skills/*` | Repeatable procedures: `harness-feature`, `harness-gdd-update`, `harness-playtest`, `harness-retro` (all start with `harness-`, so typing `/harness` lists them). |
 | `.claude/agents/pr-reviewer.md` | The subagent that reviews every pull request in depth. |
 | `.claude/agents/implementer.md` | The subagent that builds a feature from the main session's plan. |
-| `.claude/settings.json` | Project hooks, each a script in `scripts/hooks/` with a test beside it. After the GitHub tool creates a PR, `after-pr.mjs` tells Claude to run the reviewer and not to merge before it reports (L-043), and after a `git push`, `after-push.mjs` tells it to open a draft PR or have the new commits re-reviewed (L-043). Before a shell command, `gate-pipe.mjs` denies one that commits (`git commit`, and `cherry-pick`, `merge`, `revert`, `am` or `rebase`) after a run of the gate (`node scripts/check.mjs` or `npm run check`) with anything but `&&` between them (L-012). Before a `git push` or a new PR, `stale-main.mjs` fetches `main` and asks the user first when the branch lacks some of it (L-052, L-030). Before a merge, `before-merge.mjs` asks the user, with the reason that a PR is merged only after its review (L-043). |
+| `.claude/settings.json` | Project hooks, each a script in `scripts/hooks/` with a test beside it. After the GitHub tool creates a PR, `after-pr.mjs` tells Claude to run the reviewer and not to merge before it reports (L-043), and after a `git push`, `after-push.mjs` tells it to open a draft PR or have the new commits re-reviewed (L-043), with the PR description first rewritten to match the head (L-070). Before a shell command, `gate-pipe.mjs` denies one that commits (`git commit`, and `cherry-pick`, `merge`, `revert`, `am` or `rebase`) after a run of the gate (`node scripts/check.mjs` or `npm run check`) with anything but `&&` between them (L-012). Before a `git push` or a new PR, `stale-main.mjs` fetches `main` and asks the user first when the branch lacks some of it (L-052, L-030). Before a merge, `before-merge.mjs` asks the user, with the reason that a PR is merged only after its review (L-043). |
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
 | `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a visible change has no screenshots. |
 | `.github/workflows/deploy.yml` | Deploys `main`'s newest commit to https://poncho.forkfall.xyz once its `check` run passes (GDD-TEC-08, `docs/deploy.md`). Not part of the gate. |
@@ -94,7 +94,8 @@ It runs in three places:
    blocking findings, then subscribes to the PR.
 2. **In a session, when the user opens a PR.** Tell Claude the PR is up and it launches the subagent on it.
 3. **After each later push to a PR.** `scripts/hooks/after-push.mjs` reminds Claude that the review covers only the head it saw,
-   so the subagent re-reviews the new commits before the PR is reported ready or merged (L-043).
+   so the subagent re-reviews the new commits before the PR is reported ready or merged (L-043), and that the PR description's
+   Scope, checks, Screenshots and Notes are rewritten to match the head before that re-review (L-070).
 
 There is no automatic review in CI. It used to run on every PR through `.github/workflows/claude-review.yml` and an `ANTHROPIC_API_KEY` secret; the user removed it, together with the 300-line size guideline (`scripts/pr-size.mjs`), because PRs were over it almost every time.
 

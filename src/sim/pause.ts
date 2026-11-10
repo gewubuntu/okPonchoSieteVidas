@@ -22,13 +22,14 @@ export interface PauseState {
 
 /**
  * Where a tap or click went down, on every menu at once. The scene classifies it by place, never by state; the state it
- * reaches decides which menu reads it, so an Escape and a tap in one frame apply in order.
+ * reaches decides which menu reads it, so an Escape and a tap in one frame apply in order. A settings tap with no `side` is on a
+ * scroll arrow of the settings screen: it chooses `row`, the one that came into view (GDD-UI-02, "Scrolling").
  */
 export interface Tap {
   readonly pause: MenuItem | null;
   readonly title: TitleItem | null;
   readonly results: ResultsItem | null;
-  readonly settings: { readonly row: SettingsRow; readonly side: 'left' | 'right' } | null;
+  readonly settings: { readonly row: SettingsRow; readonly side: 'left' | 'right' | null } | null;
 }
 
 /** A tap off every row. */
