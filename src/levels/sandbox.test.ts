@@ -335,7 +335,9 @@ describe('GDD-WLD-05 the moving platform meets the piñata at column 23 (x 368 t
   });
 });
 
-const open = (r: RunState): boolean => r.pinatasOpen[2]!; // the special piñata is the sandbox's third
+/** The special piñata's place in the sandbox's list, read from the level (L-062). */
+const SPECIAL = SANDBOX_PINATAS.findIndex((p) => p.special === true);
+const open = (r: RunState): boolean => r.pinatasOpen[SPECIAL]!;
 
 describe('GDD-PWR-04 the sandbox special piñata', () => {
   // The special piñata hangs at column 26, row 2 (x 416 to 432, underside y = 48), 48 px above the top right ledge (row 6, columns 25 to 29,

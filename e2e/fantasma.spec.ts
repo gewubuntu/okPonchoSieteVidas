@@ -38,10 +38,10 @@ test('GDD-PWR-04 the special piñata gives the Chile Fantasma, and taking it he 
   const closed = await api(page, () => window.__PONCHO__!.pinatasDrawn());
   expect(closed).toHaveLength(SANDBOX_PINATAS.length);
   expect(closed[SPECIAL]).toBe(false);
-  await page.evaluate(() => {
+  await page.evaluate((special) => {
     const d = window.__PONCHO__!;
-    for (let i = 0; i < 20 && !d.pinatasDrawn().some((open, k) => open && k === 2); i++) d.step(1, { move: 0, jumpHeld: true });
-  });
+    for (let i = 0; i < 20 && !d.pinatasDrawn()[special]; i++) d.step(1, { move: 0, jumpHeld: true });
+  }, SPECIAL);
   expect((await api(page, () => window.__PONCHO__!.pinatasDrawn()))[SPECIAL]).toBe(true);
   // It looks like any other piñata (no new art): the others are drawn the same, so only its open state is read. The pepper stands on its top.
   const items = await api(page, () => window.__PONCHO__!.itemsDrawn());

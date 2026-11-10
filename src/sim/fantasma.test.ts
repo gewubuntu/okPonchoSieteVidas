@@ -229,6 +229,15 @@ describe('GDD-PWR-04 Chile Fantasma', () => {
       expect(r.invulnerable).toBe(0);
     });
 
+    it('GDD-PWR-04 the step he eats it his touch defeats an enemy he touches, and it is no hit', () => {
+      // The pepper and an Alacrán both on Poncho in Base on the same step: the pickup is resolved first (GDD-PWR-01), so it protects him at once.
+      const { level, run } = withEnemy({ x: 88, y: 128 }, (s) => s, { items: [pepper] });
+      const r = stepRun(run, idle, level);
+      expect(r.enemies[0]!.alive).toBe(false);
+      expect(r.phase).toBe('playing');
+      expect(r.lives.lives).toBe(7);
+    });
+
     it.each(cases.filter(([name]) => name !== 'Tlacuache playing dead' && name !== 'Trompo stunned'))('GDD-PWR-04 without it %s is a hit, and is not defeated', (_name, def, make) => {
       const { level, run } = withEnemy(def, make);
       const r = stepRun(run, idle, level);
