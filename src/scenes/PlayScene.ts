@@ -455,10 +455,11 @@ export interface PonchoDebug {
   /**
    * GDD-BOS-03: La Estrella as last drawn, or null when she was not, read back from her images: her middle (shaken 2 px in her telegraph),
    * the frame of her sheet and what it shows (its look, the hits it shows, the cones left, the flash), whether it is mirrored, the trolley's
-   * middle and frame, and the rope's length in px (0 while she is too high for it to show, null once it snapped).
+   * middle, cable row and frame, the rope's drawn length in px (0 while she is too high for it to show, null once it snapped), x and top,
+   * her frame's and the trolley's drawn sizes, and the cable's drawn edges.
    */
   estrellaDrawn(): { x: number; y: number; frame: number; look: string; hits: number; cones: number; flash: 'red' | 'white' | null; flipX: boolean; trolleyX: number; trolleyFrame: number; trolleyCableY: number; rope: number | null; ropeX: number | null; ropeTop: number | null; size: { w: number; h: number }; trolleySize: { w: number; h: number }; cable: { x0: number; y0: number; x1: number; y1: number } } | null;
-  /** GDD-BOS-03: her tejocotes in the run (the middle x, the bottom y, steps before it comes out), and the images drawn last frame (the box's left and top, the frame of the calyx). */
+  /** GDD-BOS-03: her tejocotes in the run (the middle x, the bottom y, steps before it comes out), and the images drawn last frame (the drawn box's left, top, width and height, the frame of the calyx). */
   tejocotes(): { x: number; y: number; wait: number }[];
   tejocotesDrawn(): { x: number; y: number; w: number; h: number; frame: number }[];
   /** Test hook: La Estrella at the start of phase `hits + 1` (`estrellaStart`), with no tejocotes, as after a lost life. Nothing in a level without her. */
