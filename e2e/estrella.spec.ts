@@ -115,8 +115,8 @@ test('GDD-BOS-03 in phase 2 she thuds through the cordel to the floor and a tejo
   await page.waitForFunction(() => window.__PONCHO__!.tejocotesDrawn().length === 2);
   // Each a box at 8 px to the left of its middle and 8 px high, the calyx turned a quarter for each 6.28 px rolled: x 145 is 23 quarters, 175 is 27.
   expect(await api(page, () => window.__PONCHO__!.tejocotesDrawn())).toEqual([
-    { x: 141, y: 216, frame: 3 },
-    { x: 171, y: 216, frame: 3 },
+    { x: 141, y: 216, w: 8, h: 8, frame: 3 },
+    { x: 171, y: 216, w: 8, h: 8, frame: 3 },
   ]);
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   // The test hook starts her phase as a lost life does: no tejocotes.
@@ -240,6 +240,12 @@ test('GDD-BOS-03 the frame drawn is the one estrellaPose picks for the run, in e
     expect(read.drawn, mode).toMatchObject({ frame: pose.frame, x: pose.x, y: pose.y, flipX: pose.flipX, trolleyFrame: pose.trolley.frame, ...estrellaFrameInfo(pose.frame) });
     // The trolley rides the cable (y = 8) and the rope, where it shows, ties into her top cone's tip from the trolley's eye (GDD-BOS-03, "Her look").
     expect(read.drawn!.trolleyCableY, mode).toBe(8);
+    // Drawn at true size (a frame is 72 x 72 game px, the trolley 16 x 16) and the cable across the arena, 1 px thick on y = 8 (L-010: drawn edges).
+    expect({ size: read.drawn!.size, trolleySize: read.drawn!.trolleySize, cable: read.drawn!.cable }, mode).toEqual({
+      size: { w: 72, h: 72 },
+      trolleySize: { w: 16, h: 16 },
+      cable: { x0: 0, y0: 7.5, x1: 480, y1: 8.5 },
+    });
     if (mode === 'hang') expect({ x: read.drawn!.ropeX, top: read.drawn!.ropeTop }, mode).toEqual({ x: pose.rope!.x, top: pose.rope!.top });
   }
 });

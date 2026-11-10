@@ -457,10 +457,10 @@ export interface PonchoDebug {
    * the frame of her sheet and what it shows (its look, the hits it shows, the cones left, the flash), whether it is mirrored, the trolley's
    * middle and frame, and the rope's length in px (0 while she is too high for it to show, null once it snapped).
    */
-  estrellaDrawn(): { x: number; y: number; frame: number; look: string; hits: number; cones: number; flash: 'red' | 'white' | null; flipX: boolean; trolleyX: number; trolleyFrame: number; trolleyCableY: number; rope: number | null; ropeX: number | null; ropeTop: number | null } | null;
+  estrellaDrawn(): { x: number; y: number; frame: number; look: string; hits: number; cones: number; flash: 'red' | 'white' | null; flipX: boolean; trolleyX: number; trolleyFrame: number; trolleyCableY: number; rope: number | null; ropeX: number | null; ropeTop: number | null; size: { w: number; h: number }; trolleySize: { w: number; h: number }; cable: { x0: number; y0: number; x1: number; y1: number } } | null;
   /** GDD-BOS-03: her tejocotes in the run (the middle x, the bottom y, steps before it comes out), and the images drawn last frame (the box's left and top, the frame of the calyx). */
   tejocotes(): { x: number; y: number; wait: number }[];
-  tejocotesDrawn(): { x: number; y: number; frame: number }[];
+  tejocotesDrawn(): { x: number; y: number; w: number; h: number; frame: number }[];
   /** Test hook: La Estrella at the start of phase `hits + 1` (`estrellaStart`), with no tejocotes, as after a lost life. Nothing in a level without her. */
   setEstrella(hits: number): void;
   /** GDD-MOV-07: whether the spread poncho is drawn over Poncho (gliding). Read from what was drawn. */
@@ -609,7 +609,7 @@ export class PlayScene extends Phaser.Scene {
   private estrellaCable!: Phaser.GameObjects.TileSprite;
   private tejocoteImages: Phaser.GameObjects.Image[] = [];
   private estrellaPainted: ReturnType<PonchoDebug['estrellaDrawn']> = null;
-  private tejocotesPainted: { x: number; y: number; frame: number }[] = [];
+  private tejocotesPainted: { x: number; y: number; w: number; h: number; frame: number }[] = [];
   /** GDD-UI-01: the boss bar's name and pips, and how many pips were last drawn filled and how many as an outline. */
   private bossName!: Phaser.GameObjects.Text;
   private bossBarGfx!: Phaser.GameObjects.Graphics;
@@ -1610,13 +1610,18 @@ export class PlayScene extends Phaser.Scene {
       rope: pose.rope ? (rope ? this.estrellaRope.displayHeight : 0) : null,
       ropeX: rope ? this.estrellaRope.getTopCenter().x : null,
       ropeTop: rope ? this.estrellaRope.getTopCenter().y : null,
+      // How big her frame and the trolley are drawn, and the cable's drawn edges: a scale or an origin changed on any of them is caught too.
+      size: { w: sprite.displayWidth, h: sprite.displayHeight },
+      trolleySize: { w: this.estrellaTrolley.displayWidth, h: this.estrellaTrolley.displayHeight },
+      cable: { x0: this.estrellaCable.getTopLeft().x, y0: this.estrellaCable.getTopLeft().y, x1: this.estrellaCable.getBottomRight().x, y1: this.estrellaCable.getBottomRight().y },
     };
     const boxes = tejocoteBoxes(this.run.tejocotes);
     while (this.tejocoteImages.length < boxes.length) this.tejocoteImages.push(this.add.image(0, 0, 'estrella-tejocote', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3));
     boxes.forEach((t, i) => {
       const image = this.tejocoteImages[i]!.setVisible(true).setPosition(t.x + t.w / 2, t.y + t.h / 2).setFrame(t.frame);
-      const c = image.getCenter();
-      this.tejocotesPainted.push({ x: c.x - t.w / 2, y: c.y - t.h / 2, frame: Number(image.frame.name) });
+      // Its drawn box, place and size in one, from the image's bounds (L-010).
+      const b = image.getBounds();
+      this.tejocotesPainted.push({ x: b.x, y: b.y, w: b.width, h: b.height, frame: Number(image.frame.name) });
     });
   }
 
