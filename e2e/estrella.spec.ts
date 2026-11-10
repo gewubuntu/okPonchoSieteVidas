@@ -134,7 +134,7 @@ test('GDD-BOS-03 the third hit defeats her; 1.0 s later the level clear screen, 
   // Her rope snapped and no cone left; the bar's three pips are outlines.
   await page.waitForFunction(() => {
     const d = window.__PONCHO__!;
-    return d.estrellaDrawn()?.rope === null && d.estrellaDrawn()?.cones === 0 && d.estrellaDrawn()?.look === 'fallWhite' && d.bossBar().pips === 0 && d.bossBar().outlines === 3;
+    return d.estrellaDrawn()?.rope === null && d.estrellaDrawn()?.ropeWidth === null && d.estrellaDrawn()?.cones === 0 && d.estrellaDrawn()?.look === 'fallWhite' && d.bossBar().pips === 0 && d.bossBar().outlines === 3;
   });
   expect(await api(page, () => window.__PONCHO__!.tejocotes())).toEqual([]);
   expect((await api(page, () => window.__PONCHO__!.sfx())).slice(heard)).toEqual(expect.arrayContaining(['meow', 'stomp']));
