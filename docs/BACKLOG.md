@@ -77,7 +77,7 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-PWR-01 | doing | Base, Taco and Fuego states, spike hit absorbed (Fuego goes back to Taco), respawn in Base (src/sim/run.ts, src/sim/taco.ts) |
 | GDD-PWR-02 | doing | static taco pickup and the walking taco from a piñata (src/sim/item.ts); the chomp and freeze-frame pending |
 | GDD-PWR-03 | doing | chile from piñatas, Fuego state, fireball and Fuego touch button (src/sim/fireball.ts, src/sim/run.ts); fireballs defeat the Alacrán, the Zopilote and the awake Tlacuache, and hit Don Zopilote while he is stuck in the sand (GDD-BOS-02); ice, candles, sound and gamepad pending; in World 2 fireballs defeat the Paloma and the Chapulín, stun the Trompo, unroll rollos, burst tejocotes and are used up on La Estrella |
-| GDD-PWR-04 | doing | decisions recorded (GDD 0.10.10); the glow's reference is in assets/characters/poncho/fantasma/, the pickup's is still to come; nothing built yet |
+| GDD-PWR-04 | doing | decisions recorded (GDD 0.10.10); the references for the glow and the pickup are in assets/characters/poncho/fantasma/; nothing built yet |
 | GDD-PWR-05 | doing | head-bump piñata releasing a walking taco in Base (src/sim/pinata.ts, two in the sandbox); multi-piñata hilos pending; a chile comes out in Taco or Fuego |
 | GDD-PWR-06 | doing | collect by touch and no spawn inside a wall (src/sim/item.ts); the reserve-slot question stays open |
 | GDD-VIS-05 | todo |  |
