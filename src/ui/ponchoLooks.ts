@@ -9,20 +9,23 @@ export const PONCHO_LOOKS = [
 ] as const;
 export type PonchoLook = (typeof PONCHO_LOOKS)[number];
 
-/** The pickups (GDD-PWR-02, GDD-PWR-03), what he holds, the claw swipe (GDD-CMB-02) and the effects at his mouth, one sheet each. */
+/** The pickups (GDD-PWR-02, GDD-PWR-03, GDD-PWR-04), what he holds, the claw swipe (GDD-CMB-02), the effects at his mouth and the glow's (GDD-PWR-04), one sheet each. */
 export const ITEM_LOOKS = {
   taco: ['tacoBob0', 'tacoBob1', 'tacoBob2', 'tacoBob3', 'tacoGlint', 'tacoBitten'],
   chile: ['chileBob0', 'chileBob1', 'chileBob2', 'chileBob3', 'chileGlint'],
   held: ['tacoHeld', 'chileHeld', 'tacoFood', 'chileFood', 'tacoBittenHeld'],
   swipe: ['swipe0', 'swipe1', 'swipe2', 'swipe3'],
   fx: ['flame0', 'flame1', 'crumbs0', 'crumbs1'],
+  fantasma: ['fantasmaBob0', 'fantasmaBob1', 'fantasmaBob2'],
+  glow: ['sparkleStar', 'sparklePlus', 'flame', 'streak'],
 } as const;
 export type ItemSheet = keyof typeof ITEM_LOOKS;
-export const ITEM_SHEETS: readonly ItemSheet[] = ['taco', 'chile', 'held', 'swipe', 'fx'];
+export const ITEM_SHEETS: readonly ItemSheet[] = ['taco', 'chile', 'held', 'swipe', 'fx', 'fantasma', 'glow'];
 export type HeldLook = (typeof ITEM_LOOKS.held)[number];
 export type SwipeLook = (typeof ITEM_LOOKS.swipe)[number];
 export type FxLook = (typeof ITEM_LOOKS.fx)[number];
-export type PickupLook = (typeof ITEM_LOOKS.taco)[number] | (typeof ITEM_LOOKS.chile)[number];
+export type GlowLook = (typeof ITEM_LOOKS.glow)[number];
+export type PickupLook = (typeof ITEM_LOOKS.taco)[number] | (typeof ITEM_LOOKS.chile)[number] | (typeof ITEM_LOOKS.fantasma)[number];
 export type ItemLook = (typeof ITEM_LOOKS)[ItemSheet][number];
 
 /** The frame of `look` in Poncho's sheet. */

@@ -5,9 +5,9 @@ import { enemyBox, kindOf, type EnemyKind } from '../sim/enemy';
 import type { Level, RunState } from '../sim/run';
 import { lookFrame, POOF_LOOKS, type EnemyLook, type Sheet } from './enemyLooks';
 
-/** The kinds that go in a poof: every one that can be defeated. The cactus buddy cannot. */
-export type DefeatKind = 'alacran' | 'zopilote' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo';
-const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'tlacuache' || kind === 'paloma' || kind === 'chapulin' || kind === 'trompo';
+/** The kinds that go in a poof: every one that can be defeated, the cactus buddy too, by the Chile Fantasma alone (GDD-PWR-04). */
+export type DefeatKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo';
+const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'cactus' || kind === 'tlacuache' || kind === 'paloma' || kind === 'chapulin' || kind === 'trompo';
 
 export interface DefeatFx {
   readonly kind: DefeatKind;
@@ -19,7 +19,7 @@ export interface DefeatFx {
   readonly flip: boolean;
   /** A stomp defeated it (it is squashed), not the claw or a fireball (it is knocked). */
   readonly stomped: boolean;
-  /** Steps since it was defeated. */
+  /** Steps since it was defeated (a cactus buddy's starts at ENEMY_ART.defeatSteps: it has no squash or hit frame). */
   readonly age: number;
 }
 
@@ -40,7 +40,8 @@ export function stepDefeats(fx: readonly DefeatFx[], before: Pick<RunState, 'ene
     const kind = kindOf(def);
     if (!before.enemies[i]!.alive || e.alive || !poofs(kind)) return [];
     const box = enemyBox(def, e);
-    return [{ kind, x: (box.x0 + box.x1) / 2, y: (box.y0 + box.y1) / 2, feet: box.y1, flip: e.dir < 0, stomped: after.stomped && kind !== 'zopilote', age: 0 }];
+    // GDD-PWR-04: the cactus buddy has no squash or hit frame, so its effect starts past that stage, at the poof (its frames are 16 steps).
+    return [{ kind, x: (box.x0 + box.x1) / 2, y: (box.y0 + box.y1) / 2, feet: box.y1, flip: e.dir < 0, stomped: after.stomped && kind !== 'zopilote', age: kind === 'cactus' ? ENEMY_ART.defeatSteps : 0 }];
   });
   return [...aged, ...fresh];
 }

@@ -29,6 +29,8 @@ import chilePng from '../../assets/sprites/poncho/chile.png';
 import heldPng from '../../assets/sprites/poncho/held.png';
 import swipePng from '../../assets/sprites/poncho/swipe.png';
 import fxPng from '../../assets/sprites/poncho/fx.png';
+import fantasmaPng from '../../assets/sprites/poncho/fantasma.png';
+import glowPng from '../../assets/sprites/poncho/glow.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import jumpOgg from '../../assets/audio/sfx/jump.ogg';
@@ -88,6 +90,7 @@ import { gamePoint } from '../ui/gamePoint';
 import { ITEM_FRAMES } from '../ui/ponchoFrames';
 import { ITEM_LOOKS, ITEM_SHEETS, itemFrame, ponchoFrame, ponchoLookAt, type FxLook, type HeldLook, type ItemLook, type ItemSheet, type PonchoLook, type SwipeLook } from '../ui/ponchoLooks';
 import { itemAt, pickupLook, ponchoParts, startPose, stepPose, type PonchoPose } from '../ui/ponchoPose';
+import { glowColour, glowFx, glowLook, glowMotion, glowOffsets, GLOW_FX_MAX, type GlowTone } from '../ui/fantasmaGlow';
 import { layoutPauseMenu, layoutResultsMenu, layoutTitleMenu, pauseMenuItemAt, resultsMenuItemAt, titleMenuItemAt, type MenuRow } from '../ui/pauseMenu';
 import { languageValueX, layoutSettingsMenu, settingsTapAt, volumeBars, type SettingsMenuRow } from '../ui/settingsMenu';
 import { arrowTapTarget, rowsThatFit, scrollArrowAt, scrollArrows, scrollFirst, shownSettingsRows, type ScrollArrow } from '../ui/settingsScroll';
@@ -100,8 +103,8 @@ import { hasMarketThings, loadMarketThings, MarketThings, type MarketDrawn } fro
 
 /** GDD-ENM-02, GDD-ENM-03: the enemy sheets and the defeat poof's. */
 const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, paloma: palomaPng, chapulin: chapulinPng, trompo: trompoPng, poof: poofPng };
-/** GDD-ART-04: the taco and chile pickups, what Poncho holds, the claw swipe and the effects at his mouth, one sheet each (`ITEM_LOOKS`). */
-const ITEM_PNGS: Readonly<Record<ItemSheet, string>> = { taco: tacoPng, chile: chilePng, held: heldPng, swipe: swipePng, fx: fxPng };
+/** GDD-ART-04, GDD-PWR-04: the taco, chile and Chile Fantasma pickups, what Poncho holds, the claw swipe, the effects at his mouth and his glow's, one sheet each (`ITEM_LOOKS`). */
+const ITEM_PNGS: Readonly<Record<ItemSheet, string>> = { taco: tacoPng, chile: chilePng, held: heldPng, swipe: swipePng, fx: fxPng, fantasma: fantasmaPng, glow: glowPng };
 /** A sheet's frames stand on their bottom middle (a walker's feet), or the Zopilote's and the poof's on their middle. */
 const centred = (sheet: Sheet): boolean => sheet === 'zopilote' || sheet === 'poof';
 
@@ -464,6 +467,16 @@ export interface PonchoDebug {
   clingDrawn(): -1 | 0 | 1;
   /** Test hook: puts Poncho in a power-up state without playing for it. */
   setPower(power: Power): void;
+  /** GDD-PWR-04: the steps of the Chile Fantasma left after the last step (`run.fantasma`): 0 when it is not running. */
+  fantasma(): number;
+  /** Test hook: sets the steps of the Chile Fantasma left, as if it had been eaten (the glow is drawn at once). */
+  setFantasma(steps: number): void;
+  /**
+   * GDD-PWR-04: his glow as drawn last frame, read back from the images: `look` bright, dim, or null when none is drawn; `colour` the tint
+   * the copies of his body carry as '#RRGGBB' (null when none is drawn); `copies` the four copies of his body (position, frame in the 'poncho'
+   * sheet, visible, mirrored, alpha); `fx` the sparkles, flames and streaks drawn round him (the glow sheet's look, position, alpha).
+   */
+  glowDrawn(): { look: 'bright' | 'dim' | null; colour: string | null; copies: { x: number; y: number; frame: number; visible: boolean; flipX: boolean; alpha: number }[]; fx: { look: string; x: number; y: number; alpha: number }[] };
 }
 
 declare global {
@@ -549,6 +562,10 @@ export class PlayScene extends Phaser.Scene {
   private crumblesKey = '';
   /** GDD-PWR-02, GDD-ART-04: the level's taco pickups, one image each, and what Poncho holds, the claw swipe and the effect at his mouth. */
   private tacoImages: Phaser.GameObjects.Image[] = [];
+  /** GDD-PWR-04: the four copies of his body that make the glow's outline, just under it, and the pool of images for what floats round him. */
+  private glowCopies: Phaser.GameObjects.Image[] = [];
+  private glowSparks: Phaser.GameObjects.Image[] = [];
+  private glowTone: GlowTone | null = null;
   private heldImage!: Phaser.GameObjects.Image;
   private swipeImage!: Phaser.GameObjects.Image;
   private fxImage!: Phaser.GameObjects.Image;
@@ -900,6 +917,9 @@ export class PlayScene extends Phaser.Scene {
     this.heldImage = this.add.image(0, 0, 'poncho-held', 0).setScale(1 / ART_SCALE).setDepth(3.5).setVisible(false);
     this.fxImage = this.add.image(0, 0, 'poncho-fx', 0).setScale(1 / ART_SCALE).setDepth(3.5).setVisible(false);
     this.swipeImage = this.add.image(0, 0, 'poncho-swipe', 0).setScale(1 / ART_SCALE).setDepth(3.6).setVisible(false);
+    // GDD-PWR-04: his glow. Four copies of his frame, solid gold, one drawing pixel off each way, just under his body; what floats round him above it.
+    this.glowCopies = glowOffsets().map(() => this.add.image(0, 0, 'poncho', ponchoFrame('idle')).setOrigin(0.5, 1).setScale(1 / ART_SCALE).setDepth(2.9).setTintMode(Phaser.TintModes.FILL).setVisible(false));
+    this.glowSparks = Array.from({ length: GLOW_FX_MAX }, () => this.add.image(0, 0, 'poncho-glow', 0).setScale(1 / ART_SCALE).setDepth(3.4).setVisible(false));
     this.fireballGfx = this.add.graphics().setDepth(4);
     this.bossSprite = this.add.image(0, 0, 'boss', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3).setVisible(false);
     this.crownSprite = this.add.image(0, 0, 'boss-crown', 0).setOrigin(0.5, 1).setScale(1 / ART_SCALE).setDepth(3).setVisible(false);
@@ -1354,6 +1374,17 @@ export class PlayScene extends Phaser.Scene {
           this.run = { ...this.run, power };
           this.drawHud();
         },
+        fantasma: () => this.run.fantasma,
+        setFantasma: (steps) => {
+          this.run = { ...this.run, fantasma: steps };
+          this.renderBody(1);
+        },
+        glowDrawn: () => ({
+          look: this.glowTone,
+          colour: this.glowTone ? `#${this.glowCopies[0]!.tintTopLeft.toString(16).padStart(6, '0').toUpperCase()}` : null,
+          copies: this.glowCopies.map((c) => ({ x: c.x, y: c.y, frame: Number(c.frame.name), visible: c.visible, flipX: c.flipX, alpha: c.alpha })),
+          fx: this.glowSparks.filter((s) => s.visible).map((s) => ({ look: ITEM_LOOKS.glow[Number(s.frame.name)]!, x: s.x, y: s.y, alpha: s.alpha })),
+        }),
         pinatasDrawn: () => this.pinatasPainted,
         itemsDrawn: () => this.itemsDrawn,
         keysHeld: () => this.run.keysHeld,
@@ -2165,6 +2196,36 @@ export class PlayScene extends Phaser.Scene {
     // L-010: what was drawn for the claw, read back from the images: his wind-up frame, or a swipe frame shown.
     const look = ponchoLookAt(Number(this.bodySprite.frame.name));
     this.clawPainted = this.swipeImage.visible ? 'swing' : this.body.visible && look === 'clawWind' ? 'windup' : 'none';
+    this.drawGlow();
+  }
+
+  /**
+   * GDD-PWR-04: his glow, drawn after the body's frame, position and alpha are final (L-033). While the Chile Fantasma runs, in play and
+   * with the body drawn, four copies of his frame (the same texture, frame, mirroring and alpha, so they hide with him and blink with him)
+   * sit one drawing pixel off him each way, tinted solid gold (pale gold for the last 2 s); the sparkles, flame and streaks of `glowFx` float
+   * round his middle. Otherwise every one of them is hidden, on the clear and game over screens too.
+   */
+  private drawGlow(): void {
+    const { player } = this.run;
+    const tone = this.run.phase === 'playing' && this.body.visible ? glowLook(this.run.fantasma) : null;
+    this.glowTone = tone;
+    const offsets = glowOffsets();
+    this.glowCopies.forEach((copy, i) => {
+      copy.setVisible(tone !== null);
+      if (tone === null) return;
+      copy
+        .setFrame(this.pose.frame)
+        .setFlipX(this.pose.flip)
+        .setPosition(this.body.x + this.bodySprite.x + offsets[i]!.x, this.body.y + this.bodySprite.y + offsets[i]!.y)
+        .setAlpha(this.body.alpha)
+        .setTint(parseInt(glowColour(tone).slice(1), 16));
+    });
+    const fx = glowFx(this.run.clock, tone, glowMotion(player), player.facing);
+    this.glowSparks.forEach((image, i) => {
+      const f = fx[i];
+      image.setVisible(f !== undefined);
+      if (f) image.setFrame(itemFrame('glow', f.look)).setFlipX(f.flip).setPosition(this.body.x + f.x, this.body.y + f.y).setAlpha(this.body.alpha);
+    });
   }
 
   override update(_time: number, deltaMs: number): void {

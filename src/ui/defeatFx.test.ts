@@ -84,8 +84,18 @@ describe('GDD-ENM-02 the defeat poof', () => {
     expect([0, 7].map((a) => at(a).y)).toEqual([160, 160]); // the squash stays on the ground
   });
 
-  it('GDD-ENM-02 the cactus buddy adds no effect', () => {
-    expect(stepDefeats([], { enemies: ALIVE }, after(without(ALIVE, 2), true), LEVEL)).toEqual([]);
+  it('GDD-PWR-04 a cactus buddy defeated by his touch goes in a poof', () => {
+    // Only the Chile Fantasma defeats it (a step with the cactus alive and then not). It has no squash or hit frame, so it goes straight to
+    // the poof: its four frames, a frame every 4 steps from the step it is defeated, and it is gone after 16 steps. Its box is 12 x 16 on its feet.
+    const fx = stepDefeats([], { enemies: ALIVE }, after(without(ALIVE, 2)), LEVEL);
+    expect(fx).toHaveLength(1);
+    expect(fx[0]).toMatchObject({ kind: 'cactus', x: 184, y: 184, feet: 192 });
+    const dead = without(ALIVE, 2);
+    const at = (n: number) => defeatLook(age(fx, dead, n)[0]!);
+    expect(at(0)).toEqual({ sheet: 'poof', look: 'poof0', frame: 0, x: 184, y: 184, flip: false });
+    expect([4, 8, 12].map((n) => at(n).look)).toEqual(['poof1', 'poof2', 'poof3']);
+    expect(age(fx, dead, 15)).toHaveLength(1);
+    expect(age(fx, dead, 16)).toEqual([]);
   });
 
   it('GDD-ENM-03 a stomped Paloma, Chapulín or Trompo leaves its squash frame, then the poof', () => {

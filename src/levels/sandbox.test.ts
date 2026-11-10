@@ -300,7 +300,7 @@ describe('GDD-WLD-05 the sandbox route on foot past the door and up the 2-tile w
     expect(landed).toBe(true);
     expect(r.player.x).toBeGreaterThanOrEqual(160);
     expect(r.player.x).toBeLessThanOrEqual(178); // short of the cactus buddy's box (x 178 to 190)
-    expect(r.pinatasOpen).toEqual([false, false]);
+    expect(r.pinatasOpen).toEqual([false, false, false]);
   });
 });
 
@@ -332,5 +332,114 @@ describe('GDD-WLD-05 the moving platform meets the piñata at column 23 (x 368 t
     }
     expect(stopped).toBeGreaterThan(20); // held there while the platform runs on to its far end and turns back
     expect(r.pinatasOpen[1]).toBe(false); // carried against its side, not into it from below
+  });
+});
+
+const open = (r: RunState): boolean => r.pinatasOpen[2]!; // the special piñata is the sandbox's third
+
+describe('GDD-PWR-04 the sandbox special piñata', () => {
+  // The special piñata hangs at column 26, row 2 (x 416 to 432, underside y = 48), 48 px above the top right ledge (row 6, columns 25 to 29,
+  // top y = 96), last in the list. Its top is free (row 1), so the Chile Fantasma stands on it at y = 32. Set aside the Tlacuache that walks the
+  // ledge (the tests are about the piñata and the pepper; the claw deals with it in play).
+  const L: Level = { ...SANDBOX_LEVEL, enemies: [] };
+  it('is the last piñata, drawn like any other', () => {
+    expect(SANDBOX_PINATAS).toHaveLength(3);
+    expect(SANDBOX_PINATAS[2]).toEqual({ col: 26, row: 2, special: true });
+    expect(SANDBOX_ROWS[1]![26]).toBe('.'); // its top is free, so what it releases has room
+    expect(SANDBOX_ROWS[2]![26]).toBe('.'); // and it is not a level tile
+  });
+
+  it('a jump from the ledge under it bumps it open and the Chile Fantasma stands on its top', () => {
+    let r: RunState = { ...startRun(L), player: standing(26 * TILE + 8, 96) };
+    expect(r.player.y - 32).toBe(64); // his head is 16 px under its underside (y = 48) before the jump
+    for (let i = 0; i < 40 && !open(r); i++) r = stepRun(r, { move: 0, jumpHeld: true }, L);
+    expect(open(r)).toBe(true);
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0]).toMatchObject({ kind: 'fantasma', x: 424, y: 32, vx: 0 });
+  });
+
+  /**
+   * The pepper on its top is reached from the ledge, by a wall kick: standing at the piñata's left (x = 408) he jumps against its left face, kicks
+   * off it in the air (jump let go for a step first, L-048), rises past its top, holds right and jump to glide back over it and lands on it.
+   * The sandbox has the wall cling and the glide (SANDBOX_ABILITIES). Straight up, a jump reaches 56 px and its top is 64 px above the ledge.
+   */
+  it('the pepper on its top is reached from the ledge, by a wall kick and a glide', () => {
+    let r: RunState = { ...startRun(L), player: standing(26 * TILE + 8, 96) };
+    for (let i = 0; i < 40 && !open(r); i++) r = stepRun(r, { move: 0, jumpHeld: true }, L);
+    for (let i = 0; i < 60 && !(r.player.grounded && r.items.length === 1); i++) r = stepRun(r, { move: 0, jumpHeld: false }, L);
+    expect(r.player.y).toBe(96);
+    // To the piñata's left, 16 px short of it, and still.
+    for (let i = 0; i < 40 && r.player.x > 408; i++) r = stepRun(r, { move: -1, jumpHeld: false }, L);
+    for (let i = 0; i < 30; i++) r = stepRun(r, { move: 0, jumpHeld: false }, L);
+    expect(r.player.grounded).toBe(true);
+    expect(r.player.x).toBeLessThanOrEqual(408);
+    expect(r.fantasma).toBe(0);
+    let top = Infinity;
+    let got = -1;
+    for (let i = 0; i < 120 && got < 0; i++) {
+      // Right and jump held to rise against the face; jump let go at step 10 and held again from step 11 (the kick); right held to step 48, jump to step 49.
+      r = stepRun(r, { move: i < 49 ? 1 : 0, jumpHeld: i < 10 || (i >= 11 && i < 50) }, L);
+      top = Math.min(top, r.player.y);
+      expect(r.phase, `step ${i}`).toBe('playing');
+      if (r.fantasma > 0) got = i;
+    }
+    expect(got).toBeGreaterThan(0);
+    expect(r.fantasma).toBeGreaterThan(0);
+    expect(r.items).toEqual([]); // eaten
+    expect(r.player.y).toBe(32); // on the piñata's top
+    expect(r.lives.lives).toBe(7);
+  });
+
+  /**
+   * The ledge is reached on foot from the spawn, with the sandbox's abilities, in four legs by a bot that reads where he is (the Tlacuache and the
+   * other enemies set aside): the key, the door and a short jump up the 2-tile wall (the route test above); off the wall's right edge onto the
+   * spring with a timed press, braking so as to land on its half clear of the spring ledge, and rising straight up to the ledge's side; the moving
+   * platform from the ledge's right end, carried to its far end where the piñata at column 23 stops him; and a jump to the right onto the ledge.
+   */
+  it('the ledge is reached on foot from the spawn: the wall, the spring ledge, the moving platform and the jump onto it', () => {
+    let r: RunState = startRun(L);
+    const t = { step: 0 };
+    const play = (input: { move: number; jumpHeld: boolean }): void => {
+      r = stepRun(r, input, L);
+      t.step++;
+      expect(r.phase, `step ${t.step}`).toBe('playing');
+      expect(r.lives.lives, `step ${t.step}`).toBe(7);
+    };
+    // Leg 1: the 2-tile wall's top (y = 192).
+    while (t.step < 200 && !(t.step >= 120 && r.player.grounded && r.player.y === 192)) play({ move: 1, jumpHeld: t.step >= 120 && t.step < 126 });
+    expect(r.player.y).toBe(192);
+    // Leg 2: right to x = 179 and stop, then on to the wall's right edge, off it and onto the spring, a timed press as he lands; right again once he
+    // is above the ledge's top (y = 112 less 4), onto the spring ledge (columns 13 and 14, x 208 to 240).
+    while (t.step < 400 && !(r.player.grounded && r.player.y === 112 && r.player.x >= 208 && r.player.x <= 240)) {
+      const p = r.player;
+      const falling = p.vy > 0 && !p.grounded && p.y > 214;
+      let move = 0;
+      if (p.grounded && p.y === 192) move = p.x < 179 || p.vx === 0 ? 1 : 0;
+      else if (p.y < 108) move = 1;
+      play({ move, jumpHeld: falling || p.vy < 0 });
+    }
+    expect(r.player).toMatchObject({ y: 112, grounded: true });
+    const onLedge = t.step;
+    expect(onLedge).toBeLessThan(400);
+    // Leg 3: still on the spring ledge for 249 steps (the platform comes round), then right and off its end onto the platform (top y = 128), which
+    // carries him to its far end, where the piñata at column 23 stops him at x 356 or more. Leg 4: right and jump, held 24 steps.
+    let jumpFrom = -1;
+    while (t.step < 1000 && !(r.player.grounded && r.player.y === 96 && r.player.x >= 400)) {
+      const p = r.player;
+      const k = t.step - onLedge;
+      let move = 0;
+      let jumpHeld = false;
+      if (k < 249) move = 0;
+      else if (jumpFrom < 0 && p.y === 112) move = 1;
+      else if (jumpFrom < 0 && p.y === 128 && p.x >= 356) jumpFrom = k;
+      if (jumpFrom >= 0) {
+        move = 1;
+        jumpHeld = k < jumpFrom + 24;
+      }
+      play({ move, jumpHeld });
+    }
+    expect(r.player).toMatchObject({ y: 96, grounded: true });
+    expect(r.player.x).toBeGreaterThanOrEqual(400);
+    expect(open(r)).toBe(false); // the pepper is still to be earned
   });
 });

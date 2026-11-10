@@ -8,6 +8,8 @@ import type { TileGrid } from './tilemap';
 export interface Pinata {
   readonly col: number;
   readonly row: number;
+  /** GDD-PWR-04: a special piñata, drawn like any other, always releases the Chile Fantasma. */
+  readonly special?: boolean;
 }
 
 /** GDD-PWR-05: every piñata starts closed: one flag per piñata, true once it is open. */
