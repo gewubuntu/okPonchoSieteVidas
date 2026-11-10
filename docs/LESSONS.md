@@ -867,3 +867,23 @@ Retired IDs: L-046
 - **Recurrence 2 (2026-11-09, PR #88):** the same slip had happened in PR #67, noted only inside L-010's recurrence 12 ("blocked by the L-012 hook and the rerun left it out"), not as a lesson of its own, so nothing changed after it.
 - **Recurrence:** 2
 - **Promoted:** scripts/hooks/gate-pipe.mjs (its denial now says that none of the command ran and to re-run every part of it; tested in scripts/hooks/gate-pipe.test.mjs)
+
+## L-078 A branch's unmerged lessons took IDs that main gave to other lessons meanwhile
+
+- **Date:** 2026-11-10
+- **Area:** harness, process
+- **What went wrong:** PR #88 stayed open for a day and added L-074 to L-076; main meanwhile merged its own L-074 (PR #87). Merging main gave a conflict in `docs/LESSONS.md`, and the branch's three lessons and their references (CLAUDE.md, the `harness-gdd-update` skill, the gate-pipe hook and its test) had to move to L-075 to L-077.
+- **Root cause:** a lesson takes the next free ID on its own branch; nothing says which side yields when two open branches take the same one, or that the references must move with it.
+- **Rule:** when merging main gives two lessons the same ID, main's keeps it; the branch's unmerged lessons take the next free IDs, and `git grep` for each old ID outside `docs/LESSONS.md` finds every reference to move in the merge commit (an ID on main is never renumbered).
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-079 A deploy plan changed another project on the shared server
+
+- **Date:** 2026-11-10
+- **Area:** process
+- **What went wrong:** the server's ports 80 and 443 were held by another project's Caddy container, and the Docker deploy plan routed the game through it by adding an import folder to that project's Caddyfile and compose file. The user rejected the plan: the two projects must stay independent.
+- **Root cause:** the plan treated what was already running on the host as shared infrastructure to build on, and the question to the user offered only ways of changing the other project, not whether to change it at all.
+- **Rule:** a plan for a shared server never edits another project's files or containers on it; when that project holds something the game needs (a port, a domain), ask the user how to resolve it, with leaving that project untouched among the options.
+- **Recurrence:** 1
+- **Promoted:** no

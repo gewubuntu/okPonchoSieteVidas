@@ -1,20 +1,14 @@
-# Caddy site for the game (GDD-TEC-08). Copy to /etc/caddy/Caddyfile, or import it from there,
-# then `systemctl reload caddy`. Caddy fetches and renews the HTTPS certificate itself.
+# The edge Caddy of the server's `poncho` project (GDD-TEC-08, deploy/compose.yaml): holds ports 80 and 443, fetches
+# and renews the HTTPS certificate itself and passes requests to the game's container. Lives in /opt/poncho on the
+# server; after changing it: `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`.
 poncho.forkfall.xyz {
-	root * /var/www/poncho.forkfall.xyz/current
 	encode zstd gzip
-	file_server {
-		# The deploy's list of a release's own files (docs/deploy.md), not part of the game.
-		hide .release-files
+
+	reverse_proxy web:80 {
+		# While a deploy swaps the game's container (about a second), hold requests instead of failing them.
+		lb_try_duration 10s
+		lb_try_interval 250ms
 	}
-
-	# Vite names built files by their content hash: cache them for a year.
-	@hashed path /assets/*
-	header @hashed Cache-Control "public, max-age=31536000, immutable"
-
-	# index.html names the current bundles: always revalidate it.
-	@html path / /index.html
-	header @html Cache-Control "no-cache"
 
 	header {
 		X-Content-Type-Options nosniff

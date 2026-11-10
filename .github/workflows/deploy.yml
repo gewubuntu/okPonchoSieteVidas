@@ -12,6 +12,7 @@ on:
 permissions:
   contents: read
   actions: read # to look up whether main's newest commit passed its check run
+  packages: write # to push the game's image to ghcr.io; the server pulls it with this job's token
 
 jobs:
   deploy:
@@ -33,8 +34,7 @@ jobs:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
-      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/var/www/poncho.forkfall.xyz' }}
-      KEEP_RELEASES: 5
+      IMAGE: ghcr.io/gewubuntu/okponchosietevidas
     steps:
       - name: Deploy configured?
         id: configured
@@ -95,15 +95,15 @@ jobs:
         if: steps.go.outputs.ok == 'true'
         run: |
           # Several check runs can wake a deploy for the same newest commit. Building it again would push the kept
-          # hashed files of the release before it out (only one release back is kept) and use up a rollback slot.
-          current=$(ssh deploy "readlink '$DEPLOY_PATH/current' || true")
-          case "$current" in
-            *"-$SHA")
-              echo "::notice::Deploy skipped: $SHA is already live ($current)."
-              echo "ok=false" >> "$GITHUB_OUTPUT" ;;
-            *)
-              echo "ok=true" >> "$GITHUB_OUTPUT" ;;
-          esac
+          # hashed files of the image before it out (only one image back is kept) and use up a rollback slot.
+          live=$(ssh deploy live)
+          echo "LIVE=$live" >> "$GITHUB_ENV"
+          if [ "$live" = "$SHA" ]; then
+            echo "::notice::Deploy skipped: $SHA is already live."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/checkout@v6
         if: steps.live.outputs.ok == 'true'
@@ -123,31 +123,50 @@ jobs:
           npm run build
           # This build's own hashed files, so the next deploy can keep them for tabs opened before it.
           (cd dist && find assets -type f | sort) > dist/.release-files
-          # Named <UTC time>-<full sha>: the time sorts releases by age, the sha tells which commit is live.
-          echo "RELEASE=$(date -u +%Y%m%d%H%M%S)-$SHA" >> "$GITHUB_ENV"
 
-      - name: Upload release
+      - name: Registry login
+        if: steps.live.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Keep the live image's hashed files
+        if: steps.live.outputs.ok == 'true' && env.LIVE != ''
+        run: |
+          # A tab opened before this deploy loads a world's art only when its first level starts, and must not get a
+          # 404 then: the live image's own hashed files go into the new image beside this build's.
+          if ! docker pull -q "$IMAGE:$LIVE"; then
+            echo "::warning::Could not pull the live image $IMAGE:$LIVE; its hashed files are not kept."
+            exit 0
+          fi
+          docker create --name prev "$IMAGE:$LIVE" >/dev/null
+          if docker cp prev:/srv/.release-files prev-files 2>/dev/null; then
+            mkdir prev-srv && docker cp prev:/srv/assets prev-srv/
+            kept=0
+            while read -r f; do
+              if [ ! -e "dist/$f" ]; then
+                mkdir -p "$(dirname "dist/$f")"
+                cp "prev-srv/$f" "dist/$f"
+                kept=$((kept + 1))
+              fi
+            done < prev-files
+            echo "Kept $kept hashed files of $LIVE"
+          fi
+          docker rm prev >/dev/null
+
+      - name: Build and push the image
         if: steps.live.outputs.ok == 'true'
         run: |
-          ssh deploy "mkdir -p '$DEPLOY_PATH/releases'"
-          # Files equal by content to the live release's are hard-linked, not sent again. A fresh build has new mtimes,
-          # and link-dest only links files whose preserved attributes match, so mtimes are not preserved.
-          rsync -a --no-times --checksum --chmod=D755,F644 --link-dest="$DEPLOY_PATH/current/" \
-            dist/ "deploy:$DEPLOY_PATH/releases/$RELEASE/"
-          # Keep the live release's own hashed files: a tab opened before this deploy loads a world's art only
-          # when its first level starts, and must not get a 404 then.
-          ssh deploy "set -e; prev='$DEPLOY_PATH/current'; new='$DEPLOY_PATH/releases/$RELEASE'
-            if [ -f \"\$prev/.release-files\" ]; then
-              while read -r f; do [ -e \"\$new/\$f\" ] || ln \"\$prev/\$f\" \"\$new/\$f\"; done < \"\$prev/.release-files\"
-            fi"
+          docker build --pull --build-arg "REVISION=$SHA" -t "$IMAGE:$SHA" .
+          docker push -q "$IMAGE:$SHA"
 
-      - name: Switch current to the new release
+      - name: Deploy
         if: steps.live.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # ln + mv -T replaces the link in one rename, so a visitor never sees half a release.
-          ssh deploy "cd '$DEPLOY_PATH' && ln -sfn 'releases/$RELEASE' current.tmp && mv -T current.tmp current"
-          # Keep the newest releases for a rollback (names start with the UTC time, so they sort by age).
-          ssh deploy "cd '$DEPLOY_PATH/releases' && ls -1 | sort -r | tail -n +$((KEEP_RELEASES + 1)) | xargs -r rm -rf --"
+          # The server pulls with this job's own token (valid until the job ends), given on stdin, never stored.
+          printf '%s' "$GH_TOKEN" | ssh deploy "deploy $SHA"
 
       - name: Smoke test
         # Also when this commit was already live, so re-running a run whose smoke test failed tests the site again.
@@ -155,18 +174,18 @@ jobs:
         env:
           BUILT: ${{ steps.live.outputs.ok }}
         run: |
-          # The site must serve the live release's index.html (it names the hashed bundles): the one just built, or,
-          # when this commit was already live, the one on the server.
+          # The site must serve the live image's index.html (it names the hashed bundles): the one just built, or,
+          # when this commit was already live, the one in the running container.
           if [ "$BUILT" = true ]; then expected=dist/index.html; else
             expected=expected.html
-            ssh deploy "cat '$DEPLOY_PATH/current/index.html'" > "$expected"
+            ssh deploy index > "$expected"
           fi
           for attempt in 1 2 3 4 5; do
             if curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "$SITE_URL/" -o live.html && cmp -s live.html "$expected"; then
-              echo "$SITE_URL serves the live release of $SHA"
+              echo "$SITE_URL serves the live image of $SHA"
               exit 0
             fi
             sleep $((attempt * 3))
           done
-          echo "::error::$SITE_URL does not serve the live release's index.html"
+          echo "::error::$SITE_URL does not serve the live image's index.html"
           exit 1

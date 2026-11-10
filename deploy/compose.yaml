@@ -1,0 +1,33 @@
+# The game on the server (GDD-TEC-08): its own Compose project, independent of anything else on the host.
+# Lives in /opt/poncho with Caddyfile and deploy.sh (docs/deploy.md). deploy.sh writes PONCHO_TAG to .env and
+# swaps `web`; `caddy` is started once by hand: `docker compose up -d caddy`.
+name: poncho
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # the certificates: keep this volume
+      - caddy-config:/config
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  web:
+    # `none` only until the first deploy; deploy.sh sets the commit.
+    image: ghcr.io/gewubuntu/okponchosietevidas:${PONCHO_TAG:-none}
+    expose: ["80"] # only the edge Caddy talks to it
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+volumes:
+  caddy-data:
+  caddy-config:

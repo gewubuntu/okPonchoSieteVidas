@@ -1,0 +1,4 @@
+# The image holds only the built game and its web server config (Dockerfile).
+*
+!dist/
+!deploy/web.Caddyfile
