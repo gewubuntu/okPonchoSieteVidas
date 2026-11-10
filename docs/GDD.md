@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.10.10
+Version: 0.11.0
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.11.0** (2026-11-09) GDD-TEC-08, GDD-TEC-07: deployment, new and Decided (user, 2026-11-09: "I want to setup a ci/cd to deploy the game to my hetzner server the URL should be poncho.forkfall.xyz."): the game is published at `https://poncho.forkfall.xyz` from the user's Hetzner server. How, Proposed: after each `check` run, `main`'s newest commit, once its `check` passed, is built and copied by rsync over SSH into a release folder, unchanged files hard-linked and the previous release's hashed files kept, a `current` link switched to it at once, 5 releases kept, Caddy serving it with HTTPS, a check that the site serves the new build; skipped with a notice until the secrets are set (`.github/workflows/deploy.yml`, `docs/deploy.md`, ADR 0003). Open Question 11 partly answered. GDD-TEC-07, the minor version's dependency review: `npm outdated` gave @playwright/test 1.64.1 to 1.65.0, oxlint 1.91.0 to 1.92.0, oxlint-tsgolint 7.0.2005 to 7.0.2006 and vite 8.3.5 to 8.3.7, all upgraded, the gate passing and the full playtest suite passing in CI (with vite 8.3.6; vite 8.3.7 came out during the review and passed the gate); `@types/node` stays at 24 (ADR 0002).
 - **0.10.10** (2026-11-09) GDD-BOS-03, GDD-ART-06, GDD-WLD-10: La Estrella's final art (user, 2026-11-09: "Design it, show me", "Cut-out eyes", then "I approve the la Estrellas design"): a posada star piñata, a terracotta olla with cut-out eyes, seven crepe-paper cones, cracks per hit, tassels, an iron trolley, a tejocote with a turning calyx; how the game picks her frames is Proposed. GDD-ART-06 no longer lists her among the things not drawn. GDD-WLD-10: the camera does not follow Poncho up (a boss's shake can move it, GDD-BOS-01).
 - **0.10.9** (2026-11-09) GDD-BOS-01, GDD-BOS-03, GDD-ART-06, GDD-UI-04: the bosses' screen shake built (user, 2026-11-08: "Yes I like the idea"): La Estrella's awning landing, floor thud, tear and defeat, Don Zopilote's stick in the sand and defeat; none on a hit; the HUD and the touch controls stay still, the far backdrop shakes with the level (user, 2026-11-09: "Shake everything"); Don Zopilote defeated stuck in the sand shakes as he slumps, the step after the hit (user, 2026-11-09: "Shake as he slumps"); none while the Screen shake row is Off. Its rhythm (Proposed): down for 2 steps, up for 2, a dying shake rounded up (the tear: 4 px for 5 steps, then 3, 2, 1), so the thud 8 steps after the tear is dropped (measured).
 - **0.10.8** (2026-11-09) GDD-UI-02, GDD-UI-03, GDD-PRG-02, GDD-BOS-01: the Screen shake row (user, 2026-11-09: "Screen shake: On/Off", with "Temblor de pantalla: Sí/No" and "Bildschirmwackeln: An/Aus"), the settings screen's seventh row, after Layout, On by default and saved as `shake`; it turns off the bosses' shake once that is built. Seven rows do not fit on a landscape phone, so the list scrolls by whole rows, with arrows on the title's line (user, 2026-11-09: "Scroll the list"; details Proposed). Open Question 16 notes the scroll.
@@ -1357,6 +1358,15 @@ Status: Proposed
 - Playwright playtests per the `harness-playtest` skill: boot, jump, life loss, touch input, console free of errors.
 - `scripts/check.mjs` runs all of these through npm scripts once they exist.
 
+### GDD-TEC-08 Deployment
+
+Status: Decided (user, 2026-11-09: "I want to setup a ci/cd to deploy the game to my hetzner server the URL should be poncho.forkfall.xyz."). How it deploys is Proposed (`docs/decisions/0003-deploy-to-hetzner.md`).
+
+- The game is published at `https://poncho.forkfall.xyz`, served from the user's Hetzner server.
+- **Continuous deployment (Proposed):** every push to `main` whose `check` workflow passes (the gate, the build and the playtests) is built and deployed by `.github/workflows/deploy.yml`; it can also be started by hand. Every run deploys `main`'s newest commit, and only once its `check` passed and if it is not already live: nothing that fails the gate or a playtest reaches the site, and an older build never replaces a newer one.
+- **How (Proposed):** the built `dist/` is copied over SSH with rsync into a new release folder named after the commit, then a `current` link is switched to it in one step, so a visitor never sees half a release; files that did not change are hard-linked, not sent again, and the previous release's hashed files are kept beside the new ones, so a tab opened before a deploy can still load a world's art; the last 5 releases are kept for a rollback by pointing the link back. A web server on the host (Caddy, which fetches and renews the HTTPS certificate itself) serves `current`. Files with a content hash in their name are cached for a year, `index.html` is always revalidated. After the switch the workflow fetches the site and fails unless it serves the new `index.html`.
+- The SSH key, host, user and the server's host key are GitHub secrets of a `production` environment; until they are set the workflow skips the deploy with a notice instead of failing. Server setup: `docs/deploy.md`.
+
 ---
 
 ## 15. Scope
@@ -1401,7 +1411,7 @@ Answer these to move items from Proposed to Decided. Until then the Proposed tex
 8. **Difficulty (GDD-VIS-02):** is assist mode and a kid-friendly tone right, or do you want a harder game?
 9. **Audio (GDD-AUD-01):** will you provide music, or should placeholders be generated and licensed assets chosen?
 10. **Score (GDD-PRG-03):** keep or cut? Medals are kept (user, 2026-10-30).
-11. **Distribution:** where will it be hosted (itch.io, own site, stores)? This drives PWA versus native packaging.
+11. **Distribution:** where will it be hosted (itch.io, own site, stores)? This drives PWA versus native packaging. Partly answered (user, 2026-11-09): the web build is published on the user's own site, `https://poncho.forkfall.xyz` (GDD-TEC-08); stores and itch.io are still open.
 12. **Taco pickups in Taco (GDD-PWR-02, GDD-PWR-06):** a taco lying on the floor is left where it is when Poncho is already Taco, but a walking taco released from a piñata is used up when he touches it. Should both behave the same?
 13. **Gap limits after World 1 (GDD-WLD-03, GDD-TEC-04):** World 1 has one (3 tiles), and World 2's is built at 4 tiles (Proposed), which needs a run-up, with a covered-pit rule: pit columns under a whole awning, a cordel or a rollo, within 3 tiles above the pit's nearer edge, do not count, and no uncovered run may be wider than 4. The level validator fails a level in any other world until that world has a limit. Is 4 right for World 2 (another way: keep 3 everywhere and let only awnings and rollos make wider pits)? Should the limit grow by world, up to the 5 tiles a running jump can cross?
 14. **Detail on phones (GDD-ART-01):** at 1920 x 1080, one art pixel is less than one screen pixel on most phones, so the finest detail blurs there. Fine as it is, or should the sprites keep their key details (eye, triangles) at least 2 art pixels wide?

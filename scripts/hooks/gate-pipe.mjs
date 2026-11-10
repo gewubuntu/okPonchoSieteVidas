@@ -29,7 +29,9 @@ export function gateProblem(command) {
       return (
         'L-012: this command commits after the gate with something other than `&&` between them, so a failing gate could be ' +
         'committed (a pipe keeps only the last exit status; `;`, `||` and new lines go on after a failure). Run ' +
-        '`node scripts/check.mjs && git commit ...` with no pipe (or after `set -o pipefail`), and read the output from a separate run if needed.'
+        '`node scripts/check.mjs && git commit ...` with no pipe (or after `set -o pipefail`), and read the output from a separate run if needed. ' +
+        // L-077: a retry that kept only the commit part left the command's edits out of the commit, twice.
+        'None of this command ran: re-run every other part of it too (edits, writes), not only the gate and the commit.'
       );
     }
   }

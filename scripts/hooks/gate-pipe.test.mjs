@@ -11,6 +11,8 @@ describe('L-012 gate-pipe hook', () => {
 
   it('denies a pipe between the gate and the commit', () => {
     expect(gateProblem('node scripts/check.mjs | tail -1 && git commit -m x')).toMatch(/L-012/);
+    // L-077: the denial says that no part of the command ran, so a retry keeps its edits.
+    expect(gateProblem('node scripts/check.mjs | tail -1 && git commit -m x')).toMatch(/None of this command ran/);
     expect(gateProblem('node scripts/check.mjs 2>&1 | tail -1 && git commit -m x')).toMatch(/L-012/);
   });
 

@@ -1,0 +1,172 @@
+# Deploy the game to https://poncho.forkfall.xyz on the Hetzner server (GDD-TEC-08).
+# Runs after the `check` workflow passes on main, or by hand. Server setup: docs/deploy.md.
+name: deploy
+
+on:
+  workflow_run:
+    workflows: [check]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read # to look up whether main's newest commit passed its check run
+
+jobs:
+  deploy:
+    # Only a passed check run of a push to main, or a manual run on main; never a pull request's run.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    # One deploy at a time; a newer one waits instead of cancelling a switch half done. At job level, so a run
+    # whose job is skipped (a failed check, a pull request) never takes the one pending place in the queue.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: https://poncho.forkfall.xyz
+    env:
+      SITE_URL: https://poncho.forkfall.xyz
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/var/www/poncho.forkfall.xyz' }}
+      KEEP_RELEASES: 5
+    steps:
+      - name: Deploy configured?
+        id: configured
+        env:
+          HAS_KEY: ${{ secrets.DEPLOY_SSH_KEY != '' }}
+          HAS_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS != '' }}
+        run: |
+          if [ -n "$DEPLOY_HOST" ] && [ -n "$DEPLOY_USER" ] && [ "$HAS_KEY" = true ] && [ "$HAS_KNOWN_HOSTS" = true ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Deploy skipped: set DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS in the production environment (docs/deploy.md)."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Main's newest commit, and checked?
+        id: go
+        if: steps.configured.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Every run deploys main's newest commit, whichever check run woke it: check runs can finish out of order
+          # or be re-run, and a waiting deploy can be replaced by a later one, so an older build never replaces a
+          # newer one and the newest one is not left out.
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq '.sha')
+          # Nothing that has not passed the gate and the playtests is deployed, by hand either.
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/check.yml/runs?head_sha=$sha&event=push&status=success" --jq '.total_count')
+          if [ "$passed" -lt 1 ]; then
+            echo "::notice::Deploy skipped: main's newest commit $sha has no passed check run yet; its check run deploys it when it passes."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "SHA=$sha" >> "$GITHUB_ENV"
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: SSH setup
+        if: steps.go.outputs.ok == 'true'
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # The server's host key is pinned from a secret, never trusted on first use.
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host deploy
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            Port $DEPLOY_PORT
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Already live?
+        id: live
+        if: steps.go.outputs.ok == 'true'
+        run: |
+          # Several check runs can wake a deploy for the same newest commit. Building it again would push the kept
+          # hashed files of the release before it out (only one release back is kept) and use up a rollback slot.
+          current=$(ssh deploy "readlink '$DEPLOY_PATH/current' || true")
+          case "$current" in
+            *"-$SHA")
+              echo "::notice::Deploy skipped: $SHA is already live ($current)."
+              echo "ok=false" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "ok=true" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - uses: actions/checkout@v6
+        if: steps.live.outputs.ok == 'true'
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: actions/setup-node@v6
+        if: steps.live.outputs.ok == 'true'
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build
+        if: steps.live.outputs.ok == 'true'
+        run: |
+          npm ci
+          npm run build
+          # This build's own hashed files, so the next deploy can keep them for tabs opened before it.
+          (cd dist && find assets -type f | sort) > dist/.release-files
+          # Named <UTC time>-<full sha>: the time sorts releases by age, the sha tells which commit is live.
+          echo "RELEASE=$(date -u +%Y%m%d%H%M%S)-$SHA" >> "$GITHUB_ENV"
+
+      - name: Upload release
+        if: steps.live.outputs.ok == 'true'
+        run: |
+          ssh deploy "mkdir -p '$DEPLOY_PATH/releases'"
+          # Files equal by content to the live release's are hard-linked, not sent again. A fresh build has new mtimes,
+          # and link-dest only links files whose preserved attributes match, so mtimes are not preserved.
+          rsync -a --no-times --checksum --chmod=D755,F644 --link-dest="$DEPLOY_PATH/current/" \
+            dist/ "deploy:$DEPLOY_PATH/releases/$RELEASE/"
+          # Keep the live release's own hashed files: a tab opened before this deploy loads a world's art only
+          # when its first level starts, and must not get a 404 then.
+          ssh deploy "set -e; prev='$DEPLOY_PATH/current'; new='$DEPLOY_PATH/releases/$RELEASE'
+            if [ -f \"\$prev/.release-files\" ]; then
+              while read -r f; do [ -e \"\$new/\$f\" ] || ln \"\$prev/\$f\" \"\$new/\$f\"; done < \"\$prev/.release-files\"
+            fi"
+
+      - name: Switch current to the new release
+        if: steps.live.outputs.ok == 'true'
+        run: |
+          # ln + mv -T replaces the link in one rename, so a visitor never sees half a release.
+          ssh deploy "cd '$DEPLOY_PATH' && ln -sfn 'releases/$RELEASE' current.tmp && mv -T current.tmp current"
+          # Keep the newest releases for a rollback (names start with the UTC time, so they sort by age).
+          ssh deploy "cd '$DEPLOY_PATH/releases' && ls -1 | sort -r | tail -n +$((KEEP_RELEASES + 1)) | xargs -r rm -rf --"
+
+      - name: Smoke test
+        # Also when this commit was already live, so re-running a run whose smoke test failed tests the site again.
+        if: steps.go.outputs.ok == 'true'
+        env:
+          BUILT: ${{ steps.live.outputs.ok }}
+        run: |
+          # The site must serve the live release's index.html (it names the hashed bundles): the one just built, or,
+          # when this commit was already live, the one on the server.
+          if [ "$BUILT" = true ]; then expected=dist/index.html; else
+            expected=expected.html
+            ssh deploy "cat '$DEPLOY_PATH/current/index.html'" > "$expected"
+          fi
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "$SITE_URL/" -o live.html && cmp -s live.html "$expected"; then
+              echo "$SITE_URL serves the live release of $SHA"
+              exit 0
+            fi
+            sleep $((attempt * 3))
+          done
+          echo "::error::$SITE_URL does not serve the live release's index.html"
+          exit 1
