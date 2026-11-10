@@ -1592,11 +1592,13 @@ export class PlayScene extends Phaser.Scene {
     const rope = pose.rope && pose.rope.end > pose.rope.top ? pose.rope : null;
     this.estrellaRope.setVisible(rope !== null);
     if (rope) this.estrellaRope.setPosition(rope.x, rope.top).setSize(4, (rope.end - rope.top) * ART_SCALE);
-    // L-010: what was drawn is read back from the images (their places, their frames, their mirroring), not from the pose.
+    // L-010: what was drawn is read back from the images (their places, their frames, their mirroring), not from the pose; every place from
+    // the image's drawn centre or edge, never its origin, so a changed origin is caught too.
     const frame = Number(sprite.frame.name);
+    const drawnAt = sprite.getCenter();
     this.estrellaPainted = {
-      x: sprite.x,
-      y: sprite.y,
+      x: drawnAt.x,
+      y: drawnAt.y,
       frame,
       ...estrellaFrameInfo(frame),
       flipX: sprite.flipX,
@@ -1613,7 +1615,8 @@ export class PlayScene extends Phaser.Scene {
     while (this.tejocoteImages.length < boxes.length) this.tejocoteImages.push(this.add.image(0, 0, 'estrella-tejocote', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3));
     boxes.forEach((t, i) => {
       const image = this.tejocoteImages[i]!.setVisible(true).setPosition(t.x + t.w / 2, t.y + t.h / 2).setFrame(t.frame);
-      this.tejocotesPainted.push({ x: image.x - t.w / 2, y: image.y - t.h / 2, frame: Number(image.frame.name) });
+      const c = image.getCenter();
+      this.tejocotesPainted.push({ x: c.x - t.w / 2, y: c.y - t.h / 2, frame: Number(image.frame.name) });
     });
   }
 
