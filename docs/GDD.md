@@ -1,6 +1,6 @@
 # PONCHO: Siete Vidas — Game Design Document
 
-Version: 0.10.9
+Version: 0.10.10
 
 This document is the anchor for every feature. Rules:
 
@@ -12,6 +12,7 @@ This document is the anchor for every feature. Rules:
 
 ## Changelog
 
+- **0.10.10** (2026-11-10) GDD-PWR-04, GDD-PWR-05, GDD-ART-02: the Chile Fantasma's open points decided (user, 2026-11-10): one special piñata per world, in 1-2 and 2-2 plus the sandbox ("One hidden per world"); a timer on top of Base, Taco or Fuego, which he keeps ("Overlay, state kept"); his touch defeats every regular enemy, El Cuate included, and bursts what enemies throw, while bosses neither hurt him nor are hurt by his touch ("Enemies yes, bosses no"); the last 2 s dim the golden glow to pale gold ("use the dimmed glow for the warning flash"). His glow is drawn from the user's reference strip, `assets/characters/poncho/fantasma/glow.jpg` ("Here is the reference picture for poncho in ghost pepper mode"); the pickup's reference is still to come ("I'll send references"). GDD-PWR-05 points to the special piñata.
 - **0.10.9** (2026-11-09) GDD-BOS-01, GDD-BOS-03, GDD-ART-06, GDD-UI-04: the bosses' screen shake built (user, 2026-11-08: "Yes I like the idea"): La Estrella's awning landing, floor thud, tear and defeat, Don Zopilote's stick in the sand and defeat; none on a hit; the HUD and the touch controls stay still, the far backdrop shakes with the level (user, 2026-11-09: "Shake everything"); Don Zopilote defeated stuck in the sand shakes as he slumps, the step after the hit (user, 2026-11-09: "Shake as he slumps"); none while the Screen shake row is Off. Its rhythm (Proposed): down for 2 steps, up for 2, a dying shake rounded up (the tear: 4 px for 5 steps, then 3, 2, 1), so the thud 8 steps after the tear is dropped (measured).
 - **0.10.8** (2026-11-09) GDD-UI-02, GDD-UI-03, GDD-PRG-02, GDD-BOS-01: the Screen shake row (user, 2026-11-09: "Screen shake: On/Off", with "Temblor de pantalla: Sí/No" and "Bildschirmwackeln: An/Aus"), the settings screen's seventh row, after Layout, On by default and saved as `shake`; it turns off the bosses' shake once that is built. Seven rows do not fit on a landscape phone, so the list scrolls by whole rows, with arrows on the title's line (user, 2026-11-09: "Scroll the list"; details Proposed). Open Question 16 notes the scroll.
 - **0.10.7** (2026-11-09) GDD-BOS-01, GDD-BOS-03: the hit-stop built (user, 2026-11-08: "Yes I like the idea"): 4 steps after a hit that leaves a boss hurt, 12 after the defeating one (`HIT_STOP`), held in the scene's loop so the simulation and its step counts are unchanged; presses during it are kept for the first step after it. The screen shake is still to come.
@@ -431,15 +432,22 @@ Status: Proposed
 
 ### GDD-PWR-04 Chile Fantasma (the star)
 
-Status: Proposed. Post-MVP (GDD-MVP-02).
+Status: Proposed (where it is placed, what happens to his state, what his touch defeats and the warning flash are Decided, user, 2026-11-10, below). Post-MVP (GDD-MVP-02).
 
 A rare ghost pepper hidden in special piñatas. For 8 s: Poncho is invulnerable (golden glow, as in the reference illustration), runs at 180 px/s and defeats anything on contact. Does not protect from pits or crushing. Music switches to a spicy variation. The last 2 s flash as a warning.
+
+- **Where (Decided, user, 2026-11-10: "One hidden per world"):** one special piñata per world, off the main path: in 1-2 and in 2-2, plus one in the sandbox for testing. None in the tutorial 0-1 or in a boss arena (1-4, 2-4). A special piñata always releases the Chile Fantasma, whatever Poncho's state, by the room rule of GDD-PWR-05.
+- **His state (Decided, user, 2026-11-10: "Overlay, state kept"):** the Chile Fantasma is a timer on top of Base, Taco or Fuego, not a fourth state (GDD-PWR-01). He keeps his taco and chile, Fuego still spits fireballs, and nothing downgrades him while it runs. A taco or chile picked up while it runs works as usual.
+- **What his touch defeats (Decided, user, 2026-11-10: "Enemies yes, bosses no"):** every regular enemy he touches is defeated, the cactus buddy El Cuate included (GDD-ENM-02, GDD-ENM-03), and anything an enemy throws or drops bursts on his touch. Bosses cannot hurt him, but touching one does not hurt the boss either; the boss keeps its own rules (GDD-BOS-01). The chile is never placed in a boss arena, so this matters only if a later rule brings one there.
+- **The warning flash (Decided, user, 2026-11-10: "use the dimmed glow for the warning flash"):** for the last 2 s the golden glow dims to a pale gold, so the player sees it is wearing off.
+- **Art:** drawn from the user's reference images (user, 2026-11-10: "I'll send references"). **Poncho's glow (Decided, user, 2026-11-10: "Here is the reference picture for poncho in ghost pepper mode"):** `assets/characters/poncho/fantasma/glow.jpg`, a strip of four frames: a golden outline round his whole silhouette, outside the near-black one, with small gold sparkles and flame flickers near him while standing, golden speed streaks behind him while running, sparkles round him in a jump, and for the warning the outline dimmed to pale gold with no sparkles. It guides the effect only; his body stays the main pixel drawing (GDD-ART-02). **The ghost pepper pickup:** its reference is still to come, and it is not drawn until it arrives.
+- Not built yet: all of it.
 
 ### GDD-PWR-05 Piñata blocks (the question blocks)
 
 Status: Proposed
 
-Hanging piñatas that open when Poncho hits them from below (head bump) or with a claw swipe, releasing an item or hilos. A piñata releases a Taco if Poncho is Base, otherwise a Chile; a multi-piñata gives up to 10 hilos over 4 s. An opened piñata becomes a broken shell. Piñatas are drawn so players recognise them at a glance and never hide a lethal surprise. World 2's boss, La Estrella, is a giant star piñata that hurts, and keeps that promise: she is met only in her own arena, under a boss bar, far larger than a piñata block and of another shape, and the piñata blocks stay their own shape (user, 2026-11-04: "La Estrella", a piñata boss in her own arena; GDD-BOS-03). She is hit by the head bump's rule and the claw like a piñata block.
+Hanging piñatas that open when Poncho hits them from below (head bump) or with a claw swipe, releasing an item or hilos. A piñata releases a Taco if Poncho is Base, otherwise a Chile; a special piñata always releases the Chile Fantasma (GDD-PWR-04, not built yet); a multi-piñata gives up to 10 hilos over 4 s. An opened piñata becomes a broken shell. Piñatas are drawn so players recognise them at a glance and never hide a lethal surprise. World 2's boss, La Estrella, is a giant star piñata that hurts, and keeps that promise: she is met only in her own arena, under a boss bar, far larger than a piñata block and of another shape, and the piñata blocks stay their own shape (user, 2026-11-04: "La Estrella", a piñata boss in her own arena; GDD-BOS-03). She is hit by the head bump's rule and the claw like a piñata block.
 
 - **Built (details Proposed):** the head bump, in Base and Taco. A piñata is a solid tile, closed or open. A bump is a step that ends with the body's head flush against its underside after Poncho was rising, so standing or walking under it, and a corner clip that slides him past the edge (GDD-MOV-03), do not open it. The body box must overlap the tile's column; with two neighbouring piñatas, the one whose middle is nearer his own wins. A piñata opens once.
 - In Base it releases a taco standing on top of it (GDD-PWR-02). If there is no room above it (a wall or block in the way) it stays closed and releases nothing, so an item never spawns inside a wall (GDD-PWR-06). In Taco or Fuego it releases a chile instead (GDD-PWR-03), by the same room rule. The kind is decided by Poncho's state at the moment of the hit.
@@ -1153,7 +1161,7 @@ The look:
 - **Tail (from the sprite references):** long and ginger, curving up behind the body, with a white tip.
 - **Back (from the sprite references):** the crown and brim cover the head and the ears poke up behind the crown; the back of the poncho has the same chevron and triangles.
 - **Held item:** a taco with lettuce, tomato and meat in one hand (illustration). This becomes the Taco state (GDD-PWR-01); the sprite references, in Base, hold nothing.
-- **Glow:** the illustration has a golden rim light. It is reserved as the invulnerability effect (GDD-CMB-03, GDD-PWR-04).
+- **Glow:** the illustration has a golden rim light. It is reserved as the invulnerability effect (GDD-CMB-03, GDD-PWR-04); for the Chile Fantasma it is drawn from the user's strip `assets/characters/poncho/fantasma/glow.jpg` (user, 2026-11-10).
 - **PB mark (Decided, user, 2026-10-19):** the small gold "PB" badge on the chest and the "PB" mark in the bottom-right corner of the reference stand for **Poncho on Base** (GDD-VIS-05). Keep the badge on the chest, as the front view shows it, and on the side view where the frame allows. The corner mark is a brand watermark and is not part of the character.
 - **Personality (Decided):** loves tacos and spicy food.
 - **Pronouns (Decided, user, 2026-10-25):** he.
