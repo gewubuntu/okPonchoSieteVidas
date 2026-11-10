@@ -79,8 +79,8 @@ function lookOf(e: EstrellaState, def: Estrella, blink: boolean, ponchoLeft: boo
  * glide trails its tassels against her way, her hang leans with her sway (to Poncho when it has none), and she shows her landing look, the
  * bottom cones splayed so nothing reaches below her box, from ESTRELLA_ART.landLook px above the surface she drops onto (the surface she
  * aims at: an awning, or the floor in phase 3 as she tears through), squashed on the step she lands, through her rest and her rise until she
- * is that clear of the floor, and in her bounce. Hurt or defeated she flashes white; defeated she falls and then lies on the floor (from the
- * step she is within ESTRELLA_ART.fallBelow px of it, so the falling pot's frame never goes into it).
+ * is more than that clear of the floor, and in her bounce. Hurt or defeated she flashes white; defeated she falls and then lies on the floor
+ * (from the step she is less than ESTRELLA_ART.fallBelow px above it, so the falling pot's frame never goes into it).
  * Her telegraph (GDD-ENM-01) shakes her: her rope has no length while she telegraphs high under the cable, so her body and the trolley jump
  * ESTRELLA.shakePx to the right and to the left in turn, every flashSteps, in time with the red flash.
  */

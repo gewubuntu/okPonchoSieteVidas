@@ -1602,11 +1602,12 @@ export class PlayScene extends Phaser.Scene {
       flipX: sprite.flipX,
       trolleyX: this.estrellaTrolley.x,
       trolleyFrame: Number(this.estrellaTrolley.frame.name),
-      // The row of the cable the trolley's image rides on, and where the rope's image starts: read back from the images (L-010).
-      trolleyCableY: this.estrellaTrolley.y + ESTRELLA_ART.trolleyCable,
+      // The row of the cable the trolley's image rides on, and where the rope's image starts: read back from the images' drawn edges, not their
+      // origins, so a changed origin is caught too (L-010).
+      trolleyCableY: this.estrellaTrolley.getTopCenter().y + ESTRELLA_ART.trolleyCable,
       rope: pose.rope ? (rope ? this.estrellaRope.displayHeight : 0) : null,
-      ropeX: rope ? this.estrellaRope.x : null,
-      ropeTop: rope ? this.estrellaRope.y : null,
+      ropeX: rope ? this.estrellaRope.getTopCenter().x : null,
+      ropeTop: rope ? this.estrellaRope.getTopCenter().y : null,
     };
     const boxes = tejocoteBoxes(this.run.tejocotes);
     while (this.tejocoteImages.length < boxes.length) this.tejocoteImages.push(this.add.image(0, 0, 'estrella-tejocote', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3));
