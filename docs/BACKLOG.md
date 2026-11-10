@@ -93,5 +93,5 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-WLD-16 | todo | designed (Proposed), not built: 3-1 "La Barranca"; the glide's unlock (GDD-PRG-01, "Glide everywhere") is built with it |
 | GDD-WLD-17 | todo | designed (Proposed), not built: 3-2 "La Mina" |
 | GDD-WLD-18 | todo | designed (Proposed), not built: 3-3 "Las Cumbres" |
-| GDD-ENM-04 | todo | five candidates; the user picks three (Open Question 36) |
-| GDD-BOS-04 | todo | three candidates; the user picks one (Open Question 36) |
+| GDD-ENM-04 | todo | Decided (user, 2026-11-10): the Murciélago, the Armadillo and the Cacomixtle to start with, the Cascabel and the Borrego cimarrón later ideas; rules Proposed, not built |
+| GDD-BOS-04 | todo | Decided (user, 2026-11-10): La Catorce; her rules a sketch, Proposed, not built |
