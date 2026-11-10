@@ -1600,7 +1600,7 @@ export class PlayScene extends Phaser.Scene {
       frame,
       ...estrellaFrameInfo(frame),
       flipX: sprite.flipX,
-      trolleyX: this.estrellaTrolley.x,
+      trolleyX: this.estrellaTrolley.getTopCenter().x,
       trolleyFrame: Number(this.estrellaTrolley.frame.name),
       // The row of the cable the trolley's image rides on, and where the rope's image starts: read back from the images' drawn edges, not their
       // origins, so a changed origin is caught too (L-010).
