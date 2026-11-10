@@ -455,10 +455,10 @@ export interface PonchoDebug {
   /**
    * GDD-BOS-03: La Estrella as last drawn, or null when she was not, read back from her images: her middle (shaken 2 px in her telegraph),
    * the frame of her sheet and what it shows (its look, the hits it shows, the cones left, the flash), whether it is mirrored, the trolley's
-   * middle, cable row and frame, the rope's drawn length in px (0 while she is too high for it to show, null once it snapped), x and top,
+   * middle, cable row and frame, the rope's drawn length in px (0 while it is not shown, null once it snapped), width (null while not shown), x and top,
    * her frame's and the trolley's drawn sizes, and the cable's drawn edges.
    */
-  estrellaDrawn(): { x: number; y: number; frame: number; look: string; hits: number; cones: number; flash: 'red' | 'white' | null; flipX: boolean; trolleyX: number; trolleyFrame: number; trolleyCableY: number; rope: number | null; ropeX: number | null; ropeTop: number | null; size: { w: number; h: number }; trolleySize: { w: number; h: number }; cable: { x0: number; y0: number; x1: number; y1: number } } | null;
+  estrellaDrawn(): { x: number; y: number; frame: number; look: string; hits: number; cones: number; flash: 'red' | 'white' | null; flipX: boolean; trolleyX: number; trolleyFrame: number; trolleyCableY: number; rope: number | null; ropeX: number | null; ropeTop: number | null; ropeWidth: number | null; size: { w: number; h: number }; trolleySize: { w: number; h: number }; cable: { x0: number; y0: number; x1: number; y1: number } } | null;
   /** GDD-BOS-03: her tejocotes in the run (the middle x, the bottom y, steps before it comes out), and the images drawn last frame (the drawn box's left, top, width and height, the frame of the calyx). */
   tejocotes(): { x: number; y: number; wait: number }[];
   tejocotesDrawn(): { x: number; y: number; w: number; h: number; frame: number }[];
@@ -1608,7 +1608,8 @@ export class PlayScene extends Phaser.Scene {
       // The row of the cable the trolley's image rides on, and where the rope's image starts: read back from the images' drawn edges, not their
       // origins, so a changed origin is caught too (L-010).
       trolleyCableY: this.estrellaTrolley.getTopCenter().y + ESTRELLA_ART.trolleyCable,
-      rope: pose.rope ? (rope ? this.estrellaRope.displayHeight : 0) : null,
+      rope: pose.rope ? (this.estrellaRope.visible ? this.estrellaRope.displayHeight : 0) : null,
+      ropeWidth: this.estrellaRope.visible ? this.estrellaRope.displayWidth : null,
       ropeX: rope ? this.estrellaRope.getTopCenter().x : null,
       ropeTop: rope ? this.estrellaRope.getTopCenter().y : null,
       // How big her frame and the trolley are drawn, and the cable's drawn edges: a scale or an origin changed on any of them is caught too.
@@ -1622,7 +1623,7 @@ export class PlayScene extends Phaser.Scene {
       const image = this.tejocoteImages[i]!.setVisible(true).setPosition(t.x + t.w / 2, t.y + t.h / 2).setFrame(t.frame);
       // Its drawn box, place and size in one, from the image's bounds (L-010).
       const b = image.getBounds();
-      this.tejocotesPainted.push({ x: b.x, y: b.y, w: b.width, h: b.height, frame: Number(image.frame.name) });
+      if (image.visible) this.tejocotesPainted.push({ x: b.x, y: b.y, w: b.width, h: b.height, frame: Number(image.frame.name) });
     });
   }
 

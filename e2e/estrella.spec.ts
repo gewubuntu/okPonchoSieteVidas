@@ -246,7 +246,7 @@ test('GDD-BOS-03 the frame drawn is the one estrellaPose picks for the run, in e
       trolleySize: { w: 16, h: 16 },
       cable: { x0: 0, y0: 7.5, x1: 480, y1: 8.5 },
     });
-    if (mode === 'hang') expect({ x: read.drawn!.ropeX, top: read.drawn!.ropeTop, length: read.drawn!.rope }, mode).toEqual({ x: pose.rope!.x, top: pose.rope!.top, length: pose.rope!.end - pose.rope!.top });
+    if (mode === 'hang') expect({ x: read.drawn!.ropeX, top: read.drawn!.ropeTop, length: read.drawn!.rope, width: read.drawn!.ropeWidth }, mode).toEqual({ x: pose.rope!.x, top: pose.rope!.top, length: pose.rope!.end - pose.rope!.top, width: 1 });
   }
 });
 
