@@ -798,17 +798,17 @@ A vagoneta is an old ore cart standing on a rail. Poncho jumps in and it rolls; 
 
 - **The rail (riel):** a track fixed in the level, made of level runs and slopes of one tile up or down per tile along, drawn on its sleepers. It is scenery to Poncho: he walks and falls through it, and only carts touch it. A rail ends in a **buffer** (tope, a timber stop), or it is **broken**, its end hanging over a drop.
 - **The cart:** 2 tiles wide and 1 tile tall (32 x 16 px), open on top. Its floor is a one-way floor like a moving platform's (GDD-WLD-05): he lands in it from above, is carried with it, and can jump up through it from below. Its sides do not block him.
-- **Waiting, then rolling:** a cart stands still at its start until Poncho lands in it. From that step it rolls along its rail, away from its start, at 150 px/s on the level, 120 px/s uphill and 180 px/s downhill, faster than he runs (120 px/s, GDD-MOV-01), and it never stops or turns for him: there is no brake. Where it is depends only on the steps since he landed in it.
-- **Riding:** he stands in it and can walk inside it, jump, swing the claw and spit Fuego as on any moving floor. A jump from a rolling cart keeps the cart's speed across, so a jump straight up lands him back in it; holding against the roll, or gliding (GDD-MOV-07), lets it roll out from under him.
+- **Waiting, then rolling:** a cart stands still at its start until Poncho lands in it. From that step it rolls along its rail, away from its start, at 150 px/s on the level, 120 px/s uphill and 180 px/s downhill, each measured along the rail: faster than he runs (120 px/s, GDD-MOV-01) on the level and downhill, and no faster uphill. It never stops or turns for him: there is no brake. Where it is depends only on the steps since he landed in it.
+- **Riding:** he stands in it and can walk inside it, jump, swing the claw and spit Fuego as on any moving floor. A jump from a rolling cart keeps the cart's speed across, so a jump straight up lands him back in it; holding against the roll lets it roll out from under him. A glide keeps his speed across (GDD-MOV-07), so over a level rail he comes down in the cart again, and it leaves him only where the rail turns down or ends.
 - **At a buffer** the cart stops for good and he walks off it. **At a broken end** it flies off the rail and falls out of the level; a Poncho still in it falls with it into the pit (GDD-LIFE-02), so a broken end is a jump to make, marked two tiles ahead by a warning post.
 - **Enemies:** a rolling cart defeats every enemy its box runs into, the heavy ones too, with the usual defeat (GDD-ENM-01); a standing cart is a floor to them and nothing more. An enemy riding a cart is its own enemy (GDD-ENM-04).
 - **A lost life** puts every cart back at its start, standing (GDD-LIFE-02), so a missed jump can be tried again from the last ofrenda.
-- **Low beams (vigas):** a mine's roof timbers are solid tiles a cart's rider must not meet: a beam with 2 tiles or less over the rail stops Poncho while the cart rolls on, so he jumps out before it and runs after the cart or goes on by foot. They hurt nobody.
+- **Low beams (vigas):** a mine's roof timbers are solid tiles a cart's rider must not meet: a beam that leaves less than his body's 32 px (GDD-MOV-06) over the cart's floor, and at least 32 px over the ground beside the rail, stops Poncho while the cart rolls on, so he jumps out before it and runs after the cart or goes on by foot. How high the cart's floor rides over that ground is a target set with the build. They hurt nobody.
 - **Open:** whether a cart can be boarded while it rolls (a second chance, or a stolen enemy cart), whether a jump keeps the cart's speed, and the speeds (Open Question 37).
 
 ### GDD-WLD-16 Level 3-1
 
-Status: Proposed (designed, not built; the main session's design, 2026-11-10). Its beats are written before its layout; every distance is a target to measure in a test over the level when it is built (L-003, L-014).
+Status: Proposed (the name "La Barranca" is Decided, user, 2026-11-10: "Approved"; designed, not built; the main session's design, 2026-11-10). Its beats are written before its layout; every distance is a target to measure in a test over the level when it is built (L-003, L-014).
 
 - **Place in the game:** World 3's first level, "La Barranca" (the canyon; the name Decided, user, 2026-11-10: "Approved"): the path leaves the hill town and goes down into a canyon of the Sierra Madre. "Next level" on 2-4's results menu starts it with seven lives, and once 2-4 is cleared "Start" plays World 3's run, as World 2's rules have it for 1-4 and 2-1 (GDD-LIFE-05, GDD-UI-02). Clearing 2-4 unlocks the glide (user, 2026-11-10: "Glide everywhere", GDD-PRG-01), and this is the first level designed for it.
 - **What it teaches:** the glide (GDD-MOV-07), then the crumbling ledge (GDD-WLD-05) as World 3 uses it, in rows along a cliff face, and the first of World 3's new enemies (GDD-ENM-04). No cart yet.
@@ -823,7 +823,7 @@ Status: Proposed (designed, not built; the main session's design, 2026-11-10). I
 
 ### GDD-WLD-17 Level 3-2
 
-Status: Proposed (designed, not built; the main session's design, 2026-11-10; every distance a target).
+Status: Proposed (the name "La Mina" is Decided, user, 2026-11-10: "Approved"; designed, not built; the main session's design, 2026-11-10; every distance a target).
 
 - **Place in the game:** World 3's second level, "La Mina" (the name Decided, user, 2026-11-10: "Approved"): the galleries of an old silver mine, timbered, lit by lamps. Lives carry on from 3-1 and into 3-3 (GDD-LIFE-05).
 - **What it teaches:** the vagoneta (GDD-WLD-15) and the second new enemy (GDD-ENM-04). The glide is used under a low roof, in short hops.
@@ -836,7 +836,7 @@ Status: Proposed (designed, not built; the main session's design, 2026-11-10; ev
 
 ### GDD-WLD-18 Level 3-3
 
-Status: Proposed (designed, not built; the main session's design, 2026-11-10; every distance a target).
+Status: Proposed (the name "Las Cumbres" is Decided, user, 2026-11-10: "Approved"; designed, not built; the main session's design, 2026-11-10; every distance a target).
 
 - **Place in the game:** World 3's third level, "Las Cumbres" (the peaks; the name Decided, user, 2026-11-10: "Approved"): out of the mine onto its timber trestles and up along the peaks to the boss arena 3-4 (GDD-BOS-04). Lives carry on from 3-2 and into 3-4.
 - **What it teaches:** nothing new but the third new enemy (GDD-ENM-04); it is World 3's test, carts, glides and crumbling ledges together, and it goes up where 3-1 went down.
@@ -981,7 +981,7 @@ World 3's enemies follow GDD-ENM-01 and World 2's line: animals of the Sierra Ma
 | --- | --- | --- | --- |
 | Murciélago (bat) | Flies a fixed loop in open air, where Poncho glides. A stomp on it bounces him: a row of them is a way to gain height mid-chasm | Stomp, claw or fireball | 3-1 |
 | Armadillo | Walks; when Poncho comes near it curls up, after a 0.5 s telegraph, and rolls downhill and along the level, armoured: a stomp only bounces off it. It uncurls when it stops | Jump over it while it rolls; stomp, claw or fireball while it walks | 3-2 |
-| Cacomixtle (ringtail) | Rides a vagoneta toward Poncho (GDD-WLD-15). Stomped out of it, it is gone and the cart is his | Stomp; or jump over the cart | 3-3 |
+| Cacomixtle (ringtail) | Rides a vagoneta toward Poncho (GDD-WLD-15). Stomped out of it, it is gone and the cart rolls on empty to its rail's end; whether Poncho can then board it is Open Question 37 | Stomp; or jump over the cart | 3-3 |
 | Cascabel (rattlesnake) | Coiled on a ledge; rattles for 0.5 s, then strikes two tiles ahead and lies stretched out for a moment | Stomp or claw while stretched out; a fireball always | Later idea, not built |
 | Borrego cimarrón (bighorn ram) | Stands on a ledge and charges along it; its butt is a hit with a far stronger push, off the ledge | Claw from behind, or let it run past and stomp | Later idea, not built |
 
@@ -999,7 +999,7 @@ Status: Decided (La Catorce, user, 2026-11-10: "Let's go with la catorce", picke
 
 ### GDD-PRG-01 Unlocks
 
-Status: Proposed
+Status: Proposed (the glide unlocked in every level once 2-4 is cleared is Decided, user, 2026-11-10: "Glide everywhere")
 
 - Clearing worlds unlocks permanent **abilities** in order (these are not the temporary power-ups of section 6): Glide (GDD-MOV-07, after World 2), Wall cling (GDD-MOV-08, after World 3). Further powers are open (GDD-MVP-02). Until the unlocks are built, a level turns an ability on itself: the sandbox has the glide and the wall cling on.
 - **The glide's unlock (Decided, user, 2026-11-10: "Glide everywhere"; not built):** clearing 2-4 unlocks the glide for good, in every level, replays of World 1 and World 2 included. It is built with World 3's first level (GDD-WLD-16), whose opening teaches it. Until then clearing 2-4 unlocks nothing, and the glide and the wall cling are off in every World 1 and World 2 level (GDD-MVP-02). What the glide does to the routes, secrets and bots of the levels built without it is not measured (Open Question 27).
