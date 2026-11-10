@@ -13,7 +13,7 @@ export interface Item {
   readonly y: number;
   readonly vx: number;
   readonly vy: number;
-  /** A taco walks, a chile stays where it is (GDD-PWR-03). */
+  /** A taco walks, a chile and the Chile Fantasma stay where they are (GDD-PWR-03, GDD-PWR-04). */
   readonly kind: ItemKind;
 }
 
@@ -26,7 +26,7 @@ export const squareBlocked = (world: TileGrid, x: number, y: number, size: numbe
 const blockedAt = (world: TileGrid, x: number, y: number): boolean => squareBlocked(world, x, y, TACO.size);
 
 /**
- * The item a piñata releases: standing on top of it, a taco heading right and a chile staying put, or null if there is
+ * The item a piñata releases: standing on top of it, a taco heading right and a chile or a Chile Fantasma staying put, or null if there is
  * no room (a wall or another block in the way), so an item is never placed inside a wall (GDD-PWR-06).
  */
 export function releaseFrom(p: Pinata, world: TileGrid, kind: ItemKind): Item | null {

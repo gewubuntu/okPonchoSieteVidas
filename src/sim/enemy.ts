@@ -292,6 +292,12 @@ export const clawHitsEnemy = (box: Box, def: Enemy, state: EnemyState): boolean 
 export const touchesEnemy = (player: PlayerState, def: Enemy, state: EnemyState): boolean => boxHitsEnemy(hurtBox(player), def, state);
 
 /**
+ * GDD-PWR-04: does Poncho's hurtbox overlap a live enemy, in play or not? Unlike `touchesEnemy` it counts a Tlacuache playing dead and a
+ * stunned Trompo too, since the Chile Fantasma defeats every regular enemy he touches.
+ */
+export const touchedByPoncho = (player: PlayerState, def: Enemy, state: EnemyState): boolean => state.alive && overlaps(hurtBox(player), enemyBox(def, state));
+
+/**
  * GDD-CMB-01: can it be stomped now? Not the Zopilote and the cactus buddy, nor a Tlacuache playing dead (it is out of play, GDD-ENM-02);
  * a Trompo only while it lies stunned (GDD-ENM-03).
  */

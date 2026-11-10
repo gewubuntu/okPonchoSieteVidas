@@ -1,13 +1,13 @@
 // GDD-LIFE-02 and GDD-LIFE-05: one play-through of a level, tying movement, lives and respawn together.
 // Pure logic, no Phaser (GDD-TEC-02). After the last life the run shows the "Siete vidas gastadas" screen until a press
 // of any button, then restarts the world. Poncho respawns at the latest ofrenda he has reached, or at the start of the level (GDD-LIFE-02, GDD-LIFE-03).
-import { BOSS, EXIT, FIREBALL, FLIP, GAME_OVER, GLIDE, HIT, HITBOX, LIVES_MAX, OFRENDA, RESPAWN, TACO, TILE } from '../config/tuning';
+import { BOSS, EXIT, FANTASMA, FIREBALL, FLIP, GAME_OVER, GLIDE, HIT, HITBOX, LIVES_MAX, OFRENDA, RESPAWN, RUN, TACO, TILE } from '../config/tuning';
 import { bossBox, bossHarms, bossHittable, bossStart, broken, freshRocks, fruitBox, hitBoss, knock, phaseOf, ponchoBox, rockBox, stepBoss, stepFruit, stepRock, type Boss, type BossState, type Fruit, type RockState } from './boss';
 import { estrellaCleared, estrellaStart, stepEstrella, type Estrella, type EstrellaState, type Tejocote } from './estrella';
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
 import { withFragiles, type Fragile } from './fragile';
-import { boxHitsEnemy, clawHitsEnemy, defeatable, freshEnemies, harmlessFromBelow, isStomp, overlaps, playDead, stepEnemy, stompBounce, stompPlaysDead, strike, touchesEnemy, type Enemy, type EnemyState } from './enemy';
+import { boxHitsEnemy, clawHitsEnemy, defeatable, freshEnemies, harmlessFromBelow, isStomp, overlaps, playDead, stepEnemy, stompBounce, stompPlaysDead, strike, touchedByPoncho, touchesEnemy, type Enemy, type EnemyState } from './enemy';
 import { fireballBox, spawnFireball, stepFireball, type Fireball } from './fireball';
 import { squareBlocked } from './item';
 import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } from './door';
@@ -167,6 +167,11 @@ export interface RunState {
   /** GDD-BOS-03: La Estrella, if the level has her, and the tejocotes rolling out of her. */
   readonly estrella: EstrellaState | null;
   readonly tejocotes: readonly Tejocote[];
+  /**
+   * GDD-PWR-04: the steps of the Chile Fantasma left after this step; 0 when it is not running. A timer on top of the power-up state, not a
+   * fourth state: Poncho is invulnerable and runs at FANTASMA.runSpeed while it counts, and defeats the regular enemies he touches.
+   */
+  readonly fantasma: number;
 }
 
 /**
@@ -176,7 +181,7 @@ export interface RunState {
  */
 export function startRun(level: Level, savedHilos?: readonly boolean[], lives: number = LIVES_MAX): RunState {
   const hilosSaved = savedHilos ?? freshHilos(level.hilos ?? []);
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: { ...startWorld(), lives }, livesIn: lives, phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false, boss: level.boss ? bossStart(level.boss, 0) : null, fruit: [], rocks: freshRocks(level.rocks ?? []), awningsGone: freshAwnings(level.awnings ?? []), awningBounce: null, rollos: freshRollos(level.rollos ?? []), estrella: level.estrella ? estrellaStart(level.estrella, 0) : null, tejocotes: [] };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: { ...startWorld(), lives }, livesIn: lives, phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false, boss: level.boss ? bossStart(level.boss, 0) : null, fruit: [], rocks: freshRocks(level.rocks ?? []), awningsGone: freshAwnings(level.awnings ?? []), awningBounce: null, rollos: freshRollos(level.rollos ?? []), estrella: level.estrella ? estrellaStart(level.estrella, 0) : null, tejocotes: [], fantasma: 0 };
 }
 
 /**
@@ -344,6 +349,8 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
       // GDD-BOS-01, GDD-BOS-03: La Estrella the same as the boss: her hits kept, her phase from its start, every tejocote gone.
       estrella: level.estrella && run.estrella ? estrellaStart(level.estrella, run.restarting ? 0 : run.estrella.hits, keepTore) : null,
       tejocotes: [],
+      // GDD-PWR-04: the Chile Fantasma ends with the life.
+      fantasma: 0,
     };
   }
 
@@ -352,7 +359,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   const carried = carry(run.player, level.platforms, run.platformTick, solid);
   // GDD-WLD-05: a moving block carries or pushes him too, and stops him on every side. GDD-LIFE-02: a push or a carry up into a solid tile crushes him.
   const pushed = moveBlocks(carried, level.blocks ?? [], run.platformTick, solid);
-  const stepped = step(pushed.player, input, solid, level.abilities);
+  const stepped = step(pushed.player, input, solid, level.abilities, run.fantasma > 0 ? FANTASMA.runSpeed : RUN.maxSpeed);
   // GDD-WLD-11: the rollos that are unrolling grow, then Poncho lands on a cordel or a rollo's strung part like on a platform that stays put.
   const grown = growRollos(run.rollos);
   const strung = landOnPlatforms(pushed.player, stepped, stillPlatforms(stringTops(level.cordeles ?? [], level.rollos ?? [], grown)), 0, solid);
@@ -390,7 +397,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   let lives = level.veladora && touchesVeladora(player, level.veladora) ? collectVeladora(run.lives, veladoraId(level.veladora)) : run.lives;
   if (pushed.crushed || isInPit(player, level.world)) {
     // GDD-LIFE-02, GDD-CMB-03: a crush costs a life like a pit, in any power-up state and even while invulnerable.
-    return { ...run, player, crumbles, platformTick, hilosTaken, lives: loseLife(lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base', stomped: stomped.some(Boolean) };
+    return { ...run, player, crumbles, platformTick, hilosTaken, lives: loseLife(lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base', stomped: stomped.some(Boolean), fantasma: 0 };
   }
   // GDD-PWR-02: touching a taco in Base picks it up. In Taco it stays where it is. Picked up before a hit is resolved,
   // so a taco grabbed in the same step as a spike hit is spent on it.
@@ -406,24 +413,28 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   const box = clawBox(player, claw);
   const fragilesBroken = level.fragiles.map((f, i) => run.fragilesBroken[i]! || (box !== null && boxTouchesTile(box, f.col, f.row)));
   // GDD-PWR-05: a head bump or a claw swipe opens a closed piñata once, if there is room above it for what it releases: a
-  // taco in Base, otherwise a chile.
+  // taco in Base, otherwise a chile; a special piñata always releases the Chile Fantasma (GDD-PWR-04).
   const bumped = bumpedPinata(run.player, player, level.pinatas);
   let pinatasOpen = run.pinatasOpen;
   let items = run.items.map((it) => stepItem(it, solid)).filter((it) => it.y - TACO.size <= level.world.height * TILE);
   level.pinatas.forEach((p, i) => {
     if (run.pinatasOpen[i] || !(i === bumped || (box !== null && boxTouchesTile(box, p.col, p.row)))) return;
-    const released = releaseFrom(p, solid, run.power === 'base' ? 'taco' : 'chile');
+    const released = releaseFrom(p, solid, p.special ? 'fantasma' : run.power === 'base' ? 'taco' : 'chile');
     if (!released) return;
     pinatasOpen = pinatasOpen.map((open, j) => open || j === i);
     items = [...items, released];
   });
   // GDD-PWR-06: an item is collected by touch and used up, whether or not it improves the state (when it would not, it gives
-  // hilos instead, GDD-PWR-01, which are not built yet).
+  // hilos instead, GDD-PWR-01, which are not built yet). GDD-PWR-04: the Chile Fantasma starts its 8 s over, whatever Poncho's state.
+  let ate = false;
   items = items.filter((it) => {
     if (!touchesItem(player, it)) return true;
     power = eat(power, it.kind);
+    if (it.kind === 'fantasma') ate = true;
     return false;
   });
+  // GDD-PWR-04: protected when `fantasma > 0`. The step he eats it counts, like a taco picked up the step of a hit (GDD-PWR-01).
+  const fantasma = ate ? FANTASMA.steps : run.fantasma;
   // GDD-PWR-03: in Fuego a press of the Fuego button spits a fireball, up to FIREBALL.maxActive at once. The ones in flight move on.
   const spits = (input.fuego ?? false) && !run.fuegoHeld && run.power === 'fuego' && run.fireballs.length < FIREBALL.maxActive;
   // With no room in front of Poncho (a wall right against him) the press does nothing, so a fireball never starts inside a wall (GDD-PWR-06).
@@ -451,12 +462,15 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
     return true;
   });
   // GDD-CMB-02, GDD-PWR-03: the claw and a fireball defeat the enemies they overlap, besides a stomp. Every fireball that
-  // overlaps a live enemy is used up, whatever defeats the enemy that step (and even the cactus buddy, which nothing defeats).
+  // overlaps a live enemy is used up, whatever defeats the enemy that step (and even the cactus buddy, which only the Chile Fantasma's touch defeats, GDD-PWR-04).
   // GDD-ENM-02: a Tlacuache's first stomp only makes it play dead, unless the claw or a fireball defeats it the same step. The
   // claw defeats one that is playing dead too. GDD-ENM-03: the claw or a fireball stuns a heavy enemy (a Trompo) instead (`strike`).
   const fireballHits = (f: Fireball, i: number): boolean => boxHitsEnemy(fireballBox(f), level.enemies[i]!, patrolled[i]!);
   const enemies = patrolled.map((e, i) => {
     const def = level.enemies[i]!;
+    // GDD-PWR-04: with the Chile Fantasma every regular enemy he touches is defeated outright (never stunned, the cactus buddy too), one
+    // playing dead and a stunned Trompo included. A stomp in the same step still bounces him (`stomped`, read before).
+    if (fantasma > 0 && touchedByPoncho(player, def, e)) return { ...e, alive: false };
     if (!defeatable(def)) return e;
     if ((box !== null && clawHitsEnemy(box, def, e)) || fireballs.some((f) => fireballHits(f, i))) return strike(def, e);
     if (!stomped[i]) return e;
@@ -495,16 +509,19 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   // GDD-WLD-05, GDD-ENM-02, GDD-CMB-03: touching a spike or an enemy is a hit, unless Poncho is invulnerable. In Base it
   // costs a life (GDD-LIFE-02); in Taco the taco is spent instead, in Fuego the Fuego, and Poncho is pushed away from what
   // hit him and invulnerable for 2.0 s.
-  const spike = run.invulnerable === 0 ? level.spikes.find((s) => touchesSpike(player, s)) : undefined;
+  // GDD-PWR-04: with the Chile Fantasma nothing hurts him but a pit or a crush (returned above): not a spike, a boss, his fruit or her. An enemy
+  // needs no guard of its own (L-025): every live one his hurtbox overlaps was defeated above, so none is left to touch him while it runs.
+  const exposed = run.invulnerable === 0 && fantasma === 0;
+  const spike = exposed ? level.spikes.find((s) => touchesSpike(player, s)) : undefined;
   const enemy = run.invulnerable === 0 ? enemies.findIndex((e, i) => touchesEnemy(player, level.enemies[i]!, e) && !harmlessFromBelow(run.player, player, level.enemies[i]!, e)) : -1;
   // GDD-BOS-02: touching the boss while he harms, or a cactus fruit, falling or lying, is a hit too. A hit on him this step is resolved
   // first, so the step that hits him is not one he hurts Poncho in.
-  const bossTouch = run.invulnerable === 0 && boss !== null && bossHarms(boss) && overlaps(ponchoBox(player), bossBox(boss)) ? boss : null;
-  const fruitTouch = run.invulnerable === 0 ? fruit.find((f) => overlaps(ponchoBox(player), fruitBox(f))) : undefined;
+  const bossTouch = exposed && boss !== null && bossHarms(boss) && overlaps(ponchoBox(player), bossBox(boss)) ? boss : null;
+  const fruitTouch = exposed ? fruit.find((f) => overlaps(ponchoBox(player), fruitBox(f))) : undefined;
   // GDD-BOS-03: La Estrella or a tejocote, in Don Zopilote's slot (a level has one boss or the other); her touch is settled after a hit
   // on her, so the step that hits her does not hurt Poncho through her. A step that costs a life keeps her state from before it (`...run`
   // below), so it does not hit her.
-  const starTouch = run.invulnerable === 0 ? fought?.touch : undefined;
+  const starTouch = exposed ? fought?.touch : undefined;
   const hitFrom = spike ? spike.col * TILE + TILE / 2 : enemy >= 0 ? enemies[enemy]!.x : bossTouch ? bossTouch.x : fruitTouch ? fruitTouch.x : starTouch;
   if (hitFrom !== undefined && power === 'base') {
     return { ...run, player, crumbles, platformTick, hilosTaken, tacosTaken, pinatasOpen, items, fragilesBroken, enemies, lives: loseLife(lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base', stomped: stomped.some(Boolean) };
@@ -529,7 +546,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   });
   // GDD-BOS-03: the step her box's bottom reaches the middle awning's top she tears it away: gone from the next step on, with the rest.
   const tornAway = fought?.tore ? awningsGone.map((g, i) => g || i === level.estrella!.tear.awning) : awningsGone;
-  const next: RunState = { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: inFlight, enemies, boss, fruit, rocks, awningsGone: tornAway, awningBounce, rollos, estrella: fought?.estrella ?? null, tejocotes: fought?.tejocotes ?? [], stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1) };
+  const next: RunState = { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: inFlight, enemies, boss, fruit, rocks, awningsGone: tornAway, awningBounce, rollos, estrella: fought?.estrella ?? null, tejocotes: fought?.tejocotes ?? [], stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1), fantasma: Math.max(0, fantasma - 1) };
   // GDD-WLD-03: reaching the exit ends the level. A hit in Base, a pit and a crush returned above, so they win; a hit the taco or
   // the Fuego absorbed does not. `wait` is already 0 in play. The buttons down now are held, so one held as Poncho reaches the exit
   // is no new press for the reveal (GDD-UI-02).

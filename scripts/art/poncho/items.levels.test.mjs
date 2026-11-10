@@ -1,7 +1,7 @@
 // GDD-ART-04, GDD-PWR-02, GDD-PWR-03 (L-059): the taco and chile frames of assets/sprites/poncho/ fit the room they have in the real levels.
 // A level's floor taco is drawn centred on its square, in the middle of its tile; a taco or chile out of a piñata stands on its feet, drawn
-// where `itemAt` puts it. Each piñata of each level lets out a taco (it walks off, turns at walls, follows slopes, falls off ledges) and a
-// chile (it stays on top), and the run steps with them, Poncho at his spawn and unhurtable; every step each item is posed in the bob
+// where `itemAt` puts it. Each piñata of each level lets out a taco (it walks off, turns at walls, follows slopes, falls off ledges), a
+// chile and a Chile Fantasma (GDD-PWR-04; they stay on top), and the run steps with them, Poncho at his spawn and unhurtable; every step each item is posed in the bob
 // frame of the run's clock (`pickupLook`) and every painted pixel of its frame is placed in the level, half a game px a pixel. Ground is a
 // level tile, a piñata and the sand under a slope's surface (GDD-MOV-09).
 import { describe, expect, it } from 'vitest';
@@ -12,12 +12,12 @@ import { withPinatas } from '../../../src/sim/pinata';
 import { startRun, stepRun } from '../../../src/sim/run';
 import { surfaceY } from '../../../src/sim/slope';
 import { itemAt, pickupLook } from '../../../src/ui/ponchoPose';
-import { chile, taco } from './items.mjs';
+import { chile, fantasma, taco } from './items.mjs';
 
 const STEPS = 600;
 const idle = { move: 0, jumpHeld: false };
 // Per look, the painted pixels' middles from the frame's middle, in game px.
-const PIXELS = Object.fromEntries([taco, chile].flatMap((m) => m.draw().map((f) => {
+const PIXELS = Object.fromEntries([taco, chile, fantasma].flatMap((m) => m.draw().map((f) => {
   const pts = [];
   for (let y = 0; y < f.grid.height; y++) for (let x = 0; x < f.grid.width; x++) if (f.grid.get(x, y)) pts.push([(x + 0.5 - f.grid.width / 2) / 2, (y + 0.5 - f.grid.height / 2) / 2]);
   return [f.look, pts];
@@ -59,7 +59,7 @@ describe('GDD-ART-04 the taco and chile frames fit the real levels (L-059)', () 
       }
       // What each piñata lets out, standing and walking.
       for (const p of level.pinatas) {
-        for (const kind of ['taco', 'chile']) {
+        for (const kind of ['taco', 'chile', 'fantasma']) {
           const item = releaseFrom(p, withPinatas(level.world, level.pinatas), kind);
           if (!item) continue;
           let run = { ...startRun(level), invulnerable: 1e9, items: [item] };
@@ -78,6 +78,6 @@ describe('GDD-ART-04 the taco and chile frames fit the real levels (L-059)', () 
   }
 
   it('the runs pose every bob and glint frame', () => {
-    expect([...POSED].sort()).toEqual(['chileBob0', 'chileBob1', 'chileBob2', 'chileBob3', 'chileGlint', 'tacoBob0', 'tacoBob1', 'tacoBob2', 'tacoBob3', 'tacoGlint']);
+    expect([...POSED].sort()).toEqual(['chileBob0', 'chileBob1', 'chileBob2', 'chileBob3', 'chileGlint', 'tacoBob0', 'tacoBob1', 'tacoBob2', 'tacoBob3', 'tacoGlint', 'fantasmaBob0', 'fantasmaBob1', 'fantasmaBob2'].sort());
   });
 });

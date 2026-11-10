@@ -114,8 +114,11 @@ function approach(value: number, target: number, delta: number): number {
   return value < target ? Math.min(value + delta, target) : Math.max(value - delta, target);
 }
 
-/** Advances one fixed step. Returns a new state and never mutates its input. */
-export function step(prev: PlayerState, input: PlayerInput, world: World, abilities: Abilities = {}): PlayerState {
+/**
+ * Advances one fixed step. Returns a new state and never mutates its input. `runSpeed` is the top running speed in px/s: RUN.maxSpeed, or
+ * FANTASMA.runSpeed while the Chile Fantasma runs (GDD-PWR-04); above it with the stick held he slows back at the acceleration's rate.
+ */
+export function step(prev: PlayerState, input: PlayerInput, world: World, abilities: Abilities = {}, runSpeed: number = RUN.maxSpeed): PlayerState {
   const s: PlayerState = { ...prev };
   delete s.takeoff;
   const vx0 = prev.vx;
@@ -139,7 +142,7 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
   } else {
     const turning = s.vx !== 0 && Math.sign(s.vx) !== Math.sign(move);
     const accel = s.grounded ? (turning ? RUN.turnAccel : RUN.groundAccel) : RUN.airAccel;
-    s.vx = approach(s.vx, move * RUN.maxSpeed, accel * STEP);
+    s.vx = approach(s.vx, move * runSpeed, accel * STEP);
     s.facing = move > 0 ? 1 : -1;
   }
 

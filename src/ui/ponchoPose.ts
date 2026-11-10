@@ -182,12 +182,13 @@ export function ponchoParts(pose: PonchoPose, player: PlayerState, claw: ClawSta
 }
 
 /**
- * A taco or chile pickup's look at the run's clock `clock` (steps): its four bob frames in turn, `PONCHO_ART.pickup.bobSteps` each, and
- * its glint for the last `glintSteps` of every `glintEvery`.
+ * A taco, chile or Chile Fantasma pickup's look at the run's clock `clock` (steps): its four bob frames in turn (the Chile Fantasma's
+ * three, GDD-PWR-04), `PONCHO_ART.pickup.bobSteps` each, and the taco's and chile's glint for the last `glintSteps` of every `glintEvery`.
  */
-export function pickupLook(kind: 'taco' | 'chile', clock: number): PickupLook {
+export function pickupLook(kind: 'taco' | 'chile' | 'fantasma', clock: number): PickupLook {
   const { bobSteps, glintEvery, glintSteps } = PONCHO_ART.pickup;
   const looks: readonly PickupLook[] = ITEM_LOOKS[kind];
+  if (kind === 'fantasma') return looks[Math.floor(clock / bobSteps) % 3]!;
   if (clock % glintEvery >= glintEvery - glintSteps) return looks[4]!;
   return looks[Math.floor(clock / bobSteps) % 4]!;
 }
@@ -197,6 +198,6 @@ export function pickupLook(kind: 'taco' | 'chile', clock: number): PickupLook {
  * in game px. Its square's middle, lifted by how far its frames reach below the square (`PONCHO_ART.pickup.reach`), so that no bob frame
  * reaches below its feet (L-059).
  */
-export function itemAt(kind: 'taco' | 'chile', x: number, feet: number): { x: number; y: number } {
+export function itemAt(kind: 'taco' | 'chile' | 'fantasma', x: number, feet: number): { x: number; y: number } {
   return { x, y: feet - TACO.size / 2 - PONCHO_ART.pickup.reach[kind].below };
 }

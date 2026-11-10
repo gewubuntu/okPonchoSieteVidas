@@ -95,6 +95,11 @@ export const SANDBOX_PINATAS: readonly Pinata[] = [
   // in the path of the moving platform's far end (the platform's right edge reaches x = 384): a platform never carries him into a
   // solid tile (GDD-WLD-05), so he is stopped against the piñata, not crushed.
   { col: 23, row: 7 },
+  // GDD-PWR-04: the special piñata, which always releases the Chile Fantasma, hangs at tile column 26, row 2 (x 416 to 432, underside
+  // y = 48), 48 px above the top right ledge (row 6, columns 25 to 29, top y = 96) where the Tlacuache walks, so a jump from the ledge bumps
+  // it (a 32 px gap, the body's height, would leave his head flush and no jump could bump it). Row 1 above it is free, so the pepper stands on
+  // its top at y = 32. It is drawn like any other piñata, and is the last in the list so the indexes of the others stay.
+  { col: 26, row: 2, special: true },
 ];
 
 /**

@@ -77,8 +77,8 @@ Suggested first order (the character image has arrived): GDD-TEC-01, GDD-TEC-05,
 | GDD-PWR-01 | doing | Base, Taco and Fuego states, spike hit absorbed (Fuego goes back to Taco), respawn in Base (src/sim/run.ts, src/sim/taco.ts) |
 | GDD-PWR-02 | doing | static taco pickup and the walking taco from a piñata (src/sim/item.ts); the chomp and freeze-frame pending |
 | GDD-PWR-03 | doing | chile from piñatas, Fuego state, fireball and Fuego touch button (src/sim/fireball.ts, src/sim/run.ts); fireballs defeat the Alacrán, the Zopilote and the awake Tlacuache, and hit Don Zopilote while he is stuck in the sand (GDD-BOS-02); ice, candles, sound and gamepad pending; in World 2 fireballs defeat the Paloma and the Chapulín, stun the Trompo, unroll rollos, burst tejocotes and are used up on La Estrella |
-| GDD-PWR-04 | todo |  |
-| GDD-PWR-05 | doing | head-bump piñata releasing a walking taco in Base (src/sim/pinata.ts, two in the sandbox); multi-piñata hilos pending; a chile comes out in Taco or Fuego |
+| GDD-PWR-04 | doing | built in src/sim/run.ts (timer on top of the state, invulnerability, touch defeat, 180 px/s), the pepper and glow art from the user's references, the sandbox's special piñata; the special piñatas in 1-2 and 2-2, music and sound pending |
+| GDD-PWR-05 | doing | head-bump piñata releasing a walking taco in Base (src/sim/pinata.ts, three in the sandbox); multi-piñata hilos pending; a chile comes out in Taco or Fuego; a special piñata gives the Chile Fantasma (GDD-PWR-04, the sandbox's third) |
 | GDD-PWR-06 | doing | collect by touch and no spawn inside a wall (src/sim/item.ts); the reserve-slot question stays open |
 | GDD-VIS-05 | todo |  |
 | GDD-TEC-07 | todo |  |

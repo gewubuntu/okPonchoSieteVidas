@@ -6,15 +6,16 @@ import type { PlayerState } from './movement';
 /** GDD-PWR-01: Poncho is in exactly one state. */
 export type Power = 'base' | 'taco' | 'fuego';
 
-/** GDD-PWR-02 and GDD-PWR-03: what a released item is. */
-export type ItemKind = 'taco' | 'chile';
+/** GDD-PWR-02, GDD-PWR-03 and GDD-PWR-04: what a released item is. */
+export type ItemKind = 'taco' | 'chile' | 'fantasma';
 
 /**
  * The state after eating an item. A taco takes Base to Taco and does nothing in Taco or Fuego (it would not improve the
  * state, which gives hilos, GDD-PWR-01, not built yet). A chile takes Taco to Fuego, Base to Taco (one step better, like a
- * Mario flower when small) and does nothing in Fuego.
+ * Mario flower when small) and does nothing in Fuego. The Chile Fantasma never changes the state (GDD-PWR-04): it is a timer on top of it.
  */
 export function eat(power: Power, kind: ItemKind): Power {
+  if (kind === 'fantasma') return power;
   if (power === 'base') return 'taco';
   return kind === 'chile' ? 'fuego' : power; // Taco or Fuego here
 }

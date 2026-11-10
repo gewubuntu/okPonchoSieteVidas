@@ -89,7 +89,7 @@ export const ANIM = { runMinSpeed: 10, runFramePx: 8, runFrames: 4 } as const;
  * way he faces he skids. Standing, he blinks for the last `blinkSteps` of every `blinkEvery` and, in Taco or Fuego, glances at the taco for
  * `glanceSteps` of every `glanceEvery`. `reach` is how far each frame's drawing reaches past his body box (game px), behind it, in front,
  * above and below (L-059); only the respawn flip, drawn in the air, may reach below his feet. A pickup shows its next bob frame every
- * `pickup.bobSteps` of the run's clock and its glint for the last `pickup.glintSteps` of every `pickup.glintEvery`; `pickup.reach` is how far
+ * `pickup.bobSteps` of the run's clock and its glint (not the Chile Fantasma's, which bobs through its three frames, GDD-PWR-04) for the last `pickup.glintSteps` of every `pickup.glintEvery`; `pickup.reach` is how far
  * its frames reach past its 12 px square at most (L-059), the square's middle on the frame's middle. A taco or chile out of a piñata, standing
  * on its feet, is drawn `reach.below` higher than its square, so no bob frame reaches below its feet.
  */
@@ -161,6 +161,8 @@ export const PONCHO_ART = {
     reach: {
       taco: { behind: 0.5, front: 0.5, above: 0.5, below: 0.5 },
       chile: { behind: 0, front: 0.5, above: 1, below: 1 },
+      // GDD-PWR-04: the Chile Fantasma's three bob frames (it has no glint), each lower than the last: the most any of them reaches.
+      fantasma: { behind: 0.5, front: 1, above: 1.5, below: 1.5 },
     },
   },
 } as const;
@@ -325,6 +327,9 @@ export const HIT = { invulnerableSteps: Math.round(2.0 * TICK_HZ), knockback: 80
 
 /** GDD-PWR-02: a taco is a square this many px wide (a pickup sits centred in its tile); one released from a piñata walks at `walkSpeed` px/s. */
 export const TACO = { size: 12, walkSpeed: 40 } as const;
+
+/** GDD-PWR-04: the Chile Fantasma lasts `steps` (8 s); its last `warnSteps` (2 s) dim the glow; he runs at up to `runSpeed` px/s. */
+export const FANTASMA = { steps: 8 * TICK_HZ, warnSteps: 2 * TICK_HZ, runSpeed: 180 } as const;
 
 /** GDD-WLD-04: a hilo pickup is an 8 x 8 px square in the middle of its tile. A hilo saved in an earlier run is drawn at `savedAlpha` (35 %) opacity. */
 export const HILO = { size: 8, savedAlpha: 0.35 } as const;
