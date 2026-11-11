@@ -71,6 +71,65 @@ export function openGaps(level: Level): readonly Gap[] {
   });
 }
 
+/**
+ * GDD-WLD-03: World 3's gaps, the open gaps read left to right. In a level whose ledges come back (GDD-WLD-05) a pit column holding a
+ * crumbling tile is a bank at its highest crumbling tile's row, not a pit column. A gap's banks are the columns either side of it, each at
+ * that row or else at its ground's top, and its limit is set by the drop from the left bank to the right: `base` plus a tile per tile of
+ * drop up to `maxDropTiles`, `byRise` for a rise of 1 to 3 tiles, and a higher rise not allowed. Its headroom, the fewest empty tiles over
+ * the left bank's top in the left bank's column and every column of the gap (not the right bank's, so a rise is no roof), takes
+ * `perMissingRoofTile` off for each tile under `roofTiles`, never under 1; under `minHeadroomLevel` with no drop it is not allowed. A gap at
+ * the level's edge has a bank on one side only: the same-height limit, with no roof reading. Not checked here: the one-way direction, rails
+ * and the sight rules.
+ */
+function world3GapProblems(level: Level): string[] {
+  const { world } = level;
+  const rule = LEVEL_RULES.world3Gap;
+  const ledges = new Map<number, number>();
+  for (const t of level.crumblesReturn === true ? level.crumbles : []) {
+    if (!world.solidTile(t.col, bottomRowAt(level, t.col))) ledges.set(t.col, Math.min(t.row, ledges.get(t.col) ?? t.row));
+  }
+  const top = (col: number): number => ledges.get(col) ?? groundTopAt(world, level.bottoms, col) / TILE;
+  const problems: string[] = [];
+  for (const open of openGaps(level)) {
+    const end = open.col + open.width;
+    let start = -1;
+    for (let col = open.col; col <= end; col++) {
+      const pit = col < end && !ledges.has(col);
+      if (pit && start < 0) start = col;
+      if (pit || start < 0) continue;
+      const [left, right, width] = [start - 1, col, col - start];
+      start = -1;
+      const at = `columns ${left + 1} to ${right - 1}`;
+      if (left < 0 || right >= world.width) {
+        if (width > rule.base) problems.push(`gap of ${width} tiles at ${at}, World 3 allows ${rule.base}`);
+        continue;
+      }
+      const drop = top(right) - top(left);
+      if (drop < -rule.byRise.length) {
+        problems.push(`gap at ${at} rises ${-drop} tiles over a pit, World 3 allows ${rule.byRise.length}`);
+        continue;
+      }
+      let headroom: number = rule.roofTiles;
+      for (let c = left; c < right; c++) {
+        let empty = 0;
+        while (empty < headroom && !world.solidTile(c, top(left) - 1 - empty)) empty++;
+        headroom = empty;
+      }
+      if (drop <= 0 && headroom < rule.minHeadroomLevel) {
+        problems.push(`gap at ${at} has ${headroom} tiles of headroom over its left bank, World 3 needs ${rule.minHeadroomLevel} where it does not drop`);
+        continue;
+      }
+      const byDrop = drop >= 0 ? rule.base + rule.perDropTile * Math.min(drop, rule.maxDropTiles) : rule.byRise[-drop - 1]!;
+      const limit = Math.max(1, byDrop - rule.perMissingRoofTile * (rule.roofTiles - headroom));
+      if (width <= limit) continue;
+      const slope = drop > 0 ? ` with a drop of ${drop} tile${drop === 1 ? '' : 's'}` : drop < 0 ? ` with a rise of ${-drop} tile${drop === -1 ? '' : 's'}` : '';
+      const roof = headroom < rule.roofTiles ? ` under a roof ${headroom} tiles over its left bank` : '';
+      problems.push(`gap of ${width} tiles at ${at}${slope}${roof}, World 3 allows ${limit}`);
+    }
+  }
+  return problems;
+}
+
 /** GDD-WLD-15: a rail's stretches as lines on the screen: the px columns each covers (from x0 up to x1) and its y = c + k * x. */
 function railLines(rail: Rail): { x0: number; x1: number; k: number; c: number }[] {
   let across = 0;
@@ -229,9 +288,10 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
   // starting at another's end.
   problems.push(...railProblems(level.rails ?? [], isBossLevel(level)));
 
-  // GDD-WLD-03: gaps never exceed the world's limit.
+  // GDD-WLD-03: gaps never exceed the world's limit; World 3's depends on the drop and the roof.
   const limit = LEVEL_RULES.maxGapTiles[entry.world];
-  if (limit === undefined) problems.push(`no gap limit for World ${entry.world}`);
+  if (entry.world === 3) problems.push(...world3GapProblems(level));
+  else if (limit === undefined) problems.push(`no gap limit for World ${entry.world}`);
   else {
     for (const g of openGaps(level)) {
       if (g.width > limit) problems.push(`gap of ${g.width} tiles at columns ${g.col} to ${g.col + g.width - 1}, World ${entry.world} allows ${limit}`);

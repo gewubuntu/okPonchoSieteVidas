@@ -664,9 +664,11 @@ export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;
 /**
  * GDD-TEC-04: what the level validator checks. GDD-WLD-03: a level is `minScreens` to `maxScreens` (for its world: 6 in Worlds 0 and 1, 8 from
  * World 2 on, user, 2026-11-04) screens of BASE_WIDTH wide, has 3 ofrendas,
- * and its gaps never exceed `maxGapTiles` for its world (Worlds 1 to 3 have a limit so far, World 2 a tile more, and the tutorial 0-1, outside the seven worlds, follows World 1: GDD-WLD-01). GDD-ENM-01: no enemy starts
- * closer than 3 tiles to a respawn. World 3's 6 tiles is GDD-WLD-03's limit at the same height only: the tile more per tile of drop, the
- * limits by rise and the roof's reduction are not built.
+ * and its gaps never exceed `maxGapTiles` for its world (Worlds 1 and 2 have a limit so far, World 2 a tile more, and the tutorial 0-1, outside the seven worlds, follows World 1: GDD-WLD-01). GDD-ENM-01: no enemy starts
+ * closer than 3 tiles to a respawn. GDD-WLD-03: World 3's gaps follow `world3Gap` instead: `base` tiles plus `perDropTile` for each tile the
+ * right bank lies below the left, counting at most `maxDropTiles`; `byRise` with the right bank 1, 2 or 3 tiles higher, and no higher rise
+ * over a pit; `perMissingRoofTile` off for each tile of headroom over the left bank under `roofTiles`, never under 1, and a headroom under
+ * `minHeadroomLevel` not allowed where the gap does not drop.
  */
 export const LEVEL_RULES = {
   minScreens: 3,
@@ -675,7 +677,8 @@ export const LEVEL_RULES = {
   maxRows: 51,
   maxScreens: { 0: 6, 1: 6, 2: 8, 3: 8 } as Readonly<Record<number, number>>,
   ofrendas: 3,
-  maxGapTiles: { 0: 3, 1: 3, 2: 4, 3: 6 } as Readonly<Record<number, number>>,
+  maxGapTiles: { 0: 3, 1: 3, 2: 4 } as Readonly<Record<number, number>>,
+  world3Gap: { base: 6, perDropTile: 1, maxDropTiles: 8, byRise: [4, 3, 2], roofTiles: 6, perMissingRoofTile: 2, minHeadroomLevel: 4 },
   enemyClearance: 3 * TILE,
 } as const;
 
