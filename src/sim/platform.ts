@@ -49,35 +49,49 @@ export function standsOnPlatform(player: PlayerState, at: PlatformPos): boolean 
 }
 
 /**
- * Poncho before a step: if he stands on a platform, he moves with it to where it will be after this step, one axis at
- * a time and never into a solid tile: if the platform would push him into a wall or a ceiling he stays against it and
- * the platform slides on under his feet, so a platform never crushes him or pushes him through a tile.
+ * Poncho before a step, on a one-way floor that moves from `from` to `to` in the step (GDD-WLD-05, shared by the platforms and the carts,
+ * GDD-WLD-15): if he stands on it, he moves with it, one axis at a time and never into a solid tile: if it would push him into a wall or
+ * a ceiling he stays against it and the floor slides on under his feet, so it never crushes him or pushes him through a tile. Null when
+ * he does not stand on it.
  */
+export function carryOn(player: PlayerState, from: PlatformPos, to: PlatformPos, world: World): PlayerState | null {
+  if (!standsOnPlatform(player, from)) return null;
+  const x = blocked(world, player.x + (to.x - from.x), player.y) ? player.x : player.x + (to.x - from.x);
+  const y = blocked(world, x, player.y + (to.y - from.y)) ? player.y : player.y + (to.y - from.y);
+  return { ...player, x, y };
+}
+
+/**
+ * Poncho after a step, over a one-way floor that moved from `from` to `to` in it: if he came down onto its top (his feet were at or above
+ * its top before the step, where it was or where it is now, whichever is lower, and are at or below it now), he stands on it, so a floor
+ * rising into his falling feet catches him too. Not if standing there would put his body box into a tile: a floor never carries him into
+ * one (`carryOn`). Rising through it from below, jumping off it, or being below it does nothing: null. `carried` is Poncho before the step
+ * but after being carried. Landing ends a carried speed (GDD-WLD-15).
+ */
+export function landOn(carried: PlayerState, stepped: PlayerState, from: PlatformPos, to: PlatformPos, world: World): PlayerState | null {
+  if (!(overlapsX(stepped, to) && carried.y <= Math.max(from.y, to.y) + EPS && stepped.y >= to.y - EPS && !blocked(world, stepped.x, to.y))) return null;
+  const landed: PlayerState = { ...stepped, y: to.y, vy: 0, grounded: true, bounced: false, gliding: false, clinging: false };
+  delete landed.carry;
+  return landed;
+}
+
+/** Poncho before a step: if he stands on a platform, he moves with it to where it will be after this step (`carryOn`). */
 export function carry(player: PlayerState, platforms: readonly MovingPlatform[], tick: number, world: World): PlayerState {
   for (const p of platforms) {
-    const from = platformAt(p, tick);
-    if (!standsOnPlatform(player, from)) continue;
-    const to = platformAt(p, tick + 1);
-    const x = blocked(world, player.x + (to.x - from.x), player.y) ? player.x : player.x + (to.x - from.x);
-    const y = blocked(world, x, player.y + (to.y - from.y)) ? player.y : player.y + (to.y - from.y);
-    return { ...player, x, y };
+    const carried = carryOn(player, platformAt(p, tick), platformAt(p, tick + 1), world);
+    if (carried) return carried;
   }
   return player;
 }
 
 /**
- * Poncho after a step: if he came down onto a platform's top (his feet were at or above its top before the step, where it was or
- * where it is now, whichever is lower, and are at or below it now), he stands on it, so a platform rising into his falling feet
- * catches him too. Not if standing there would put his body box into a tile: a platform never carries him into one (`carry`).
- * Rising through it from below, jumping off it, or being below it does nothing. `carried` is Poncho before the step but after being
- * carried, `tick` the step count before this step, `world` the run's combined solid world (doors, fragile walls and piñatas count).
+ * Poncho after a step: if he came down onto a platform's top, he stands on it (`landOn`). `tick` is the step count before this step,
+ * `world` the run's combined solid world (doors, fragile walls and piñatas count).
  */
 export function landOnPlatforms(carried: PlayerState, stepped: PlayerState, platforms: readonly MovingPlatform[], tick: number, world: World): PlayerState {
   for (const p of platforms) {
-    const at = platformAt(p, tick + 1);
-    if (overlapsX(stepped, at) && carried.y <= Math.max(platformAt(p, tick).y, at.y) + EPS && stepped.y >= at.y - EPS && !blocked(world, stepped.x, at.y)) {
-      return { ...stepped, y: at.y, vy: 0, grounded: true, bounced: false, gliding: false, clinging: false };
-    }
+    const landed = landOn(carried, stepped, platformAt(p, tick), platformAt(p, tick + 1), world);
+    if (landed) return landed;
   }
   return stepped;
 }

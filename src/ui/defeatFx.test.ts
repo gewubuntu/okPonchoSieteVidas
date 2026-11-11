@@ -85,8 +85,9 @@ describe('GDD-ENM-02 the defeat poof', () => {
   });
 
   it('GDD-PWR-04 a cactus buddy defeated by his touch goes in a poof', () => {
-    // Only the Chile Fantasma defeats it (a step with the cactus alive and then not). It has no squash or hit frame, so it goes straight to
-    // the poof: its four frames, a frame every 4 steps from the step it is defeated, and it is gone after 16 steps. Its box is 12 x 16 on its feet.
+    // Only the Chile Fantasma and a rolling cart defeat it (a step with the cactus alive and then not). It has no squash or hit frame, so it
+    // goes straight to the poof: its four frames, a frame every 4 steps from the step it is defeated, and it is gone after 16 steps. Its box
+    // is 12 x 16 on its feet.
     const fx = stepDefeats([], { enemies: ALIVE }, after(without(ALIVE, 2)), LEVEL);
     expect(fx).toHaveLength(1);
     expect(fx[0]).toMatchObject({ kind: 'cactus', x: 184, y: 184, feet: 192 });
@@ -122,8 +123,9 @@ describe('GDD-ENM-02 the defeat poof', () => {
     expect([0, 4, 7].map((a) => defeatLook({ ...chapulin, age: a }).y)).toEqual([224, 221, 224 - 5.25]);
   });
 
-  it('GDD-ENM-03 a Trompo is only ever stomped, so one that is not shows its squash frame anyway', () => {
-    // It cannot happen in play: a stunned Trompo is defeated by a stomp, and a spinning one by nothing.
+  it('GDD-ENM-03, GDD-WLD-15 a Trompo defeated with no stomp, as a rolling cart runs it down, shows its squash frame', () => {
+    // It has no hit frame (the claw and a fireball only stun it), so one a rolling cart (or the Chile Fantasma) defeats, on a step with no
+    // stomp, shows its squash where it stood and does not rise, then the poof.
     const trompo = stepDefeats([], { enemies: ALIVE }, after(without(ALIVE, 6)), LEVEL)[0]!;
     expect(trompo.stomped).toBe(false);
     expect(defeatLook(trompo)).toEqual({ sheet: 'trompo', look: 'squash', frame: 6, x: 80, y: 224, flip: false });

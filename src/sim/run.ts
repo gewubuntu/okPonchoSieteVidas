@@ -14,6 +14,8 @@ import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } f
 import { releaseFrom, stepItem, touchesItem, type Item } from './item';
 import { bumpedPinata, freshPinatas, withPinatas, type Pinata } from './pinata';
 import { collideBlocks, moveBlocks, type MovingBlock } from './block';
+import { anchorInCarts, boardCarts, breakCarts, carryOnCarts, freshCarts, keepCarry, landInCarts, returnCarts, rollCarts, runOver, type CartState, type Rail } from './cart';
+import { isBossLevel } from './bossLevel';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
 import { awningTops, freshAwnings, landOnAwnings, type Awning, type AwningBounce } from './awning';
 import { freshRollos, growRollos, stillPlatforms, stringTops, touchesBundle, unrollTouched, type Cordel, type Rollo, type RolloState } from './papel';
@@ -83,6 +85,8 @@ export interface Level {
   readonly rollos?: readonly Rollo[];
   /** GDD-BOS-03: La Estrella's arena (a boss level, one screen, cleared by beating her). Left out means none. */
   readonly estrella?: Estrella;
+  /** GDD-WLD-15: the rails, each with its cart. Left out means none. */
+  readonly rails?: readonly Rail[];
 }
 
 export interface RunState {
@@ -172,6 +176,8 @@ export interface RunState {
    * fourth state: Poncho is invulnerable and runs at FANTASMA.runSpeed while it counts, and defeats the regular enemies he touches.
    */
   readonly fantasma: number;
+  /** GDD-WLD-15: one cart per `Level.rails` entry, in the same order. They all stand at their start again after a lost life. */
+  readonly carts: readonly CartState[];
 }
 
 /**
@@ -181,7 +187,7 @@ export interface RunState {
  */
 export function startRun(level: Level, savedHilos?: readonly boolean[], lives: number = LIVES_MAX): RunState {
   const hilosSaved = savedHilos ?? freshHilos(level.hilos ?? []);
-  return { player: spawn(level.spawn.x, level.spawn.y), lives: { ...startWorld(), lives }, livesIn: lives, phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false, boss: level.boss ? bossStart(level.boss, 0) : null, fruit: [], rocks: freshRocks(level.rocks ?? []), awningsGone: freshAwnings(level.awnings ?? []), awningBounce: null, rollos: freshRollos(level.rollos ?? []), estrella: level.estrella ? estrellaStart(level.estrella, 0) : null, tejocotes: [], fantasma: 0 };
+  return { player: spawn(level.spawn.x, level.spawn.y), lives: { ...startWorld(), lives }, livesIn: lives, phase: 'playing', wait: 0, restarting: false, buttonsHeld: 0, invulnerable: 0, checkpoint: level.spawn, checkpointIndex: -1, crumbles: freshCrumbles(level.crumbles), platformTick: 0, power: 'base', hilosTaken: hilosSaved, hilosSaved, tacosTaken: freshTacos(level.tacos), pinatasOpen: freshPinatas(level.pinatas), items: [], keysHeld: 0, keysTaken: freshFlags(level.keys), doorsOpen: freshFlags(level.doors), claw: IDLE_CLAW, fragilesBroken: freshFlags(level.fragiles), fireballs: [], fuegoHeld: false, enemies: freshEnemies(level.enemies), stomped: false, clock: 0, revealAll: false, boss: level.boss ? bossStart(level.boss, 0) : null, fruit: [], rocks: freshRocks(level.rocks ?? []), awningsGone: freshAwnings(level.awnings ?? []), awningBounce: null, rollos: freshRollos(level.rollos ?? []), estrella: level.estrella ? estrellaStart(level.estrella, 0) : null, tejocotes: [], fantasma: 0, carts: freshCarts(level.rails ?? []) };
 }
 
 /**
@@ -351,19 +357,29 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
       tejocotes: [],
       // GDD-PWR-04: the Chile Fantasma ends with the life.
       fantasma: 0,
+      // GDD-WLD-15: every cart stands at its start again.
+      carts: freshCarts(level.rails ?? []),
     };
   }
 
   // GDD-WLD-05: a platform carries Poncho, then he lands on the one he came down on.
   const solid = withFragiles(withDoors(withPinatas(withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles), level.pinatas), level.doors, run.doorsOpen), level.fragiles, run.fragilesBroken);
-  const carried = carry(run.player, level.platforms, run.platformTick, solid);
+  // GDD-WLD-15: an empty cart at its rail's end comes back to its start; a rolling cart moves along its rail and carries him the same way,
+  // then he lands in the one he came down into. A falling cart falls, and breaks on what it touches.
+  const rails = level.rails ?? [];
+  const back = returnCarts(rails, run.carts, run.player, isBossLevel(level));
+  const rolled = breakCarts(rails, rollCarts(rails, back), solid, level.spikes, level.world.height * TILE);
+  const carried = carryOnCarts(carry(run.player, level.platforms, run.platformTick, solid), rails, back, rolled, solid);
   // GDD-WLD-05: a moving block carries or pushes him too, and stops him on every side. GDD-LIFE-02: a push or a carry up into a solid tile crushes him.
   const pushed = moveBlocks(carried, level.blocks ?? [], run.platformTick, solid);
   const stepped = step(pushed.player, input, solid, level.abilities, run.fantasma > 0 ? FANTASMA.runSpeed : RUN.maxSpeed);
   // GDD-WLD-11: the rollos that are unrolling grow, then Poncho lands on a cordel or a rollo's strung part like on a platform that stays put.
   const grown = growRollos(run.rollos);
   const strung = landOnPlatforms(pushed.player, stepped, stillPlatforms(stringTops(level.cordeles ?? [], level.rollos ?? [], grown)), 0, solid);
-  const landed = collideBlocks(pushed.player, landOnPlatforms(pushed.player, strung, level.platforms, run.platformTick, solid), level.blocks ?? [], run.platformTick);
+  const onFloor = landInCarts(run.player, pushed.player, landOnPlatforms(pushed.player, strung, level.platforms, run.platformTick, solid), rails, back, rolled, solid);
+  // GDD-WLD-15: a rider is anchored at the middle of a waiting or rolling cart; off a rolling cart's floor he keeps its speed across (the carry rule), also when it
+  // leaves a broken end under him.
+  const landed = keepCarry(run.player, anchorInCarts(collideBlocks(pushed.player, onFloor, level.blocks ?? [], run.platformTick), rails, rolled, solid), rails, back);
   const platformTick = run.platformTick + 1;
   // GDD-WLD-05: a spring throws Poncho up the step he stands on it.
   const sprung = bounce(landed, level.springs);
@@ -378,7 +394,11 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   // is set only on the step it bounces (`stepChapulin` drops it from the next air step), so no age check is needed (L-025).
   const standing = (level.awnings ?? []).flatMap((_, i) => (run.awningsGone[i] ? [] : [i]));
   const chewed = patrolled.flatMap((e) => (e.hop?.on !== undefined ? [standing[e.hop.on]!] : [])).filter((i) => level.awnings![i]!.torn);
-  const stomped = patrolled.map((e, i) => isStomp(run.player, sprung, level.enemies[i]!, e));
+  // GDD-WLD-15: a rolling cart defeats every enemy its box overlaps after this step's roll, before everything else that touches an enemy in
+  // this step (the stomps, the claw, the fireballs, the Chile Fantasma's touch and the hits below), so one it reaches cannot hit him on that
+  // step. (An awning a Chapulín bounced on in its own move above tears all the same: the cart reaches it where that move left it.)
+  const ranOver = runOver(rails, rolled, level.enemies, patrolled);
+  const stomped = ranOver.map((e, i) => isStomp(run.player, sprung, level.enemies[i]!, e));
   // GDD-BOS-02: the boss flies his pattern, facing and aiming at Poncho as he was at the step's start, like the Zopilote. His fruit
   // falls (in phase 3 one that lands lies there); one he lets go of this step starts to fall on the next.
   const flown = level.boss && run.boss ? stepBoss(level.boss, run.boss, run.player) : null;
@@ -462,11 +482,13 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
     return true;
   });
   // GDD-CMB-02, GDD-PWR-03: the claw and a fireball defeat the enemies they overlap, besides a stomp. Every fireball that
-  // overlaps a live enemy is used up, whatever defeats the enemy that step (and even the cactus buddy, which only the Chile Fantasma's touch defeats, GDD-PWR-04).
+  // overlaps a live enemy is used up, whatever else defeats the enemy that step; one a rolling cart defeated this step is no longer live for it (and even the cactus buddy, which only the Chile Fantasma's touch and a rolling cart defeat, GDD-PWR-04, GDD-WLD-15).
   // GDD-ENM-02: a Tlacuache's first stomp only makes it play dead, unless the claw or a fireball defeats it the same step. The
   // claw defeats one that is playing dead too. GDD-ENM-03: the claw or a fireball stuns a heavy enemy (a Trompo) instead (`strike`).
-  const fireballHits = (f: Fireball, i: number): boolean => boxHitsEnemy(fireballBox(f), level.enemies[i]!, patrolled[i]!);
-  const enemies = patrolled.map((e, i) => {
+  // GDD-WLD-15: they all read the enemies after a rolling cart's defeats, so an enemy the cart defeated this step stops no fireball and is not
+  // changed by a claw, a fireball or a stomp.
+  const fireballHits = (f: Fireball, i: number): boolean => boxHitsEnemy(fireballBox(f), level.enemies[i]!, ranOver[i]!);
+  const enemies = ranOver.map((e, i) => {
     const def = level.enemies[i]!;
     // GDD-PWR-04: with the Chile Fantasma every regular enemy he touches is defeated outright (never stunned, the cactus buddy too), one
     // playing dead and a stunned Trompo included. A stomp in the same step still bounces him (`stomped`, read before).
@@ -504,7 +526,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   const fought = level.estrella && run.estrella ? stepEstrella(level.estrella, { estrella: run.estrella, tejocotes: run.tejocotes }, { before: run.player, after: player, claw: box, fireballs: fireballs.map(fireballBox), awnings: tops.awnings, world: solid }) : null;
   const fighter = fought?.player ?? player;
   // A fireball that touches him is used up, unless he is defeated; one used up on her or on a tejocote too.
-  const flying = fireballs.filter((f, i) => !patrolled.some((_, k) => fireballHits(f, k)) && !(flown && flown.boss.mode !== 'defeated' && overlaps(fireballBox(f), bossBox(flown.boss))) && !fought?.spent[i]);
+  const flying = fireballs.filter((f, i) => !ranOver.some((_, k) => fireballHits(f, k)) && !(flown && flown.boss.mode !== 'defeated' && overlaps(fireballBox(f), bossBox(flown.boss))) && !fought?.spent[i]);
   const inFlight = flying.filter((f) => !touchesBundle(level.rollos ?? [], grown, fireballBox(f)));
   // GDD-WLD-05, GDD-ENM-02, GDD-CMB-03: touching a spike or an enemy is a hit, unless Poncho is invulnerable. In Base it
   // costs a life (GDD-LIFE-02); in Taco the taco is spent instead, in Fuego the Fuego, and Poncho is pushed away from what
@@ -531,6 +553,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
     power = power === 'fuego' ? 'taco' : 'base';
     const away = Math.sign(player.x - hitFrom) || -player.facing;
     hurt = { ...fighter, vx: away * HIT.knockback };
+    delete hurt.carry; // GDD-WLD-15, GDD-CMB-03: a hit in the air ends a carried speed, so it does not undo the knockback
   }
   // GDD-LIFE-03: touching an ofrenda restores a life the first time only. It becomes the checkpoint only if it is later
   // in the level than the current one, so walking back never moves the respawn point backwards. `Level.ofrendas` is in
@@ -546,7 +569,8 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   });
   // GDD-BOS-03: the step her box's bottom reaches the middle awning's top she tears it away: gone from the next step on, with the rest.
   const tornAway = fought?.tore ? awningsGone.map((g, i) => g || i === level.estrella!.tear.awning) : awningsGone;
-  const next: RunState = { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: inFlight, enemies, boss, fruit, rocks, awningsGone: tornAway, awningBounce, rollos, estrella: fought?.estrella ?? null, tejocotes: fought?.tejocotes ?? [], stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1), fantasma: Math.max(0, fantasma - 1) };
+  // GDD-WLD-15: a waiting cart he stands in at the end of the step starts rolling; it first moves on the next step.
+  const next: RunState = { ...run, player: hurt, crumbles, platformTick, lives, checkpoint, checkpointIndex, power, hilosTaken, tacosTaken, pinatasOpen, items, keysHeld, keysTaken, doorsOpen, fragilesBroken, fireballs: inFlight, enemies, boss, fruit, rocks, awningsGone: tornAway, awningBounce, rollos, estrella: fought?.estrella ?? null, tejocotes: fought?.tejocotes ?? [], stomped: stomped.some(Boolean), fuegoHeld: input.fuego ?? false, claw: hitFrom !== undefined ? { ...claw, phase: 'idle', steps: 0 } : claw, invulnerable: hitFrom !== undefined ? HIT.invulnerableSteps : Math.max(0, run.invulnerable - 1), fantasma: Math.max(0, fantasma - 1), carts: boardCarts(rails, rolled, hurt) };
   // GDD-WLD-03: reaching the exit ends the level. A hit in Base, a pit and a crush returned above, so they win; a hit the taco or
   // the Fuego absorbed does not. `wait` is already 0 in play. The buttons down now are held, so one held as Poncho reaches the exit
   // is no new press for the reveal (GDD-UI-02).
