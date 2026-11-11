@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CART, TILE } from '../config/tuning';
-import { cartFloor, railLength } from '../sim/cart';
+import { cartFloor, floorUnder, railLength } from '../sim/cart';
 import { spawn, type PlayerInput } from '../sim/movement';
 import { standsOnPlatform } from '../sim/platform';
 import { startRun, stepRun, type RunState } from '../sim/run';
@@ -15,7 +15,39 @@ const PLATEAU_Y = LAB_3C_PLATEAU.row * TILE;
 
 const floorOf = (r: RunState, i: number) => cartFloor(LAB_3C_RAILS[i]!, r.carts[i]!);
 const middleOf = (r: RunState, i: number) => floorOf(r, i).x + CART.width / 2;
-const inCart = (r: RunState, i: number) => standsOnPlatform(r.player, floorOf(r, i));
+/** Standing in cart `i`: on its floor under his feet (GDD-WLD-15: the floor follows the rail). */
+const inCart = (r: RunState, i: number) => standsOnPlatform(r.player, floorUnder(LAB_3C_RAILS[i]!, r.carts[i]!, r.player.x));
+
+/**
+ * A hop into cart `i` from standing at (x0, y0): he holds right throughout, through the landing and the whole ride, and holds jump for
+ * `hold` steps from step `wait`. Whether he boarded it, and if he did, whether he is standing in it on the step it stops at its buffer (at
+ * most 400 steps).
+ */
+function hop(i: number, x0: number, y0: number, hold: number, wait: number): { boarded: boolean; rode: boolean } {
+  let r = at(x0, y0);
+  for (let n = 0; n < 400; n++) {
+    if (r.carts[i]!.phase === 'waiting' && n > 150) return { boarded: false, rode: false };
+    r = stepRun(r, { move: 1, jumpHeld: n >= wait && n < wait + hold }, level);
+    if (r.carts[i]!.phase === 'stopped') return { boarded: true, rode: inCart(r, i) };
+  }
+  return { boarded: r.carts[i]!.phase !== 'waiting', rode: false };
+}
+/** Hops from every 2 px of `x0s`, with jump held 2 to 30 steps and pressed after 0 to 10: the takeoffs that boarded, and those of them that did not ride to the buffer. */
+function hops(i: number, x0s: readonly [number, number], y0: number): { boarded: number; lost: string[] } {
+  let boarded = 0;
+  const lost: string[] = [];
+  for (let x0 = x0s[0]; x0 <= x0s[1]; x0 += 2) {
+    for (const hold of [2, 4, 7, 10, 15, 22, 30]) {
+      for (const wait of [0, 3, 6, 10]) {
+        const h = hop(i, x0, y0, hold, wait);
+        if (!h.boarded) continue;
+        boarded++;
+        if (!h.rode) lost.push(`x0 ${x0}, jump held ${hold} from step ${wait}`);
+      }
+    }
+  }
+  return { boarded, lost };
+}
 /** A run with Poncho standing at (x, y). */
 const at = (x: number, y: number): RunState => ({ ...startRun(level), player: spawn(x, y) });
 
@@ -97,6 +129,20 @@ describe('GDD-WLD-15 lab-3c', () => {
     const states = ride(at(LAB_3C_OFRENDAS[0]!.x, LAB_3C_OFRENDAS[0]!.y), 1);
     expect(states.some((s) => s.carts[1]!.phase === 'stopped')).toBe(true);
     expect(states[states.length - 1]!.player).toMatchObject({ grounded: true, y: PLATEAU_Y });
+  });
+
+  it('GDD-WLD-15 lab-3c: every hop that boards R3 rides it to its buffer', () => {
+    // From the plateau before its cart (x 600 to 654): its floor follows the rail over the descent, wherever in it he landed.
+    const { boarded, lost } = hops(2, [600, 654], PLATEAU_Y);
+    expect(boarded).toBeGreaterThan(200);
+    expect(lost).toEqual([]);
+  });
+
+  it('GDD-WLD-15 lab-3c: every hop that boards R2 rides it to its buffer', () => {
+    // From the floor before its cart (x 376 to 434), up the climb onto the plateau.
+    const { boarded, lost } = hops(1, [376, 434], LAB_3C_FLOOR_Y);
+    expect(boarded).toBeGreaterThan(200);
+    expect(lost).toEqual([]);
   });
 
   it('GDD-WLD-15 lab-3c R3 takes him back down', () => {

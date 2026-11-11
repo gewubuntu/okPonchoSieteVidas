@@ -67,7 +67,7 @@ import { estrellaStart } from '../sim/estrella';
 import { estrellaFrameInfo, estrellaPose, tejocoteBoxes } from '../ui/estrellaPose';
 import { flipPose } from '../sim/respawnFlip';
 import { blockAt } from '../sim/block';
-import { cartFloor, railGround, railLength, type CartState } from '../sim/cart';
+import { cartFloor, floorUnder, railGround, railLength, type CartState } from '../sim/cart';
 import { platformAt } from '../sim/platform';
 import { buttonsDown, respawnPoint, restartRun, restarts, resumeRun, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
@@ -345,8 +345,9 @@ export interface PonchoDebug {
   /** Where each moving block is: its top left corner and size (GDD-WLD-05). */
   blocks(): { x: number; y: number; w: number; h: number }[];
   /**
-   * GDD-WLD-15: each cart, in the order of the level's rails, read from the run: its floor, the one-way surface Poncho stands on (its left
-   * end, its top and its width, 8 px over the rail's ground and as wide as the cart), and its phase ('waiting', 'rolling' or 'stopped').
+   * GDD-WLD-15: each cart, in the order of the level's rails, read from the run: its floor's left end and width (the cart's), the floor's
+   * top under the cart's middle (8 px over the rail's ground there; the floor follows the rail, so on a slope it is that much higher or lower
+   * under a Poncho standing off the middle), and its phase ('waiting', 'rolling' or 'stopped').
    */
   carts(): { x: number; y: number; w: number; phase: string }[];
   /** The crumbling tiles and their state, read from the run (GDD-WLD-05). */
@@ -1568,9 +1569,10 @@ export class PlayScene extends Phaser.Scene {
 
   /**
    * GDD-WLD-15, GDD-ART-06, GDD-ART-05 (placeholders): each cart, a rust tub 32 px wide with the 1 px dark outline of touchable things, from
-   * 16 px over the rail's ground down to its wheels on the rail. Its back wall and the dark inside are drawn behind Poncho, and its front
-   * wall, from 12 px over the ground to its bottom, in front of him, so it hides his feet on the floor 8 px over the ground and he reads as
-   * standing in it. Drawn between the last two steps, like Poncho, so he does not slide in it.
+   * 16 px over the rail's ground down to its wheels on the rail. It follows the rail like its floor: each px column of it stands on the rail's
+   * ground under that column, so on a slope it is drawn sheared. Its back wall and the dark inside are drawn behind Poncho, and its front
+   * wall, from 12 px over the ground to 4 px over it, in front of him, so it hides his feet on the floor 8 px over the ground wherever he
+   * stands in it, and he reads as standing in it. Drawn between the last two steps, like Poncho, so he does not slide in it.
    */
   private renderCarts(alpha: number): void {
     const back = this.cartBackGfx.clear();
@@ -1578,19 +1580,22 @@ export class PlayScene extends Phaser.Scene {
     (this.level.rails ?? []).forEach((r, i) => {
       const now = this.run.carts[i]!;
       const was = this.prevCarts[i] ?? now;
-      const floor = cartFloor(r, { ...now, m: was.m + (now.m - was.m) * alpha });
-      const x = floor.x;
-      const ground = floor.y + CART.floorPx;
-      const top = ground - CART.height;
-      // Behind him: the back wall's rim and the dark inside, outlined.
-      back.fillStyle(0x070509, 1).fillRect(x, top, CART.width, 11);
-      back.fillStyle(0x5a3b28, 1).fillRect(x + 1, top + 2, CART.width - 2, 8);
-      back.fillStyle(0x93a0ae, 1).fillRect(x + 1, top + 1, CART.width - 2, 1);
-      // In front of him: the front wall, rust under a steel rim, outlined, and two iron wheels with steel hubs standing on the rail.
-      front.fillStyle(0x070509, 1).fillRect(x, ground - 12, CART.width, 8);
-      front.fillStyle(0x93a0ae, 1).fillRect(x + 1, ground - 12, CART.width - 2, 1);
-      front.fillStyle(0xb0562e, 1).fillRect(x + 1, ground - 11, CART.width - 2, 6);
+      const cart = { ...now, m: was.m + (now.m - was.m) * alpha };
+      const x = cartFloor(r, cart).x;
+      const groundAt = (c: number) => floorUnder(r, cart, x + c + 0.5).y + CART.floorPx;
+      for (let c = 0; c < CART.width; c++) {
+        const ground = groundAt(c);
+        const edge = c === 0 || c === CART.width - 1;
+        // Behind him: the back wall's rim and the dark inside, outlined.
+        back.fillStyle(0x070509, 1).fillRect(x + c, ground - CART.height, 1, 11);
+        if (!edge) back.fillStyle(0x93a0ae, 1).fillRect(x + c, ground - 15, 1, 1).fillStyle(0x5a3b28, 1).fillRect(x + c, ground - 14, 1, 8);
+        // In front of him: the front wall, rust under a steel rim, outlined.
+        front.fillStyle(0x070509, 1).fillRect(x + c, ground - 12, 1, 8);
+        if (!edge) front.fillStyle(0x93a0ae, 1).fillRect(x + c, ground - 12, 1, 1).fillStyle(0xb0562e, 1).fillRect(x + c, ground - 11, 1, 6);
+      }
+      // Two iron wheels with steel hubs, each standing on the rail under its middle.
       for (const wx of [5, CART.width - 9]) {
+        const ground = groundAt(wx + 2);
         front.fillStyle(0x353a48, 1).fillRect(x + wx, ground - 8, 4, 4);
         front.fillStyle(0x93a0ae, 1).fillRect(x + wx + 1, ground - 7, 2, 2);
       }

@@ -173,6 +173,11 @@ describe('GDD-TEC-04 and GDD-WLD-03 gaps', () => {
     expect(validateLevel(entry({ world: 3, pits: cols(10, 16) }))).toEqual(['gap of 7 tiles at columns 10 to 16, World 3 allows 6']);
   });
 
+  it('GDD-WLD-03 a World 3 level is at most 8 screens wide', () => {
+    expect(validateLevel(entry({ width: 240, world: 3 }))).toEqual([]);
+    expect(validateLevel(entry({ width: 270, world: 3 }))).toEqual(['270 tiles wide, expected 90 to 240 (3 to 8 screens)']);
+  });
+
   it('a world with no gap limit and no length limit is a problem, once for each', () => {
     expect(validateLevel(entry({ world: 4 }))).toEqual(['no length limit for World 4', 'no gap limit for World 4']);
   });

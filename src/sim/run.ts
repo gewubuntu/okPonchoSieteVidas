@@ -14,7 +14,7 @@ import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } f
 import { releaseFrom, stepItem, touchesItem, type Item } from './item';
 import { bumpedPinata, freshPinatas, withPinatas, type Pinata } from './pinata';
 import { collideBlocks, moveBlocks, type MovingBlock } from './block';
-import { boardCarts, carryOnCarts, freshCarts, keepCarry, landInCarts, rollCarts, type CartState, type Rail } from './cart';
+import { boardCarts, carryOnCarts, freshCarts, holdInCarts, keepCarry, landInCarts, rollCarts, type CartState, type Rail } from './cart';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
 import { awningTops, freshAwnings, landOnAwnings, type Awning, type AwningBounce } from './awning';
 import { freshRollos, growRollos, stillPlatforms, stringTops, touchesBundle, unrollTouched, type Cordel, type Rollo, type RolloState } from './papel';
@@ -374,8 +374,8 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   const grown = growRollos(run.rollos);
   const strung = landOnPlatforms(pushed.player, stepped, stillPlatforms(stringTops(level.cordeles ?? [], level.rollos ?? [], grown)), 0, solid);
   const onFloor = landInCarts(run.player, pushed.player, landOnPlatforms(pushed.player, strung, level.platforms, run.platformTick, solid), rails, run.carts, rolled, solid);
-  // GDD-WLD-15: off a rolling cart's floor he keeps its speed across (the carry rule).
-  const landed = keepCarry(run.player, collideBlocks(pushed.player, onFloor, level.blocks ?? [], run.platformTick), rails, run.carts);
+  // GDD-WLD-15: a rolling cart's walls hold its rider; off a rolling cart's floor he keeps its speed across (the carry rule).
+  const landed = keepCarry(run.player, holdInCarts(collideBlocks(pushed.player, onFloor, level.blocks ?? [], run.platformTick), rails, rolled, solid), rails, run.carts);
   const platformTick = run.platformTick + 1;
   // GDD-WLD-05: a spring throws Poncho up the step he stands on it.
   const sprung = bounce(landed, level.springs);
@@ -543,6 +543,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
     power = power === 'fuego' ? 'taco' : 'base';
     const away = Math.sign(player.x - hitFrom) || -player.facing;
     hurt = { ...fighter, vx: away * HIT.knockback };
+    delete hurt.carry; // GDD-WLD-15, GDD-CMB-03: a hit in the air ends a carried speed, so it does not undo the knockback
   }
   // GDD-LIFE-03: touching an ofrenda restores a life the first time only. It becomes the checkpoint only if it is later
   // in the level than the current one, so walking back never moves the respawn point backwards. `Level.ofrendas` is in

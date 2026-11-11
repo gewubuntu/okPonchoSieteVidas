@@ -2,6 +2,7 @@
 // The rails' places come from `src/levels/lab3c.ts` (L-062).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { LAB_3C_OFRENDAS, LAB_3C_RAILS, LAB_3C_SPAWN } from '../../src/levels/lab3c';
+import { floorUnder } from '../../src/sim/cart';
 import { start } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
@@ -82,8 +83,31 @@ test('GDD-WLD-15 vagonetas: climbing R2\'s slope to the plateau', async ({ page,
   const seen = await cart(page, 1);
   expect(seen.cart.phase).toBe('rolling');
   expect(seen.cart.y).toBeLessThan(r2.y - 8 - 16); // risen off the floor
-  expect([seen.s.grounded, seen.s.y]).toEqual([true, seen.cart.y]);
+  // His feet on the floor under them (the floor follows the rail: under the middle only if he stands at it).
+  expect(seen.s.grounded).toBe(true);
+  expect(seen.s.y).toBeCloseTo(floorUnder(r2, { phase: 'rolling', m: seen.cart.x + 16 - r2.x }, seen.s.x).y, 6);
   await shot(page, info, 'cart-climb');
+});
+
+test('GDD-WLD-15 vagonetas: riding R3 down its descent, standing behind the middle', async ({ page, isMobile }, info) => {
+  await open(page, isMobile, LAB_3C_OFRENDAS[1]);
+  expect(await hopInto(page, 2)).toBeLessThan(300);
+  const r3 = LAB_3C_RAILS[2]!;
+  // He walks back to 10 px behind the cart's middle, then stands until its middle is halfway down the descent (64 px across, of 32 to 96).
+  await page.evaluate((midX) => {
+    const d = window.__PONCHO__!;
+    for (let n = 0; n < 20 && d.state().x > d.carts()[2]!.x + 16 - 10; n++) d.step(1, { move: -1, jumpHeld: false });
+    for (let n = 0; n < 300 && d.carts()[2]!.x + 16 < midX; n++) d.step(1);
+  }, r3.x + 64);
+  const seen = await cart(page, 2);
+  expect(seen.cart.phase).toBe('rolling');
+  expect(seen.cart.x + 16 - seen.s.x).toBeGreaterThan(5); // behind the middle
+  // His feet on the floor under them, 8 px over the rail there: higher up the descent than the floor under the cart's middle.
+  const under = floorUnder(r3, { phase: 'rolling', m: seen.cart.x + 16 - r3.x }, seen.s.x);
+  expect(seen.s.grounded).toBe(true);
+  expect(seen.s.y).toBeCloseTo(under.y, 6);
+  expect(seen.s.y).toBeLessThan(seen.cart.y);
+  await shot(page, info, 'cart-descent');
 });
 
 test('GDD-WLD-15 vagonetas: R4 rolling left', async ({ page, isMobile }, info) => {

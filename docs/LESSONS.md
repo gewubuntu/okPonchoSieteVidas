@@ -839,3 +839,13 @@ Retired IDs: L-046
 - **Rule:** a value the scene keeps across frames and works out from a layout (a scroll, a chosen place) is only changed on frames where that layout is shown; a plan names each state that hides it (upright, paused, a screen over it) and plans a test through each with a case where the value would change (not one where a clamp lands on the same value).
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-075 A moving floor was tested only with the rider at its middle
+
+- **Date:** 2026-11-11
+- **Area:** tests, level
+- **What went wrong:** The cart's first build (GDD-WLD-15, PR #94) gave it a floor flat under its middle, and every test and bot stood within 4 px of the middle. The review swept riders across the cart and found that one standing behind the middle was left on the plateau where the rail turns down (175 of 503 hops into the lab's descending cart); a second sweep found that hopping in with forward held walked him out of the front. Both were rule faults, fixed by a floor that follows the rail and walls that hold a rider.
+- **Root cause:** The plan's tests each placed Poncho at one convenient spot on the thing he stands on, so the rule was only ever exercised there; nothing swept where he can stand, how he can arrive, or what he can be holding.
+- **Rule:** A rule about something Poncho stands on or rides (a cart, a platform, a block, an awning) is tested over the range of where he can stand on it (its ends and its middle), at every join or turn of its path, and with each direction held and nothing held; and over the real level by a sweep of the ways he can arrive (takeoff positions and jump lengths), which asserts what every arrival that boards ends in.
+- **Recurrence:** 1
+- **Promoted:** no
