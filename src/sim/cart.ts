@@ -1,10 +1,11 @@
 // GDD-WLD-15: vagonetas (mine carts). A rail is fixed in the level and is scenery to Poncho; a cart stands at its start until he lands in
 // it, then rolls along it, away from its start, and stops at its buffer, or leaves a broken end and falls until it breaks; an empty one is
 // back at its start 2.0 s after it reached its rail's end. Its floor is a one-way floor like a moving platform's (GDD-WLD-05)
-// that follows the rail: under each point of the cart it is CART.floorPx over the rail's ground there, so a rider anywhere in it, on a
-// slope or across a join, stands 8 px over the rail under his own feet. A jump from a rolling cart keeps the cart's speed across (the carry rule, `movement.ts`). Where it is depends only on the steps since
-// he landed in it. Pure logic, no Phaser (GDD-TEC-02).
-import { CART, GRAVITY, HITBOX, RUN, SPIKE, STEP, TILE } from '../config/tuning';
+// that follows the rail: under each point of the cart it is CART.floorPx over the rail's ground there, so anyone standing on it, on a
+// slope or across a join, stands 8 px over the rail under his own feet. A rider is anchored at the middle of a waiting or rolling cart. A
+// jump from a rolling cart keeps the cart's speed across (the carry rule, `movement.ts`). Where it is depends only on the steps since he
+// landed in it. Pure logic, no Phaser (GDD-TEC-02).
+import { CART, GRAVITY, HITBOX, SPIKE, STEP, TILE } from '../config/tuning';
 import type { Spike } from './hazards';
 import { carryOn, landOn, standsOnPlatform, type PlatformPos } from './platform';
 import { blocked, type PlayerState, type World } from './movement';
@@ -183,16 +184,17 @@ export function returnCarts(rails: readonly Rail[], carts: readonly CartState[],
 /**
  * Poncho before a step: if he stands in a cart, it carries him to where it is after this step (`carryOn`, GDD-WLD-05's rule): across by its
  * move, and up or down from the floor under his feet to the floor under them after that move. Across first can catch the corner of his box
- * on the ground at a climb's top and leave him behind; the cart's walls put him back in it in the same step (`holdInCarts`, L-025).
+ * on the ground at a climb's top and leave him behind; the anchor puts him back at its middle in the same step (`anchorInCarts`, L-025).
  */
 export function carryOnCarts(player: PlayerState, rails: readonly Rail[], from: readonly CartState[], to: readonly CartState[], world: World): PlayerState {
   for (let i = 0; i < rails.length; i++) {
     const rail = rails[i]!;
     const moved = player.x + rail.dir * (to[i]!.m - from[i]!.m);
     // The floor under him after the move: his y is set again in the same step by `landOn` or `stayOn`, which read it there (L-025). A cart
-    // that leaves a broken end in this step is no floor from it, so it carries nobody.
+    // that leaves a broken end in this step is no floor from it, but it still carries him across on that step as it rolls off level, so he
+    // goes on at its speed; he is in the air from the step's end (no landing on it, `landInCarts`).
     const was = floorOf(rail, from[i]!, player.x);
-    const is = floorOf(rail, to[i]!, moved);
+    const is = floorOf(rail, to[i]!, moved) ?? (to[i]!.phase === 'falling' && from[i]!.phase === 'rolling' ? floorUnder(rail, to[i]!, moved) : null);
     const carried = was && is ? carryOn(player, was, is, world) : null;
     if (carried) return carried;
   }
@@ -205,9 +207,9 @@ const standingIn = (player: PlayerState, rails: readonly Rail[], carts: readonly
 /**
  * Poncho after a step, over the carts that moved from `from` to `to` in it: he lands in one he came down onto (`landOn`, GDD-WLD-05's
  * rule), on the floor under the x he comes down at. One he stood in at the step's start (`before`) keeps him on its floor under his feet
- * while he does not rise and his body box is still over it, so walking in it where the floor falls away (on a descent) does not lift him
- * off it. In the air his `vx` is his speed in the world, so landing in a rolling cart he was not standing in makes it his speed in the cart
- * again: less the cart's speed across on this step.
+ * while he does not rise and his body box is still over it, so walking in a stopped one where the floor falls away (on a descent), or being
+ * held back by a wall while a rolling one goes on down, does not lift him off it. (Landing in a rolling cart needs no change of his `vx` to
+ * his speed in the cart: the anchor, `anchorInCarts`, sets it to 0 on that step, L-025.)
  */
 export function landInCarts(before: PlayerState, carried: PlayerState, stepped: PlayerState, rails: readonly Rail[], from: readonly CartState[], to: readonly CartState[], world: World): PlayerState {
   const was = standingIn(before, rails, from);
@@ -217,8 +219,7 @@ export function landInCarts(before: PlayerState, carried: PlayerState, stepped: 
     const under = floorOf(rail, to[i]!, stepped.x);
     if (!under) continue;
     const landed = landOn(carried, stepped, floorOf(rail, from[i]!, carried.x) ?? under, under, world) ?? (i === was ? stayOn(stepped, under, world) : null);
-    if (!landed) continue;
-    return i !== was && from[i]!.phase === 'rolling' ? { ...landed, vx: landed.vx - rail.dir * cartSpeed(rail, from[i]!.m) } : landed;
+    if (landed) return landed;
   }
   return stepped;
 }
@@ -235,43 +236,31 @@ function stayOn(stepped: PlayerState, floor: PlatformPos, world: World): PlayerS
   return { ...stepped, y: floor.y, vy: 0, grounded: true, gliding: false, clinging: false };
 }
 
-/** How far from a cart's middle its walls hold a rider on level rail: his body box inside its box. */
-const HOLD = CART.width / 2 - HITBOX.width / 2;
-
 /**
- * A rolling cart's walls hold its rider: standing on its floor at the end of a step (he did not jump), he is at most HOLD px from its middle
- * either way on level rail, HOLD * cos(slope) on a climb or a descent, where the tub drawn tilted is shorter across. A step that left him
- * further out (walking, sliding, or landing with his box partly over it) puts him at that limit, on the floor under his new x, with his
- * speed in the cart 0; but not if a solid tile is in the way there (a low beam still takes him out). A waiting cart he stands in starts
- * rolling at this step's end, so it holds him from the landing step; a stopped one holds nobody. `carts` are the carts after this step's
- * roll.
+ * A rider is anchored at the cart's middle (user, 2026-11-11): standing on the floor of a waiting or rolling cart at the end of a step, the
+ * landing step included, he is put at its middle after this step's roll, on the floor under it, with his speed in it 0. So he cannot walk in
+ * a rolling cart: left and right only turn him (`step` sets his facing). Not if a solid tile is in the way there (a low beam still takes him
+ * out). A cart stopped at its buffer anchors nobody: he walks off it. `carts` are the carts after this step's roll.
  */
-export function holdInCarts(player: PlayerState, rails: readonly Rail[], carts: readonly CartState[], world: World): PlayerState {
+export function anchorInCarts(player: PlayerState, rails: readonly Rail[], carts: readonly CartState[], world: World): PlayerState {
   const i = standingIn(player, rails, carts);
   if (i < 0 || carts[i]!.phase === 'stopped') return player;
-  const rail = rails[i]!;
-  const middle = rail.x + rail.dir * carts[i]!.m;
-  // Tilted on a slope the tub is shorter across: HOLD * cos(slope) of the segment under its middle, 7.07 px on a climb or a descent.
-  const hold = HOLD * Math.cos(Math.atan(Math.abs(RISE[segmentAt(rail, carts[i]!.m).segment.kind])));
-  const off = player.x - middle;
-  if (Math.abs(off) <= hold) return player;
-  const x = middle + Math.sign(off) * hold;
-  const y = floorUnder(rail, carts[i]!, x).y;
-  return blocked(world, x, y) ? player : { ...player, x, y, vx: 0 };
+  const floor = cartFloor(rails[i]!, carts[i]!);
+  const x = floor.x + floor.w / 2;
+  return blocked(world, x, floor.y) ? player : { ...player, x, y: floor.y, vx: 0 };
 }
 
 /**
  * The carry rule: on a step that started with Poncho standing in a rolling cart (`before`) and ends with him off the ground (`after`), he
- * keeps the cart's speed across on that step as `carry`, and his `vx` becomes his speed in the world: the cart's plus his own, which is
- * never above the cart's and at most RUN.maxSpeed under it.
+ * keeps the cart's speed across on that step as `carry`, and his `vx` becomes his speed in the world: the cart's. (His own speed in the
+ * cart is not added: the anchor, `anchorInCarts`, holds it at 0, L-025.)
  */
 export function keepCarry(before: PlayerState, after: PlayerState, rails: readonly Rail[], carts: readonly CartState[]): PlayerState {
   const was = standingIn(before, rails, carts);
   if (was < 0 || carts[was]!.phase !== 'rolling' || after.grounded) return after;
   const rail = rails[was]!;
   const carry = rail.dir * cartSpeed(rail, carts[was]!.m);
-  const own = rail.dir > 0 ? Math.min(0, Math.max(-RUN.maxSpeed, after.vx)) : Math.max(0, Math.min(RUN.maxSpeed, after.vx));
-  return { ...after, vx: carry + own, carry };
+  return { ...after, vx: carry, carry };
 }
 
 /** A waiting cart on whose floor Poncho stands at the end of a step starts rolling: it first moves on the next step. */

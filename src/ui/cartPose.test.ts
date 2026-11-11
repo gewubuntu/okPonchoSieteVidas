@@ -1,11 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { floorUnder, railGround, type CartState, type Rail, type RailSegment } from '../sim/cart';
-import { cartPose } from './cartPose';
+import { floorUnder, railGround, railLength, type CartState, type Rail, type RailSegment } from '../sim/cart';
+import { cartPose, WHEEL_OFFSET } from './cartPose';
 
 // GDD-WLD-15, GDD-ART-06: the cart is drawn as a rigid tub on its two wheels, whose middles are 9 px behind and ahead of its middle (slice
 // A's wheels: 4 px wide, 5 px in from each end of the 32 px tub). The expected angles come from the rail's shape.
 const rail = (segments: readonly RailSegment[], dir: 1 | -1 = 1): Rail => ({ x: 400, y: 200, dir, segments, end: 'buffer' });
 const at = (m: number): CartState => ({ phase: 'rolling', m });
+
+/** GDD-WLD-15, GDD-ART-06: the most a wheel's bottom middle is off the rail's ground under it, for every quarter px its middle passes along `segments`. */
+const worst = (segments: readonly RailSegment[]) => {
+  const r = rail(segments);
+  let most = 0;
+  for (let m = 16; m <= railLength(r) - 16; m += 0.25) {
+    const p = cartPose(r, at(m));
+    for (const side of [-1, 1]) {
+      const [lx, ly] = [side * WHEEL_OFFSET, p.bottom];
+      const x = p.x + lx * Math.cos(p.angle) - ly * Math.sin(p.angle);
+      const y = p.y + lx * Math.sin(p.angle) + ly * Math.cos(p.angle);
+      most = Math.max(most, Math.abs(y - railGround(r, Math.min(railLength(r), Math.max(0, x - r.x)))));
+    }
+  }
+  return most;
+};
 
 describe('GDD-WLD-15, GDD-ART-06 the cart\'s pose', () => {
   it('GDD-WLD-15, GDD-ART-06 the cart is drawn level on level rail', () => {
@@ -47,10 +63,9 @@ describe('GDD-WLD-15, GDD-ART-06 the cart\'s pose', () => {
     expect(Math.tan(cartPose(join, at(64)).angle)).toBeCloseTo(0.5, 12);
   });
 
-  it('GDD-WLD-15, GDD-ART-06 a rider at either wall is drawn inside the tilted tub', () => {
-    // The simulation puts his feet 8 px over the rail under his own x, at most 7.07 px from the middle on a slope. Taken into the tub's own
-    // frame (about its pose's point, turned back by its angle), that point lies on its floor line and within 10 px of its middle along it,
-    // inside its 16 px half-length; the rail's ground under him lies on its bottom.
+  it('GDD-WLD-15, GDD-ART-06 a rider at the middle is drawn inside the tilted tub', () => {
+    // A rider is anchored at the cart's middle, his feet 8 px over the rail there. Taken into the tub's own frame (about its pose's point,
+    // turned back by its angle), that point lies on its floor line at its middle; the rail's ground under him lies on its bottom.
     for (const [kind, dir] of [['climb', 1], ['descent', 1], ['climb', -1], ['descent', -1]] as const) {
       const r = rail([{ kind, tiles: 12 }], dir);
       const cart = at(80);
@@ -59,13 +74,30 @@ describe('GDD-WLD-15, GDD-ART-06 the cart\'s pose', () => {
         const [dx, dy, a] = [x - pose.x, y - pose.y, -pose.angle];
         return { along: dx * Math.cos(a) - dy * Math.sin(a), up: dx * Math.sin(a) + dy * Math.cos(a) };
       };
-      for (const d of [-7.0710678, 0, 7.0710678]) {
-        const x = pose.x + d;
-        const feet = local(x, floorUnder(r, cart, x).y);
-        expect(Math.abs(feet.up), `${kind} ${dir} at ${d}`).toBeLessThan(0.01);
-        expect(Math.abs(feet.along), `${kind} ${dir} at ${d}`).toBeLessThanOrEqual(10 + 0.01);
-        expect(local(x, railGround(r, dir * (x - r.x))).up, `${kind} ${dir} at ${d}`).toBeCloseTo(pose.bottom, 6);
+      const feet = local(pose.x, floorUnder(r, cart, pose.x).y);
+      expect(Math.abs(feet.up), `${kind} ${dir}`).toBeLessThan(0.01);
+      expect(Math.abs(feet.along), `${kind} ${dir}`).toBeLessThan(0.01);
+      expect(local(pose.x, railGround(r, dir * (pose.x - r.x))).up, `${kind} ${dir}`).toBeCloseTo(pose.bottom, 6);
+    }
+    // At a join and at a peak too, where the wheels' contacts are not on one straight line with the floor under the middle: his feet are on
+    // the floor line drawn, at its middle.
+    for (const segments of [[{ kind: 'level', tiles: 4 }, { kind: 'climb', tiles: 4 }], [{ kind: 'climb', tiles: 4 }, { kind: 'descent', tiles: 4 }]] as const) {
+      for (const m of [58, 64, 70]) {
+        const r = rail(segments);
+        const pose = cartPose(r, at(m));
+        const [dx, dy, a] = [0, floorUnder(r, at(m), pose.x).y - pose.y, -pose.angle];
+        expect(Math.abs(dx * Math.sin(a) + dy * Math.cos(a)), `${segments[1].kind} at ${m}`).toBeLessThan(0.01);
       }
     }
+  });
+
+  it('GDD-WLD-15, GDD-ART-06 the wheels\' distance from the rail at a join and at a peak', () => {
+    // Each wheel's bottom middle, WHEEL_OFFSET from the tub's middle on its bottom, against the rail's ground under it, for every quarter px
+    // the cart's middle passes along the rail. Measured: 0 on a straight slope; up to 5.625 px (to 0.001) where a slope meets a level stretch; 9 px at
+    // a peak or a dip.
+    expect(worst([{ kind: 'climb', tiles: 8 }])).toBeCloseTo(0, 9);
+    expect(worst([{ kind: 'level', tiles: 4 }, { kind: 'climb', tiles: 4 }, { kind: 'level', tiles: 4 }])).toBeCloseTo(5.625, 3);
+    expect(worst([{ kind: 'level', tiles: 2 }, { kind: 'climb', tiles: 4 }, { kind: 'descent', tiles: 4 }, { kind: 'level', tiles: 2 }])).toBeCloseTo(9, 6);
+    expect(worst([{ kind: 'level', tiles: 2 }, { kind: 'descent', tiles: 4 }, { kind: 'climb', tiles: 4 }, { kind: 'level', tiles: 2 }])).toBeCloseTo(9, 6);
   });
 });

@@ -14,7 +14,7 @@ import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } f
 import { releaseFrom, stepItem, touchesItem, type Item } from './item';
 import { bumpedPinata, freshPinatas, withPinatas, type Pinata } from './pinata';
 import { collideBlocks, moveBlocks, type MovingBlock } from './block';
-import { boardCarts, breakCarts, carryOnCarts, freshCarts, holdInCarts, keepCarry, landInCarts, returnCarts, rollCarts, type CartState, type Rail } from './cart';
+import { anchorInCarts, boardCarts, breakCarts, carryOnCarts, freshCarts, keepCarry, landInCarts, returnCarts, rollCarts, type CartState, type Rail } from './cart';
 import { isBossLevel } from './bossLevel';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
 import { awningTops, freshAwnings, landOnAwnings, type Awning, type AwningBounce } from './awning';
@@ -377,9 +377,9 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   const grown = growRollos(run.rollos);
   const strung = landOnPlatforms(pushed.player, stepped, stillPlatforms(stringTops(level.cordeles ?? [], level.rollos ?? [], grown)), 0, solid);
   const onFloor = landInCarts(run.player, pushed.player, landOnPlatforms(pushed.player, strung, level.platforms, run.platformTick, solid), rails, back, rolled, solid);
-  // GDD-WLD-15: a rolling cart's walls hold its rider; off a rolling cart's floor he keeps its speed across (the carry rule), also when it
+  // GDD-WLD-15: a rider is anchored at the middle of a waiting or rolling cart; off a rolling cart's floor he keeps its speed across (the carry rule), also when it
   // leaves a broken end under him.
-  const landed = keepCarry(run.player, holdInCarts(collideBlocks(pushed.player, onFloor, level.blocks ?? [], run.platformTick), rails, rolled, solid), rails, back);
+  const landed = keepCarry(run.player, anchorInCarts(collideBlocks(pushed.player, onFloor, level.blocks ?? [], run.platformTick), rails, rolled, solid), rails, back);
   const platformTick = run.platformTick + 1;
   // GDD-WLD-05: a spring throws Poncho up the step he stands on it.
   const sprung = bounce(landed, level.springs);

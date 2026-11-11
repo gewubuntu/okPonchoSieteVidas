@@ -72,72 +72,43 @@ test('GDD-WLD-15 vagonetas: waiting, riding, a jump over the cart and stopped at
   await shot(page, info, 'cart-buffer');
 });
 
-/**
- * In cart `i`, rolling: with `held` 0 he is nudged to its middle and lets go of everything (his speed in it settles to 0); with 1 or -1 he
- * holds that way, against its front or back wall. Then it rolls on until its middle is at `midX`.
- */
-const standIn = (page: Page, i: number, held: -1 | 0 | 1, midX: number) =>
+/** In cart `i`, rolling, he holds nothing until its middle is at `midX`. */
+const rollTo = (page: Page, i: number, midX: number) =>
   page.evaluate(
-    ({ k, move, until }) => {
+    ({ k, until }) => {
       const d = window.__PONCHO__!;
-      const off = () => d.state().x - (d.carts()[k]!.x! + 16);
-      if (move === 0) {
-        // Walked towards the middle while it is further than he slides to a stop (v² / 2000 px at 1000 px/s², GDD-MOV-01), then settled.
-        for (let n = 0; n < 60 && Math.abs(off()) > 0.5 + d.state().vx ** 2 / 2000; n++) d.step(1, { move: -Math.sign(off()), jumpHeld: false });
-        for (let n = 0; n < 60 && d.state().vx !== 0; n++) d.step(1);
-      }
-      for (let n = 0; n < 300 && d.carts()[k]!.x! + 16 < until; n++) d.step(1, { move, jumpHeld: false });
+      for (let n = 0; n < 300 && d.carts()[k]!.x! + 16 < until; n++) d.step(1);
     },
-    { k: i, move: held, until: midX },
+    { k: i, until: midX },
   );
 
-/** Where a slope shot finds him and the cart: rolling, tilted by `angle`, his feet on the floor under them, `offset` px from its middle. */
-const onSlope = async (page: Page, i: number, angle: number, offset: number, near: number) => {
+/** Where a slope shot finds him and the cart: rolling, tilted by `angle`, and he anchored at its middle on the floor there. */
+const onSlope = async (page: Page, i: number, angle: number) => {
   const r = LAB_3C_RAILS[i]!;
   const seen = await cart(page, i);
   expect(seen.cart.phase).toBe('rolling');
   expect(seen.cart.angle!).toBeCloseTo(angle, 6); // drawn tilted (`cartPose`)
   expect(seen.s.grounded).toBe(true);
-  expect(seen.s.y).toBeCloseTo(floorUnder(r, { phase: 'rolling', m: seen.cart.x! + 16 - r.x }, seen.s.x).y, 6); // the floor under his feet
-  expect(Math.abs(seen.s.x - (seen.cart.x! + 16) - offset)).toBeLessThanOrEqual(near);
+  expect(seen.s.x).toBeCloseTo(seen.cart.x! + 16, 6);
+  expect(seen.s.y).toBeCloseTo(floorUnder(r, { phase: 'rolling', m: seen.cart.x! + 16 - r.x }, seen.s.x).y, 6);
 };
 
 // R2 climbs from 4 tiles across (64 px) to 8 (128 px): rolled on until the cart's middle is halfway up, 96 px across. R3 descends from 32 px
-// across to 96: halfway down at 64. On a slope its walls hold him 10 / sqrt(2) = 7.07 px from its middle.
-const R2_HALF = LAB_3C_RAILS[1]!.x + 96;
-const R3_HALF = LAB_3C_RAILS[2]!.x + 64;
-const WALL = 10 / Math.SQRT2;
-
-test('GDD-WLD-15 vagonetas: climbing R2\'s slope to the plateau, standing at the cart\'s middle', async ({ page, isMobile }, info) => {
+// across to 96: halfway down at 64.
+test('GDD-WLD-15 vagonetas: climbing R2\'s slope to the plateau', async ({ page, isMobile }, info) => {
   await open(page, isMobile, LAB_3C_OFRENDAS[0]);
   expect(await hopInto(page, 1)).toBeLessThan(300);
-  await standIn(page, 1, 0, R2_HALF);
-  await onSlope(page, 1, -45, 0, 1);
+  await rollTo(page, 1, LAB_3C_RAILS[1]!.x + 96);
+  await onSlope(page, 1, -45);
   await shot(page, info, 'cart-climb');
 });
 
-test('GDD-WLD-15 vagonetas: climbing R2\'s slope, at the front wall', async ({ page, isMobile }, info) => {
-  await open(page, isMobile, LAB_3C_OFRENDAS[0]);
-  expect(await hopInto(page, 1)).toBeLessThan(300);
-  await standIn(page, 1, 1, R2_HALF);
-  await onSlope(page, 1, -45, WALL, 1e-6);
-  await shot(page, info, 'cart-climb-front');
-});
-
-test('GDD-WLD-15 vagonetas: riding R3 down its descent, standing at the cart\'s middle', async ({ page, isMobile }, info) => {
+test('GDD-WLD-15 vagonetas: riding R3 down its descent', async ({ page, isMobile }, info) => {
   await open(page, isMobile, LAB_3C_OFRENDAS[1]);
   expect(await hopInto(page, 2)).toBeLessThan(300);
-  await standIn(page, 2, 0, R3_HALF);
-  await onSlope(page, 2, 45, 0, 1);
+  await rollTo(page, 2, LAB_3C_RAILS[2]!.x + 64);
+  await onSlope(page, 2, 45);
   await shot(page, info, 'cart-descent');
-});
-
-test('GDD-WLD-15 vagonetas: riding R3 down its descent, at the back wall', async ({ page, isMobile }, info) => {
-  await open(page, isMobile, LAB_3C_OFRENDAS[1]);
-  expect(await hopInto(page, 2)).toBeLessThan(300);
-  await standIn(page, 2, -1, R3_HALF);
-  await onSlope(page, 2, 45, -WALL, 1e-6);
-  await shot(page, info, 'cart-descent-back');
 });
 
 test('GDD-WLD-15 vagonetas: R4 rolling left', async ({ page, isMobile }, info) => {

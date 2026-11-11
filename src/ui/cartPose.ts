@@ -23,7 +23,8 @@ export interface CartPose {
  * The pose of a cart on its rail: each wheel stands on the rail's ground under its own middle, WHEEL_OFFSET behind and ahead of the cart's
  * middle along the way it rolls (read at the rail's nearer end past either end), and the tub lies along the line through the two contacts,
  * its floor line through the floor under its middle. On a straight slope its bottom then lies on the rail's line (CART.floorPx * cos(angle)
- * across its own frame is CART.floorPx down the screen); at a join it may be a px or two off it.
+ * across its own frame is CART.floorPx down the screen); elsewhere a wheel can be off the rail: up to 5.6 px at a join between a level
+ * stretch and a slope, 9 px at a peak or a dip (measured in `cartPose.test.ts`).
  */
 export function cartPose(rail: Rail, cart: CartState): CartPose {
   const length = railLength(rail);

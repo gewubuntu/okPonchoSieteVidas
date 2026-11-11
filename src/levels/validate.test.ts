@@ -434,10 +434,32 @@ describe('GDD-TEC-04 and GDD-WLD-15 rails in the validator', () => {
   });
 
   it('GDD-BOS-04 a boss level\'s rails are exempt', () => {
+    // From the 6 tiles of level rail before a broken end and the 12 tiles (and the post, which is drawn, not checked) only.
     expect(validateLevel(railedArena([R([lvl(3)], 'broken')]))).toEqual([]);
-    expect(validateLevel(railedArena([R([lvl(6), { kind: 'climb', tiles: 2 }], 'broken'), R([lvl(4)], 'buffer', { x: 192 })]))).toEqual([]);
+    expect(validateLevel(railedArena([R([lvl(6), { kind: 'climb', tiles: 2 }], 'broken'), R([lvl(4)], 'buffer', { x: 288 })]))).toEqual([]);
     // Its other rules stand: a gap of 7 tiles is still too wide in World 3.
     expect(validateLevel(railedArena([R([lvl(3)], 'broken')], { pits: cols(20, 26) }))).toEqual(['gap of 7 tiles at columns 20 to 26, World 3 allows 6']);
+  });
+
+  it('GDD-WLD-15 in a boss level two rails may still not share a stretch', () => {
+    expect(validateLevel(railedArena([R([lvl(3)], 'broken'), R([lvl(4)], 'buffer', { x: 192 })]))).toEqual(['rails at 160,224 and 192,224 share a stretch']);
+  });
+
+  it('GDD-WLD-15 the level run before a broken end counts level stretches in a row', () => {
+    // Level 3 then level 3 at its end: 6 tiles of level rail; a climb between them leaves 3.
+    expect(validateLevel(railed([R([{ kind: 'climb', tiles: 6 }, lvl(3), lvl(3)], 'broken')]))).toEqual([]);
+    expect(validateLevel(railed([R([lvl(3), { kind: 'climb', tiles: 6 }, lvl(3)], 'broken')]))).toEqual(['broken rail at 160,224 ends after 3 tiles of level rail, expected at least 6']);
+  });
+
+  it('GDD-WLD-15 two rails may not share a sloped stretch', () => {
+    // A climb from x 160 (y 224) 4 tiles to x 224 (y 160); a second climb on the same line from x 192 (y 192) shares it; one a tile higher
+    // does not; a level rail crossing the climb at y 192 only crosses it.
+    const up = R([{ kind: 'climb', tiles: 4 }], 'buffer');
+    expect(validateLevel(railed([up, R([{ kind: 'climb', tiles: 4 }], 'buffer', { x: 192, y: 192 })]))).toEqual(['rails at 160,224 and 192,192 share a stretch']);
+    expect(validateLevel(railed([up, R([{ kind: 'climb', tiles: 4 }], 'buffer', { x: 192, y: 176 })]))).toEqual([]);
+    expect(validateLevel(railed([up, R([lvl(4)], 'buffer', { x: 176, y: 192 })]))).toEqual([]);
+    // Rolling left down the same line from x 256 (y 128): the same columns at the same heights.
+    expect(validateLevel(railed([up, R([{ kind: 'descent', tiles: 4 }], 'buffer', { x: 256, y: 128, dir: -1 })]))).toEqual(['rails at 160,224 and 256,128 share a stretch']);
   });
 
   it('GDD-WLD-15 a buffer rail needs neither', () => {

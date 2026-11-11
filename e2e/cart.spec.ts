@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { CART, TILE } from '../src/config/tuning';
 import { LAB_3C_BEAM, LAB_3C_OFRENDAS, LAB_3C_PIT, LAB_3C_RAILS } from '../src/levels/lab3c';
 import { railLength, warningPost } from '../src/sim/cart';
-import { WHEEL_OFFSET } from '../src/ui/cartPose';
+import { cartPose, WHEEL_OFFSET } from '../src/ui/cartPose';
 import { boot, clearOfButtons, nearHex, pixelsAt, readSheet, spotsIn } from './helpers';
 
 // GDD-WLD-15: the vagonetas in lab-3c (`?level=lab-3c`). Where R1 is comes from `src/levels/lab3c.ts` (L-062): its cart stands at the rail's
@@ -120,47 +120,79 @@ test('GDD-WLD-15 the cart\'s front wall is drawn over Poncho\'s feet', async ({ 
 const R5 = LAB_3C_RAILS[4]!;
 const R5_END = R5.x + railLength(R5);
 
+/** The R5 bot `Poncho jumps out before the broken end` drives in the page (see there), kept on `window` so it can stop and go on. */
+interface CartBot {
+  seen: { phase: string; x?: number; y?: number; w?: number; h?: number }[];
+  /** Steps on until the cart is back at its start or, with `dropped`, until R5's falling cart's box top is past that y. Whether it stopped for `dropped`. */
+  run(dropped: number | null): boolean;
+}
+declare global {
+  interface Window {
+    /** The R5 bot of `Poncho jumps out before the broken end`, set by that test in its page. */
+    cartBot?: CartBot;
+  }
+}
+
 test('GDD-WLD-15 Poncho jumps out before the broken end and the cart falls', async ({ page }) => {
   const errors = await boot(page, '/?level=lab-3c');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
   // From the third ofrenda, a bot in the page, by steps (L-073): it hops into R5's cart, hops the hanging beam (a full jump with its x 35 px
   // before the beam's near face) and lands back in it, then jumps with the cart's middle 20 px before the rail's end. It records each step's
-  // cart, until the cart is back at its start.
-  const run = await page.evaluate(
+  // cart, until the cart is back at its start; it stops once on the way, when the falling cart has dropped 4 px, to read the picture.
+  await page.evaluate(
     ({ o, beam, end }) => {
       const d = window.__PONCHO__!;
       d.pause(true);
       d.teleport(o.x, o.y - 1);
       d.step(30);
-      const seen: { phase: string; x?: number; y?: number; h?: number }[] = [];
       let jumpWas = false;
       let boarded = false;
       let hopped = false;
-      for (let n = 0; n < 700; n++) {
-        const c = d.carts()[4]!;
-        const s = d.state();
-        if (c.phase !== 'waiting') boarded = true;
-        if (boarded && c.phase === 'waiting') break;
-        const middle = c.x! + 16;
-        const inCart = c.phase === 'rolling' && s.grounded && s.y === c.y && Math.abs(s.x - middle) < 22;
-        let input = { move: 0, jumpHeld: false };
-        if (!boarded) {
-          const gap = middle - s.x;
-          input = { move: Math.abs(gap) > 4 ? Math.sign(gap) : 0, jumpHeld: s.grounded ? !jumpWas && Math.abs(gap) >= 20 && Math.abs(gap) <= 60 : jumpWas && s.vy < 0 };
-        } else if (!s.grounded) input = { move: 0, jumpHeld: jumpWas && s.vy < 0 };
-        else if (inCart && !jumpWas) {
-          const atBeam = !hopped && beam - s.x <= 35;
-          if (atBeam) hopped = true;
-          input = { move: 0, jumpHeld: atBeam || end - middle <= 20 };
-        }
-        jumpWas = input.jumpHeld;
-        d.step(1, input);
-        seen.push(d.carts()[4]!);
-      }
-      return { seen, s: d.state() };
+      const bot = {
+        seen: [] as { phase: string; x?: number; y?: number; w?: number; h?: number }[],
+        run(dropped: number | null): boolean {
+          for (let n = 0; n < 700; n++) {
+            const c = d.carts()[4]!;
+            const s = d.state();
+            if (c.phase !== 'waiting') boarded = true;
+            if (boarded && c.phase === 'waiting') return false;
+            if (dropped !== null && c.phase === 'falling' && c.y! > dropped) return true;
+            const middle = c.x! + 16;
+            const inCart = c.phase === 'rolling' && s.grounded && s.y === c.y && Math.abs(s.x - middle) < 22;
+            let input = { move: 0, jumpHeld: false };
+            if (!boarded) {
+              const gap = middle - s.x;
+              input = { move: Math.abs(gap) > 4 ? Math.sign(gap) : 0, jumpHeld: s.grounded ? !jumpWas && Math.abs(gap) >= 20 && Math.abs(gap) <= 60 : jumpWas && s.vy < 0 };
+            } else if (!s.grounded) input = { move: 0, jumpHeld: jumpWas && s.vy < 0 };
+            else if (inCart && !jumpWas) {
+              const atBeam = !hopped && beam - s.x <= 35;
+              if (atBeam) hopped = true;
+              input = { move: 0, jumpHeld: atBeam || end - middle <= 20 };
+            }
+            jumpWas = input.jumpHeld;
+            d.step(1, input);
+            bot.seen.push(d.carts()[4]!);
+          }
+          return false;
+        },
+      };
+      window.cartBot = bot;
     },
     { o: LAB_3C_OFRENDAS[2]!, beam: LAB_3C_BEAM.col * TILE, end: R5_END },
   );
+  // The falling cart is drawn at the hook's box: the rust of its front wall in its middle, 8 px down from its top (GDD-ART-06).
+  expect(await page.evaluate((y) => window.cartBot!.run(y), R5.y - CART.height + 4)).toBe(true);
+  await frames(page);
+  const box = await page.evaluate(() => window.__PONCHO__!.carts()[4]!);
+  expect(box.phase).toBe('falling');
+  const viewX = await page.evaluate(() => window.__PONCHO__!.camera().viewX);
+  const scrollY = await page.evaluate(() => window.__PONCHO__!.cameraScrollY());
+  const spot = await clearOfButtons(page, [{ x: box.x! + CART.width / 2 - viewX, y: box.y! + 8 - scrollY }]);
+  expect(spot).toHaveLength(1);
+  const [rust] = await pixelsAt(page, spot);
+  expect(nearHex(rust!, '#B0562E', 12), JSON.stringify(rust)).toBe(true);
+  expect(await page.evaluate(() => window.cartBot!.run(null))).toBe(false);
+  const run = await page.evaluate(() => ({ seen: window.cartBot!.seen, s: window.__PONCHO__!.state() }));
   const phases = run.seen.map((c) => c.phase);
   const left = phases.indexOf('falling');
   const gone = phases.indexOf('gone');
@@ -238,5 +270,19 @@ test('GDD-WLD-15 the cart is drawn tilted on the climb', async ({ page }) => {
   expect(seen.climbing.phase).toBe('rolling');
   expect(seen.onClimb).toBe(true);
   expect(seen.climbing.angle!).toBeCloseTo(-45, 6); // its front (right) side up
+  // Drawn turned: the rust of its front wall 14 px ahead of its middle in the tub's own frame, 8 px over its bottom (the middle of the rust's
+  // rows), is where the tilted tub puts it, and not where a level tub at the same place would (`cartPose`).
+  const pose = cartPose(r2, { phase: 'rolling', m: seen.climbing.x! + 16 - r2.x });
+  const [lx, ly] = [14, pose.bottom - 8];
+  const tilted = { x: pose.x + lx * Math.cos(pose.angle) - ly * Math.sin(pose.angle), y: pose.y + lx * Math.sin(pose.angle) + ly * Math.cos(pose.angle) };
+  const level = { x: pose.x + lx, y: pose.y + CART.floorPx - 8 };
+  await frames(page);
+  const viewX = await page.evaluate(() => window.__PONCHO__!.camera().viewX);
+  const scrollY = await page.evaluate(() => window.__PONCHO__!.cameraScrollY());
+  const spots = await clearOfButtons(page, [tilted, level].map((p) => ({ x: p.x - viewX, y: p.y - scrollY })));
+  expect(spots).toHaveLength(2);
+  const [atTilted, atLevel] = await pixelsAt(page, spots);
+  expect(nearHex(atTilted!, '#B0562E', 12), JSON.stringify(atTilted)).toBe(true);
+  expect(nearHex(atLevel!, '#B0562E', 24), JSON.stringify(atLevel)).toBe(false);
   expect(errors).toEqual([]);
 });

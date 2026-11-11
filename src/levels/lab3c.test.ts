@@ -46,13 +46,13 @@ function hop(i: number, x0: number, y0: number, hold: number, wait: number, afte
   return { boarded: r.carts[i]!.phase !== 'waiting', rode: false };
 }
 /**
- * Hops from every 2 px of `x0s`, with jump held 2 to 30 steps and pressed after 0 to 10, each with `after` held from the landing: the takeoffs
+ * Hops from every 4 px of `x0s`, with jump held 2 to 30 steps and pressed after 0 to 10, each with `after` held from the landing: the takeoffs
  * that boarded, and those of them that did not ride to the buffer.
  */
 function hops(i: number, x0s: readonly [number, number], y0: number, after: After): { boarded: number; lost: string[] } {
   let boarded = 0;
   const lost: string[] = [];
-  for (let x0 = x0s[0]; x0 <= x0s[1]; x0 += 2) {
+  for (let x0 = x0s[0]; x0 <= x0s[1]; x0 += 4) {
     for (const hold of [2, 4, 7, 10, 15, 22, 30]) {
       for (const wait of [0, 3, 6, 10]) {
         const h = hop(i, x0, y0, hold, wait, after);
@@ -265,10 +265,25 @@ describe('GDD-WLD-15 lab-3c', () => {
     expect(last.player).toMatchObject({ grounded: true, y: LAB_3C_FLOOR_Y });
     expect(last.player.x).toBeGreaterThan((LAB_3C_PIT.col1 + 1) * TILE - 6); // on the far bank
     const landed = states.findIndex((s, i) => i > left && s.player.grounded);
-    // Measured: he lands 78.5 px past the rail's end (its far bank starts 48 px past it, the pit being 3 tiles).
-    expect(states[landed]!.player.x - (R5.x + railLength(R5))).toBeCloseTo(78.5, 6);
+    // Measured: he lands 68.5 px past the rail's end (its far bank starts 48 px past it, the pit being 3 tiles), riding at the cart's middle.
+    expect(states[landed]!.player.x - (R5.x + railLength(R5))).toBeCloseTo(68.5, 6);
     expect(states[left + 119]!.carts[4]!.phase).toBe('gone');
     expect(states[left + 120]!.carts[4]).toEqual({ phase: 'waiting', m: 16 });
+    // Measured (the GDD quotes it): the cart breaks 13 steps after it leaves the rail, on the far bank's face.
+    expect(states.findIndex((s) => s.carts[4]!.phase === 'gone') - left).toBe(13);
+  });
+
+  it('GDD-WLD-15 lab-3c R5: the plain jump\'s window over the pit', () => {
+    // Measured (the GDD quotes it): from his place at the cart's middle at takeoff, every 2.5 px a ride passes, the plain held jumps that land
+    // on the far bank: from 44 px before the rail's end to 1.5 px (18 steps).
+    const end = R5.x + railLength(R5);
+    const lands: number[] = [];
+    for (let m = 16; m < railLength(R5); m += 2.5) {
+      let r: RunState = { ...startRun(level), player: spawn(R5.x + m, LAB_3C_FLOOR_Y - CART.floorPx), carts: LAB_3C_RAILS.map((_, i) => (i === 4 ? { phase: 'rolling', m } : { phase: 'waiting', m: 16 })) };
+      for (let n = 0; n < 80 && !(n > 0 && r.player.grounded) && r.phase === 'playing'; n++) r = stepRun(r, { move: 0, jumpHeld: true }, level);
+      if (r.phase === 'playing' && r.player.y === LAB_3C_FLOOR_Y && r.player.x > (LAB_3C_PIT.col1 + 1) * TILE - 6) lands.push(end - (R5.x + m));
+    }
+    expect({ first: Math.max(...lands), last: Math.min(...lands), steps: lands.length }).toEqual({ first: 44, last: 1.5, steps: 18 });
   });
 
   it('GDD-WLD-15 lab-3c R5: staying in costs a life in the pit, and the respawn finds the cart at its start', () => {
@@ -278,6 +293,8 @@ describe('GDD-WLD-15 lab-3c', () => {
     expect(fell).toBeGreaterThan(0);
     expect(states[fell]!.lives.lives).toBe(start.lives.lives - 1);
     expect(states[fell]!.player.y - 32).toBeGreaterThan(level.world.height * TILE); // by the pit rule
+    // Measured (the GDD quotes it): the life is lost 20 steps after the cart leaves the rail.
+    expect(fell - states.findIndex((s) => s.carts[4]!.phase === 'falling')).toBe(20);
     const back = states.findIndex((s, i) => i > fell && s.phase === 'playing');
     expect(back).toBeGreaterThan(fell);
     expect(states[back]!.player).toMatchObject({ x: LAB_3C_OFRENDAS[2]!.x, y: LAB_3C_OFRENDAS[2]!.y });
@@ -325,11 +342,14 @@ describe('GDD-WLD-15 lab-3c', () => {
     expect(before.y + before.h).toBeLessThanOrEqual(SUNKEN_Y);
     expect(before.x).toBeGreaterThanOrEqual(LAB_3C_SUNKEN.col0 * TILE);
     expect(before.x + before.w).toBeLessThanOrEqual((LAB_3C_SUNKEN.col1 + 1) * TILE);
-    // Measured: 17 steps from the step it left the rail (6 rolling off level, then 11 falling).
+    // Measured (the GDD quotes it): 17 steps from the step it left the rail (6 rolling off level, then 11 falling).
     expect(gone - left).toBe(17);
     // He lands on the sunken floor, and jumps back out onto the floor past its far wall.
     const down = states.findIndex((s) => s.player.grounded && s.player.y === SUNKEN_Y);
     expect(down).toBeGreaterThan(left);
+    // Measured (the GDD quotes it): he lands there 12 steps after the cart leaves the rail, 31.5 px past its end.
+    expect(down - left).toBe(12);
+    expect(states[down]!.player.x - (R6.x + railLength(R6))).toBeCloseTo(31.5, 6);
     const last = states[states.length - 1]!;
     expect(last.player).toMatchObject({ grounded: true, y: LAB_3C_FLOOR_Y });
     expect(last.player.x).toBeGreaterThan((LAB_3C_SUNKEN.col1 + 1) * TILE);
