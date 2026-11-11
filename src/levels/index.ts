@@ -19,6 +19,7 @@ import { SLOPES_LEVEL } from './slopes';
 import { LAB_2M_LEVEL } from './lab2m';
 import { LAB_2E_ID, LAB_2E_LEVEL } from './lab2e';
 import { LAB_3C_ID, LAB_3C_LEVEL } from './lab3c';
+import { LAB_3T_ID, LAB_3T_LEVEL } from './lab3t';
 
 export interface LevelEntry {
   readonly id: string;
@@ -56,6 +57,8 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: LAB_2E_ID, world: 2, test: true, level: LAB_2E_LEVEL },
   // GDD-WLD-15: the vagonetas lab, a World 3 test level.
   { id: LAB_3C_ID, world: 3, test: true, level: LAB_3C_LEVEL },
+  // GDD-UI-04: the tall lab, a World 3 test level 40 rows tall, for the camera up and down.
+  { id: LAB_3T_ID, world: 3, test: true, level: LAB_3T_LEVEL },
 ];
 
 /** GDD-PRG-02: the levels whose progress is saved (the real ones, not the test level), by id, with their hilo counts: what `readSave` needs to read their entries. */
