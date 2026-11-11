@@ -117,4 +117,4 @@ the registry; do not rely on memory (see L-005).
 
 The `harness-playtest` skill (`npm run test:e2e`) drives the real game in headless Chromium on a desktop and a
 landscape phone viewport and asserts on game state. It is not part of the gate because it needs a browser;
-CI runs it as a separate job.
+CI runs it as a separate job. That job installs the browser and, in a step of its own, the browser's system packages, which are tried twice and end in a warning when the runner's mirrors cannot be reached: the playtests run either way (L-076). When CI's playtests cannot run for a cause outside the pull request, run the whole suite locally on its head and say so in its description.

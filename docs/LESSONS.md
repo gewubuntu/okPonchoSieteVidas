@@ -854,3 +854,13 @@ Retired IDs: L-046
 - **Rule:** A rule about something Poncho stands on or rides (a cart, a platform, a block, an awning) is tested over the range of where he can stand on it (its ends and its middle), at every join or turn of its path, and with each direction held and nothing held; and over the real level by a sweep of the ways he can arrive (takeoff positions and jump lengths), which asserts what every arrival that boards ends in.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-076 CI's playtests never ran because the runner could not reach its package mirror
+
+- **Date:** 2026-11-11
+- **Area:** harness, playtest
+- **What went wrong:** On PR #95 CI's `e2e` job failed on five commits in a row, and on a re-run of each job, at `npx playwright install --with-deps chromium`: apt could not resolve the runner's Ubuntu mirrors, so ten font packages were not fetched, the step failed after about ten minutes and the Playtests step was skipped. No playtest ran in CI on the PR's later commits, and it was merged on a local run of the whole suite (886 passed), with the user's say-so.
+- **Root cause:** One step both downloaded the browser, from Playwright's own host, which was reachable, and installed system packages from a mirror outside the project's control, and a failure of the second skipped the tests, though the runner image already has the libraries the browser needs and only extra fonts were missing.
+- **Rule:** In CI a step that fetches something the tests can run without (extra system packages from a distribution mirror) is separate from the steps the tests need, is retried within a time limit, and ends in a warning, never in skipped tests. When CI's playtests cannot run for a cause outside the PR, the whole suite is run locally on the PR's head and the description says so, before anyone is asked to merge.
+- **Recurrence:** 1
+- **Promoted:** `.github/workflows/check.yml` (the `e2e` job's two install steps) and docs/HARNESS.md (Playtesting)
