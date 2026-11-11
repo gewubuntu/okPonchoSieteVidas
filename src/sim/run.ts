@@ -394,8 +394,9 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   // is set only on the step it bounces (`stepChapulin` drops it from the next air step), so no age check is needed (L-025).
   const standing = (level.awnings ?? []).flatMap((_, i) => (run.awningsGone[i] ? [] : [i]));
   const chewed = patrolled.flatMap((e) => (e.hop?.on !== undefined ? [standing[e.hop.on]!] : [])).filter((i) => level.awnings![i]!.torn);
-  // GDD-WLD-15: a rolling cart defeats every enemy its box overlaps after this step's roll, before the stomps and the hits below, so one it
-  // reaches cannot hit him on that step.
+  // GDD-WLD-15: a rolling cart defeats every enemy its box overlaps after this step's roll, before everything else that touches an enemy in
+  // this step (the stomps, the claw, the fireballs, the Chile Fantasma's touch and the hits below), so one it reaches cannot hit him on that
+  // step. (An awning a Chapulín bounced on in its own move above tears all the same: the cart reaches it where that move left it.)
   const ranOver = runOver(rails, rolled, level.enemies, patrolled);
   const stomped = ranOver.map((e, i) => isStomp(run.player, sprung, level.enemies[i]!, e));
   // GDD-BOS-02: the boss flies his pattern, facing and aiming at Poncho as he was at the step's start, like the Zopilote. His fruit
@@ -481,11 +482,12 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
     return true;
   });
   // GDD-CMB-02, GDD-PWR-03: the claw and a fireball defeat the enemies they overlap, besides a stomp. Every fireball that
-  // overlaps a live enemy is used up, whatever defeats the enemy that step (and even the cactus buddy, which only the Chile Fantasma's touch and a rolling cart defeat, GDD-PWR-04, GDD-WLD-15).
+  // overlaps a live enemy is used up, whatever else defeats the enemy that step; one a rolling cart defeated this step is no longer live for it (and even the cactus buddy, which only the Chile Fantasma's touch and a rolling cart defeat, GDD-PWR-04, GDD-WLD-15).
   // GDD-ENM-02: a Tlacuache's first stomp only makes it play dead, unless the claw or a fireball defeats it the same step. The
   // claw defeats one that is playing dead too. GDD-ENM-03: the claw or a fireball stuns a heavy enemy (a Trompo) instead (`strike`).
-  // A fireball reads the enemies as they moved this step, so one is used up on an enemy a cart defeats in the same step.
-  const fireballHits = (f: Fireball, i: number): boolean => boxHitsEnemy(fireballBox(f), level.enemies[i]!, patrolled[i]!);
+  // GDD-WLD-15: they all read the enemies after a rolling cart's defeats, so an enemy the cart defeated this step stops no fireball and is not
+  // changed by a claw, a fireball or a stomp.
+  const fireballHits = (f: Fireball, i: number): boolean => boxHitsEnemy(fireballBox(f), level.enemies[i]!, ranOver[i]!);
   const enemies = ranOver.map((e, i) => {
     const def = level.enemies[i]!;
     // GDD-PWR-04: with the Chile Fantasma every regular enemy he touches is defeated outright (never stunned, the cactus buddy too), one
@@ -524,7 +526,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   const fought = level.estrella && run.estrella ? stepEstrella(level.estrella, { estrella: run.estrella, tejocotes: run.tejocotes }, { before: run.player, after: player, claw: box, fireballs: fireballs.map(fireballBox), awnings: tops.awnings, world: solid }) : null;
   const fighter = fought?.player ?? player;
   // A fireball that touches him is used up, unless he is defeated; one used up on her or on a tejocote too.
-  const flying = fireballs.filter((f, i) => !patrolled.some((_, k) => fireballHits(f, k)) && !(flown && flown.boss.mode !== 'defeated' && overlaps(fireballBox(f), bossBox(flown.boss))) && !fought?.spent[i]);
+  const flying = fireballs.filter((f, i) => !ranOver.some((_, k) => fireballHits(f, k)) && !(flown && flown.boss.mode !== 'defeated' && overlaps(fireballBox(f), bossBox(flown.boss))) && !fought?.spent[i]);
   const inFlight = flying.filter((f) => !touchesBundle(level.rollos ?? [], grown, fireballBox(f)));
   // GDD-WLD-05, GDD-ENM-02, GDD-CMB-03: touching a spike or an enemy is a hit, unless Poncho is invulnerable. In Base it
   // costs a life (GDD-LIFE-02); in Taco the taco is spent instead, in Fuego the Fuego, and Poncho is pushed away from what
