@@ -7,6 +7,7 @@ import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { bundleBox, rolloLength } from '../sim/papel';
 import { startRun, stepRun, touchesExit, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
+import { withUnlocks } from './index';
 import { AWNINGS_2_3, CORDELES_2_3, ENEMIES_2_3, LEVEL_2_3, ROLLOS_2_3, ROOF } from './level2-3';
 import { gaps, openGaps, validateLevel } from './validate';
 
@@ -231,7 +232,9 @@ function bot(lv: Level, maxSteps: number, wait = 0): { run: RunState; steps: num
   return { run, steps, lost, states };
 }
 
-const played = bot(level, 4000);
+// The bot's play-through, played in each test that reads it, not as the file loads, so the glide-unlocked run (GDD-PRG-01,
+// `npm run test:glide`) plays it with the abilities of that test.
+const playThrough = () => bot(level, 4000);
 
 describe('GDD-WLD-14 level 2-3 layout', () => {
   it('GDD-WLD-14 2-3 is 240 by 17 tiles and passes the validator with World 2 rules', () => {
@@ -647,6 +650,7 @@ describe('GDD-WLD-14 2-3 the rollo on the far post (the Ten)', () => {
   });
 
   it('GDD-WLD-11 2-3 a claw from a rebound on A2 unrolls R1 towards him, and the next rebound lands him on it; from it a jump reaches F1', () => {
+    const played = playThrough();
     const states = played.states;
     const unrolled = states.findIndex((s) => s.rollos[R1]!.steps !== null);
     expect(unrolled).toBeGreaterThan(0);
@@ -696,6 +700,7 @@ describe('GDD-WLD-14 2-3 the rollo on the far post (the Ten)', () => {
   });
 
   it('GDD-WLD-11 2-3 R2 bundle is out of the claw from either edge, and a running jump across the Fuego pit misses its two hilos', () => {
+    const played = playThrough();
     const line = ROLLOS_2_3[R2]!;
     for (const [x, facing] of [[line.x + 5.9, 1], [line.x + line.w + 6, -1]] as const) {
       let r: RunState = { ...startRun(quiet), player: { ...standing(x, ROOF), facing } };
@@ -729,6 +734,7 @@ describe('GDD-WLD-14 2-3 the exam (the Ketsu)', () => {
   });
 
   it('GDD-WLD-14 2-3 the exam: T5 tears under one rebound, the claw on the way up unrolls R4, he lands on it and jumps to the exit roof', () => {
+    const played = playThrough();
     const states = played.states;
     const torn = states.findIndex((s) => s.awningsGone[T5]);
     const unrolled = states.findIndex((s) => s.rollos[R4]!.steps !== null);
@@ -800,6 +806,7 @@ describe('GDD-WLD-04 2-3 hilos', () => {
   });
 
   it('GDD-WLD-04 2-3 the playthrough takes 40 hilos: all but the Ki two columns and the top of Wa column (the ladder and the chain take them) and the Fuego pair', () => {
+    const played = playThrough();
     const missed = level.hilos!.filter((_, i) => !played.run.hilosTaken[i]).map((h) => `${h.col},${h.row}`);
     expect(missed).toEqual(['8,10', '8,6', '8,4', '12,6', '12,4', '12,3', '95,6', '95,5', '141,13', '142,13']);
   });
@@ -807,6 +814,7 @@ describe('GDD-WLD-04 2-3 hilos', () => {
 
 describe('GDD-WLD-14 playing 2-3', () => {
   it('GDD-WLD-14 2-3 the bot plays from the start through every ofrenda to the exit with all seven lives, in under 2700 steps', () => {
+    const played = playThrough();
     const { run, steps, lost } = played;
     expect(run.phase).toBe('clear');
     expect(lost).toEqual([]);
@@ -818,7 +826,19 @@ describe('GDD-WLD-14 playing 2-3', () => {
     expect([R1, R4].map((i) => rolloLength(ROLLOS_2_3[i]!, run.rollos[i]!))).toEqual([ROLLOS_2_3[R1]!.w, ROLLOS_2_3[R4]!.w]);
   });
 
+  it('GDD-PRG-01 2-3 with the glide unlocked the route still reaches the exit losing no life', () => {
+    // The same bot with the glide on, as in every level once 2-4 is cleared (user, 2026-11-11: "Accept the skips"). It takes 2922 steps,
+    // past the plain route's limit of 2700.
+    const { run, steps, lost } = bot(withUnlocks(level, { glide: true }), 3000);
+    expect(run.phase).toBe('clear');
+    expect(lost).toEqual([]);
+    expect(steps).toBeLessThan(3000);
+    expect(run.lives.lives).toBe(7);
+    expect(touchesExit(run.player, level.exit!)).toBe(true);
+  });
+
   it('GDD-WLD-14 2-3 the bot settles on Wc, a whole awning, and never stands on a torn one; it defeats the Trompo on L', () => {
+    const played = playThrough();
     const states = played.states;
     const stood = (a: number) => states.some((s) => s.player.grounded && s.player.y === 208 && s.player.x > AWNINGS_2_3[a]!.x - 6 && s.player.x < AWNINGS_2_3[a]!.x + AWNINGS_2_3[a]!.w + 6);
     expect([TB, WC, TD].map(stood)).toEqual([false, true, false]);

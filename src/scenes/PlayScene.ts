@@ -9,7 +9,7 @@ import { centre, enemyPhase, feetOf, kindOf, type EnemyKind } from '../sim/enemy
 import { defeatLook, stepDefeats, type DefeatFx } from '../ui/defeatFx';
 import { frameLook, SHEETS, type EnemyLook, type Sheet } from '../ui/enemyLooks';
 import { enemyPose } from '../ui/enemyPose';
-import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
+import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, unlockedAbilities, withUnlocks, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
 import donZopilotePng from '../../assets/sprites/boss/don-zopilote.png';
@@ -570,7 +570,8 @@ export class PlayScene extends Phaser.Scene {
   // GDD-UI-02: the level played, 0-1, 1-1, 1-2, 1-3, the boss arena 1-4 or a test level. GDD-MOV-06: Poncho collides with its tile grid.
   // The spawn stands on the floor, so its y is the floor level.
   private readonly entry: LevelEntry;
-  private readonly level: Level;
+  /** GDD-PRG-01: with the abilities the saved progress unlocks added in `create`, once the progress is read. */
+  private level: Level;
   private readonly world: TileGrid;
   private readonly floorY: number;
   private run: RunState;
@@ -924,6 +925,8 @@ export class PlayScene extends Phaser.Scene {
     this.tutorialPlayed = save.tutorialPlayed || playedThisVisit;
     // GDD-PRG-02, GDD-WLD-04: the hilos saved in an earlier run count from the start. The sandbox has no saved progress.
     this.progress = mergeLevels(save.levels, progressThisVisit);
+    // GDD-PRG-01: the glide, once 2-4 is cleared, in every level (this visit's clears count where the browser refuses storage).
+    this.level = withUnlocks(this.entry.level, unlockedAbilities(this.progress));
     // GDD-LIFE-05: the lives kept per world, this visit's winning where the browser refuses storage.
     this.worldLives = { ...save.worldLives, ...worldLivesThisVisit };
     // GDD-UI-02, GDD-PRG-02: where each world's run is, this visit's winning where the browser refuses storage.

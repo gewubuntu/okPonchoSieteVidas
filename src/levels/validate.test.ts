@@ -656,3 +656,18 @@ describe('GDD-TEC-04 and GDD-WLD-03 raised bottoms in the validator', () => {
     ]);
   });
 });
+
+describe('GDD-TEC-04 and GDD-WLD-05 crumbled ledges that come back', () => {
+  const ledge = { crumbles: [{ col: 40, row: 10 }] };
+
+  it('GDD-WLD-05 only a World 3 level may have ledges that come back, and a World 3 level with crumbling tiles must', () => {
+    expect(validateLevel(entry({ world: 2, level: { ...ledge, crumblesReturn: true } }))).toEqual(['crumbling tiles that come back, only World 3 has them']);
+    expect(validateLevel(entry({ world: 1, level: { crumblesReturn: true } }))).toEqual(['crumbling tiles that come back, only World 3 has them']);
+    expect(validateLevel(entry({ world: 3, level: ledge }))).toEqual(["crumbling tiles that do not come back, World 3's do"]);
+    expect(validateLevel(entry({ world: 3, test: true, exit: null, level: ledge }))).toEqual(["crumbling tiles that do not come back, World 3's do"]);
+    expect(validateLevel(entry({ world: 3, level: { ...ledge, crumblesReturn: true } }))).toEqual([]);
+    expect(validateLevel(entry({ world: 3 }))).toEqual([]);
+    // L-028: the other worlds keep their tiles that stay gone.
+    expect(validateLevel(entry({ world: 2, level: ledge }))).toEqual([]);
+  });
+});

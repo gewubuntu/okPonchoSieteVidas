@@ -3,6 +3,7 @@
 // GDD-UI-02: which one is played, and which one comes after it. GDD-LIFE-05: the lives a level starts with, the lives each world keeps
 // in the save, the level each world's run has reached, and where the restart after the last life plays.
 import { LIVES_MAX } from '../config/tuning';
+import type { Abilities } from '../sim/movement';
 import type { Level } from '../sim/run';
 import type { Tip } from '../ui/tips';
 import { LEVEL_0_1, TIPS_0_1 } from './level0-1';
@@ -178,3 +179,16 @@ export function worldAtAfter(saved: Readonly<Record<string, string>>, entry: Lev
   const next = event === 'clear' && entry.next !== undefined ? inWorld.find((e) => e.id === entry.next) : undefined;
   return { ...saved, [entry.world]: (next ?? inWorld[0]!).id };
 }
+
+/** GDD-PRG-01: the level whose clear unlocks the glide, World 2's boss arena. */
+export const GLIDE_UNLOCK_ID = '2-4';
+
+/**
+ * GDD-PRG-01 (Decided, user, 2026-11-10: "Glide everywhere"): the abilities the saved progress unlocks in every level: the glide once 2-4
+ * is cleared, nothing before. The wall cling is not unlocked here.
+ */
+export const unlockedAbilities = (levels: StartSave['levels']): Abilities => (levels[GLIDE_UNLOCK_ID]?.cleared === true ? { glide: true } : {});
+
+/** GDD-PRG-01: the level with the unlocked abilities added to its own; with none unlocked, the very same level. */
+export const withUnlocks = (level: Level, unlocked: Abilities): Level =>
+  Object.keys(unlocked).length === 0 ? level : { ...level, abilities: { ...level.abilities, ...unlocked } };

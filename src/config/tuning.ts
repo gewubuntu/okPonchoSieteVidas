@@ -278,8 +278,11 @@ export const LIFE_LOSS = { crackSteps: Math.round(0.4 * TICK_HZ) } as const;
 /** GDD-LIFE-02 and GDD-MOV-05: in the last 0.35 s of the wait Poncho drops in 48 px above the respawn point, turning once, and lands feet-first. */
 export const FLIP = { steps: Math.round(0.35 * TICK_HZ), height: 48, turns: 1 } as const;
 
-/** GDD-WLD-05: a crumbling tile gives 0.5 s of warning from the step Poncho lands on it, then is gone. */
-export const CRUMBLE = { warningSteps: Math.round(0.5 * TICK_HZ) } as const;
+/**
+ * GDD-WLD-05: a crumbling tile gives 0.5 s of warning from the step Poncho lands on it, then is gone. In a level whose ledges come back
+ * (World 3's) it is whole again 2.0 s after it went (user, 2026-11-10: "Come back after 2 s").
+ */
+export const CRUMBLE = { warningSteps: Math.round(0.5 * TICK_HZ), returnSteps: Math.round(2 * TICK_HZ) } as const;
 
 /**
  * GDD-WLD-05: a spring launches Poncho upwards at `velocity` (a jump takes off at 410). A jump pressed in the 0.1 s

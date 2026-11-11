@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { boot, pixelsAt } from './helpers';
+import { boot, pixelsAt, start } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
@@ -100,4 +100,35 @@ test('GDD-MOV-07 holding the touch Jump button glides too', async ({ page, isMob
   await page.waitForFunction(() => window.__PONCHO__!.glideDrawn() && window.__PONCHO__!.state().vy === 70);
   await fingers(cdp, 'touchEnd', []);
   await page.waitForFunction(() => !window.__PONCHO__!.state().gliding);
+});
+
+// GDD-PRG-01: a save with 2-4 cleared, as `e2e/progress.spec.ts` writes one (2-4 has no hilos, so its text is empty).
+const SAVE_KEY = 'poncho-siete-vidas';
+const CLEARED_24 = JSON.stringify({ version: 1, settings: { master: 10, effects: 10, language: 'en' }, progress: { tutorialPlayed: true }, levels: { '2-4': { hilos: '', medal: 'gold', bestSteps: 5000, cleared: true } } });
+
+/** From 1-1's spawn, jump held for up to 60 steps: the first step he glides on (1 to 60), or 0 when he never does. One round trip (L-073). */
+const glideStepFromSpawn = async (page: Page, isMobile: boolean) => {
+  await start(page, isMobile, '/?level=1-1');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5 && window.__PONCHO__!.state().grounded);
+  return page.evaluate((input) => {
+    const p = window.__PONCHO__!;
+    p.pause(true);
+    for (let i = 1; i <= 60; i++) {
+      p.step(1, input);
+      if (p.state().gliding === true) return i;
+    }
+    return 0;
+  }, hold);
+};
+
+test('GDD-PRG-01 with 2-4 cleared in the save the glide works in 1-1; without it it does not', async ({ page, isMobile }) => {
+  // A fresh save: the jump never glides.
+  expect(await glideStepFromSpawn(page, isMobile)).toBe(0);
+  await frames(page);
+  expect(await api(page, () => window.__PONCHO__!.glideDrawn())).toBe(false);
+  // 2-4 cleared in the save, and the page opened again: the glide opens at the top of the same jump.
+  await page.evaluate(([key, text]) => localStorage.setItem(key!, text!), [SAVE_KEY, CLEARED_24]);
+  expect(await glideStepFromSpawn(page, isMobile)).toBeGreaterThan(0);
+  await frames(page);
+  expect(await api(page, () => window.__PONCHO__!.glideDrawn())).toBe(true);
 });

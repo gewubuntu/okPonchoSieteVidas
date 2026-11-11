@@ -207,6 +207,10 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
     }
   }
 
+  // GDD-WLD-05: crumbled ledges come back in World 3's levels (test levels too), and in no other world's.
+  if (level.crumblesReturn === true && entry.world !== 3) problems.push('crumbling tiles that come back, only World 3 has them');
+  if (entry.world === 3 && level.crumbles.length > 0 && level.crumblesReturn !== true) problems.push("crumbling tiles that do not come back, World 3's do");
+
   // GDD-WLD-03, GDD-TEC-04: the level's height and its raised bottoms, a test level's too.
   problems.push(...heightProblems(level), ...bottomProblems(level));
 

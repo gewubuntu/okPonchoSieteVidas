@@ -132,3 +132,101 @@ describe('GDD-WLD-05 crumbled tiles come back when a life is lost', () => {
     expect(phases(r)).toEqual(['idle', 'idle']);
   });
 });
+
+// The same level with its ledges coming back, as World 3's do (user, 2026-11-10: "Come back after 2 s").
+const back: Level = { ...level, crumblesReturn: true };
+/** From Poncho landing on the first tile (step 0), the run after each step: `at[k]` is step k. `hold` puts him somewhere before a step. */
+const fromLanding = (lv: Level, steps: number, hold?: (k: number) => PlayerState | undefined): RunState[] => {
+  const at = [stepRun(standingRun(2), idle, lv)];
+  for (let k = 1; k <= steps; k++) {
+    const r = at[k - 1]!;
+    const p = hold?.(k);
+    at.push(stepRun(p ? { ...r, player: p } : r, idle, lv));
+  }
+  return at;
+};
+
+describe('GDD-WLD-05 a crumbled ledge in World 3', () => {
+
+  it('GDD-WLD-05 a crumbled ledge in World 3 is whole again 120 steps after it went, 150 after the landing', () => {
+    // He falls through it to the floor below (top y 128), where his box only touches the tile's bottom edge.
+    const at = fromLanding(back, 160);
+    expect(at[0]!.crumbles[0]).toEqual({ phase: 'warning', steps: 30 });
+    expect(solid(at[29]!)).toBe(true);
+    for (let k = 30; k < 150; k++) expect(solid(at[k]!), `step ${k}`).toBe(false);
+    expect(at[149]!.crumbles[0]!.phase).toBe('gone');
+    expect(at[150]!.crumbles[0]).toEqual({ phase: 'idle', steps: 0 });
+    expect(solid(at[150]!)).toBe(true);
+    expect(at[30]!.crumbles[0]).toEqual({ phase: 'gone', steps: 120 }); // gone on step 30, 120 steps (2.0 s) before it may come back
+    expect(at[150]!.player).toMatchObject({ grounded: true, y: 8 * TILE });
+  });
+
+  it('GDD-WLD-05 a crumbled ledge in World 3 does not come back while his body box is in its tile, and does on the first step it is clear', () => {
+    // Held inside the tile (x 32 to 48, y 80 to 96) past step 150: still gone at 200.
+    const inside = { ...onTile(2), grounded: false, y: 100 };
+    const at = fromLanding(back, 200, (k) => (k >= 30 ? inside : undefined));
+    expect(at[150]!.crumbles[0]!.phase).toBe('gone');
+    expect(at[200]!.crumbles[0]!.phase).toBe('gone');
+    // From that wait, one step with his box (12 x 32, feet at y) where each case puts it: sharing an edge only, it comes back; 1 px in, not.
+    const waiting = at[200]!.crumbles;
+    const after = (x: number, y: number) => stepCrumbles(crumbles, waiting, { ...inside, x, y }, true)[0]!.phase;
+    expect(after(32 - 6, 96)).toBe('idle'); // his right edge on the tile's left edge
+    expect(after(32 - 6 + 1, 96)).toBe('gone'); // 1 px across into it
+    expect(after(48 + 6, 96)).toBe('idle'); // his left edge on its right edge
+    expect(after(48 + 6 - 1, 96)).toBe('gone');
+    expect(after(40, 80)).toBe('idle'); // his feet on its top
+    expect(after(40, 81)).toBe('gone'); // 1 px down into it
+    expect(after(40, 96 + 32)).toBe('idle'); // his head at its bottom
+    expect(after(40, 96 + 32 - 1)).toBe('gone'); // 1 px up into it
+    // Through the run: moved beside it, his box sharing only the tile's left edge (and falling past its side), it is back on that step.
+    const out = stepRun({ ...at[200]!, player: { ...inside, x: 32 - 6 } }, idle, back);
+    expect(out.player.x).toBe(32 - 6);
+    expect(out.crumbles[0]).toEqual({ phase: 'idle', steps: 0 });
+  });
+
+  it('GDD-WLD-05 a crumbled ledge in World 3 can be started again once it is back', () => {
+    const at = fromLanding(back, 150);
+    expect(at[150]!.crumbles[0]!.phase).toBe('idle');
+    // He lands on it again on step 151: a fresh warning, gone 30 steps later, back 120 after that.
+    const again = [stepRun({ ...at[150]!, player: onTile(2) }, idle, back)];
+    for (let k = 1; k <= 150; k++) again.push(stepRun(again[k - 1]!, idle, back));
+    expect(again[0]!.crumbles[0]).toEqual({ phase: 'warning', steps: 30 });
+    expect(again[29]!.crumbles[0]!.phase).toBe('warning');
+    expect(again[30]!.crumbles[0]!.phase).toBe('gone');
+    expect(again[149]!.crumbles[0]!.phase).toBe('gone');
+    expect(again[150]!.crumbles[0]).toEqual({ phase: 'idle', steps: 0 });
+  });
+
+  it('GDD-WLD-05 a crumbled ledge in World 3 each tile keeps its own beat', () => {
+    // He lands on the first tile on step 0 and is put on the second on step 10, where he stays until it goes.
+    const at = fromLanding(back, 200, (k) => (k >= 10 && k < 40 ? onTile(3) : undefined));
+    const backOn = (i: number) => at.findIndex((r, k) => k > 30 && r.crumbles[i]!.phase === 'idle');
+    expect(at[10]!.crumbles[1]).toEqual({ phase: 'warning', steps: 30 });
+    expect(backOn(0)).toBe(150);
+    expect(backOn(1)).toBe(160);
+  });
+
+  it('GDD-WLD-05 a crumbled ledge in World 3 without the flag a gone tile stays gone until a life is lost', () => {
+    const at = fromLanding(level, 600);
+    expect(at[30]!.crumbles[0]).toEqual({ phase: 'gone', steps: 0 }); // no steps counted towards a return
+    expect(at[600]!.crumbles[0]!.phase).toBe('gone');
+    expect(solid(at[600]!)).toBe(false);
+    expect(at[600]!.lives.lives).toBe(7);
+  });
+
+  it('GDD-WLD-05 a crumbled ledge in World 3 a lost life makes every tile whole at once in a level whose ledges return', () => {
+    // He lands on the join of the two tiles (both start), and on step 40 falls out of the level through the pit at column 8.
+    let r = stepRun({ ...startRun(back), player: spawn(3 * TILE, 5 * TILE) }, idle, back);
+    for (let k = 1; k < 40; k++) r = stepRun(r, idle, back);
+    expect(phases(r)).toEqual(['gone', 'gone']);
+    r = stepRun({ ...r, player: { ...spawn(8 * TILE + 8, 12 * TILE), grounded: false, vy: 300 } }, idle, back);
+    expect(r.phase).toBe('respawning');
+    expect(phases(r)).toEqual(['gone', 'gone']);
+    for (let i = 0; i < 300 && r.phase === 'respawning'; i++) {
+      r = stepRun(r, idle, back);
+      if (r.phase === 'respawning') expect(phases(r)).toEqual(['gone', 'gone']);
+    }
+    expect(r.phase).toBe('playing');
+    expect(r.crumbles).toEqual(freshCrumbles(crumbles));
+  });
+});

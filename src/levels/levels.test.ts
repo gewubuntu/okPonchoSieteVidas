@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { frontierWorld, LEVELS, levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, worldAtAfter, worldLevels, worldLivesAfter, worldStart, type LevelEntry } from './index';
+import { startRun, stepRun, type Level } from '../sim/run';
+import { frontierWorld, GLIDE_UNLOCK_ID, LEVELS, levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, unlockedAbilities, withUnlocks, worldAtAfter, worldLevels, worldLivesAfter, worldStart, type LevelEntry } from './index';
+import { LEVEL_1_1 } from './level1-1';
 import { SANDBOX_LEVEL } from './sandbox';
 import { gaps, validateLevel } from './validate';
 
@@ -409,5 +411,47 @@ describe('GDD-UI-02 Start frontier', () => {
 
   it('GDD-UI-02 frontier tutorial: before the tutorial has started it still wins', () => {
     expect(pick('', false, WORLD_1, { '2': 4 }, { '2': '2-3' })).toMatchObject({ entry: { id: '0-1' }, lives: 7 });
+  });
+});
+
+/** GDD-PRG-01: whether he glides on any of 60 steps of jump held from the level's spawn. */
+const glides = (level: Level): boolean => {
+  let r = startRun(level);
+  let glided = false;
+  for (let i = 0; i < 60; i++) {
+    r = stepRun(r, { move: 0, jumpHeld: true }, level);
+    glided ||= r.player.gliding === true;
+  }
+  return glided;
+};
+
+describe('GDD-PRG-01 the glide unlock', () => {
+  it('GDD-PRG-01 the glide is unlocked once 2-4 is cleared, and by nothing else', () => {
+    expect(unlockedAbilities({})).toEqual({});
+    const allBut24 = Object.fromEntries(LEVELS.filter((e) => e.id !== '2-4').map((e) => [e.id, c]));
+    expect(allBut24).toMatchObject({ '1-4': c, '2-3': c });
+    expect(unlockedAbilities(allBut24)).toEqual({});
+    expect(unlockedAbilities({ '2-4': { cleared: false } })).toEqual({});
+    expect(unlockedAbilities({ '2-4': c })).toEqual({ glide: true });
+    expect(unlockedAbilities({ ...allBut24, '2-4': c })).toEqual({ glide: true });
+    expect(GLIDE_UNLOCK_ID).toBe('2-4');
+  });
+
+  it('GDD-PRG-01 an unlocked glide is added to every level and takes nothing a level has away', () => {
+    for (const e of LEVELS) {
+      const glided = withUnlocks(e.level, { glide: true });
+      expect(glided.abilities?.glide, e.id).toBe(true);
+      expect(glided.abilities?.wallCling, e.id).toBe(e.level.abilities?.wallCling);
+      const fields = new Map(Object.entries(glided));
+      for (const [key, value] of Object.entries(e.level)) if (key !== 'abilities') expect(fields.get(key), `${e.id} ${key}`).toBe(value);
+      expect(new Set([...fields.keys()].filter((k) => k !== 'abilities')), e.id).toEqual(new Set(Object.keys(e.level).filter((k) => k !== 'abilities')));
+      expect(withUnlocks(e.level, {}), e.id).toBe(e.level);
+    }
+    expect(withUnlocks(SANDBOX_LEVEL, { glide: true }).abilities).toEqual({ glide: true, wallCling: true });
+  });
+
+  it('GDD-PRG-01 with the glide unlocked a held jump glides in 1-1, and without it does not', () => {
+    expect(glides(LEVEL_1_1)).toBe(false);
+    expect(glides(withUnlocks(LEVEL_1_1, { glide: true }))).toBe(true);
   });
 });

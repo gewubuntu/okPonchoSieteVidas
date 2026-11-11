@@ -73,6 +73,11 @@ export interface Level {
   readonly veladora?: Veladora;
   /** GDD-TEC-04, GDD-WLD-03: where the level ends: the middle of a box standing on the floor. Reaching it ends the level. Left out means none (the sandbox, a test level). */
   readonly exit?: Point;
+  /**
+   * GDD-WLD-05: a crumbled tile is whole again 2.0 s after it went (World 3's ledges, user, 2026-11-10: "Come back after 2 s"). Left out,
+   * it stays gone until a life is lost.
+   */
+  readonly crumblesReturn?: boolean;
   /** GDD-MOV-07, GDD-PRG-01: the abilities unlocked here. Left out means none. */
   readonly abilities?: Abilities;
   /** GDD-BOS-01, GDD-BOS-02: the level's boss (a boss level, one screen, cleared by beating him). Left out means none. */
@@ -417,7 +422,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   const onAwning = !stomped.some(Boolean);
   const awningsGone = run.awningsGone.map((g, i) => g || (onAwning && i === awning.tore) || chewed.includes(i));
   const awningBounce = onAwning && awning.bounce ? { ...awning.bounce, at: run.clock } : run.awningBounce;
-  const crumbles = stepCrumbles(level.crumbles, run.crumbles, player);
+  const crumbles = stepCrumbles(level.crumbles, run.crumbles, player, level.crumblesReturn === true);
   // GDD-WLD-04: hilos are collected by touch on any step Poncho is in play, the step he is hit or crushed included.
   const hilosTaken = collectHilos(level.hilos ?? [], run.hilosTaken, player);
   // GDD-LIFE-03: so is the veladora, and its life counts before one lost this step. `collectVeladora` uses it up once.
