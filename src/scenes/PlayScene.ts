@@ -37,6 +37,7 @@ import swipePng from '../../assets/sprites/poncho/swipe.png';
 import fxPng from '../../assets/sprites/poncho/fx.png';
 import fantasmaPng from '../../assets/sprites/poncho/fantasma.png';
 import glowPng from '../../assets/sprites/poncho/glow.png';
+import ledgePng from '../../assets/sprites/sierra/ledge.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import jumpOgg from '../../assets/audio/sfx/jump.ogg';
@@ -89,11 +90,13 @@ import { cameraDrawY, cameraLimits, cameraScroll, cutCameraY, followCamera, step
 import { dashedRect } from '../ui/dashed';
 import { GamepadReader } from '../ui/gamepad';
 import { sceneryFor, type Scenery } from '../ui/scenery/scenery';
+import { artSetFor, textureKey } from '../ui/scenery/looks';
+import { crumbleLook } from '../ui/crumbleLook';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
-import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
+import { lastLifePulse, updatePulseStart } from '../ui/lastLife';
 import { HILO_COLOURS, HILO_HUD, hiloColour, hiloCounterRight, hiloCounterText } from '../ui/hiloCounter';
-import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
+import { drawnLife, layoutLives, LIVES_HUD, type TrianglePoints } from '../ui/livesLayout';
 import { gamePoint } from '../ui/gamePoint';
 import { ITEM_FRAMES } from '../ui/ponchoFrames';
 import { ITEM_LOOKS, ITEM_SHEETS, itemFrame, ponchoFrame, ponchoLookAt, type FxLook, type HeldLook, type ItemLook, type ItemSheet, type PonchoLook, type SwipeLook } from '../ui/ponchoLooks';
@@ -257,6 +260,12 @@ export interface PonchoDebug {
   hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
   /** The scale the last triangle was drawn at while one life is left, or null when it does not pulse (GDD-LIFE-04). */
   hudPulse(): number | null;
+  /**
+   * GDD-UI-01: the dark outline the HUD last stroked round each life triangle, in the row's order: the triangle's place, whether it was
+   * drawn filled (a life kept) or not (lost, or cracking), the outline's three corners (game px, six numbers), its colour and line width.
+   * Read from what was drawn, one entry per triangle stroked; the 1 px line itself is too thin to sample on the phone (L-017).
+   */
+  hudOutlines(): { index: number; filled: boolean; points: number[]; colour: number; px: number }[];
   /** Freezes the simulation and the animations on the current frame, for screenshots and pixel tests. Not the player's pause. */
   pause(on: boolean): void;
   /** The player's pause (GDD-UI-02): whether the level is paused, whether because the phone is upright, and the chosen menu item. */
@@ -369,8 +378,13 @@ export interface PonchoDebug {
    * in degrees it was last drawn at (`cartPose`; positive clockwise on the screen: -45 with its right side up, 0 on level rail).
    */
   carts(): { x?: number; y?: number; w?: number; h?: number; angle?: number; phase: string }[];
-  /** The crumbling tiles and their state, read from the run (GDD-WLD-05). */
-  crumbles(): { col: number; row: number; phase: string; steps: number }[];
+  /**
+   * The crumbling tiles and their state, read from the run (GDD-WLD-05), and how each was last drawn, read from what was drawn: `look`,
+   * 'ledge' where it is World 3's rock ledge image (GDD-ART-06, in a Sierra level) or 'placeholder' for the sandy tile; `x`, the drawn
+   * tile's left edge in game px (its column's edge, 1 px either side while it shakes in its warning); `frame`, 0 at rest and 1 in its pale
+   * flash; `visible`, false once it is gone. Read after the frame that drew the state (a step's state is drawn in the frame after it).
+   */
+  crumbles(): { col: number; row: number; phase: string; steps: number; look: 'ledge' | 'placeholder'; x: number; frame: number; visible: boolean }[];
   /**
    * GDD-WLD-10, GDD-WLD-11: the awnings, cordeles and rollos as drawn (each awning's sag and lift in px and whether it is drawn torn apart;
    * each rollo's bundle frame, null once strung, and its line tiles), and from the run: Poncho's held rebounds in a row, the torn awnings
@@ -601,6 +615,10 @@ export class PlayScene extends Phaser.Scene {
   private cartAngles: number[] = [];
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
+  /** GDD-WLD-05, GDD-ART-06: in a Sierra level the rock ledge's image for each crumbling tile, else null (the placeholder is drawn). */
+  private ledgeImages: Phaser.GameObjects.Image[] | null = null;
+  /** How each crumbling tile was last drawn (`PonchoDebug.crumbles`). */
+  private crumblesDrawn: { look: 'ledge' | 'placeholder'; x: number; frame: number; visible: boolean }[] = [];
   /** GDD-PWR-02, GDD-ART-04: the level's taco pickups, one image each, and what Poncho holds, the claw swipe and the effect at his mouth. */
   private tacoImages: Phaser.GameObjects.Image[] = [];
   /** GDD-PWR-04: the four copies of his body that make the glow's outline, just under it, and the pool of images for what floats round him. */
@@ -674,6 +692,8 @@ export class PlayScene extends Phaser.Scene {
   private drawnLives = 0;
   private cracks: Crack[] = [];
   private cracksDrawn: { index: number; fillAlpha: number; crackAlpha: number }[] = [];
+  /** GDD-UI-01: the outline stroked round each life triangle in the last HUD drawing (`PonchoDebug.hudOutlines`). */
+  private outlinesDrawn: { index: number; filled: boolean; points: number[]; colour: number; px: number }[] = [];
   private paused = false;
   /** GDD-UI-02: the player's pause, the events that change it since the last frame, and the pause screen. */
   private pauseState: PauseState = PLAYING;
@@ -910,6 +930,13 @@ export class PlayScene extends Phaser.Scene {
     this.load.audio('sfx-bossDefeat', [bossDefeatOgg, bossDefeatMp3]);
     // GDD-WLD-10, GDD-WLD-11: World 2's awning, cordel and rollo sheets, only for a level that has them.
     if (hasMarketThings(this.level)) loadMarketThings(this);
+    // GDD-WLD-05, GDD-ART-06: World 3's rock ledge, its two frames a tile each, only in a Sierra level with crumbling tiles (GDD-TEC-03).
+    if (this.drawsLedges()) this.load.spritesheet(textureKey('sierra', 'ledge'), ledgePng, { frameWidth: TILE * ART_SCALE, frameHeight: TILE * ART_SCALE });
+  }
+
+  /** GDD-ART-06: a level drawn in the Sierra look dresses its crumbling tiles as the rock ledge; every other keeps the placeholder. */
+  private drawsLedges(): boolean {
+    return artSetFor(this.entry.world) === 'sierra' && this.level.crumbles.length > 0;
   }
 
   create(): void {
@@ -1014,6 +1041,8 @@ export class PlayScene extends Phaser.Scene {
     this.cartBackGfx = this.add.graphics().setDepth(2.5);
     this.cartFrontGfx = this.add.graphics().setDepth(3.2);
     this.crumbleGfx = this.add.graphics().setDepth(1);
+    // GDD-ART-06: at the placeholder's depth.
+    this.ledgeImages = this.drawsLedges() ? this.level.crumbles.map((c) => this.add.image(c.col * TILE, c.row * TILE, textureKey('sierra', 'ledge'), 0).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1)) : null;
     this.drawCrumbles();
 
     // GDD-LIFE-05: the Siete vidas gastadas screen, over the level and under the HUD and the touch buttons (so Jump stays
@@ -1317,6 +1346,7 @@ export class PlayScene extends Phaser.Scene {
         hudFilled: () => this.hudFilled,
         hudCracking: () => this.cracksDrawn,
         hudPulse: () => this.pulseDrawn,
+        hudOutlines: () => this.outlinesDrawn,
         pause: (on) => {
           this.paused = on;
         },
@@ -1409,7 +1439,7 @@ export class PlayScene extends Phaser.Scene {
             const fell = fallingBox(r, c);
             return fell ? { ...fell, phase: c.phase } : { ...cartFloor(r, c), phase: c.phase, angle: this.cartAngles[i] ?? 0 };
           }),
-        crumbles: () => this.level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
+        crumbles: () => this.level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]!, ...this.crumblesDrawn[i]! })),
         market: () => ({
           ...(this.market?.drawn ?? { awnings: [], rollos: [] }),
           chain: this.run.player.awningChain ?? 0,
@@ -1542,20 +1572,27 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * Placeholder crumbling tiles (GDD-WLD-05): sandy blocks with a crack. While warning they shake sideways and flash pale
-   * in turn, so the warning shows by movement and not only by colour (GDD-UI-03); once gone they are not drawn.
+   * Crumbling tiles (GDD-WLD-05): in a Sierra level World 3's rock ledge (GDD-ART-06), elsewhere the placeholder, sandy blocks with a
+   * crack. While warning they shake sideways and flash pale in turn (`crumbleLook`), so the warning shows by movement and not only by
+   * colour (GDD-UI-03); once gone they are not drawn.
    */
   private drawCrumbles(): void {
     this.crumblesKey = this.run.crumbles.map((c) => `${c.phase}${c.steps}`).join();
     this.crumbleGfx.clear();
+    this.crumblesDrawn = [];
     this.level.crumbles.forEach((c, i) => {
-      const state = this.run.crumbles[i]!;
-      if (state.phase === 'gone') return;
-      const warning = state.phase === 'warning';
-      const dx = warning ? (state.steps % 4 < 2 ? -1 : 1) : 0;
-      const x = c.col * TILE + dx;
+      const look = crumbleLook(this.run.crumbles[i]!);
+      const x = c.col * TILE + look.dx;
       const y = c.row * TILE;
-      this.crumbleGfx.fillStyle(warning && state.steps % 8 < 4 ? 0xe9d3a3 : 0xc9a46a, 1).fillRect(x, y, TILE, TILE);
+      const ledge = this.ledgeImages?.[i];
+      if (ledge) {
+        ledge.setPosition(x, y).setFrame(look.frame).setVisible(look.visible);
+        this.crumblesDrawn.push({ look: 'ledge', x: ledge.x, frame: Number(ledge.frame.name), visible: ledge.visible });
+        return;
+      }
+      this.crumblesDrawn.push({ look: 'placeholder', x, frame: look.frame, visible: look.visible });
+      if (!look.visible) return;
+      this.crumbleGfx.fillStyle(look.frame === 1 ? 0xe9d3a3 : 0xc9a46a, 1).fillRect(x, y, TILE, TILE);
       this.crumbleGfx.lineStyle(1, 0x7d6038, 1).strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
       this.crumbleGfx.lineBetween(x + 4, y + 1, x + 8, y + 7).lineBetween(x + 8, y + 7, x + 6, y + 14);
     });
@@ -2183,9 +2220,13 @@ export class PlayScene extends Phaser.Scene {
     // GDD-LIFE-04: with one life left, its triangle pulses, counted from the step the lives dropped to one.
     this.pulseStart = updatePulseStart(this.pulseStart, this.run.lives.lives, this.ticks);
     this.pulseDrawn = lastLifePulse(this.run.lives.lives, this.ticks - (this.pulseStart ?? 0));
+    this.outlinesDrawn = [];
     layoutLives(this.run.lives.lives).forEach((triangle, index) => {
-      const [x1, y1, x2, y2, x3, y3] = index === 0 && this.pulseDrawn !== null ? pulsedPoints(triangle, this.pulseDrawn) : triangle.points;
+      const { points, outline } = drawnLife(triangle, index === 0 ? this.pulseDrawn : null);
+      const [x1, y1, x2, y2, x3, y3] = points;
       const { filled } = triangle;
+      // GDD-UI-01: a dark line 1 px outside every triangle's edge, kept or lost, under it.
+      this.strokeLifeOutline(index, filled, outline);
       if (filled) {
         this.hudFilled++;
         this.hud.fillStyle(0xb94842, 1).fillTriangle(x1, y1, x2, y2, x3, y3);
@@ -2204,6 +2245,14 @@ export class PlayScene extends Phaser.Scene {
       }
       this.hud.lineStyle(1, 0x9ba3c4, 1).strokeTriangle(x1, y1, x2, y2, x3, y3);
     });
+  }
+
+  /** GDD-UI-01: strokes a life triangle's dark outline (`drawnLife`), before the triangle so its edge lies over it, and notes it for the playtests. */
+  private strokeLifeOutline(index: number, filled: boolean, outline: TrianglePoints): void {
+    const { colour, px } = LIVES_HUD.outline;
+    const [x1, y1, x2, y2, x3, y3] = outline;
+    this.hud.lineStyle(px, colour, 1).strokeTriangle(x1, y1, x2, y2, x3, y3);
+    this.outlinesDrawn.push({ index, filled, points: [...outline], colour, px });
   }
 
   /** GDD-LIFE-05: the screen is up while the run shows it; its prompt only once a press would be taken (after 1.0 s). */

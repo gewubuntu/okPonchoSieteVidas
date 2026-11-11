@@ -12,11 +12,12 @@ const pngSize = (set: string, file: string): [number, number] => {
 };
 
 describe('GDD-ART-06 a look per world', () => {
-  it('GDD-ART-06 artset: World 2 is the Mercado; the tutorial, World 1 and worlds not drawn yet the desert', () => {
-    expect([0, 1, 2, 3, 7].map(artSetFor)).toEqual(['desierto', 'desierto', 'mercado', 'desierto', 'desierto']);
+  it('GDD-ART-06 World 3 is drawn in the Sierra look, Worlds 0 and 1 in the desert, World 2 in the Mercado', () => {
+    // Worlds 4 to 7 are not drawn yet: the desert.
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map(artSetFor)).toEqual(['desierto', 'desierto', 'mercado', 'sierra', 'desierto', 'desierto', 'desierto', 'desierto']);
   });
 
-  it('GDD-ART-06 artset of every level: World 2 levels the Mercado (its labs too), the rest (the World 1 test levels too) the desert', () => {
+  it('GDD-ART-06 artset of every level: World 2 levels the Mercado, World 3 labs the Sierra, the rest (the World 1 test levels too) the desert', () => {
     expect(Object.fromEntries(LEVELS.map((e) => [e.id, artSetFor(e.world)]))).toEqual({
       '0-1': 'desierto',
       '1-1': 'desierto',
@@ -27,12 +28,13 @@ describe('GDD-ART-06 a look per world', () => {
       '2-2': 'mercado',
       '2-3': 'mercado',
       '2-4': 'mercado',
+      '3-1': 'sierra',
       sandbox: 'desierto',
       slopes: 'desierto',
       'lab-2m': 'mercado',
       'lab-2e': 'mercado',
-      'lab-3c': 'desierto',
-      'lab-3t': 'desierto',
+      'lab-3c': 'sierra',
+      'lab-3t': 'sierra',
     });
   });
 
@@ -86,6 +88,45 @@ describe('GDD-ART-06 a look per world', () => {
       expect(x, `cloud ${i}`).toBeGreaterThan(0);
       expect(x + w!, `cloud ${i}`).toBeLessThan(480);
     });
+  });
+
+  it('GDD-ART-06 sierra look: a grey-blue sky in three bands and no sun, the shares of World 1, the foot pine deep', () => {
+    const s = LOOKS.sierra;
+    expect([s.cloudFactor, s.farFactor, s.midFactor]).toEqual([0.1, 0.3, 0.5]);
+    // #527391 from y 0 to 60, #8AA5B8 to 110, #BFCDD2 below (240 and 440 art px).
+    expect(s.skyBands).toEqual([0x527391, 0x8aa5b8, 0xbfcdd2]);
+    expect(s.skyEnds).toEqual([240, 440]);
+    expect(s.stripArt).toBe(2);
+    expect(s.sun).toBeNull();
+    expect(s.footColour).toBe(0x24403a);
+    // The far band from y 84 to 200, the mid band from 148 to the floor's top at 224.
+    expect([s.farTop, s.farTop + s.farBandArt / 4]).toEqual([84, 200]);
+    expect([s.midTop, s.midTop + s.midBandArt / 4]).toEqual([148, 224]);
+    // Pino 16 x 40, encino 16 x 28, madroño 14 x 24, maguey 16 x 12, sotol 10 x 32, tocón 14 x 8, zacatón 12 x 8.
+    expect(s.decor.map((d) => [d.w, d.h])).toEqual([[16, 40], [16, 28], [14, 24], [16, 12], [10, 32], [14, 8], [12, 8]]);
+  });
+
+  it('GDD-ART-06 sierra clouds: three streaks between y 20 and 58, clear of the lives and the hilo counter', () => {
+    const sizes = [0, 1, 2].map((i) => pngSize('sierra', `cloud-${i}.png`).map((n) => n / 4));
+    expect(LOOKS.sierra.clouds).toHaveLength(3);
+    LOOKS.sierra.clouds.forEach(({ x, y }, i) => {
+      const [w, h] = sizes[i]!;
+      expect(y, `cloud ${i}`).toBeGreaterThanOrEqual(20);
+      expect(y + h!, `cloud ${i}`).toBeLessThanOrEqual(58);
+      expect(x, `cloud ${i}`).toBeGreaterThan(100);
+      expect(x + w!, `cloud ${i}`).toBeLessThan(400);
+    });
+  });
+
+  it('GDD-ART-06 sierra files are the sizes the scene loads', () => {
+    const s = LOOKS.sierra;
+    expect(pngSize('sierra', 'sky-strips.png')).toEqual([1920, s.stripArt * s.skyEnds.length]);
+    expect(pngSize('sierra', 'far-barranca.png')).toEqual([1920, s.farBandArt]);
+    expect(pngSize('sierra', 'mid-barranca.png')).toEqual([1920, s.midBandArt]);
+    expect(pngSize('sierra', 'ground.png')).toEqual([28 * 64, 64]);
+    expect(pngSize('sierra', 'decor.png')).toEqual([7 * 16 * 4, 40 * 4]);
+    expect(Math.max(...s.decor.map((d) => d.w))).toBe(16);
+    expect(Math.max(...s.decor.map((d) => d.h))).toBe(40);
   });
 
   it('GDD-ART-06 mercado files are the sizes the scene loads', () => {

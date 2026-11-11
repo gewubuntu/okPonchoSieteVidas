@@ -392,13 +392,17 @@ for (const [id, level] of [
 }
 
 test("GDD-ART-06 the backdrop's mid layer shifts down as the camera rises", async ({ page }) => {
-  // At the lowest ground the camera is at its lowest: every layer at its place in a one-screen level.
-  const { midTop, farTop, sun } = LOOKS.desierto;
+  // At the lowest ground the camera is at its lowest: every layer at its place in a one-screen level. lab-3t is World 3's, drawn in the
+  // Sierra look (GDD-ART-06), which has no sun.
+  const { midTop, farTop, sun } = LOOKS.sierra;
+  expect(sun).toBeNull();
   await openAt(page, (LAB_3T_LOWEST.col0 + 4) * TILE, LAB_3T_LOWEST.row * TILE);
-  const low = await page.evaluate(() => ({ scrollY: window.__PONCHO__!.camera().scrollY, layout: window.__PONCHO__!.backdropLayout() }));
+  const low = await page.evaluate(() => ({ scrollY: window.__PONCHO__!.camera().scrollY, layout: window.__PONCHO__!.backdropLayout(), drawn: window.__PONCHO__!.scenery() }));
+  expect(low.drawn.set).toBe('sierra');
   expect(low.scrollY).toBe(368);
-  expect(low.layout).toMatchObject({ desertY: midTop, mountainsY: farTop, sunY: sun!.y });
-  // On the highest ledge, 368 px higher: the mid strip 73.6 px lower (0.2 of it, at whole art pixels), the far strip 36.8 (0.1), the sun still.
+  expect(low.layout).toMatchObject({ desertY: midTop, mountainsY: farTop, sunY: null });
+  // On the highest ledge, 368 px higher: the mid strip 73.6 px lower (0.2 of it, at whole art pixels), the far strip 36.8 (0.1); the sky
+  // and the clouds still (the shifts below).
   await page.evaluate(([x, y]) => {
     const d = window.__PONCHO__!;
     d.teleport(x!, y! - 1);
@@ -406,7 +410,7 @@ test("GDD-ART-06 the backdrop's mid layer shifts down as the camera rises", asyn
   }, [(LAB_3T_TOP.col0 + 1) * TILE, LAB_3T_TOP.row * TILE]);
   const high = await page.evaluate(() => ({ scrollY: window.__PONCHO__!.camera().scrollY, layout: window.__PONCHO__!.backdropLayout(), shifts: window.__PONCHO__!.backdropShifts() }));
   expect(high.scrollY).toBe(0);
-  expect(high.layout).toMatchObject({ desertY: midTop + 73.5, mountainsY: farTop + 36.75, sunY: sun!.y });
+  expect(high.layout).toMatchObject({ desertY: midTop + 73.5, mountainsY: farTop + 36.75, sunY: null });
   // Every object of the backdrop moved down or not at all; the far strip, its foot and the mid strip are the last three.
   expect(high.shifts.slice(-3)).toEqual([36.75, 36.75, 73.5]);
   expect(new Set(high.shifts.slice(0, -3))).toEqual(new Set([0]));

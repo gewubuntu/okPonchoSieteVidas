@@ -124,8 +124,8 @@ describe('GDD-WLD-03 a raised bottom', () => {
   });
 
   it('GDD-WLD-03 a level without bottoms is unchanged', () => {
-    // Every level but the tall lab has none: its floor line is the level's bottom under every column.
-    for (const e of LEVELS.filter((l) => l.id !== 'lab-3t')) {
+    // Every level but 3-1 (GDD-WLD-16) and the tall lab has none: its floor line is the level's bottom under every column.
+    for (const e of LEVELS.filter((l) => l.id !== '3-1' && l.id !== 'lab-3t')) {
       expect(e.level.bottoms, e.id).toBeUndefined();
       for (let col = 0; col < e.level.world.width; col++) expect(floorYAt(e.level, col * TILE + TILE / 2), `${e.id} column ${col}`).toBe(e.level.world.height * TILE);
     }

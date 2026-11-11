@@ -780,3 +780,40 @@ export const MERCADO = {
     { name: 'loteria', w: 12, h: 16 },
   ],
 } as const;
+
+/**
+ * GDD-ART-06: World 3's (Sierra) backdrop and decor for the canyon, from `scripts/art/sierra.mjs`, put together as World 2's: the clouds
+ * scroll at `cloudFactor` of the camera's scroll, the far ranges at `farFactor` and the canyon's far wall at `midFactor`. The sky's grey-blue
+ * bands are flat colours (`skyBands`), the first two ending `skyEnds` art px from the top (y 60 and 110) with a dither strip of `stripArt`
+ * px; the last is the camera's background. No sun. Each of the three streaks of cloud is an image at `clouds` (game px), on the sky's top
+ * band, clear of the lives and the hilo counter. The far band is `farBandArt` art px tall from game y `farTop`, with the flat foot in
+ * `footColour` (pine deep) below it; the mid band is `midBandArt` art px tall from `midTop` (down to the floor's top at 224). `decor` is the
+ * pine-oak forest's seven kinds (pino, encino, madroño, maguey, sotol, tocón, zacatón), their size in game px, placed by World 1's plant rule.
+ */
+export const SIERRA = {
+  cloudFactor: 0.1,
+  farFactor: 0.3,
+  midFactor: 0.5,
+  skyBands: [0x527391, 0x8aa5b8, 0xbfcdd2],
+  skyEnds: [240, 440],
+  stripArt: 2,
+  clouds: [
+    { x: 118, y: 24 },
+    { x: 206, y: 46 },
+    { x: 292, y: 30 },
+  ],
+  farTop: 84,
+  farBandArt: 464,
+  midTop: 148,
+  midBandArt: 304,
+  footColour: 0x24403a,
+  decor: [
+    { name: 'pino', w: 16, h: 40 },
+    { name: 'encino', w: 16, h: 28 },
+    { name: 'madrono', w: 14, h: 24 },
+    { name: 'maguey', w: 16, h: 12 },
+    { name: 'sotol', w: 10, h: 32 },
+    { name: 'tocon', w: 14, h: 8 },
+    { name: 'zacaton', w: 12, h: 8 },
+  ],
+} as const;

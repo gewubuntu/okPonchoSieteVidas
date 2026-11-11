@@ -55,7 +55,8 @@ describe('GDD-BOS-03 level 2-4', () => {
     const entry = LEVELS.find((e) => e.id === '2-4')!;
     expect(entry).toMatchObject({ world: 2, test: false });
     expect(entry.level).toBe(LEVEL_2_4);
-    expect(entry.next).toBeUndefined();
+    // GDD-UI-02: its Next level starts World 3 (GDD-WLD-16).
+    expect(entry.next).toBe('3-1');
     expect(levelById('2-3')!.next).toBe('2-4');
     expect(entry.tips).toBeUndefined();
     expect(isBossLevel(LEVEL_2_4)).toBe(true);

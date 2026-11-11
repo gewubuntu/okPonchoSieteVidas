@@ -1,5 +1,5 @@
-// GDD-ART-06: the image files of each art set (`scripts/art/make-desert.mjs`, `scripts/art/make-mercado.mjs`), as URLs Vite serves. Only
-// the files of the level's world are loaded (GDD-TEC-03).
+// GDD-ART-06: the image files of each art set (`scripts/art/make-desert.mjs`, `scripts/art/make-mercado.mjs`, `scripts/art/make-sierra.mjs`),
+// as URLs Vite serves. Only the files of the level's world are loaded (GDD-TEC-03).
 import desiertoSkyStrips from '../../../assets/sprites/desierto/sky-strips.png';
 import desiertoSun from '../../../assets/sprites/desierto/sun.png';
 import desiertoCloud0 from '../../../assets/sprites/desierto/cloud-0.png';
@@ -19,6 +19,14 @@ import mercadoMidRoofs from '../../../assets/sprites/mercado/mid-roofs.png';
 import mercadoPlaza from '../../../assets/sprites/mercado/plaza.png';
 import mercadoGround from '../../../assets/sprites/mercado/ground.png';
 import mercadoDecor from '../../../assets/sprites/mercado/decor.png';
+import sierraSkyStrips from '../../../assets/sprites/sierra/sky-strips.png';
+import sierraCloud0 from '../../../assets/sprites/sierra/cloud-0.png';
+import sierraCloud1 from '../../../assets/sprites/sierra/cloud-1.png';
+import sierraCloud2 from '../../../assets/sprites/sierra/cloud-2.png';
+import sierraFarBarranca from '../../../assets/sprites/sierra/far-barranca.png';
+import sierraMidBarranca from '../../../assets/sprites/sierra/mid-barranca.png';
+import sierraGround from '../../../assets/sprites/sierra/ground.png';
+import sierraDecor from '../../../assets/sprites/sierra/decor.png';
 import type { ArtSet } from './looks';
 
 export interface ArtFiles {
@@ -55,5 +63,15 @@ export const FILES: Readonly<Record<ArtSet, ArtFiles>> = {
     plaza: mercadoPlaza,
     ground: mercadoGround,
     decor: mercadoDecor,
+  },
+  sierra: {
+    skyStrips: sierraSkyStrips,
+    sun: null,
+    clouds: [sierraCloud0, sierraCloud1, sierraCloud2],
+    far: sierraFarBarranca,
+    mid: sierraMidBarranca,
+    plaza: null,
+    ground: sierraGround,
+    decor: sierraDecor,
   },
 };

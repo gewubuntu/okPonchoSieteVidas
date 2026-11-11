@@ -136,8 +136,8 @@ function respawns(level) {
 }
 
 describe('GDD-ART-04 Poncho\'s frames fit the real levels (L-059)', () => {
-  it('runs over every World 1 and World 2 level and the tutorial', () => {
-    expect(levels.map((e) => e.id)).toEqual(['0-1', '1-1', '1-2', '1-3', '1-4', '2-1', '2-2', '2-3', '2-4']);
+  it('runs over every World 1, World 2 and World 3 level and the tutorial', () => {
+    expect(levels.map((e) => e.id)).toEqual(['0-1', '1-1', '1-2', '1-3', '1-4', '2-1', '2-2', '2-3', '2-4', '3-1']);
   });
 
   for (const entry of levels) {
