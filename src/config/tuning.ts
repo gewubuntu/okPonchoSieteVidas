@@ -420,8 +420,8 @@ export const ZOPILOTE = {
 } as const;
 
 /**
- * GDD-ENM-02, GDD-ENM-03, GDD-ART-05: the enemy sprites, World 1's and World 2's. `frames` is each sheet's frame in game px (a walker's box's middle on the frame's middle
- * column and its feet on the bottom row; the Zopilote's and the poof's middle on the frame's middle). A walker shows the next walk frame every
+ * GDD-ENM-02, GDD-ENM-03, GDD-ENM-04, GDD-ART-05: the enemy sprites, World 1's, World 2's and World 3's Murciélago. `frames` is each sheet's frame in game px (a walker's box's middle on the frame's middle
+ * column and its feet on the bottom row; the Zopilote's, the Murciélago's and the poof's middle on the frame's middle). A walker shows the next walk frame every
  * `walkPx` px it walks, the Tlacuache the next run frame every `chargePx` px it charges; the Zopilote the next flap every `flapSteps` and the
  * next climb every `climbSteps`; a telegraph flashes red for `flashSteps` and plain for as many (GDD-ENM-01). A Zopilote dives steep while its
  * dive's drop is at least `steepRatio` times its run. The cactus buddy breathes every `dozeSteps`, peeks while Poncho's hurtbox centre is
@@ -433,7 +433,7 @@ export const ZOPILOTE = {
  * `scripts/art/enemies1.levels.test.mjs`, and World 2's by `scripts/art/enemies2.levels.test.mjs`). World 2's own pose steps are the last six.
  */
 export const ENEMY_ART = {
-  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, poof: { w: 24, h: 24 } },
+  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, murcielago: { w: 32, h: 24 }, poof: { w: 24, h: 24 } },
   reach: {
     alacran: { behind: 4.5, front: 1.5, above: 3, below: 0 },
     zopilote: { behind: 6, front: 0.5, above: 6.5, below: 3.5 },
@@ -468,6 +468,8 @@ export const ENEMY_ART = {
   spinSteps: 3,
   /** GDD-ENM-03 (Proposed): a stunned Trompo's rock in its last `TROMPO.wobbleSteps` shows stunWobble on every other block of `rockSteps` steps. */
   rockSteps: 4,
+  /** GDD-ENM-04 (Proposed): the Murciélago shows the next flap frame every `batFlapSteps` of its own steps. */
+  batFlapSteps: 5,
 } as const;
 
 /**
@@ -502,6 +504,12 @@ export const CHAPULIN = { width: 12, height: 10, crouchSteps: Math.round(0.6 * T
  * along at `speed` px/s. A claw swipe or a fireball stuns it for `stunSteps` (1.0 s); it wobbles in the last `wobbleSteps` (0.5 s).
  */
 export const TROMPO = { width: 14, height: 14, speed: 70, stunSteps: Math.round(1.0 * TICK_HZ), wobbleSteps: Math.round(0.5 * TICK_HZ) } as const;
+
+/**
+ * GDD-ENM-04: the Murciélago (bat) is `width` x `height` px, centred on where it flies. It loops round the middle the level gives, `rx` px
+ * across (0 to `maxRx`) and `ry` px up and down (0 to `maxRy`), once every `periodSteps` (4.0 s).
+ */
+export const MURCIELAGO = { width: 16, height: 10, periodSteps: Math.round(4.0 * TICK_HZ), maxRx: 48, maxRy: 24 } as const;
 
 /**
  * GDD-BOS-02: Don Zopilote, World 1's boss, a `width` x `height` px box (three times the Zopilote). He laps an ellipse `rx` px either

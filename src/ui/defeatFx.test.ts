@@ -132,6 +132,22 @@ describe('GDD-ENM-02 the defeat poof', () => {
     expect(defeatLook({ ...trompo, age: 7 }).y).toBe(224); // it does not rise
   });
 
+  it('GDD-ENM-04 a stomped Murciélago shows its squash frame where it flew, a clawed one its hit frame, then the poof', () => {
+    // A bat whose loop's middle is (300, 100), defeated a quarter loop on, at its lowest: its box's middle (300, 124), its bottom 129. The
+    // sheet's squash and hit frames are 4 and 5.
+    const level = { enemies: [{ x: 300, y: 100, ry: 24, kind: 'murcielago' } as const] };
+    const flying: EnemyState = { x: 300, dir: -1, alive: true, loop: { steps: 60, y: 124 } };
+    const gone = [{ ...flying, alive: false }];
+    const stomped = stepDefeats([], { enemies: [flying] }, after(gone, true), level)[0]!;
+    expect(stomped).toEqual({ kind: 'murcielago', x: 300, y: 124, feet: 129, flip: true, stomped: true, age: 0 });
+    expect(defeatLook(stomped)).toEqual({ sheet: 'murcielago', look: 'squash', frame: 4, x: 300, y: 124, flip: true });
+    expect(defeatLook({ ...stomped, age: 7 })).toMatchObject({ look: 'squash', y: 124 });
+    const clawed = stepDefeats([], { enemies: [flying] }, after(gone), level)[0]!;
+    expect(defeatLook(clawed)).toEqual({ sheet: 'murcielago', look: 'hit', frame: 5, x: 300, y: 124, flip: true });
+    expect([0, 4, 7].map((a) => defeatLook({ ...clawed, age: a }).y)).toEqual([124, 121, 124 - 5.25]); // rising 6 px from where it flew
+    for (const e of [stomped, clawed]) expect(defeatLook({ ...e, age: 8 })).toEqual({ sheet: 'poof', look: 'poof0', frame: 0, x: 300, y: 124, flip: false });
+  });
+
   it('GDD-LIFE-02 a life lost empties the list', () => {
     const fx = stompedAlacran();
     const dead = without(ALIVE, 0);

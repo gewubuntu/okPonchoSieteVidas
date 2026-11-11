@@ -1,12 +1,13 @@
 // GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have (GDD-MOV-09: its sand slopes
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
-import { AWNING, BASE_WIDTH, CART, COVER, ESTRELLA, LEVEL_RULES, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
+import { AWNING, BASE_WIDTH, CART, COVER, ESTRELLA, LEVEL_RULES, MURCIELAGO, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
 import { bossStart } from '../sim/boss';
 import { bottomRowAt, type Bottom } from '../sim/bottoms';
 import { railGround, railLength, type Rail } from '../sim/cart';
 import { estrellaStart } from '../sim/estrella';
 import { isBossLevel } from '../sim/bossLevel';
-import { kindOf } from '../sim/enemy';
+import { kindOf, type Enemy } from '../sim/enemy';
+import { murcielagoAt } from '../sim/murcielago';
 import type { Level } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
 import type { LevelEntry } from './index';
@@ -119,6 +120,36 @@ function railProblems(rails: readonly Rail[], boss: boolean): string[] {
   return problems;
 }
 
+/** GDD-ENM-04: the middle of a Murciélago at each of the MURCIELAGO.periodSteps steps of its loop. */
+const loopOf = (def: Enemy): { x: number; y: number }[] => Array.from({ length: MURCIELAGO.periodSteps }, (_, n) => murcielagoAt(def, n));
+
+/**
+ * GDD-ENM-04, GDD-TEC-04: a Murciélago's loop is 0 to MURCIELAGO.maxRx px across and 0 to maxRy px up and down, its phase a whole step of the
+ * loop, and at every step of it its box touches no solid tile, no spike's tile and no crumbling tile. Boxes that only share an edge with a
+ * tile do not touch it.
+ */
+function murcielagoProblems(level: Level, def: Enemy): string[] {
+  const at = `murciélago at ${def.x},${def.y}`;
+  const problems: string[] = [];
+  const rx = def.rx ?? 0;
+  const ry = def.ry ?? 0;
+  const phase = def.phase ?? 0;
+  if (rx < 0 || rx > MURCIELAGO.maxRx) problems.push(`${at} has rx ${rx}, expected 0 to ${MURCIELAGO.maxRx}`);
+  if (ry < 0 || ry > MURCIELAGO.maxRy) problems.push(`${at} has ry ${ry}, expected 0 to ${MURCIELAGO.maxRy}`);
+  if (!Number.isInteger(phase) || phase < 0 || phase >= MURCIELAGO.periodSteps) problems.push(`${at} has phase ${phase}, expected a whole step from 0 to ${MURCIELAGO.periodSteps - 1}`);
+  const tiles = new Set([...level.spikes, ...level.crumbles].map((t) => `${t.col},${t.row}`));
+  const touches = (col: number, row: number): boolean => level.world.solidTile(col, row) || tiles.has(`${col},${row}`);
+  const hit = loopOf(def).some(({ x, y }) => {
+    const [x0, x1, y0, y1] = [x - MURCIELAGO.width / 2, x + MURCIELAGO.width / 2, y - MURCIELAGO.height / 2, y + MURCIELAGO.height / 2];
+    for (let row = Math.floor(y0 / TILE); row * TILE < y1; row++) {
+      for (let col = Math.floor(x0 / TILE); col * TILE < x1; col++) if (touches(col, row)) return true;
+    }
+    return false;
+  });
+  if (hit) problems.push(`${at} touches a tile on its loop`);
+  return problems;
+}
+
 /** GDD-WLD-03: 17 to 51 rows tall; a boss level one screen tall, 17 rows (GDD-BOS-01). */
 function heightProblems(level: Level): string[] {
   const rows = level.world.height;
@@ -214,14 +245,18 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
   // GDD-WLD-03, GDD-TEC-04: the level's height and its raised bottoms, a test level's too.
   problems.push(...heightProblems(level), ...bottomProblems(level));
 
-  // GDD-ENM-01: no enemy starts within 3 tiles of a respawn.
+  // GDD-ENM-01: no enemy starts within 3 tiles of a respawn; GDD-ENM-04: a Murciélago comes no nearer anywhere on its loop.
   const respawns = [level.spawn, ...level.ofrendas];
   for (const e of level.enemies) {
+    const places = kindOf(e) === 'murcielago' ? loopOf(e) : [e];
     for (const r of respawns) {
-      const d = Math.hypot(e.x - r.x, e.y - r.y);
+      const d = Math.min(...places.map((p) => Math.hypot(p.x - r.x, p.y - r.y)));
       if (d < LEVEL_RULES.enemyClearance) problems.push(`${kindOf(e)} at ${e.x},${e.y} is ${Math.floor(d)} px from the respawn at ${r.x},${r.y}, under ${LEVEL_RULES.enemyClearance}`);
     }
   }
+
+  // GDD-ENM-04: each Murciélago's loop.
+  for (const e of level.enemies) if (kindOf(e) === 'murcielago') problems.push(...murcielagoProblems(level, e));
 
   // GDD-ENM-01, GDD-BOS-01: the boss starts at least 3 tiles from the spawn, his only respawn.
   if (level.boss) {

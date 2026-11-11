@@ -28,6 +28,7 @@ import tlacuachePng from '../../assets/sprites/enemies/tlacuache.png';
 import palomaPng from '../../assets/sprites/enemies/paloma.png';
 import chapulinPng from '../../assets/sprites/enemies/chapulin.png';
 import trompoPng from '../../assets/sprites/enemies/trompo.png';
+import murcielagoPng from '../../assets/sprites/enemies/murcielago.png';
 import poofPng from '../../assets/sprites/enemies/poof.png';
 import tacoPng from '../../assets/sprites/poncho/taco.png';
 import chilePng from '../../assets/sprites/poncho/chile.png';
@@ -108,12 +109,12 @@ import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tip
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 import { hasMarketThings, loadMarketThings, MarketThings, type MarketDrawn } from '../ui/MarketThings';
 
-/** GDD-ENM-02, GDD-ENM-03: the enemy sheets and the defeat poof's. */
-const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, paloma: palomaPng, chapulin: chapulinPng, trompo: trompoPng, poof: poofPng };
+/** GDD-ENM-02, GDD-ENM-03, GDD-ENM-04: the enemy sheets and the defeat poof's. */
+const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, paloma: palomaPng, chapulin: chapulinPng, trompo: trompoPng, murcielago: murcielagoPng, poof: poofPng };
 /** GDD-ART-04, GDD-PWR-04: the taco, chile and Chile Fantasma pickups, what Poncho holds, the claw swipe, the effects at his mouth and his glow's, one sheet each (`ITEM_LOOKS`). */
 const ITEM_PNGS: Readonly<Record<ItemSheet, string>> = { taco: tacoPng, chile: chilePng, held: heldPng, swipe: swipePng, fx: fxPng, fantasma: fantasmaPng, glow: glowPng };
-/** A sheet's frames stand on their bottom middle (a walker's feet), or the Zopilote's and the poof's on their middle. */
-const centred = (sheet: Sheet): boolean => sheet === 'zopilote' || sheet === 'poof';
+/** A sheet's frames stand on their bottom middle (a walker's feet), or the Zopilote's, the Murciélago's and the poof's on their middle. */
+const centred = (sheet: Sheet): boolean => sheet === 'zopilote' || sheet === 'murcielago' || sheet === 'poof';
 
 /** GDD-AUD-02: the cache keys of every sound effect. */
 const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow', 'tick', 'hiss', 'grunt', 'bossDefeat'].map((n) => `sfx-${n}`);
@@ -430,13 +431,14 @@ export interface PonchoDebug {
   fireballAt(): { x: number; y: number }[];
   fireballsDrawn(): number;
   /**
-   * The enemies in the simulation, and where the scene painted the live ones (GDD-ENM-02). `y` is a Zopilote's flight y, else the feet of a
-   * walker where it walked to (GDD-MOV-09: it follows slopes), which is its start's y until it moves.
+   * The enemies in the simulation, and where the scene painted the live ones (GDD-ENM-02). `y` is a Zopilote's flight y, a Murciélago's middle on its
+   * loop (GDD-ENM-04), else the feet of a walker where it walked to (GDD-MOV-09: it follows slopes), which is its start's y until it moves.
+   * `phase` is `enemyPhase`'s.
    */
   enemies(): { x: number; y: number; alive: boolean; dir: number; phase: string }[];
   /**
    * Where the scene drew the live enemies, read back from what was drawn (L-010): each sprite's x and, for a walker, its bottom (its feet; a
-   * flying Paloma's, lifted by its flight and bobbing), for a Zopilote its middle (its flight y), with the look of the frame it shows and
+   * flying Paloma's, lifted by its flight and bobbing), for a Zopilote its middle (its flight y) and a Murciélago's (GDD-ENM-04), with the look of the frame it shows and
    * whether it is mirrored (GDD-ENM-02, GDD-ENM-03).
    */
   enemiesDrawn(): { x: number; y: number; kind: EnemyKind; look: EnemyLook; flip: boolean }[];
@@ -1431,7 +1433,7 @@ export class PlayScene extends Phaser.Scene {
         spits: () => this.spits,
         fireballAt: () => this.run.fireballs.map((f) => ({ x: f.x, y: f.y })),
         fireballsDrawn: () => this.fireballsPainted,
-        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: enemyPhase(e) })),
+        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? e.loop?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: enemyPhase(e) })),
         enemiesDrawn: () => this.enemiesPainted,
         defeatsDrawn: () => this.defeatsPainted,
         boss: () => {

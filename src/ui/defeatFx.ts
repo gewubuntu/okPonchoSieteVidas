@@ -1,4 +1,4 @@
-// GDD-ENM-02, GDD-ENM-03, GDD-ART-05: a defeated enemy's last frames: squashed by a stomp or knocked by the claw or a fireball, then a poof.
+// GDD-ENM-02, GDD-ENM-03, GDD-ENM-04, GDD-ART-05: a defeated enemy's last frames: squashed by a stomp or knocked by the claw or a fireball, then a poof.
 // Cosmetic only: nothing in the run reads it. Pure, no Phaser: the scene draws what this says.
 import { ENEMY_ART } from '../config/tuning';
 import { enemyBox, kindOf, type EnemyKind } from '../sim/enemy';
@@ -6,8 +6,8 @@ import type { Level, RunState } from '../sim/run';
 import { lookFrame, POOF_LOOKS, type EnemyLook, type Sheet } from './enemyLooks';
 
 /** The kinds that go in a poof: every one that can be defeated, the cactus buddy too, by the Chile Fantasma (GDD-PWR-04) or a rolling cart (GDD-WLD-15) alone. */
-export type DefeatKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo';
-const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'cactus' || kind === 'tlacuache' || kind === 'paloma' || kind === 'chapulin' || kind === 'trompo';
+export type DefeatKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo' | 'murcielago';
+const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'cactus' || kind === 'tlacuache' || kind === 'paloma' || kind === 'chapulin' || kind === 'trompo' || kind === 'murcielago';
 
 export interface DefeatFx {
   readonly kind: DefeatKind;
@@ -59,7 +59,7 @@ export interface DefeatLook {
 
 /**
  * The frame an effect shows: for ENEMY_ART.defeatSteps the kind's squash frame (stomped) or hit frame (knocked) where it stood, a walker's at
- * its feet and a Zopilote's at its box's middle, the hit frame rising ENEMY_ART.hitRise px over them; then the poof, a frame every
+ * its feet and a Zopilote's or a Murciélago's at its box's middle (where it flew, GDD-ENM-04), the hit frame rising ENEMY_ART.hitRise px over them; then the poof, a frame every
  * poofSteps, on its box's middle.
  */
 export function defeatLook(e: DefeatFx): DefeatLook {
@@ -72,5 +72,5 @@ export function defeatLook(e: DefeatFx): DefeatLook {
   const squashed = e.stomped || e.kind === 'trompo';
   const look: EnemyLook = squashed ? 'squash' : 'hit';
   const rise = squashed ? 0 : (ENEMY_ART.hitRise * e.age) / ENEMY_ART.defeatSteps;
-  return { sheet: e.kind, look, frame: lookFrame(e.kind, look), x: e.x, y: (e.kind === 'zopilote' ? e.y : e.feet) - rise, flip: e.flip };
+  return { sheet: e.kind, look, frame: lookFrame(e.kind, look), x: e.x, y: (e.kind === 'zopilote' || e.kind === 'murcielago' ? e.y : e.feet) - rise, flip: e.flip };
 }

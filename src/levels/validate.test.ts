@@ -671,3 +671,49 @@ describe('GDD-TEC-04 and GDD-WLD-05 crumbled ledges that come back', () => {
     expect(validateLevel(entry({ world: 2, level: ledge }))).toEqual([]);
   });
 });
+
+/** GDD-ENM-04: a Murciélago with the loop given, its middle at (x, y). */
+const bat = (x: number, y: number, o: Partial<Enemy> = {}): Enemy => ({ x, y, kind: 'murcielago', ...o });
+/** The problems of the level with one Murciélago whose loop's middle is (800, 100), high over the floor and far from every respawn. */
+const looping = (o: Partial<Enemy>) => validateLevel(entry({ enemies: [bat(800, 100, o)] }));
+
+describe('GDD-TEC-04 and GDD-ENM-04 Murciélagos in the validator', () => {
+  it("GDD-ENM-04 a Murciélago's loop is within 48 px across and 24 px up and down, its phase a whole step of the loop", () => {
+    expect(looping({ rx: 48, ry: 24, phase: 239 })).toEqual([]);
+    expect(looping({ rx: 0, ry: 0, phase: 0 })).toEqual([]);
+    expect(looping({ rx: 49 })).toEqual(['murciélago at 800,100 has rx 49, expected 0 to 48']);
+    expect(looping({ rx: -1 })).toEqual(['murciélago at 800,100 has rx -1, expected 0 to 48']);
+    expect(looping({ ry: 25 })).toEqual(['murciélago at 800,100 has ry 25, expected 0 to 24']);
+    expect(looping({ ry: -1 })).toEqual(['murciélago at 800,100 has ry -1, expected 0 to 24']);
+    for (const phase of [240, 1.5, -1]) expect(looping({ phase }), `phase ${phase}`).toEqual([`murciélago at 800,100 has phase ${phase}, expected a whole step from 0 to 239`]);
+  });
+
+  it("GDD-ENM-04 a Murciélago's box touches no solid tile, spike or crumbling tile anywhere on its loop", () => {
+    // A loop 48 px across and 24 px up and down that starts at its top (phase 180). From (792, 99) its far right end puts its box's right
+    // edge at x 848, the left edge of column 53, and its lowest point puts its box's bottom at y 128, the top of row 8, over column 49 (its
+    // box x 784 to 800 there). A tile at column 53, row 6 (y 96 to 112) is beside its right end.
+    const loop = { rx: 48, ry: 24, phase: 180 };
+    const flying = (x: number, y: number, o: Options = {}) => validateLevel(entry({ ...o, enemies: [bat(x, y, loop)] }));
+    expect(flying(792, 99)).toEqual([]);
+    // Moved 1 px right, only its far right end reaches into column 53; moved 1 px down, only its lowest point reaches into row 8.
+    expect(flying(793, 99, { solid: [[53, 6]] })).toEqual(['murciélago at 793,99 touches a tile on its loop']);
+    expect(flying(792, 100, { solid: [[49, 8]] })).toEqual(['murciélago at 792,100 touches a tile on its loop']);
+    // A crumbling tile or a spike's tile there is the same.
+    expect(flying(793, 99, { level: { crumbles: [{ col: 53, row: 6 }] } })).toEqual(['murciélago at 793,99 touches a tile on its loop']);
+    expect(flying(793, 99, { level: { spikes: [{ col: 53, row: 6 }] } })).toEqual(['murciélago at 793,99 touches a tile on its loop']);
+    expect(flying(792, 100, { level: { crumbles: [{ col: 49, row: 8 }] } })).toEqual(['murciélago at 792,100 touches a tile on its loop']);
+    // Where its box only shares an edge with the tile: at (792, 99) its right edge meets column 53 and its bottom meets row 8.
+    expect(flying(792, 99, { solid: [[53, 6], [49, 8]] })).toEqual([]);
+    expect(flying(792, 99, { level: { crumbles: [{ col: 53, row: 6 }, { col: 49, row: 8 }], spikes: [{ col: 53, row: 6 }] } })).toEqual([]);
+  });
+
+  it('GDD-ENM-01 a Murciélago keeps 3 tiles from every respawn along its whole loop', () => {
+    // The first ofrenda stands on a pillar at column 30 (its top y 160) at (488, 160); the bat's loop's middle is 80 px to its right, at the
+    // same height, and a loop 40 px across brings it to x 528, 40 px from the ofrenda. With rx 0 it hovers 80 px away.
+    const stand = [10, 11, 12, 13].map((r) => [30, r] as const);
+    const ofrendas = [{ id: 'o0', x: 488, y: 160 }, { id: 'o1', x: 808, y: 224 }, { id: 'o2', x: 1208, y: 224 }];
+    const fromOfrenda = (rx: number) => validateLevel(entry({ solid: stand, level: { ofrendas }, enemies: [bat(568, 160, { rx })] }));
+    expect(fromOfrenda(40)).toEqual(['murcielago at 568,160 is 40 px from the respawn at 488,160, under 48']);
+    expect(fromOfrenda(0)).toEqual([]);
+  });
+});

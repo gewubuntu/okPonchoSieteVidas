@@ -1,4 +1,4 @@
-// GDD-ENM-02, GDD-ENM-03, GDD-ART-05: which frame of its sheet each enemy shows, and where. Pure, no Phaser: the scene draws what this says.
+// GDD-ENM-02, GDD-ENM-03, GDD-ENM-04, GDD-ART-05: which frame of its sheet each enemy shows, and where. Pure, no Phaser: the scene draws what this says.
 import { CACTUS, CHAPULIN, ENEMY_ART, PALOMA, TLACUACHE, TROMPO } from '../config/tuning';
 import { feetOf, kindOf, type Enemy, type EnemyState } from '../sim/enemy';
 import { lookFrame, type EnemyLook, type EnemySheet } from './enemyLooks';
@@ -13,7 +13,7 @@ export interface EnemyPose {
   readonly look: EnemyLook;
   /** The frame of `look` in the kind's sheet. */
   readonly frame: number;
-  /** The middle of its box across; down, a walker's feet and the middle of a Zopilote's box (its flight y). */
+  /** The middle of its box across; down, a walker's feet and the middle of a Zopilote's box (its flight y) or a Murciélago's (its loop y). */
   readonly x: number;
   readonly y: number;
   /** Mirrored: it faces left (the art faces right). */
@@ -107,6 +107,8 @@ function lookOf(kind: EnemySheet, def: Enemy, state: EnemyState, ctx: PoseContex
       const rock = s.age >= TROMPO.stunSteps - TROMPO.wobbleSteps && Math.floor(s.age / ENEMY_ART.rockSteps) % 2 === 0;
       return { look: rock ? 'stunWobble' : 'stun', flip: left };
     }
+    case 'murcielago':
+      return { look: FLAP[cycle(state.loop!.steps, ENEMY_ART.batFlapSteps, 4)]!, flip: left };
     default:
       return kind satisfies never;
   }
@@ -124,9 +126,12 @@ function lookOf(kind: EnemySheet, def: Enemy, state: EnemyState, ctx: PoseContex
  * chews (crouch0, crouch1) every chewSteps for the first part of its crouch, flashes in the last CHAPULIN.flashSteps, and in the air boings
  * if thrown up faster than its own hop, else rises, else falls. A Trompo shows the next spin frame every spinSteps; stunned, it lies still
  * and rocks (stunWobble) on every other rockSteps block of the last TROMPO.wobbleSteps. Each stands on its feet, facing the way it goes.
+ *
+ * World 3's (GDD-ENM-04, Proposed): a Murciélago shows the next flap frame every batFlapSteps of its own steps, drawn at its box's middle,
+ * facing the way it moves across.
  */
 export function enemyPose(def: Enemy, state: EnemyState, ctx: PoseContext): EnemyPose {
   const kind = kindOf(def);
   const { look, flip } = lookOf(kind, def, state, ctx);
-  return { look, frame: lookFrame(kind, look), x: state.x, y: state.flight?.y ?? feetOf(def, state) - liftOf(state), flip };
+  return { look, frame: lookFrame(kind, look), x: state.x, y: state.flight?.y ?? state.loop?.y ?? feetOf(def, state) - liftOf(state), flip };
 }
