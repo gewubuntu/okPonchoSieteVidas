@@ -8,7 +8,7 @@ import { parallaxOffset } from '../backdrop';
 import { groundFrame } from '../groundTiles';
 import { plantSpots } from '../plants';
 import { FILES, type ArtFiles } from './files';
-import { artSetFor, LOOKS, midImage, textureKey, type ArtSet, type Look } from './looks';
+import { artSetFor, LOOKS, midImage, riseShift, textureKey, type ArtSet, type BackdropLayer, type Look } from './looks';
 
 /** What the debug hooks read of the drawn scenery (`PonchoDebug.backdrop`, `backdropLayout`, `groundFrame`, `plants`, `scenery`). */
 export interface Scenery {
@@ -17,15 +17,20 @@ export interface Scenery {
   /** Draws the backdrop, the decor and the ground tiles of `level`, under everything else in the level. */
   create(scene: Phaser.Scene, level: Level): void;
   /**
-   * Moves the far layers by their shares of the camera's scroll (game px), and draws the whole backdrop `offsetY` game px lower (negative:
-   * higher), the offset the camera draws the world at, so that a screen shake moves the backdrop with the level (GDD-BOS-01).
+   * Moves the far layers by their shares of the camera's scroll (game px); draws the far strip, its foot and the mid strip their shares of
+   * the camera's rise above its lowest y lower (`cameraY` and `lowestY`, GDD-UI-04, GDD-ART-06: 0 in a one-screen level); and draws the
+   * whole backdrop `offsetY` game px lower (negative: higher), the offset the camera draws the world at, so that a screen shake moves the
+   * backdrop with the level (GDD-BOS-01).
    */
-  follow(scrollX: number, offsetY: number): void;
-  /** How far each object of the backdrop is drawn from where it rests (every one of them is `follow`'s `offsetY`), in game px. */
+  follow(scrollX: number, cameraY: number, lowestY: number, offsetY: number): void;
+  /** How far each object of the backdrop is drawn from where it rests, in game px: its share of the camera's rise plus `follow`'s `offsetY`. */
   backdropShifts(): number[];
   /** How far the clouds, the far band and the mid band are shifted, in game px, read back from what was drawn. */
   backdrop(): { clouds: number; mountains: number; desert: number };
-  /** Where the fixed parts are drawn, in game px: the sun's centre (null without a sun), the far band's top, its foot's top, the mid band's top. */
+  /**
+   * Where the fixed parts are drawn, in game px, without the shake: the sun's centre (null without a sun), the far band's top, its foot's top,
+   * the mid band's top (each with its share of the camera's rise in a tall level).
+   */
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number };
   /** The art set chosen and the texture key of the drawn mid band (`mercado:plaza` in World 2's arena). */
   drawn(): { set: ArtSet; midKey: string };
@@ -42,7 +47,8 @@ export const sceneryFor = (world: number, bossLevel: boolean): Scenery => new Ba
  * A world's scenery drawn from its look, so that little of the screen is textured: the sky's bands as flat colours with the dither
  * strips and the sun (if any) over them as small images (the last band is the camera's background), a small image for each cloud, the
  * far band as one repeating layer and its foot as a flat colour, and the mid band in front of them. The sky is fixed to the screen; the
- * clouds, the far band and the mid band each move by their share of the camera's scroll, in `follow`. The decor is one image per spot of
+ * clouds, the far band and the mid band each move by their share of the camera's scroll, and in a tall level the far band, its foot and
+ * the mid band sink by their shares of the camera's rise, in `follow`. The decor is one image per spot of
  * `plantSpots`, rooted 1 game px into its top tile, behind the ground (depth 1) and in front of the backdrop; the ground one image of the
  * ground sheet per solid or slope tile (GDD-MOV-09).
  */
@@ -56,8 +62,8 @@ class BandScenery implements Scenery {
   private far!: Phaser.GameObjects.TileSprite;
   private foot!: Phaser.GameObjects.Rectangle;
   private midBand!: Phaser.GameObjects.TileSprite;
-  /** Every object of the backdrop and the y it rests at, which `follow` shifts by the screen shake's offset. */
-  private readonly layers: { readonly object: Phaser.GameObjects.Components.Transform; readonly rest: number }[] = [];
+  /** Every object of the backdrop, its layer and the y it rests at, which `follow` shifts by the layer's share of the camera's rise and the screen shake's offset. */
+  private readonly layers: { readonly object: Phaser.GameObjects.Components.Transform; readonly layer: BackdropLayer; readonly rest: number }[] = [];
   private offsetY = 0;
   private decorImages: Phaser.GameObjects.Image[] = [];
   private readonly groundImages = new Map<string, Phaser.GameObjects.Image>();
@@ -98,29 +104,29 @@ class BandScenery implements Scenery {
     const { skyBands, skyEnds, stripArt, sun } = this.look;
     scene.cameras.main.setBackgroundColor(skyBands[skyBands.length - 1]);
     const bands = scene.add.graphics().setScrollFactor(0).setDepth(-4);
-    this.layers.push({ object: bands, rest: 0 });
+    this.layers.push({ object: bands, layer: 'sky', rest: 0 });
     let top = 0;
     skyEnds.forEach((end, i) => {
       // The band runs on to its end: the dither strip, drawn over its last rows, covers them.
       bands.fillStyle(skyBands[i]!, 1).fillRect(0, top * art, BASE_WIDTH, (end - top) * art);
       top = end;
       const strip = scene.add.image(0, (end - stripArt) * art, this.key('sky-strips'), i).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3.5);
-      this.layers.push({ object: strip, rest: strip.y });
+      this.layers.push({ object: strip, layer: 'sky', rest: strip.y });
     });
     if (sun !== null) {
       this.sun = scene.add.image(sun.x - sun.half, sun.y - sun.half, this.key('sun')).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-3);
-      this.layers.push({ object: this.sun, rest: this.sun.y });
+      this.layers.push({ object: this.sun, layer: 'sun', rest: this.sun.y });
     }
     this.cloudImages = this.look.clouds.map(({ x, y }, i) =>
       [x, x - BASE_WIDTH].map((at) => scene.add.image(at, y, this.key(`cloud-${i}`)).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-2)),
     );
-    this.look.clouds.forEach(({ y }, i) => this.cloudImages[i]!.forEach((image) => this.layers.push({ object: image, rest: y })));
+    this.look.clouds.forEach(({ y }, i) => this.cloudImages[i]!.forEach((image) => this.layers.push({ object: image, layer: 'clouds', rest: y })));
     const { farTop, farBandArt, footColour, midTop, midBandArt } = this.look;
     this.far = scene.add.tileSprite(0, farTop, BASE_WIDTH * ART_SCALE, farBandArt, this.key('far')).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-1);
     const foot = farTop + farBandArt * art;
     this.foot = scene.add.rectangle(0, foot, BASE_WIDTH, BASE_HEIGHT - foot, footColour).setOrigin(0).setScrollFactor(0).setDepth(-1);
     this.midBand = scene.add.tileSprite(0, midTop, BASE_WIDTH * ART_SCALE, midBandArt, this.key(this.mid)).setOrigin(0).setScale(art).setScrollFactor(0).setDepth(-0.5);
-    this.layers.push({ object: this.far, rest: farTop }, { object: this.foot, rest: foot }, { object: this.midBand, rest: midTop });
+    this.layers.push({ object: this.far, layer: 'far', rest: farTop }, { object: this.foot, layer: 'foot', rest: foot }, { object: this.midBand, layer: 'mid', rest: midTop });
   }
 
   private drawDecor(scene: Phaser.Scene, level: Level): void {
@@ -141,9 +147,9 @@ class BandScenery implements Scenery {
     }
   }
 
-  follow(scrollX: number, offsetY: number): void {
+  follow(scrollX: number, cameraY: number, lowestY: number, offsetY: number): void {
     this.offsetY = offsetY;
-    for (const { object, rest } of this.layers) object.y = rest + offsetY;
+    for (const { object, layer, rest } of this.layers) object.y = rest + riseShift(layer, cameraY, lowestY) + offsetY;
     const cloudShift = parallaxOffset(scrollX, this.look.cloudFactor);
     this.look.clouds.forEach(({ x }, i) => {
       const at = (((x - cloudShift) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH;

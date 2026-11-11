@@ -187,8 +187,14 @@ export const EXIT = { width: TILE, height: 3 * TILE } as const;
 /** GDD-LIFE-03: a veladora pickup is a 12 x 12 px square in the middle of its tile. */
 export const VELADORA = { size: 12 } as const;
 
-/** GDD-UI-04: the camera stands still while Poncho is inside a dead zone this many px wide, in the middle of the screen. */
-export const CAMERA = { deadZone: 32 } as const;
+/**
+ * GDD-UI-04: the camera stands still while Poncho is inside a dead zone this many px wide, in the middle of the screen. Up and down: on
+ * the ground it stands still while his feet are between screen y `bandTop` and `bandBottom` and pans at up to `panSpeed` px/s to the
+ * nearer edge; in the air it goes up with him past `airTop`, and in a fall below `bandBottom` it moves at his fall speed plus `leadSpeed`
+ * until his feet are at `bandTop`. Never faster than `maxSpeed` px/s. A cut puts his feet at `spawnFeet`; its bottom edge stops
+ * `bottomCutPx` above the level's floor line.
+ */
+export const CAMERA = { deadZone: 32, bandTop: 116, bandBottom: 156, airTop: 56, panSpeed: 180, leadSpeed: 120, maxSpeed: 480, spawnFeet: 136, bottomCutPx: 2 } as const;
 
 /** GDD-CTL-03: touch buttons, in game pixels except `minCssPx`. */
 export const TOUCH = {
@@ -653,6 +659,9 @@ export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;
  */
 export const LEVEL_RULES = {
   minScreens: 3,
+  // GDD-WLD-03: 17 to 51 rows tall (one to three screens); a boss level is one screen tall, 17 rows.
+  minRows: 17,
+  maxRows: 51,
   maxScreens: { 0: 6, 1: 6, 2: 8, 3: 8 } as Readonly<Record<number, number>>,
   ofrendas: 3,
   maxGapTiles: { 0: 3, 1: 3, 2: 4, 3: 6 } as Readonly<Record<number, number>>,
@@ -679,6 +688,12 @@ export const TIPS = { fadeSteps: Math.round(0.2 * TICK_HZ), pulseSteps: Math.rou
  * px from the screen's top; the far desert strip runs from `desertTop` to the floor's top at 224).
  */
 export const BACKDROP = { cloudFactor: 0.1, mountainFactor: 0.3, sunX: 104, sunY: 36, sunSize: 24, cloudTop: 16, cloudBottom: 88, mountainTop: 92, desertFactor: 0.5, desertTop: 180 } as const;
+
+/**
+ * GDD-ART-06: in a level taller than one screen (GDD-UI-04), for every px the camera is above its lowest the far strip and its foot are
+ * drawn `far` px lower and the mid strip `mid` px lower; the sky, the sun and the clouds do not move up or down. Every world.
+ */
+export const BACKDROP_RISE = { far: 0.1, mid: 0.2 } as const;
 
 /** GDD-ART-06: World 1's plants in the order of their kind (nopal, cholla, biznaga, palm yucca, ocotillo, agave, flowers), their size in game px. */
 export const PLANTS = [

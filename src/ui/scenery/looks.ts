@@ -1,7 +1,7 @@
 // GDD-ART-06: each world's look: which art a level is drawn with and the numbers that put its backdrop together. Pure, no Phaser and
 // no image imports (those are in `files.ts`), so it is unit-tested. World 1 (and the tutorial, the test levels and any world not drawn
 // yet) is the desert; World 2 the Mercado.
-import { BACKDROP, BACKDROP_ART, MERCADO, PLANTS } from '../../config/tuning';
+import { ART_SCALE, BACKDROP, BACKDROP_ART, BACKDROP_RISE, MERCADO, PLANTS } from '../../config/tuning';
 
 /** The art sets, by their folder under `assets/sprites/`. */
 export type ArtSet = 'desierto' | 'mercado';
@@ -73,3 +73,15 @@ export const midImage = (set: ArtSet, bossLevel: boolean): 'mid' | 'plaza' => (s
 
 /** The texture key of an image of a set: Phaser's texture cache is global, so each world's images have keys of their own. */
 export const textureKey = (set: ArtSet, image: string): string => `${set}:${image}`;
+
+/** GDD-ART-06: the backdrop's layers, as they move up and down: the sky's bands and strips, the sun, the clouds, the far strip, its foot and the mid strip. */
+export type BackdropLayer = 'sky' | 'sun' | 'clouds' | 'far' | 'foot' | 'mid';
+
+/** GDD-ART-06: each layer's share of the camera's rise above its lowest (GDD-UI-04), drawn that much lower; the sky, the sun and the clouds are fixed. */
+export const VERTICAL_FACTOR: Readonly<Record<BackdropLayer, number>> = { sky: 0, sun: 0, clouds: 0, far: BACKDROP_RISE.far, foot: BACKDROP_RISE.far, mid: BACKDROP_RISE.mid };
+
+/**
+ * GDD-ART-06: how far `layer` is drawn below where it rests (game px), with the camera's y at `cameraY` and its lowest at `lowestY`, at
+ * whole art pixels: 0 at the camera's lowest, so a one-screen level (lowest 0) never shifts, and only ever down above it.
+ */
+export const riseShift = (layer: BackdropLayer, cameraY: number, lowestY: number): number => Math.round(VERTICAL_FACTOR[layer] * (lowestY - cameraY) * ART_SCALE) / ART_SCALE;

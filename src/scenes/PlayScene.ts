@@ -84,7 +84,7 @@ import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import { stepVibration } from '../sim/vibration';
 import type { Power } from '../sim/taco';
-import { followCamera } from '../ui/camera';
+import { cameraDrawY, cameraLimits, cameraScroll, cutCameraY, followCamera, stepCameraY, type CameraLimits, type CameraY } from '../ui/camera';
 import { dashedRect } from '../ui/dashed';
 import { GamepadReader } from '../ui/gamepad';
 import { sceneryFor, type Scenery } from '../ui/scenery/scenery';
@@ -149,7 +149,7 @@ export interface PonchoDebug {
   /** Test hooks: stand in for hazards and checkpoints until they exist (GDD-LIFE-02, GDD-LIFE-03). */
   loseLife(): void;
   activateOfrenda(id: string): void;
-  /** Puts Poncho at (x, y), feet position, at rest and in the air. */
+  /** Puts Poncho at (x, y), feet position, at rest and in the air. The camera cuts there (GDD-UI-04). */
   teleport(x: number, y: number): void;
   /**
    * 'playing', 'respawning' while waiting after a lost life (GDD-LIFE-02), 'gameover' on the Siete vidas gastadas screen (GDD-LIFE-05),
@@ -192,9 +192,13 @@ export interface PonchoDebug {
   /**
    * The camera (GDD-UI-04): `scrollX`, the scroll the scene last passed to Phaser, and `viewX`, the level x Phaser draws at the
    * screen's left edge (`cameras.main.getWorldPoint(0, 0).x`, from the matrix it renders with), both in game px. Not `worldView.x`:
-   * Phaser centres that rectangle on the camera as if its origin were the middle, which ours is not.
+   * Phaser centres that rectangle on the camera as if its origin were the middle, which ours is not. Up and down: `scrollY`, the camera's
+   * y as last drawn (the level y at the screen's top edge, between steps and at whole art pixels), without a screen shake, and `viewY`,
+   * the y scroll passed to Phaser with the shake on top (`cameras.main.scrollY`, what `cameraScrollY()` reads); both 0 in a one-screen level
+   * but for the shake. `stepY` is the camera's y after the last step and `fromY` the y it is drawn from towards it (the y after the step
+   * before, or after a cut `stepY` itself): `scrollY` lies between them.
    */
-  camera(): { scrollX: number; viewX: number };
+  camera(): { scrollX: number; viewX: number; scrollY: number; viewY: number; stepY: number; fromY: number };
   /**
    * How far the backdrop's clouds, far band (`mountains`: World 1's mountains, World 2's hill town) and mid band (`desert`: the far desert
    * strip, World 2's rooftops or its arena's plaza) are shifted (GDD-ART-06), in game px, read back from what was drawn: the clouds from
@@ -325,6 +329,11 @@ export interface PonchoDebug {
    */
   step(n: number, input?: PlayerInput): void;
   /**
+   * GDD-UI-04: while paused, draws the moving things and the camera `alpha` of the way from the step before to the last one, as a frame
+   * between two steps does. The next frame draws the paused game at the last step again, so read what it drew in the same call.
+   */
+  drawAt(alpha: number): void;
+  /**
    * GDD-BOS-01: the hit-stop of the real loop: `left`, the steps still to hold after a hit on a boss (0 when none), and `held`, how many
    * loop ticks have been held since the page loaded (each a step that did not run). `step()` never holds, so only the game's own frames count.
    */
@@ -335,9 +344,15 @@ export interface PonchoDebug {
    * Off). It moves on with each step that runs, including a step made by `step()`, never with a held tick or a pause.
    */
   shake(): { px: number; age: number; dying: boolean; size: number; offset: number } | null;
-  /** The camera's y scroll as last set, in game px: minus the shake's `offset` (0 when none runs); everything with a scroll factor of 0 does not move with it. */
+  /**
+   * The camera's y scroll as last set, in game px: the camera's y as drawn (`camera().scrollY`, GDD-UI-04: 0 in a one-screen level) minus the
+   * shake's `offset` (0 when none runs); everything with a scroll factor of 0 does not move with it.
+   */
   cameraScrollY(): number;
-  /** GDD-BOS-01: how far each object of the far backdrop is drawn from where it rests, in game px: all the shake's offset (the whole picture shakes). */
+  /**
+   * GDD-BOS-01: how far each object of the far backdrop is drawn from where it rests, in game px: all the shake's offset (the whole picture
+   * shakes), plus in a tall level its layer's share of the camera's rise (GDD-ART-06: 0 for the sky, the sun and the clouds).
+   */
   backdropShifts(): number[];
   /** The touch buttons: whether shown (touch devices only), where they are, and which are drawn pressed, the Button opacity step and the outline alphas drawn (GDD-CTL-03). */
   touch(): TouchDebug;
@@ -788,6 +803,15 @@ export class PlayScene extends Phaser.Scene {
   private placeholderLines = false;
   /** GDD-UI-04: where the camera stands, the level x at the screen's left edge. */
   private scrollX = 0;
+  /**
+   * GDD-UI-04: the camera up and down, moved once per simulation step (`stepCamera`): its state after the last step, its y after the step
+   * before (drawn between the two like his body), the y last drawn, and the level's own limits, the backdrop's anchor (0 to 0 in a level
+   * one screen tall; each step reads those of his column, `cameraLimitsAt`).
+   */
+  private cameraY: CameraY = { y: 0, lead: false };
+  private prevCameraY = 0;
+  private drawnCameraY = 0;
+  private readonly cameraBounds: CameraLimits;
   /** GDD-ART-06: the backdrop, the decor and the ground tiles of the level's world. */
   private readonly scenery: Scenery;
   /** GDD-LIFE-03: the veladora's graphics, whether it was last drawn as used, and whether it is painted. GDD-WLD-03: whether the exit is. */
@@ -829,6 +853,7 @@ export class PlayScene extends Phaser.Scene {
     this.level = entry.level;
     this.world = entry.level.world;
     this.floorY = entry.level.spawn.y;
+    this.cameraBounds = cameraLimits(entry.level.world.height * TILE);
     this.scenery = sceneryFor(entry.world, isBossLevel(entry.level));
     // GDD-UI-02: started by a pick, it plays at once, with no title screen.
     this.holdAtStart = direct;
@@ -908,6 +933,7 @@ export class PlayScene extends Phaser.Scene {
     if (this.opensTitle) this.title = titleOpen(this.savedRun !== null);
     const savedHilos = this.progress[this.entry.id]?.hilos;
     this.run = this.resumeFrom ? resumeRun(this.level, this.resumeFrom, savedHilos) : this.restartsWorld ? restartRun(this.level, savedHilos) : startRun(this.level, savedHilos, this.startLives);
+    this.cutCamera(); // GDD-UI-04: the level start is a cut
     this.cameras.main.setBackgroundColor('#1b2036');
     // GDD-ART-01: the canvas is ART_SCALE times larger than the game pixels everything is placed in, so the camera draws them zoomed in
     // from the top left corner, world objects and fixed ones alike.
@@ -1257,7 +1283,7 @@ export class PlayScene extends Phaser.Scene {
         resultsMenu: () => this.resultsRows,
         clearReveal: () => this.clearRevealLog,
         level: () => this.entry.id,
-        camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x }),
+        camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x, scrollY: this.drawnCameraY, viewY: this.cameras.main.scrollY, stepY: this.cameraY.y, fromY: this.prevCameraY }),
         backdrop: () => this.scenery.backdrop(),
         backdropLayout: () => this.scenery.backdropLayout(),
         scenery: () => this.scenery.drawn(),
@@ -1338,6 +1364,14 @@ export class PlayScene extends Phaser.Scene {
         settingsScroll: () => this.settingsScrollPainted,
         settings: () => this.settings,
         tutorialPlayed: () => this.tutorialPlayed,
+        drawAt: (alpha) => {
+          if (!this.paused) throw new Error('drawAt() needs the game paused');
+          this.renderPlatforms(alpha);
+          this.renderBlocks(alpha);
+          this.renderCarts(alpha);
+          this.renderBody(alpha);
+          this.followBody(alpha);
+        },
         step: (n, input = { move: 0, jumpHeld: false }) => {
           if (!this.paused) throw new Error('step() needs the game paused');
           for (let i = 0; i < n; i++) this.simStep(input);
@@ -1354,7 +1388,7 @@ export class PlayScene extends Phaser.Scene {
           this.renderBlocks(1);
           this.renderCarts(1);
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
-          this.followBody();
+          this.followBody(1);
           this.drawVeladora();
           this.drawGameOver();
           this.drawClear();
@@ -1465,6 +1499,7 @@ export class PlayScene extends Phaser.Scene {
         teleport: (x, y) => {
           this.run = { ...this.run, player: { ...spawn(x, y), grounded: false } };
           this.prevPlayer = this.run.player;
+          this.cutCamera(); // GDD-UI-04: a dev teleport is a cut
         },
       };
       // Dev only: L loses a life, O activates a fresh ofrenda, V collects a fresh veladora.
@@ -2265,16 +2300,34 @@ export class PlayScene extends Phaser.Scene {
     };
   }
 
-  /** GDD-UI-04: the camera follows the body where it is drawn, and stands still while it is hidden. */
-  private followBody(): void {
+  /**
+   * GDD-UI-04: the camera follows the body where it is drawn, and stands still while it is hidden. Up and down it is drawn `alpha` of the way
+   * between its last two steps, at whole art pixels.
+   */
+  private followBody(alpha: number): void {
     this.scrollX = followCamera(this.scrollX, this.body.visible ? this.body.x : null, this.world.width * TILE);
+    this.drawnCameraY = cameraDrawY(this.prevCameraY, this.cameraY.y, alpha);
     // GDD-BOS-01: the screen shake moves the whole picture up and down: the camera draws the level `offset` lower (a positive offset draws it
-    // down, so the camera goes up) and the far backdrop, which the camera does not move (a scroll factor of 0), is drawn the same offset
-    // lower. The HUD, the touch buttons and the screens (scroll factor 0, not shifted) stay still.
+    // down, so the camera goes up from its y) and the far backdrop, which the camera does not move (a scroll factor of 0), is drawn the same
+    // offset lower. The HUD, the touch buttons and the screens (scroll factor 0, not shifted) stay still.
     const offset = shakeOffset(this.shake, this.settings.shake === 'on');
-    this.cameras.main.setScroll(this.scrollX, -offset);
-    // GDD-ART-06: the far layers move at a share of the scroll, in art pixels of their textures.
-    this.scenery.follow(this.scrollX, offset);
+    this.cameras.main.setScroll(this.scrollX, cameraScroll(this.drawnCameraY, offset));
+    // GDD-ART-06: the far layers move at a share of the scroll, in art pixels of their textures, and in a tall level sink by their shares
+    // of the camera's rise above its lowest.
+    this.scenery.follow(this.scrollX, this.drawnCameraY, this.cameraBounds.bottom, offset);
+  }
+
+  /** GDD-UI-04: the cut (`cutCameraY`), with nothing to draw between. */
+  private cutCamera(): void {
+    this.cameraY = cutCameraY(this.run, this.level);
+    this.prevCameraY = this.cameraY.y;
+  }
+
+  /** GDD-UI-04: one step of the camera up and down after the step from `before` (`stepCameraY`), and the y it is drawn from towards it. */
+  private stepCamera(before: RunState): void {
+    const stepped = stepCameraY(this.cameraY, before, this.run, this.level);
+    this.cameraY = stepped.camera;
+    this.prevCameraY = stepped.from;
   }
 
   /** One fixed simulation step with the given input. */
@@ -2299,6 +2352,7 @@ export class PlayScene extends Phaser.Scene {
     // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
     this.prevCarts = before.phase === 'playing' && this.run.phase === 'playing' ? before.carts : this.run.carts;
+    this.stepCamera(before);
     this.ticks++;
     if (this.run.phase !== before.phase) this.phaseSince = this.ticks;
     if (this.run.phase === 'clear' && before.phase !== 'clear') {
@@ -2522,8 +2576,11 @@ export class PlayScene extends Phaser.Scene {
         const before = this.run;
         this.simStep(input);
         this.hold = hitStopSteps(before, this.run);
-        // The hit's frame stays on screen: Poncho is not drawn sliding from the step before it to the hit's during the hold.
-        if (this.hold > 0) this.prevPlayer = this.run.player;
+        // The hit's frame stays on screen: Poncho is not drawn sliding from the step before it to the hit's during the hold, nor the camera.
+        if (this.hold > 0) {
+          this.prevPlayer = this.run.player;
+          this.prevCameraY = this.cameraY.y;
+        }
       });
     } else if (this.paused) {
       this.alpha = 1;
@@ -2568,7 +2625,7 @@ export class PlayScene extends Phaser.Scene {
     this.renderCarts(alpha);
     if (this.level.veladora && veladoraUsed(this.run.lives, this.level.veladora) !== this.veladoraUsedDrawn) this.drawVeladora();
     this.renderBody(alpha);
-    this.followBody();
+    this.followBody(alpha);
     // GDD-UI-02: from the frame of a language change every text is drawn in the new language.
     if (this.settings.language !== this.textLanguage) this.applyLanguage();
     // GDD-CTL-03: the touch buttons are drawn at the Button opacity in use from this frame.
@@ -2794,6 +2851,7 @@ export class PlayScene extends Phaser.Scene {
     this.stepper.reset();
     this.hold = 0; // GDD-BOS-01: the fresh run waits for no hit
     this.shake = null; // and has no shake running
+    this.cutCamera(); // GDD-UI-04: and starts with a cut
     // GDD-LIFE-05: the fresh run can have fewer lives than the one quit (World 1's saved lives, GDD-PRG-02): those are no lives just lost,
     // so no triangle cracks, and a last life pulses from the level's start (GDD-LIFE-04).
     this.drawnLives = this.run.lives.lives;
