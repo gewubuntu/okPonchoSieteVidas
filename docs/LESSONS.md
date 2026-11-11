@@ -372,8 +372,9 @@ Retired IDs: L-046
 - **Root cause:** The plan's mutants came from the rules as written ("skips X"), not from the rule's other half ("and keeps Y"), and the fixtures were built so that neighbouring definitions (bottom row against all floor rows, straight-line against axis distance) gave the same answer.
 - **Rule:** For a flag that exempts something from some rules, plan a test with the flag on that breaks every rule it does not exempt, and a mutant that makes the flag exempt everything. For each definition, pick a fixture where the likely wrong definition gives a different answer.
 - **Recurrence 2 (2026-11-11, PR #94, GDD-WLD-15, found by the review):** the validator's rail checks skipped a boss level altogether, where the GDD exempts it from the two length limits only, and the test asserted the wider exemption: the plan said "for every level but a boss level" and listed a mutant for the exemption dropped, none for it exempting too much.
-- **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-feature (step 5, Mutants: an exemption gets a test with it on that breaks every rule it keeps, and a mutant that makes it exempt everything)
+- **Recurrence 3 (2026-11-11, PR #94, GDD-WLD-15, found by the review):** the cart's box that runs enemies down was tested on level rails only, where the rail's start height and the ground under the cart's middle give the same answer, so the box read at the rail's start stayed green; the plan listed every enemy kind and state and no fixture off level rail. Fixed with tests on a plateau, over a floor the cart must not touch and on a slope.
+- **Recurrence:** 3
+- **Promoted:** .claude/skills/harness-feature (step 5, Mutants: an exemption gets a test with it on that breaks every rule it keeps, and a mutant that makes it exempt everything). Guard: none (no script can tell a fixture in which two definitions agree from one in which they differ; the reviewer's mutants found each case)
 
 ## L-029 Planned mutants with no test to kill them
 
