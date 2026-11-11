@@ -4,9 +4,12 @@
 // up), its slope over air (the trestle is art, not drawn yet); R3, from the plateau's top down to the floor; R4, rolling left; each of these
 // ends in a buffer. R5, level for 20 tiles under a hanging low beam, its broken end over a pit 3 tiles wide whose far bank is at the same
 // height; R6, level for 12 tiles, its broken end over a floor sunken 2 tiles, 6 tiles long, with a wall 2 tiles high back up. Each broken
-// rail ends at the lip of the ground under it, as a real level's do. No enemy and no spike.
+// rail ends at the lip of the ground under it, as a real level's do. R1's cart runs down three enemies on its way: a cactus buddy, and an
+// Alacrán and a Trompo each penned by notches, one-tile dips in the floor under the rail that turn walkers back (a crate on the rail's ground
+// would stop the rider). No spike.
 import { TILE } from '../config/tuning';
 import type { Rail } from '../sim/cart';
+import type { Enemy } from '../sim/enemy';
 import type { Level, Ofrenda } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 
@@ -35,10 +38,17 @@ export const LAB_3C_SUNKEN = { col0: 103, col1: 108, row: 16 } as const;
 /** GDD-WLD-15: the hanging low beam over R5, one tile with open space over it, its underside 2 tiles (32 px) over the rail's ground. */
 export const LAB_3C_BEAM = { col: 68, row: FLOOR_ROW - 3 } as const;
 
+/**
+ * GDD-WLD-15: the notches under R1, columns whose floor's top tile is missing (one tile wide and one deep): the Alacrán's pen is columns 15 to
+ * 17 between the first two, the Trompo's 19 to 21 between the last two.
+ */
+export const LAB_3C_NOTCHES: readonly number[] = [14, 18, 22];
+
 export const LAB_3C_ROWS: readonly string[] = Array.from({ length: 17 }, (_, row) =>
   Array.from({ length: WIDTH }, (_tile, col) => {
     if (col >= LAB_3C_PIT.col0 && col <= LAB_3C_PIT.col1) return '.';
     if (col >= LAB_3C_SUNKEN.col0 && col <= LAB_3C_SUNKEN.col1) return row >= LAB_3C_SUNKEN.row ? '#' : '.';
+    if (row === FLOOR_ROW && LAB_3C_NOTCHES.includes(col)) return '.';
     if (row >= FLOOR_ROW) return '#';
     if (row >= LAB_3C_PLATEAU.row && col >= LAB_3C_PLATEAU.col0 && col <= LAB_3C_PLATEAU.col1) return '#';
     return col === LAB_3C_BEAM.col && row === LAB_3C_BEAM.row ? '#' : '.';
@@ -78,6 +88,16 @@ export const LAB_3C_OFRENDAS: readonly Ofrenda[] = [
   { id: 'lab-3c-3', ...onFloor(60) },
 ];
 
+/**
+ * GDD-WLD-15: R1's enemies, on the floor under its rail, at least 8 tiles from its start and 3 from the spawn and every ofrenda (GDD-ENM-01):
+ * a cactus buddy at column 13, an Alacrán in its pen (columns 15 to 17) and a Trompo in its own (columns 19 to 21).
+ */
+export const LAB_3C_ENEMIES: readonly Enemy[] = [
+  { ...onFloor(13), kind: 'cactus' },
+  { ...onFloor(16) },
+  { ...onFloor(20), kind: 'trompo' },
+];
+
 export const LAB_3C_LEVEL: Level = {
   world: parseTiles(LAB_3C_ROWS),
   spawn: LAB_3C_SPAWN,
@@ -91,6 +111,6 @@ export const LAB_3C_LEVEL: Level = {
   doors: [],
   keys: [],
   fragiles: [],
-  enemies: [],
+  enemies: LAB_3C_ENEMIES,
   rails: LAB_3C_RAILS,
 };

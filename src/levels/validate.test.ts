@@ -420,9 +420,10 @@ describe('GDD-TEC-04 and GDD-WLD-15 rails in the validator', () => {
   });
 
   it('GDD-WLD-15 two rails may not share a stretch', () => {
-    // From x 160, 10 level tiles to x 320; a second from x 320 meets it there and shares nothing; one from x 304 shares a tile.
-    expect(validateLevel(railed([R([lvl(10)], 'buffer'), R([lvl(10)], 'buffer', { x: 320 })]))).toEqual([]);
-    expect(validateLevel(railed([R([lvl(10)], 'buffer'), R([lvl(10)], 'buffer', { x: 304 })]))).toEqual(['rails at 160,224 and 304,224 share a stretch']);
+    // From x 160, 10 level tiles to x 320; a second from x 320 meets it there and shares nothing (it starts too near the first's end, a rule
+    // of its own); one from x 288 shares two tiles.
+    expect(validateLevel(railed([R([lvl(10)], 'buffer'), R([lvl(10)], 'buffer', { x: 320 })]))).toEqual(['rail at 320,224 starts 0 px from the end of the rail at 160,224, under 32']);
+    expect(validateLevel(railed([R([lvl(10)], 'buffer'), R([lvl(10)], 'buffer', { x: 288 })]))).toEqual(['rails at 160,224 and 288,224 share a stretch']);
     // The same columns at another height share none.
     expect(validateLevel(railed([R([lvl(10)], 'buffer'), R([lvl(10)], 'buffer', { y: 160 })]))).toEqual([]);
     // Rolling left from x 400 to x 240, over the first one's columns: they share.
@@ -442,7 +443,37 @@ describe('GDD-TEC-04 and GDD-WLD-15 rails in the validator', () => {
   });
 
   it('GDD-WLD-15 in a boss level two rails may still not share a stretch', () => {
-    expect(validateLevel(railedArena([R([lvl(3)], 'broken'), R([lvl(4)], 'buffer', { x: 192 })]))).toEqual(['rails at 160,224 and 192,224 share a stretch']);
+    // The first ends at x 208; the second starts 32 px before it, so only the shared stretch is a problem.
+    expect(validateLevel(railedArena([R([lvl(3)], 'broken'), R([lvl(4)], 'buffer', { x: 176 })]))).toEqual(['rails at 160,224 and 176,224 share a stretch']);
+  });
+
+  it('GDD-WLD-15 no rail starts within a cart\'s width of another rail\'s end at the same height', () => {
+    // The first, from x 160, ends at x 320 on the floor (y 224). A second starting 0, 16 or 31 px past that end, on the floor, is too near: he
+    // would walk off the first's stopped cart onto the second's floor. 32 px is a cart's width, and he drops to the ground between them.
+    const first = R([lvl(10)], 'buffer');
+    for (const d of [0, 16, 31]) {
+      expect(validateLevel(railed([first, R([lvl(10)], 'buffer', { x: 320 + d })])), `${d} px`).toEqual([`rail at ${320 + d},224 starts ${d} px from the end of the rail at 160,224, under 32`]);
+    }
+    expect(validateLevel(railed([first, R([lvl(10)], 'buffer', { x: 352 })]))).toEqual([]);
+    // At another height: one tile up or down from the end, 0 and 16 px past it, passes.
+    for (const y of [208, 240]) {
+      for (const d of [0, 16]) expect(validateLevel(railed([first, R([lvl(10)], 'buffer', { x: 320 + d, y })])), `${y}, ${d} px`).toEqual([]);
+    }
+    // The end's height is where the rail ends, not where it starts: a climb of 2 tiles ends at y 192, and a rail starting there 16 px on is
+    // too near; one on the floor (the first's start height) is not.
+    const up = R([lvl(8), { kind: 'climb', tiles: 2 }], 'buffer');
+    expect(validateLevel(railed([up, R([lvl(10)], 'buffer', { x: 336, y: 192 })]))).toEqual(['rail at 336,192 starts 16 px from the end of the rail at 160,224, under 32']);
+    expect(validateLevel(railed([up, R([lvl(10)], 'buffer', { x: 336 })]))).toEqual([]);
+    // A rail rolling left ends on the left: a second starting 16 px left of that end is too near, listed before it too; 32 px left passes.
+    const back = R([lvl(10)], 'buffer', { x: 480, dir: -1 }); // from x 480 to x 320
+    expect(validateLevel(railed([R([lvl(4)], 'buffer', { x: 304, dir: -1 }), back]))).toEqual(['rail at 304,224 starts 16 px from the end of the rail at 480,224, under 32']);
+    expect(validateLevel(railed([R([lvl(4)], 'buffer', { x: 288, dir: -1 }), back]))).toEqual([]);
+  });
+
+  it('GDD-WLD-15 in a boss level no rail starts within a cart\'s width of another rail\'s end either', () => {
+    // L-028: the boss level's exemption is from the level run and the 12 tiles only. Two short rails, the second 16 px past the first's end.
+    expect(validateLevel(railedArena([R([lvl(3)], 'buffer'), R([lvl(3)], 'buffer', { x: 224 })]))).toEqual(['rail at 224,224 starts 16 px from the end of the rail at 160,224, under 32']);
+    expect(validateLevel(railedArena([R([lvl(3)], 'buffer'), R([lvl(3)], 'buffer', { x: 240 })]))).toEqual([]);
   });
 
   it('GDD-WLD-15 the level run before a broken end counts level stretches in a row', () => {

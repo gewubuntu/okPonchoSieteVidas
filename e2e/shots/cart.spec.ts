@@ -2,7 +2,7 @@
 // The rails' places come from `src/levels/lab3c.ts` (L-062).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { CART, TILE } from '../../src/config/tuning';
-import { LAB_3C_BEAM, LAB_3C_OFRENDAS, LAB_3C_PIT, LAB_3C_RAILS, LAB_3C_SPAWN, LAB_3C_SUNKEN } from '../../src/levels/lab3c';
+import { LAB_3C_BEAM, LAB_3C_ENEMIES, LAB_3C_OFRENDAS, LAB_3C_PIT, LAB_3C_RAILS, LAB_3C_SPAWN, LAB_3C_SUNKEN } from '../../src/levels/lab3c';
 import { floorUnder, railLength, warningPost } from '../../src/sim/cart';
 import { start } from '../helpers';
 
@@ -70,6 +70,28 @@ test('GDD-WLD-15 vagonetas: waiting, riding, a jump over the cart and stopped at
   expect(seen.cart.phase).toBe('stopped');
   expect([seen.s.grounded, seen.s.y]).toEqual([true, seen.cart.y]);
   await shot(page, info, 'cart-buffer');
+});
+
+test('GDD-WLD-15 vagonetas: the rolling cart runs down an enemy, on R1', async ({ page, isMobile }, info) => {
+  await open(page, isMobile);
+  expect(await hopInto(page, 0)).toBeLessThan(300);
+  // Rolled on until it runs down R1's first enemy, the cactus buddy, then 4 steps on: its poof swelling at the cart's front, Poncho riding.
+  const steps = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    let n = 0;
+    for (; n < 300 && d.enemies()[0]!.alive; n++) d.step(1);
+    d.step(4);
+    return n;
+  });
+  expect(steps).toBeLessThan(300);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
+  const seen = await cart(page, 0);
+  expect(seen.cart.phase).toBe('rolling');
+  expect([seen.s.grounded, seen.s.y]).toEqual([true, seen.cart.y]);
+  const drawn = await page.evaluate(() => window.__PONCHO__!.defeatsDrawn());
+  expect(drawn.map((f) => `${f.kind} ${f.look}`)).toEqual(['cactus poof1']);
+  expect(drawn[0]!.x).toBeCloseTo(LAB_3C_ENEMIES[0]!.x, 6);
+  await shot(page, info, 'cart-runs-down');
 });
 
 /** In cart `i`, rolling, he holds nothing until its middle is at `midX`. */

@@ -6,6 +6,7 @@
 // jump from a rolling cart keeps the cart's speed across (the carry rule, `movement.ts`). Where it is depends only on the steps since he
 // landed in it. Pure logic, no Phaser (GDD-TEC-02).
 import { CART, GRAVITY, HITBOX, SPIKE, STEP, TILE } from '../config/tuning';
+import { boxTouchesEnemy, type Enemy, type EnemyState } from './enemy';
 import type { Spike } from './hazards';
 import { carryOn, landOn, standsOnPlatform, type PlatformPos } from './platform';
 import { blocked, type PlayerState, type World } from './movement';
@@ -101,10 +102,31 @@ function standsIn(player: PlayerState, rail: Rail, cart: CartState): boolean {
   return floor !== null && standsOnPlatform(player, floor);
 }
 
-/** A falling cart's box, CART.width x CART.height: its left edge and top. Null for a cart that is not falling. */
+/** The cart's box, CART.width x CART.height around its middle, its bottom at `bottom`: its left edge and top. */
+const boxOver = (rail: Rail, cart: CartState, bottom: number): { x: number; y: number; w: number; h: number } => ({ x: rail.x + rail.dir * cart.m - HALF, y: bottom - CART.height, w: CART.width, h: CART.height });
+
+/** A falling cart's box (`boxOver`), its bottom where it has fallen to. Null for a cart that is not falling. */
 export function fallingBox(rail: Rail, cart: CartState): { x: number; y: number; w: number; h: number } | null {
   if (cart.phase !== 'falling' || !cart.fall) return null;
-  return { x: rail.x + rail.dir * cart.m - HALF, y: cart.fall.y - CART.height, w: CART.width, h: CART.height };
+  return boxOver(rail, cart, cart.fall.y);
+}
+
+/** GDD-WLD-15: a rolling cart's box (`boxOver`), its bottom on the rail's ground under its middle. Null for a cart that is not rolling. */
+export function rollingBox(rail: Rail, cart: CartState): { x: number; y: number; w: number; h: number } | null {
+  return cart.phase === 'rolling' ? boxOver(rail, cart, railGround(rail, cart.m)) : null;
+}
+
+/**
+ * GDD-WLD-15: a rolling cart defeats every live enemy its box (`rollingBox`, after this step's roll) overlaps, with the usual defeat: every
+ * kind, a heavy one too (defeated, not stunned), one playing dead or stunned included (`boxTouchesEnemy`). A cart that is waiting, stopped,
+ * falling or gone touches no enemy. Nothing else changes: no score, no bounce, no change to the cart's speed.
+ */
+export function runOver(rails: readonly Rail[], carts: readonly CartState[], enemies: readonly Enemy[], states: readonly EnemyState[]): EnemyState[] {
+  const boxes = rails.flatMap((r, i) => {
+    const b = rollingBox(r, carts[i]!);
+    return b ? [{ x0: b.x, x1: b.x + b.w, y0: b.y, y1: b.y + b.h }] : [];
+  });
+  return states.map((e, i) => (boxes.some((b) => boxTouchesEnemy(b, enemies[i]!, e)) ? { ...e, alive: false } : e));
 }
 
 /**
@@ -208,8 +230,10 @@ const standingIn = (player: PlayerState, rails: readonly Rail[], carts: readonly
  * Poncho after a step, over the carts that moved from `from` to `to` in it: he lands in one he came down onto (`landOn`, GDD-WLD-05's
  * rule), on the floor under the x he comes down at. One he stood in at the step's start (`before`) keeps him on its floor under his feet
  * while he does not rise and his body box is still over it, so walking in a stopped one where the floor falls away (on a descent), or being
- * held back by a wall while a rolling one goes on down, does not lift him off it. (Landing in a rolling cart needs no change of his `vx` to
- * his speed in the cart: the anchor, `anchorInCarts`, sets it to 0 on that step, L-025.)
+ * held back by a wall while a rolling one goes on down, does not lift him off it. (Landing in a rolling cart changes nothing of his `vx`:
+ * the anchor, `anchorInCarts`, sets it to 0 on that step, L-025. Where a tile refuses the anchor it does not, and he is left in the cart with
+ * the speed across he came down with, so he moves on in it at the cart's speed and his own until he leaves it: under a low beam, he drops
+ * off its floor against the beam's face.)
  */
 export function landInCarts(before: PlayerState, carried: PlayerState, stepped: PlayerState, rails: readonly Rail[], from: readonly CartState[], to: readonly CartState[], world: World): PlayerState {
   const was = standingIn(before, rails, from);

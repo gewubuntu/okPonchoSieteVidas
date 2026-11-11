@@ -5,7 +5,7 @@ import { enemyBox, kindOf, type EnemyKind } from '../sim/enemy';
 import type { Level, RunState } from '../sim/run';
 import { lookFrame, POOF_LOOKS, type EnemyLook, type Sheet } from './enemyLooks';
 
-/** The kinds that go in a poof: every one that can be defeated, the cactus buddy too, by the Chile Fantasma alone (GDD-PWR-04). */
+/** The kinds that go in a poof: every one that can be defeated, the cactus buddy too, by the Chile Fantasma (GDD-PWR-04) or a rolling cart (GDD-WLD-15) alone. */
 export type DefeatKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo';
 const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'cactus' || kind === 'tlacuache' || kind === 'paloma' || kind === 'chapulin' || kind === 'trompo';
 
@@ -67,8 +67,8 @@ export function defeatLook(e: DefeatFx): DefeatLook {
     const look = POOF_LOOKS[Math.floor((e.age - ENEMY_ART.defeatSteps) / ENEMY_ART.poofSteps)]!;
     return { sheet: 'poof', look, frame: lookFrame('poof', look), x: e.x, y: e.y, flip: false };
   }
-  // A Trompo is only ever defeated by a stomp (GDD-ENM-03) and has no hit frame, so it shows its squash whatever `stomped` says (it cannot
-  // happen in play).
+  // A Trompo has no hit frame (GDD-ENM-03: the claw and a fireball only stun it), so it shows its squash whatever `stomped` says: after a
+  // stomp, and when a rolling cart runs it down (GDD-WLD-15).
   const squashed = e.stomped || e.kind === 'trompo';
   const look: EnemyLook = squashed ? 'squash' : 'hit';
   const rise = squashed ? 0 : (ENEMY_ART.hitRise * e.age) / ENEMY_ART.defeatSteps;

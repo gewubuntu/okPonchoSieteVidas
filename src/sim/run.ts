@@ -14,7 +14,7 @@ import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } f
 import { releaseFrom, stepItem, touchesItem, type Item } from './item';
 import { bumpedPinata, freshPinatas, withPinatas, type Pinata } from './pinata';
 import { collideBlocks, moveBlocks, type MovingBlock } from './block';
-import { anchorInCarts, boardCarts, breakCarts, carryOnCarts, freshCarts, keepCarry, landInCarts, returnCarts, rollCarts, type CartState, type Rail } from './cart';
+import { anchorInCarts, boardCarts, breakCarts, carryOnCarts, freshCarts, keepCarry, landInCarts, returnCarts, rollCarts, runOver, type CartState, type Rail } from './cart';
 import { isBossLevel } from './bossLevel';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
 import { awningTops, freshAwnings, landOnAwnings, type Awning, type AwningBounce } from './awning';
@@ -394,7 +394,10 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   // is set only on the step it bounces (`stepChapulin` drops it from the next air step), so no age check is needed (L-025).
   const standing = (level.awnings ?? []).flatMap((_, i) => (run.awningsGone[i] ? [] : [i]));
   const chewed = patrolled.flatMap((e) => (e.hop?.on !== undefined ? [standing[e.hop.on]!] : [])).filter((i) => level.awnings![i]!.torn);
-  const stomped = patrolled.map((e, i) => isStomp(run.player, sprung, level.enemies[i]!, e));
+  // GDD-WLD-15: a rolling cart defeats every enemy its box overlaps after this step's roll, before the stomps and the hits below, so one it
+  // reaches cannot hit him on that step.
+  const ranOver = runOver(rails, rolled, level.enemies, patrolled);
+  const stomped = ranOver.map((e, i) => isStomp(run.player, sprung, level.enemies[i]!, e));
   // GDD-BOS-02: the boss flies his pattern, facing and aiming at Poncho as he was at the step's start, like the Zopilote. His fruit
   // falls (in phase 3 one that lands lies there); one he lets go of this step starts to fall on the next.
   const flown = level.boss && run.boss ? stepBoss(level.boss, run.boss, run.player) : null;
@@ -478,11 +481,12 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
     return true;
   });
   // GDD-CMB-02, GDD-PWR-03: the claw and a fireball defeat the enemies they overlap, besides a stomp. Every fireball that
-  // overlaps a live enemy is used up, whatever defeats the enemy that step (and even the cactus buddy, which only the Chile Fantasma's touch defeats, GDD-PWR-04).
+  // overlaps a live enemy is used up, whatever defeats the enemy that step (and even the cactus buddy, which only the Chile Fantasma's touch and a rolling cart defeat, GDD-PWR-04, GDD-WLD-15).
   // GDD-ENM-02: a Tlacuache's first stomp only makes it play dead, unless the claw or a fireball defeats it the same step. The
   // claw defeats one that is playing dead too. GDD-ENM-03: the claw or a fireball stuns a heavy enemy (a Trompo) instead (`strike`).
+  // A fireball reads the enemies as they moved this step, so one is used up on an enemy a cart defeats in the same step.
   const fireballHits = (f: Fireball, i: number): boolean => boxHitsEnemy(fireballBox(f), level.enemies[i]!, patrolled[i]!);
-  const enemies = patrolled.map((e, i) => {
+  const enemies = ranOver.map((e, i) => {
     const def = level.enemies[i]!;
     // GDD-PWR-04: with the Chile Fantasma every regular enemy he touches is defeated outright (never stunned, the cactus buddy too), one
     // playing dead and a stunned Trompo included. A stomp in the same step still bounces him (`stomped`, read before).

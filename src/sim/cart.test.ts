@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { CART, FANTASMA, HIT, RESPAWN, SPIKE, TILE } from '../config/tuning';
 import { LEVEL_1_4 } from '../levels/level1-4';
-import { bossStart } from './boss';
+import { bossBox, bossStart } from './boss';
 import { cartFloor, fallingBox, floorUnder, railLength, rollCarts, warningPost, type CartState, type Rail, type RailSegment } from './cart';
 import { clawBox } from './claw';
+import { enemyBox, freshEnemies, type Box, type Enemy, type EnemyState } from './enemy';
 import { spawnFireball } from './fireball';
 import { hitStopSteps } from './hitStop';
 import { blocked, spawn, step, type Abilities, type PlayerInput, type PlayerState } from './movement';
 import { standsOnPlatform, type MovingPlatform } from './platform';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { parseTiles } from './tilemap';
+import { stun } from './trompo';
 
 // GDD-WLD-15: vagonetas. The expected numbers are the GDD's: 150 px/s on the level, 120 uphill and 180 downhill along the rail (84.85 and
 // 127.28 px/s across), a 32 px cart whose floor rides 8 px over the rail's ground, and the carry rule's measured jumps.
@@ -702,6 +704,30 @@ describe('GDD-WLD-15 a rider is anchored at the cart\'s middle', () => {
     expect(states[119]!.player).toMatchObject({ grounded: true, y: FLOOR });
   });
 
+  it('GDD-WLD-15 a landing whose anchoring a tile refuses: he is left in the cart with his own speed until the beam takes him out', () => {
+    // A level rail of 60 tiles from x 160 and a hanging beam at column 40 (x 640 to 656), its underside 32 px over the rail's ground. From the
+    // cart at m 389.5 a held jump (40 steps), back held from the 20th step after the takeoff: he comes down on the floor 16 px behind its
+    // middle (x 634.5), where the anchor would put his body into the beam (his box reaches x 640.5), so it does not.
+    const beam = levelOf([rail(160, level(60))], { world: withTiles([[40, 9]]) });
+    const states = play(beam, riding(beam, 389.5), 120, (i) => ({ move: i >= 20 ? -1 : 0, jumpHeld: i < 40 }));
+    const landed = states.findIndex((s, i) => i > 0 && s.player.grounded);
+    expect(landed).toBeGreaterThan(20);
+    expect(inCart(beam, states[landed]!)).toBe(true);
+    expect(states[landed]!.player.x - middle(beam, states[landed]!)).toBeCloseTo(-16, 6);
+    expect(blocked(beam.world, middle(beam, states[landed]!), FLOOR - 8)).toBe(true);
+    // Left in the cart with the speed across he came down with: he moves on in it faster than the cart for a step.
+    expect(states[landed]!.player.vx).toBeGreaterThan(0);
+    expect(states[landed + 1]!.player.x - states[landed]!.player.x).toBeGreaterThan(2.5);
+    // He is never in a tile and never past the beam in the cart: the floor moves on under him as he slows, he drops off its back, against
+    // the beam's face, and is on the ground before the beam 14 steps after landing (measured; the review's probe said within 12).
+    expect(states.every((s) => !blocked(beam.world, s.player.x, s.player.y))).toBe(true);
+    expect(states.every((s) => !(inCart(beam, s) && s.player.x > 640 - 6))).toBe(true);
+    const ground = states.findIndex((s, i) => i > landed && s.player.grounded && s.player.y === FLOOR);
+    expect(ground).toBeGreaterThan(landed);
+    expect(ground - landed).toBe(14);
+    expect(states[ground]!.player.x).toBeLessThanOrEqual(640 - 6 + 1e-6);
+  });
+
   it('GDD-WLD-15 a cart stopped at its buffer anchors nobody: he walks off it', () => {
     const states = play(L, riding(L, 16), 160, (_i, s) => (s.carts[0]!.phase === 'stopped' ? right : idle));
     const stop = states.findIndex((s) => s.carts[0]!.phase === 'stopped');
@@ -727,6 +753,29 @@ describe('GDD-WLD-15 acting in a rolling cart', () => {
     expect(states[hit]!.player.carry).toBeUndefined();
     expect(states[hit]!.player.vx).toBe(-HIT.knockback); // pushed back, away from the spike's middle
     expect(states[hit + 1]!.player.vx).toBeCloseTo(-HIT.knockback + 300 / 60, 9); // then slowing at the air deceleration, as any knockback
+  });
+
+  it('GDD-WLD-15, GDD-CMB-03 a hit does not move an anchored rider out of the cart', () => {
+    // A spike hanging at column 12, row 9 (it hurts through y 152 to 160), at the head of a Taco Poncho riding at 150 px/s on the floor (his
+    // hurtbox from y 153): the taco absorbs the hit and knocks him back, but the anchor keeps him at the cart's middle, and he rides on,
+    // invulnerable, to its buffer at x 512. Nothing, forward and back held.
+    const l = levelOf([rail(32, level(30))], { spikes: [{ col: 12, row: 9 }] });
+    for (const held of [idle, right, left]) {
+      const states = play(l, { ...riding(l, 100), power: 'taco' }, 200, () => held);
+      const hit = states.findIndex((s) => s.power === 'base');
+      expect(hit, `${held.move}`).toBeGreaterThan(0);
+      expect(states[hit]!.invulnerable, `${held.move}`).toBe(HIT.invulnerableSteps);
+      const stop = stopIn(states);
+      expect(stop, `${held.move}`).toBeGreaterThan(hit);
+      // To the step before it stops (on that step a stopped cart no longer anchors him, and he walks in it if he holds forward).
+      for (const s of states.slice(hit, stop)) {
+        expect(inCart(l, s), `${held.move}`).toBe(true);
+        expect(s.player.x, `${held.move}`).toBe(middle(l, s));
+      }
+      expect(inCart(l, states[stop]!), `${held.move}`).toBe(true);
+      expect(states.every((s) => s.phase === 'playing' && s.lives.lives === 7), `${held.move}`).toBe(true);
+      expect(states.slice(hit).every((s) => s.power === 'base'), `${held.move}`).toBe(true);
+    }
   });
 
   it('GDD-WLD-15 the claw swings from a rolling cart', () => {
@@ -1121,7 +1170,7 @@ describe('GDD-WLD-15 a broken end', () => {
     expect(through.length).toBeGreaterThan(0); // his feet were inside its box
   });
 
-  it('GDD-WLD-15 the walls do not hold him once the cart has left the rail', () => {
+  it('GDD-WLD-15 the anchor does not hold him once the cart has left the rail', () => {
     // Holding back from the step after it leaves: he slows towards 30 px/s and the cart, at 150, leaves him behind.
     const states = play(lvl, riding(lvl, 200), 40, (_i, s) => (s.carts[0]!.phase === 'falling' ? left : idle));
     const at = leaves(states);
@@ -1271,5 +1320,272 @@ describe('GDD-WLD-15 an empty cart comes back', () => {
     const back = play(lvl3, hit, RESPAWN.delaySteps)[RESPAWN.delaySteps - 1]!;
     expect(back.phase).toBe('playing');
     expect(back.carts).toEqual([{ phase: 'waiting', m: 16 }, { phase: 'waiting', m: 16 }, { phase: 'waiting', m: 16 }]);
+  });
+});
+
+/** A run with cart 0 of `l` rolling at `m`, Poncho at its middle, and the enemies' states as given (the level's fresh ones unless said). */
+const ridingWith = (l: Level, m: number, enemies?: readonly EnemyState[]): RunState => ({ ...riding(l, m), ...(enemies ? { enemies } : {}) });
+/** A cart's box from the GDD: its middle on its rail, 32 px wide, from 16 px over the rail's ground (the rail's `y`: these rails are level) to it. */
+const cartBox = (r: Rail, c: CartState): Box => ({ x0: r.x + r.dir * c.m - 16, x1: r.x + r.dir * c.m + 16, y0: r.y - 16, y1: r.y });
+/** Do two boxes overlap? Boxes that only share an edge do not. */
+const touch = (a: Box, b: Box): boolean => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+/** Does cart 0's box overlap enemy 0 after the step that gave `s`? */
+const reaches = (l: Level, s: RunState): boolean => touch(cartBox(l.rails![0]!, s.carts[0]!), enemyBox(l.enemies[0]!, s.enemies[0]!));
+/** Rides at the middle of cart 0 to step `k`: not knocked out of it. */
+const rodeThrough = (l: Level, states: RunState[], k: number) => expect(states.slice(0, k + 1).every((s) => inCart(l, s) && s.player.x === middle(l, s))).toBe(true);
+
+/**
+ * Plays `steps` steps and finds the step enemy 0 is defeated: it is alive and clear of the rolling cart's box on the step before, and the
+ * boxes overlap on that step. He loses no life and is not hit (never knocked back or made invulnerable). Returns the states and the step.
+ */
+function runsDown(l: Level, r: RunState, steps: number, input: (i: number, s: RunState) => PlayerInput = () => idle): { states: RunState[]; k: number } {
+  const states = play(l, r, steps, input);
+  const k = states.findIndex((s) => !s.enemies[0]!.alive);
+  expect(k).toBeGreaterThan(0);
+  expect(states[k - 1]!.enemies[0]!.alive).toBe(true);
+  expect(reaches(l, states[k - 1]!)).toBe(false);
+  expect(states[k]!.carts[0]!.phase).toBe('rolling');
+  expect(reaches(l, states[k]!)).toBe(true);
+  expect(states.every((s) => s.phase === 'playing' && s.lives.lives === 7 && s.invulnerable === 0 && s.power === r.power)).toBe(true);
+  return { states, k };
+}
+
+describe('GDD-WLD-15 a rolling cart defeats the enemies it hits', () => {
+  // User, 2026-11-10: "a rolling cart defeats every enemy it hits", the heavy ones too. Its box: 32 px wide around its middle, from 16 px over
+  // the rail's ground under its middle down to that ground (the falling cart's box). Boxes that only share an edge do not touch.
+  const R = rail(32, level(40)); // on the floor, its buffer at x 672; riding from m 100 its middle is at x 132
+  /** A level with the rails given (R unless said) and the enemies given. */
+  const withEnemies = (enemies: readonly Enemy[], o: { rails?: readonly Rail[]; world?: ReturnType<typeof rows>; spikes?: Level['spikes'] } = {}): Level => ({ ...levelOf(o.rails ?? [R], o), enemies });
+
+
+  it('GDD-WLD-15 a rolling cart defeats an Alacrán', () => {
+    const l = withEnemies([{ x: 192, y: FLOOR }]);
+    const { states, k } = runsDown(l, ridingWith(l, 100), 60);
+    rodeThrough(l, states, k);
+  });
+
+  it('GDD-WLD-15 a rolling cart defeats a cactus buddy, which only it and the Chile Fantasma defeat', () => {
+    const l = withEnemies([{ x: 200, y: FLOOR, kind: 'cactus' }]);
+    const { states, k } = runsDown(l, ridingWith(l, 100), 60);
+    rodeThrough(l, states, k);
+  });
+
+  it('GDD-WLD-15 a rolling cart defeats a Trompo while it spins, with no stun', () => {
+    // It spins on at 70 px/s ahead of the cart, which catches it up at 150.
+    const l = withEnemies([{ x: 220, y: FLOOR, kind: 'trompo' }]);
+    const { states, k } = runsDown(l, ridingWith(l, 100), 90);
+    expect(states[k - 1]!.enemies[0]!.spin!.phase).toBe('spin');
+    expect(states[k]!.enemies[0]!.spin!.phase).toBe('spin'); // defeated outright, not stunned
+    expect(states.slice(k).every((s) => !s.enemies[0]!.alive)).toBe(true);
+    rodeThrough(l, states, k);
+  });
+
+  it('GDD-WLD-15 a rolling cart defeats a stunned Trompo', () => {
+    const l = withEnemies([{ x: 180, y: FLOOR, kind: 'trompo' }]);
+    const { states, k } = runsDown(l, ridingWith(l, 100, [stun(freshEnemies(l.enemies)[0]!)]), 40);
+    expect(states[k - 1]!.enemies[0]!.spin!.phase).toBe('stunned');
+    rodeThrough(l, states, k);
+  });
+
+  it('GDD-WLD-15 a rolling cart defeats a Tlacuache charging', () => {
+    // Charging left at 150 px/s into the cart rolling right.
+    const l = withEnemies([{ x: 260, y: FLOOR, kind: 'tlacuache' }]);
+    const charging: EnemyState = { ...freshEnemies(l.enemies)[0]!, dir: -1, gait: { phase: 'charge', age: 0, playedDead: false } };
+    const { states, k } = runsDown(l, ridingWith(l, 100, [charging]), 40);
+    expect(states[k - 1]!.enemies[0]!.gait!.phase).toBe('charge');
+    rodeThrough(l, states, k);
+  });
+
+  it('GDD-WLD-15 a rolling cart defeats a Tlacuache playing dead', () => {
+    const l = withEnemies([{ x: 180, y: FLOOR, kind: 'tlacuache' }]);
+    const dead: EnemyState = { ...freshEnemies(l.enemies)[0]!, gait: { phase: 'dead', age: 0, playedDead: true } };
+    const { states, k } = runsDown(l, ridingWith(l, 100, [dead]), 40);
+    expect(states[k - 1]!.enemies[0]!.gait!.phase).toBe('dead');
+    rodeThrough(l, states, k);
+  });
+
+  it('GDD-WLD-15 a rolling cart defeats a Paloma walking', () => {
+    // A rider standing in the cart would startle it before the cart reached it (his middle within 48 px of its own, his feet within 24 px of
+    // its feet): he jumps from the cart, so his feet are high over it when the cart reaches it walking, and he lands back in the cart.
+    const l = withEnemies([{ x: 190, y: FLOOR, kind: 'paloma' }]);
+    const { states, k } = runsDown(l, ridingWith(l, 100), 60, () => hold);
+    expect(states[k - 1]!.enemies[0]!.wing!.phase).toBe('walk');
+    expect(states[k]!.enemies[0]!.wing!.phase).toBe('walk');
+    const back = states.findIndex((s, i) => i > k && s.player.grounded);
+    expect(back).toBeGreaterThan(k);
+    expect(inCart(l, states[back]!)).toBe(true);
+  });
+
+  it('GDD-WLD-15 a rolling cart defeats a Paloma hovering in its path', () => {
+    // The rail 2 tiles over the floor (its ground at y 160): a Paloma on the floor hovering 40 px up (its box y 140 to 152) is in the cart's
+    // box (y 144 to 160).
+    const high = rail(32, level(40), { y: FLOOR - 2 * TILE });
+    const l = withEnemies([{ x: 190, y: FLOOR, kind: 'paloma' }], { rails: [high] });
+    const hovering: EnemyState = { ...freshEnemies(l.enemies)[0]!, wing: { phase: 'hover', age: 0, lift: 40 } };
+    const { states, k } = runsDown(l, ridingWith(l, 100, [hovering]), 40);
+    expect(states[k - 1]!.enemies[0]!.wing!.phase).toBe('hover');
+    rodeThrough(l, states, k);
+  });
+
+  it('GDD-WLD-15 a rolling cart defeats a Chapulín mid-hop', () => {
+    // At the end of its crouch, facing the cart: it hops on the first step (its feet 4.8 px up), and the cart reaches it on the second, low in
+    // its hop (its feet 9.2 px up, its box from y 172.8).
+    const l = withEnemies([{ x: 158, y: FLOOR, kind: 'chapulin' }]);
+    const about: EnemyState = { ...freshEnemies(l.enemies)[0]!, dir: -1, hop: { phase: 'crouch', age: 35, vy: 0 } };
+    const { states, k } = runsDown(l, ridingWith(l, 100, [about]), 40);
+    expect(k).toBe(1);
+    expect(states[0]!.enemies[0]!.hop!.phase).toBe('air');
+    expect(states[0]!.enemies[0]!.y!).toBeLessThan(FLOOR); // off the ground
+    expect(states[1]!.enemies[0]!.hop!.phase).toBe('air');
+    rodeThrough(l, states, k);
+  });
+
+  it('GDD-WLD-15 a rolling cart defeats a Zopilote flying low', () => {
+    // Its cruise line 8 px over the floor: its box (10 px tall, bobbing 12 px) is in the cart's box all the way.
+    const l = withEnemies([{ x: 220, y: FLOOR - 8, kind: 'zopilote' }]);
+    const { states, k } = runsDown(l, ridingWith(l, 100), 60);
+    expect(states[k - 1]!.enemies[0]!.flight!.phase).toBe('cruise');
+    rodeThrough(l, states, k);
+  });
+
+  it('GDD-WLD-15 an enemy the cart reaches cannot hit him on that step', () => {
+    // An Alacrán in Poncho's hurtbox (its box from y 182, his hurtbox to y 183) and in the cart's box on the first step: it is defeated, and
+    // he is not hit (in Base a hit would cost a life).
+    const l = withEnemies([{ x: 134, y: FLOOR }]); // it walks 0.5 px to 134.5, the cart's middle after the step
+    const [first] = play(l, ridingWith(l, 100), 1);
+    expect(reaches(l, first!)).toBe(true);
+    const h = { x0: first!.player.x - 5, x1: first!.player.x + 5, y0: first!.player.y - 31, y1: first!.player.y - 1 }; // GDD-MOV-06: 10 x 30
+    expect(touch(h, enemyBox(l.enemies[0]!, first!.enemies[0]!))).toBe(true);
+    expect(first!.enemies[0]!.alive).toBe(false);
+    expect(first!).toMatchObject({ phase: 'playing', lives: { lives: 7 }, invulnerable: 0 });
+  });
+
+  it('GDD-WLD-15 an enemy the cart reaches is no stomp on that step', () => {
+    // A Paloma coming down, 2 px over the floor after the step (its box y 178 to 190), in the box of an empty cart rolling under it; Poncho
+    // falling onto its top from 0 px over it, over the cart but above its floor (y 184). The cart defeats it first: no stomp, no bounce.
+    const l = withEnemies([{ x: 145, y: FLOOR, kind: 'paloma' }]);
+    const descending: EnemyState = { ...freshEnemies(l.enemies)[0]!, wing: { phase: 'descend', age: 0, lift: 3 } };
+    const r = runWith(l, { ...spawn(145, FLOOR - 14), grounded: false, vy: 120 }, [{ phase: 'rolling', m: 100 }]);
+    const [first] = play(l, { ...r, enemies: [descending] }, 1);
+    expect(reaches(l, first!)).toBe(true);
+    const h = { x0: first!.player.x - 5, x1: first!.player.x + 5, y0: first!.player.y - 31, y1: first!.player.y - 1 }; // GDD-MOV-06: 10 x 30
+    expect(touch(h, enemyBox(l.enemies[0]!, { ...first!.enemies[0]!, alive: true }))).toBe(true);
+    expect(first!.player.y).toBeLessThan(FLOOR - 8); // not down on the cart's floor
+    expect(first!.enemies[0]!.alive).toBe(false);
+    expect(first!.stomped).toBe(false);
+    expect(first!.player.vy).toBeGreaterThan(0);
+  });
+
+  it('GDD-WLD-15 the rider\'s body is his own: an enemy at his head\'s height, clear of the cart\'s box, hits him', () => {
+    // A Zopilote cruising at y 160, 32 px over the floor: it spots him and freezes for its telegraph at his head's height (its box about y 155
+    // to 166, his hurtbox from y 153), clear of the cart's box (from y 176). He rides into it: in Base, one life.
+    const l = withEnemies([{ x: 200, y: FLOOR - 32, kind: 'zopilote' }]);
+    const states = play(l, ridingWith(l, 100), 40);
+    const hit = states.findIndex((s) => s.phase === 'respawning');
+    expect(hit).toBeGreaterThan(0);
+    expect(states[hit]!.lives.lives).toBe(6);
+    expect(states[hit]!.enemies[0]!.alive).toBe(true);
+    expect(states.slice(0, hit + 1).every((s) => !reaches(l, s))).toBe(true);
+  });
+
+  it('GDD-WLD-15 boxes that only share an edge do not touch', () => {
+    // A cactus buddy whose back edge is where the cart's front is after 10 steps from m 100 (x 148 + 25 = 173): still alive then, defeated on
+    // the step after.
+    const l = withEnemies([{ x: 179, y: FLOOR, kind: 'cactus' }]);
+    const states = play(l, ridingWith(l, 100), 12);
+    expect(cartBox(R, states[9]!.carts[0]!).x1).toBe(173);
+    expect(enemyBox(l.enemies[0]!, states[9]!.enemies[0]!).x0).toBe(173);
+    expect(states[9]!.enemies[0]!.alive).toBe(true);
+    expect(states[10]!.enemies[0]!.alive).toBe(false);
+    // A cactus buddy in mid-air with its feet on the top of the cart's box (y 176): an empty cart rolls under it and leaves it alive; one
+    // 1 px lower is defeated.
+    for (const [y, alive] of [[FLOOR - 16, true], [FLOOR - 15, false]] as const) {
+      const over = withEnemies([{ x: 200, y, kind: 'cactus' }]);
+      const passing = play(over, runWith(over, spawn(1200, FLOOR), [{ phase: 'rolling', m: 100 }]), 80);
+      expect(passing.some((s) => cartBox(R, s.carts[0]!).x0 < 206 && cartBox(R, s.carts[0]!).x1 > 194), `${y}`).toBe(true);
+      expect(passing[79]!.enemies[0]!.alive, `${y}`).toBe(alive);
+    }
+  });
+
+  it('GDD-WLD-15 a waiting cart defeats nothing: an Alacrán walks through it', () => {
+    // Its cart waiting at its start (x 32 to 64), Poncho far away; an Alacrán walks right through it at 30 px/s.
+    const l = withEnemies([{ x: 12, y: FLOOR }]);
+    const states = play(l, runWith(l, spawn(1200, FLOOR)), 160);
+    expect(states.every((s) => s.carts[0]!.phase === 'waiting' && s.enemies[0]!.alive)).toBe(true);
+    expect(states.filter((s) => reaches(l, s)).length).toBeGreaterThan(40);
+    expect(states[159]!.enemies[0]!.x).toBeGreaterThan(64 + 7); // all the way through
+  });
+
+  it('GDD-WLD-15 a stopped cart defeats nothing', () => {
+    // Its cart stopped at its buffer (x 640 to 672), nobody in it; an Alacrán walks right into it.
+    const l = withEnemies([{ x: 620, y: FLOOR }]);
+    const states = play(l, runWith(l, spawn(1200, FLOOR), [{ phase: 'stopped', m: 640 - 16 }]), 100);
+    expect(states.every((s) => s.carts[0]!.phase === 'stopped' && s.enemies[0]!.alive)).toBe(true);
+    expect(states.filter((s) => reaches(l, s)).length).toBeGreaterThan(40);
+  });
+
+  it('GDD-WLD-15 a falling cart defeats nothing', () => {
+    // GDD: "A falling cart is no floor and defeats nothing." A broken rail 160 px over the floor, its end at x 256; a cactus buddy in mid-air
+    // past the end at the rail's height (x 274 to 286, y 16 to 32), clear of the rolling cart's box (its front at most at x 272): the cart
+    // rolls off the end level through it, with nobody in it.
+    const B = rail(32, level(14), { y: FLOOR - 160, end: 'broken' });
+    const l = withEnemies([{ x: 280, y: FLOOR - 160, kind: 'cactus' }], { rails: [B] });
+    const states = play(l, runWith(l, spawn(1200, FLOOR), [{ phase: 'rolling', m: 200 }]), 30);
+    const cactus = enemyBox(l.enemies[0]!, states[0]!.enemies[0]!);
+    const through = states.filter((s) => {
+      const box = fallingBox(B, s.carts[0]!);
+      return box !== null && touch({ x0: box.x, x1: box.x + box.w, y0: box.y, y1: box.y + box.h }, cactus);
+    });
+    expect(through.length).toBeGreaterThan(3);
+    expect(states.every((s) => s.enemies[0]!.alive)).toBe(true);
+  });
+
+  it('GDD-WLD-15 an empty rolling cart defeats too', () => {
+    // He jumps out at once holding back; the cart rolls on with nobody in it into an Alacrán.
+    const l = withEnemies([{ x: 300, y: FLOOR }]);
+    const { states, k } = runsDown(l, ridingWith(l, 16), 200, (i) => ({ move: i < 40 ? -1 : 0, jumpHeld: i < 30 }));
+    expect(states.slice(40, k + 1).every((s) => !inCart(l, s))).toBe(true);
+  });
+
+  it('GDD-WLD-15 a left-rolling cart defeats too', () => {
+    // Rolling left from x 600, its middle at x 584 at its start; an Alacrán ahead of it on its left.
+    const leftward = rail(600, level(30), { dir: -1 });
+    const l = withEnemies([{ x: 500, y: FLOOR }], { rails: [leftward] });
+    const { states, k } = runsDown(l, ridingWith(l, 16), 60);
+    rodeThrough(l, states, k);
+  });
+
+  it('GDD-WLD-15 a lost life brings the enemies a cart ran down back', () => {
+    // The cart runs down an Alacrán, then a spike hanging at his head's height (column 20, row 9) costs Base Poncho a life.
+    const l = withEnemies([{ x: 192, y: FLOOR }], { spikes: [{ col: 20, row: 9 }] });
+    const states = play(l, ridingWith(l, 100), 200);
+    const k = states.findIndex((s) => !s.enemies[0]!.alive);
+    const lost = states.findIndex((s) => s.phase === 'respawning');
+    expect(k).toBeGreaterThan(0);
+    expect(lost).toBeGreaterThan(k);
+    expect(states.slice(k, lost + 1).every((s) => !s.enemies[0]!.alive)).toBe(true);
+    const back = states.findIndex((s, i) => i > lost && s.phase === 'playing');
+    expect(back).toBeGreaterThan(lost);
+    expect(states[back]!.enemies).toEqual(freshEnemies(l.enemies));
+  });
+
+  it('GDD-WLD-15 a boss is not an enemy to a cart', () => {
+    // 1-4 with a rail added on its floor (as the hit-stop test does): Don Zopilote stuck in the sand at x 232 (his box x 208 to 256, y 194 to
+    // 224) in the way of the rolling cart (its box y 208 to 224), nobody in it. He takes no hit and is not defeated.
+    const l: Level = { ...LEVEL_1_4, rails: [rail(16, level(26), { y: 14 * TILE })] };
+    const r: RunState = { ...startRun(l), player: { ...spawn(400, 224), grounded: true }, boss: { ...bossStart(LEVEL_1_4.boss!, 0), mode: 'stuck', age: 0, x: 232, y: 209, tx: 232, ty: 209 }, carts: [{ phase: 'rolling', m: 150 }] };
+    const states = play(l, r, 40);
+    expect(states.filter((s) => s.carts[0]!.phase === 'rolling' && touch(cartBox(l.rails![0]!, s.carts[0]!), bossBox(s.boss!))).length).toBeGreaterThan(10);
+    expect(states.every((s) => s.boss!.hits === 0 && s.boss!.mode !== 'hurt' && s.boss!.mode !== 'defeated')).toBe(true);
+  });
+
+  it('GDD-WLD-15, GDD-PWR-04 the Chile Fantasma and the cart together', () => {
+    // With the Chile Fantasma running he rides through an Alacrán that the cart's box and his hurtbox both overlap on the first step: it is
+    // defeated once, where it walked to, and stays so; the run goes on, with no stomp.
+    const l = withEnemies([{ x: 134, y: FLOOR }]);
+    const states = play(l, { ...ridingWith(l, 100), fantasma: FANTASMA.steps }, 30);
+    expect(states[0]!.enemies[0]).toEqual({ x: 134.5, y: FLOOR, dir: 1, alive: false });
+    expect(states.every((s) => s.enemies[0]!.x === 134.5 && !s.enemies[0]!.alive)).toBe(true);
+    expect(states.every((s) => s.phase === 'playing' && s.lives.lives === 7 && !s.stomped && inCart(l, s))).toBe(true);
   });
 });

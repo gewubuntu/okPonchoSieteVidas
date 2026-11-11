@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CART, TILE } from '../src/config/tuning';
-import { LAB_3C_BEAM, LAB_3C_OFRENDAS, LAB_3C_PIT, LAB_3C_RAILS } from '../src/levels/lab3c';
+import { CACTUS, CART, ENEMY, TILE, TROMPO } from '../src/config/tuning';
+import { LAB_3C_BEAM, LAB_3C_ENEMIES, LAB_3C_OFRENDAS, LAB_3C_PIT, LAB_3C_RAILS } from '../src/levels/lab3c';
 import { railLength, warningPost } from '../src/sim/cart';
+import type { EnemyKind } from '../src/sim/enemy';
 import { cartPose, WHEEL_OFFSET } from '../src/ui/cartPose';
 import { boot, clearOfButtons, nearHex, pixelsAt, readSheet, spotsIn } from './helpers';
 
@@ -83,6 +84,56 @@ test('GDD-WLD-15 a jump straight up from the rolling cart lands back in it', asy
   expect(landed.feet).toBe(landed.cart.y);
   expect(landed.x).toBeGreaterThan(landed.cart.x! - 6);
   expect(landed.x).toBeLessThan(landed.cart.x! + landed.cart.w! + 6);
+});
+
+/** The kind of R1's enemy `i` in lab-3c. */
+const kindAt = (i: number): EnemyKind => LAB_3C_ENEMIES[i]!.kind ?? 'alacran';
+
+test('GDD-WLD-15 the rolling cart runs an enemy down', async ({ page }) => {
+  const errors = await hopIn(page);
+  const lives = await page.evaluate(() => window.__PONCHO__!.lives());
+  // By steps in the page (L-073): each step's cart, enemies and lives, until the cart stops at its buffer; on the step an enemy is defeated,
+  // the game's own frames draw it (paused, so nothing moves) and the defeat effects drawn are read back.
+  const seen = await page.evaluate(async () => {
+    const d = window.__PONCHO__!;
+    const out: { cart: ReturnType<typeof d.carts>[number]; enemies: ReturnType<typeof d.enemies>; lives: number; drawn: ReturnType<typeof d.defeatsDrawn> | null }[] = [];
+    for (let n = 0; n < 300 && d.carts()[0]!.phase !== 'stopped'; n++) {
+      const alive = d.enemies().filter((e) => e.alive).length;
+      d.step(1);
+      let drawn = null;
+      if (d.enemies().filter((e) => e.alive).length < alive) {
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+        drawn = d.defeatsDrawn();
+      }
+      out.push({ cart: d.carts()[0]!, enemies: d.enemies(), lives: d.lives(), drawn });
+    }
+    return out;
+  });
+  expect(seen[seen.length - 1]!.cart.phase).toBe('stopped');
+  expect(seen.every((s) => s.lives === lives)).toBe(true);
+  // R1's enemies, from `src/levels/lab3c.ts` (L-062): a cactus buddy, an Alacrán and a Trompo; their boxes from their sizes, standing on their
+  // feet. The cart's box is 32 px wide around its middle, from 16 px over the rail's ground (8 px under its floor) down to it.
+  const size: Partial<Record<EnemyKind, { width: number; height: number }>> = { cactus: CACTUS, alacran: ENEMY, trompo: TROMPO };
+  const looks: Partial<Record<EnemyKind, string>> = { cactus: 'poof0', alacran: 'hit', trompo: 'squash' };
+  const overlap = (s: (typeof seen)[number], i: number) => {
+    const { width, height } = size[kindAt(i)]!;
+    const e = s.enemies[i]!;
+    const c = s.cart;
+    return c.x! < e.x + width / 2 && c.x! + CART.width > e.x - width / 2 && c.y! + CART.floorPx - CART.height < e.y && c.y! + CART.floorPx > e.y - height;
+  };
+  expect(LAB_3C_ENEMIES.map((_, i) => kindAt(i))).toEqual(['cactus', 'alacran', 'trompo']);
+  for (let i = 0; i < LAB_3C_ENEMIES.length; i++) {
+    const kind = kindAt(i);
+    const k = seen.findIndex((s) => !s.enemies[i]!.alive);
+    expect(k, kind).toBeGreaterThan(0);
+    expect([seen[k - 1]!.enemies[i]!.alive, overlap(seen[k - 1]!, i)], kind).toEqual([true, false]);
+    expect([seen[k]!.cart.phase, overlap(seen[k]!, i)], kind).toEqual(['rolling', true]);
+    // It goes as a defeat effect, drawn where it was: the cactus buddy straight to the poof, the Alacrán knocked over, the Trompo squashed.
+    const drawn = seen[k]!.drawn!.find((f) => f.kind === kind);
+    expect(drawn?.look, kind).toBe(looks[kind]);
+    expect(Math.abs(drawn!.x - seen[k]!.enemies[i]!.x), kind).toBeLessThan(1);
+  }
+  expect(errors).toEqual([]);
 });
 
 // GDD-ART-04: spots of his standing frame in his light fur and paw colours (not the outline, which the cart shares, nor the dark fur, near

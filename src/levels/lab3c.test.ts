@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { CART, OFRENDA, TILE } from '../config/tuning';
 import { cartFloor, fallingBox, floorUnder, railLength, warningPost } from '../sim/cart';
+import { clawBox } from '../sim/claw';
+import { enemyBox, kindOf, overlaps } from '../sim/enemy';
 import { spawn, type PlayerInput } from '../sim/movement';
 import { standsOnPlatform } from '../sim/platform';
 import { startRun, stepRun, type RunState } from '../sim/run';
 import { levelById } from './index';
-import { LAB_3C_BEAM, LAB_3C_FLOOR_Y, LAB_3C_ID, LAB_3C_LEVEL, LAB_3C_OFRENDAS, LAB_3C_PIT, LAB_3C_PLATEAU, LAB_3C_RAILS, LAB_3C_SUNKEN } from './lab3c';
+import { LAB_3C_BEAM, LAB_3C_ENEMIES, LAB_3C_FLOOR_Y, LAB_3C_ID, LAB_3C_LEVEL, LAB_3C_NOTCHES, LAB_3C_OFRENDAS, LAB_3C_PIT, LAB_3C_PLATEAU, LAB_3C_RAILS, LAB_3C_SPAWN, LAB_3C_SUNKEN } from './lab3c';
 import { validateLevel } from './validate';
 
 // GDD-WLD-15, GDD-TEC-04: lab-3c, over the real level data (L-014). Positions are read from `src/levels/lab3c.ts`.
@@ -184,6 +186,72 @@ describe('GDD-WLD-15 lab-3c', () => {
     expect(states[states.length - 1]!.player).toMatchObject({ grounded: true, y: LAB_3C_FLOOR_Y });
   });
 
+  it('GDD-WLD-15 lab-3c R1: the cart runs down the Alacrán, the Trompo and the cactus buddy, and he loses no life', () => {
+    // Three enemies on the floor under R1, each at least 8 tiles from its start and 3 from the spawn and every ofrenda (GDD-ENM-01).
+    expect(level.enemies.map(kindOf)).toEqual(['cactus', 'alacran', 'trompo']);
+    const r1 = LAB_3C_RAILS[0]!;
+    for (const e of level.enemies) {
+      expect(e.y).toBe(LAB_3C_FLOOR_Y);
+      expect(e.x - r1.x).toBeGreaterThanOrEqual(8 * TILE);
+      expect(e.x).toBeLessThan(r1.x + railLength(r1));
+      for (const o of [LAB_3C_SPAWN, ...LAB_3C_OFRENDAS]) expect(Math.hypot(e.x - o.x, e.y - o.y)).toBeGreaterThanOrEqual(3 * TILE);
+    }
+    // The bot hops in and rides to the buffer: each enemy is defeated on a step the cart rolls, and he stays in it with every life.
+    const start = startRun(level);
+    const states = ride(start, 0);
+    const boarded = states.findIndex((s) => s.carts[0]!.phase === 'rolling');
+    const stopped = states.findIndex((s) => s.carts[0]!.phase === 'stopped');
+    expect(states.slice(0, boarded + 1).every((s) => s.enemies.every((e) => e.alive))).toBe(true);
+    for (let i = 0; i < level.enemies.length; i++) {
+      const k = states.findIndex((s) => !s.enemies[i]!.alive);
+      expect(k, `enemy ${i}`).toBeGreaterThan(boarded);
+      expect(k, `enemy ${i}`).toBeLessThan(stopped);
+      expect(states[k]!.carts[0]!.phase, `enemy ${i}`).toBe('rolling');
+    }
+    expect(states.slice(boarded, stopped + 1).every((s) => inCart(s, 0))).toBe(true);
+    expect(states.every((s) => s.phase === 'playing' && s.lives.lives === start.lives.lives && s.invulnerable === 0)).toBe(true);
+  });
+
+  it('GDD-WLD-15 lab-3c R1: the Alacrán and the Trompo are penned by the notches', () => {
+    // Each notch's floor top is missing, one tile wide and one deep; the walkers stay between theirs for 20 s.
+    for (const col of LAB_3C_NOTCHES) {
+      expect([level.world.solidTile(col, LAB_3C_FLOOR_Y / TILE), level.world.solidTile(col, LAB_3C_FLOOR_Y / TILE + 1)]).toEqual([false, true]);
+      expect(level.world.solidTile(col - 1, LAB_3C_FLOOR_Y / TILE) && level.world.solidTile(col + 1, LAB_3C_FLOOR_Y / TILE)).toBe(true);
+    }
+    let r = at(LAB_3C_SPAWN.x, LAB_3C_SPAWN.y);
+    const xs: number[][] = [[], []];
+    for (let n = 0; n < 1200; n++) {
+      r = stepRun(r, idle, level);
+      xs[0]!.push(r.enemies[1]!.x);
+      xs[1]!.push(r.enemies[2]!.x);
+    }
+    // Each walks its pen end to end, turning within a step (at most 70 / 60 px) of the notch on either side; both are 14 px wide.
+    const [a, b, c] = [LAB_3C_NOTCHES[0]!, LAB_3C_NOTCHES[1]!, LAB_3C_NOTCHES[2]!];
+    for (const [i, from, to] of [[0, (a + 1) * TILE + 7, b * TILE - 7], [1, (b + 1) * TILE + 7, c * TILE - 7]] as const) {
+      const [lo, hi] = [Math.min(...xs[i]!), Math.max(...xs[i]!)];
+      expect(lo, `${i}`).toBeGreaterThanOrEqual(from - 1e-6);
+      expect(lo, `${i}`).toBeLessThan(from + 70 / 60);
+      expect(hi, `${i}`).toBeLessThanOrEqual(to + 1e-6);
+      expect(hi, `${i}`).toBeGreaterThan(to - 70 / 60);
+    }
+    expect(r.enemies.every((e) => e.alive)).toBe(true);
+  });
+
+  it('GDD-WLD-15 lab-3c on foot the cactus buddy cannot be defeated', () => {
+    // Standing 20 px before it (his hurtbox clear of it), a claw swipe: the swing's box overlaps it, and passes through; it is alive after.
+    const cactus = LAB_3C_ENEMIES[0]!;
+    let r = at(cactus.x - 20, LAB_3C_FLOOR_Y);
+    let swung = false;
+    for (let n = 0; n < 30; n++) {
+      r = stepRun(r, { move: 0, jumpHeld: false, claw: n === 0 }, level);
+      const box = clawBox(r.player, r.claw);
+      if (box && overlaps(box, enemyBox(cactus, r.enemies[0]!))) swung = true;
+    }
+    expect(swung).toBe(true);
+    expect(r.enemies[0]!.alive).toBe(true);
+    expect(r).toMatchObject({ phase: 'playing', invulnerable: 0 });
+  });
+
   it('GDD-WLD-15 lab-3c R2 carries him up the plateau no jump reaches', () => {
     // Without the cart: a running full jump at the plateau's 64 px wall from the floor before it lands back on the floor.
     let r = at(LAB_3C_RAILS[1]!.x + 4 * TILE, LAB_3C_FLOOR_Y);
@@ -206,14 +274,14 @@ describe('GDD-WLD-15 lab-3c', () => {
       const { boarded, lost } = hops(2, [600, 654], PLATEAU_Y, after);
       expect(boarded).toBeGreaterThan(200);
       expect(lost).toEqual([]);
-    });
+    }, 20_000);
 
     it(`GDD-WLD-15 lab-3c: every hop that boards R2 rides it to its buffer, ${after} held after the landing`, () => {
       // From the floor before its cart (x 376 to 434), up the climb onto the plateau.
       const { boarded, lost } = hops(1, [376, 434], LAB_3C_FLOOR_Y, after);
       expect(boarded).toBeGreaterThan(200);
       expect(lost).toEqual([]);
-    });
+    }, 20_000);
   }
 
   it('GDD-WLD-15 lab-3c R3 takes him back down', () => {

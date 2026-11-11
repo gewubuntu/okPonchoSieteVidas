@@ -1,6 +1,6 @@
 // GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have (GDD-MOV-09: its sand slopes
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
-import { AWNING, BASE_WIDTH, COVER, ESTRELLA, LEVEL_RULES, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
+import { AWNING, BASE_WIDTH, CART, COVER, ESTRELLA, LEVEL_RULES, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
 import { bossStart } from '../sim/boss';
 import { railGround, railLength, type Rail } from '../sim/cart';
 import { estrellaStart } from '../sim/estrella';
@@ -85,8 +85,9 @@ function railLines(rail: Rail): { x0: number; x1: number; k: number; c: number }
  * GDD-WLD-15: a broken end comes after at least RAIL_RULES.levelBeforeEnd tiles of level rail (its trailing level stretches, one or more in a
  * row) and is at least RAIL_RULES.minBrokenTiles tiles from its cart's start; a buffer rail needs neither, and a boss level is exempt from
  * both (GDD-BOS-04). In every level no two rails share a stretch: no px column of one's line lies on the other's line (level or sloped)
- * at the same height; two lines that only cross share none. Not checked here, but by each level's own tests: the far bank within 5 tiles
- * plus the drop, the 7 tiles of headroom over a cart jump, and a hanging beam's place.
+ * at the same height; two lines that only cross share none; and no rail starts within CART.width across of another rail's end at the same
+ * ground height. Not checked here, but by each level's own tests: the far bank within 5 tiles plus the drop, the 7 tiles of headroom over a
+ * cart jump, and a hanging beam's place.
  */
 function railProblems(rails: readonly Rail[], boss: boolean): string[] {
   const problems: string[] = [];
@@ -105,6 +106,15 @@ function railProblems(rails: readonly Rail[], boss: boolean): string[] {
       if (lines[i]!.some((s) => lines[j]!.some((t) => s.k === t.k && s.c === t.c && Math.max(s.x0, t.x0) < Math.min(s.x1, t.x1)))) problems.push(`rails at ${a.x},${a.y} and ${b.x},${b.y} share a stretch`);
     }
   });
+  // No rail starts within a cart's width across of another rail's end at the same ground height, so he drops to the ground between the two
+  // carts: walking off one stopped cart onto the next one's floor would start it.
+  for (const a of rails) {
+    const end = { x: a.x + a.dir * railLength(a), y: railGround(a, railLength(a)) };
+    for (const b of rails) {
+      const d = Math.abs(b.x - end.x);
+      if (b !== a && b.y === end.y && d < CART.width) problems.push(`rail at ${b.x},${b.y} starts ${d} px from the end of the rail at ${a.x},${a.y}, under ${CART.width}`);
+    }
+  }
   return problems;
 }
 
@@ -134,7 +144,8 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
       if (!entry.test && (width < min || width > max)) problems.push(`${width} tiles wide, expected ${min} to ${max} (${LEVEL_RULES.minScreens} to ${most} screens)`);
     }
   }
-  // GDD-WLD-15: a rail's limits (a boss level is exempt from the level run and the 12 tiles, GDD-BOS-04) and no shared stretch.
+  // GDD-WLD-15: a rail's limits (a boss level is exempt from the level run and the 12 tiles, GDD-BOS-04), no shared stretch and no rail
+  // starting at another's end.
   problems.push(...railProblems(level.rails ?? [], isBossLevel(level)));
 
   // GDD-WLD-03: gaps never exceed the world's limit.
