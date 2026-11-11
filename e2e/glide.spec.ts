@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { boot, pixelsAt, start } from './helpers';
+import { boot, phase3Hit, pixelsAt, resultsRowCentre, start, stepUntil, waitForResults } from './helpers';
 
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
@@ -131,4 +131,40 @@ test('GDD-PRG-01 with 2-4 cleared in the save the glide works in 1-1; without it
   expect(await glideStepFromSpawn(page, isMobile)).toBeGreaterThan(0);
   await frames(page);
   expect(await api(page, () => window.__PONCHO__!.glideDrawn())).toBe(true);
+});
+
+/** From where he stands, jump held for up to 60 steps: the first step he glides on (1 to 60), or 0 when he never does. One round trip (L-073). */
+const glideStepHere = (page: Page) =>
+  page.evaluate((input) => {
+    const p = window.__PONCHO__!;
+    p.pause(true);
+    for (let i = 1; i <= 60; i++) {
+      p.step(1, input);
+      if (p.state().gliding === true) return i;
+    }
+    return 0;
+  }, hold);
+
+test('GDD-PRG-01 where storage is refused, clearing 2-4 unlocks the glide for the rest of the visit (L-049)', async ({ page, isMobile }) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => { throw new Error('storage refused'); };
+    Storage.prototype.setItem = () => { throw new Error('storage refused'); };
+  });
+  await boot(page, '/?level=2-4');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5 && window.__PONCHO__!.state().grounded);
+  // Before the clear: no glide in the arena.
+  expect(await glideStepHere(page)).toBe(0);
+  // La Estrella set to her last phase and beaten (GDD-BOS-03), the level cleared, and Retry picked on its results menu: a new scene of 2-4.
+  await api(page, () => window.__PONCHO__!.setEstrella(2));
+  expect(await phase3Hit(page)).toBe(3);
+  await stepUntil(page, { phase: 'clear' }, 70);
+  await api(page, () => window.__PONCHO__!.step(61));
+  await waitForResults(page);
+  await api(page, () => window.__PONCHO__!.pause(false));
+  const row = await resultsRowCentre(page, 'retry');
+  if (isMobile) await page.touchscreen.tap(row.x, row.y);
+  else await page.mouse.click(row.x, row.y);
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '2-4' && window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 5 && window.__PONCHO__!.state().grounded);
+  // Nothing could be saved, yet this visit's clear unlocks the glide: the same jump glides.
+  expect(await glideStepHere(page)).toBeGreaterThan(0);
 });
