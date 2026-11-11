@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { CAMERA, TILE } from '../src/config/tuning';
 import { LEVEL_1_1 } from '../src/levels/level1-1';
 import { LEVEL_2_4 } from '../src/levels/level2-4';
-import { LAB_3T_DROP, LAB_3T_LOWEST, LAB_3T_OFRENDAS, LAB_3T_TOP } from '../src/levels/lab3t';
+import { LAB_3T_DROP, LAB_3T_HIGH_BOTTOM, LAB_3T_HIGH_PIT, LAB_3T_LOWEST, LAB_3T_OFRENDAS, LAB_3T_TOP } from '../src/levels/lab3t';
 import { gaps } from '../src/levels/validate';
 import { LOOKS } from '../src/ui/scenery/looks';
 import { boot, pixelsAt, red } from './helpers';
@@ -14,6 +14,8 @@ const LIP_Y = LAB_3T_DROP.lipRow * TILE;
 const LANDING_Y = LAB_3T_DROP.row * TILE;
 /** The drawn camera rounds to whole art pixels (a quarter px), so a screen y read against it is within an eighth of a px of the rule's. */
 const ROUND = 1 / 8;
+/** A y at whole art pixels (a quarter px), as the camera is drawn. */
+const art = (y: number) => Math.round(y * 4) / 4;
 
 /** Boots lab-3t, pauses it, puts Poncho down at (x, y) (a teleport: a cut) and lets him land. Returns the console errors. */
 async function openAt(page: Page, x: number, y: number): Promise<string[]> {
@@ -205,6 +207,132 @@ test('GDD-UI-04 a respawn is a cut', async ({ page }) => {
   expect(Math.max(0, o.y - CAMERA.spawnFeet)).toBe(0);
   for (const s of seen.slice(0, shown)) expect(s.y).toBe(368);
   for (const s of seen.slice(shown)) expect(s.y).toBe(0);
+});
+
+test('GDD-UI-04 quitting to the title low in lab-3t cuts the camera back to the level start', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  // On the lowest ground the camera is at its bottom limit; the level start, on the plateau at row 8, is at the level's top (the cut: 0).
+  await openAt(page, (LAB_3T_LOWEST.col0 + 4) * TILE, LAB_3T_LOWEST.row * TILE);
+  expect(await page.evaluate(() => window.__PONCHO__!.camera().scrollY)).toBe(368);
+  await page.evaluate(() => window.__PONCHO__!.pause(false));
+  // The pause menu, Down twice to Quit to title, Enter (GDD-UI-02).
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__PONCHO__!.pauseDrawn().shown);
+  for (const want of ['settings', 'quit'] as const) {
+    await page.keyboard.press('ArrowDown');
+    await page.waitForFunction((w) => window.__PONCHO__!.pauseDrawn().menu.chosen === w, want);
+  }
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__PONCHO__!.titleDrawn().shown);
+  /** The camera on each of the next `n` frames. */
+  const frames = (n: number) =>
+    page.evaluate(
+      (count) =>
+        new Promise<number[]>((resolve) => {
+          const out: number[] = [];
+          const tick = () => {
+            out.push(window.__PONCHO__!.camera().scrollY);
+            if (out.length >= count) resolve(out);
+            else requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }),
+      n,
+    );
+  // On the title screen it shows the level start: 0 on every frame.
+  expect(new Set(await frames(10))).toEqual(new Set([0]));
+  // Start: the first frames of play are at 0 too, with no pan from the lowest ground.
+  const t0 = await page.evaluate(() => window.__PONCHO__!.ticks());
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown);
+  const played = await frames(10);
+  expect(await page.evaluate(() => window.__PONCHO__!.ticks())).toBeGreaterThan(t0);
+  expect(new Set(played)).toEqual(new Set([0]));
+});
+
+test('GDD-UI-04 the camera is drawn between its last two steps', async ({ page }) => {
+  // In the drop's fall, once it looks down: the camera's y after the step before and after the last one differ, and a frame drawn at
+  // 0, a half and all of the way between them shows the camera there, at whole art pixels.
+  await openAt(page, lastStep.x, lastStep.y);
+  const drawn = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    for (let i = 0; i < 100 && d.state().y < 200; i++) d.step(1, { move: 1, jumpHeld: false });
+    const { fromY, stepY } = d.camera();
+    const at = [0, 0.5, 1].map((alpha) => {
+      d.drawAt(alpha);
+      return d.camera().scrollY;
+    });
+    return { fromY, stepY, at, grounded: d.state().grounded };
+  });
+  expect(drawn.grounded).toBe(false);
+  expect(drawn.stepY - drawn.fromY).toBeGreaterThan(4);
+  expect(drawn.at).toEqual([art(drawn.fromY), art((drawn.fromY + drawn.stepY) / 2), art(drawn.stepY)]);
+});
+
+// GDD-WLD-03: the high pit past the descending cart's end, its lips at row 22, with a raised bottom 4 rows under them over columns 60 to 75:
+// its floor line at y 432, so the camera's bottom limit there is 432 - 2 - 270 = 160 (the level's own is 368).
+const HIGH_LIP_Y = LAB_3T_HIGH_PIT.row * TILE;
+const SPAN_LIMIT = (LAB_3T_HIGH_BOTTOM.row + 1) * TILE - CAMERA.bottomCutPx - 270;
+/** On the far side 4 columns short of the raised bottom, where the camera has the level's limits. */
+const beforeHigh = { x: (LAB_3T_HIGH_BOTTOM.fromCol - 4) * TILE + TILE / 2, y: HIGH_LIP_Y };
+
+test('GDD-WLD-03 a pit high in lab-3t costs the life at its raised bottom and the camera stops there', async ({ page }) => {
+  expect(SPAN_LIMIT).toBe(160);
+  const errors = await openAt(page, beforeHigh.x, beforeHigh.y);
+  // Right held, by steps, into the high pit until the life is lost: the lives before and after, and the camera after each step.
+  const run = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    const lives = d.lives();
+    const ys: number[] = [d.camera().scrollY];
+    for (let i = 0; i < 400 && d.phase() === 'playing'; i++) {
+      d.step(1, { move: 1, jumpHeld: false });
+      ys.push(d.camera().scrollY);
+    }
+    return { lives, after: d.lives(), phase: d.phase(), ys, x: d.state().x };
+  });
+  expect(run.phase).toBe('respawning');
+  expect(run.after).toBe(run.lives - 1);
+  expect(Math.floor(run.x / TILE)).toBeGreaterThanOrEqual(LAB_3T_HIGH_PIT.col0);
+  expect(Math.floor(run.x / TILE)).toBeLessThanOrEqual(LAB_3T_HIGH_PIT.col1);
+  // At the moment of loss the camera is at the raised bottom's limit, not the level's 368; it got there at the pan, 3 px a step at most.
+  expect(run.ys.at(-1)).toBe(SPAN_LIMIT);
+  expect(run.ys[0]).toBeGreaterThan(SPAN_LIMIT);
+  for (let i = 1; i < run.ys.length; i++) expect(Math.abs(run.ys[i]! - run.ys[i - 1]!), `step ${i}`).toBeLessThanOrEqual(3);
+  expect(errors).toEqual([]);
+});
+
+test('GDD-UI-04 the picture never jumps when the bottom limit changes', async ({ page }) => {
+  const errors = await openAt(page, beforeHigh.x, beforeHigh.y);
+  // Right across the raised bottom's two ends, with a running jump over the pit, to the level's right edge: the camera after each step.
+  const seen = await page.evaluate(
+    ([lip, far, end]) => {
+      const d = window.__PONCHO__!;
+      const out: { y: number; grounded: boolean; col: number }[] = [{ y: d.camera().scrollY, grounded: true, col: Math.floor(d.state().x / 16) }];
+      let jumped = false;
+      for (let i = 0; i < 600 && d.state().x < end! && d.phase() === 'playing'; i++) {
+        const s = d.state();
+        if (!jumped && s.grounded && s.x + 6 >= lip! - 2) jumped = true;
+        d.step(1, { move: 1, jumpHeld: jumped && s.x < far! });
+        out.push({ y: d.camera().scrollY, grounded: d.state().grounded, col: Math.floor(d.state().x / 16) });
+      }
+      return { out, phase: d.phase() };
+    },
+    [LAB_3T_HIGH_PIT.col0 * TILE, (LAB_3T_HIGH_PIT.col1 + 1) * TILE, (LAB_3T_HIGH_BOTTOM.toCol + 4) * TILE],
+  );
+  expect(seen.phase).toBe('playing');
+  const { out } = seen;
+  // He crossed both ends.
+  expect(out[0]!.col).toBeLessThan(LAB_3T_HIGH_BOTTOM.fromCol);
+  expect(out.at(-1)!.col).toBeGreaterThan(LAB_3T_HIGH_BOTTOM.toCol);
+  // Never more than 8 px between steps, 3 px while he stands: up to the span's limit as he walks onto it, down again past its end.
+  for (let i = 1; i < out.length; i++) {
+    const move = Math.abs(out[i]!.y - out[i - 1]!.y);
+    expect(move, `step ${i}`).toBeLessThanOrEqual(8);
+    if (out[i]!.grounded) expect(move, `step ${i}`).toBeLessThanOrEqual(3);
+  }
+  expect(Math.min(...out.map((o) => o.y))).toBe(SPAN_LIMIT);
+  expect(out.at(-1)!.y).toBeGreaterThan(SPAN_LIMIT);
+  expect(errors).toEqual([]);
 });
 
 for (const [id, level] of [

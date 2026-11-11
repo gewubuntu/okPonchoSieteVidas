@@ -84,7 +84,7 @@ import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import { stepVibration } from '../sim/vibration';
 import type { Power } from '../sim/taco';
-import { cameraDrawY, cameraLimits, cameraScroll, followCamera, followCameraY, placeCameraY, type CameraLimits, type CameraY } from '../ui/camera';
+import { cameraDrawY, cameraLimits, cameraScroll, cutCameraY, followCamera, stepCameraY, type CameraLimits, type CameraY } from '../ui/camera';
 import { dashedRect } from '../ui/dashed';
 import { GamepadReader } from '../ui/gamepad';
 import { sceneryFor, type Scenery } from '../ui/scenery/scenery';
@@ -195,9 +195,10 @@ export interface PonchoDebug {
    * Phaser centres that rectangle on the camera as if its origin were the middle, which ours is not. Up and down: `scrollY`, the camera's
    * y as last drawn (the level y at the screen's top edge, between steps and at whole art pixels), without a screen shake, and `viewY`,
    * the y scroll passed to Phaser with the shake on top (`cameras.main.scrollY`, what `cameraScrollY()` reads); both 0 in a one-screen level
-   * but for the shake.
+   * but for the shake. `stepY` is the camera's y after the last step and `fromY` the y it is drawn from towards it (the y after the step
+   * before, or after a cut `stepY` itself): `scrollY` lies between them.
    */
-  camera(): { scrollX: number; viewX: number; scrollY: number; viewY: number };
+  camera(): { scrollX: number; viewX: number; scrollY: number; viewY: number; stepY: number; fromY: number };
   /**
    * How far the backdrop's clouds, far band (`mountains`: World 1's mountains, World 2's hill town) and mid band (`desert`: the far desert
    * strip, World 2's rooftops or its arena's plaza) are shifted (GDD-ART-06), in game px, read back from what was drawn: the clouds from
@@ -327,6 +328,11 @@ export interface PonchoDebug {
    * shake (`shake`) on like any step.
    */
   step(n: number, input?: PlayerInput): void;
+  /**
+   * GDD-UI-04: while paused, draws the moving things and the camera `alpha` of the way from the step before to the last one, as a frame
+   * between two steps does. The next frame draws the paused game at the last step again, so read what it drew in the same call.
+   */
+  drawAt(alpha: number): void;
   /**
    * GDD-BOS-01: the hit-stop of the real loop: `left`, the steps still to hold after a hit on a boss (0 when none), and `held`, how many
    * loop ticks have been held since the page loaded (each a step that did not run). `step()` never holds, so only the game's own frames count.
@@ -799,7 +805,8 @@ export class PlayScene extends Phaser.Scene {
   private scrollX = 0;
   /**
    * GDD-UI-04: the camera up and down, moved once per simulation step (`stepCamera`): its state after the last step, its y after the step
-   * before (drawn between the two like his body), the y last drawn, and its limits in this level (0 to 0 in a level one screen tall).
+   * before (drawn between the two like his body), the y last drawn, and the level's own limits, the backdrop's anchor (0 to 0 in a level
+   * one screen tall; each step reads those of his column, `cameraLimitsAt`).
    */
   private cameraY: CameraY = { y: 0, lead: false };
   private prevCameraY = 0;
@@ -1276,7 +1283,7 @@ export class PlayScene extends Phaser.Scene {
         resultsMenu: () => this.resultsRows,
         clearReveal: () => this.clearRevealLog,
         level: () => this.entry.id,
-        camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x, scrollY: this.drawnCameraY, viewY: this.cameras.main.scrollY }),
+        camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x, scrollY: this.drawnCameraY, viewY: this.cameras.main.scrollY, stepY: this.cameraY.y, fromY: this.prevCameraY }),
         backdrop: () => this.scenery.backdrop(),
         backdropLayout: () => this.scenery.backdropLayout(),
         scenery: () => this.scenery.drawn(),
@@ -1357,6 +1364,14 @@ export class PlayScene extends Phaser.Scene {
         settingsScroll: () => this.settingsScrollPainted,
         settings: () => this.settings,
         tutorialPlayed: () => this.tutorialPlayed,
+        drawAt: (alpha) => {
+          if (!this.paused) throw new Error('drawAt() needs the game paused');
+          this.renderPlatforms(alpha);
+          this.renderBlocks(alpha);
+          this.renderCarts(alpha);
+          this.renderBody(alpha);
+          this.followBody(alpha);
+        },
         step: (n, input = { move: 0, jumpHeld: false }) => {
           if (!this.paused) throw new Error('step() needs the game paused');
           for (let i = 0; i < n; i++) this.simStep(input);
@@ -2302,29 +2317,17 @@ export class PlayScene extends Phaser.Scene {
     this.scenery.follow(this.scrollX, this.drawnCameraY, this.cameraBounds.bottom, offset);
   }
 
-  /** GDD-UI-04: whether Poncho is drawn in `run`, as `renderBody` draws him: in play, on the clear screen, and in a respawn's flip once it shows him. */
-  private shownIn(run: RunState): boolean {
-    return run.phase === 'playing' || run.phase === 'clear' || (run.phase === 'respawning' && !isOutOfLives(run.lives) && flipPose(run.wait).visible);
-  }
-
-  /** GDD-UI-04: the cut: the camera placed at once with his feet at 136 (at the respawn point while he waits there), with nothing to draw between. */
+  /** GDD-UI-04: the cut (`cutCameraY`), with nothing to draw between. */
   private cutCamera(): void {
-    this.cameraY = placeCameraY(this.run.phase === 'respawning' ? respawnPoint(this.run, this.level).y : this.run.player.y, this.cameraBounds);
+    this.cameraY = cutCameraY(this.run, this.level);
     this.prevCameraY = this.cameraY.y;
   }
 
-  /**
-   * GDD-UI-04: one step of the camera up and down, after the step from `before`: the cut on the step he appears at a respawn; otherwise
-   * the rule, holding while he is not in play (waiting to respawn, or on a screen).
-   */
+  /** GDD-UI-04: one step of the camera up and down after the step from `before` (`stepCameraY`), and the y it is drawn from towards it. */
   private stepCamera(before: RunState): void {
-    if (this.shownIn(this.run) && !this.shownIn(before)) {
-      this.cutCamera();
-      return;
-    }
-    this.prevCameraY = this.cameraY.y;
-    const { player } = this.run;
-    this.cameraY = followCameraY(this.cameraY, { feetY: player.y, grounded: player.grounded, vy: player.vy, hidden: this.run.phase !== 'playing' }, this.cameraBounds);
+    const stepped = stepCameraY(this.cameraY, before, this.run, this.level);
+    this.cameraY = stepped.camera;
+    this.prevCameraY = stepped.from;
   }
 
   /** One fixed simulation step with the given input. */

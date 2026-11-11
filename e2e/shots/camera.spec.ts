@@ -1,8 +1,8 @@
-// Screenshots of the camera up and down for visual review (GDD-UI-04, GDD-ART-06), in lab-3t, a level 40 rows tall. Run with `npm run shots`;
+// Screenshots of the camera up and down for visual review (GDD-UI-04, GDD-ART-06), and of its pits (GDD-WLD-03), in lab-3t, a level 40 rows tall. Run with `npm run shots`;
 // images land in shots/ (not committed). Where things are comes from `src/levels/lab3t.ts` (L-062).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { CAMERA, CART, TILE } from '../../src/config/tuning';
-import { LAB_3T_CHASM, LAB_3T_DROP, LAB_3T_LOWEST, LAB_3T_RAILS, LAB_3T_SPAWN } from '../../src/levels/lab3t';
+import { LAB_3T_CHASM, LAB_3T_DROP, LAB_3T_HIGH_BOTTOM, LAB_3T_HIGH_PIT, LAB_3T_LOW_PIT, LAB_3T_LOWEST, LAB_3T_RAILS, LAB_3T_SPAWN } from '../../src/levels/lab3t';
 import { start } from '../helpers';
 
 const LANDING_Y = LAB_3T_DROP.row * TILE;
@@ -115,4 +115,37 @@ test('GDD-UI-04 camera: the cart climbing', async ({ page, isMobile }, info) => 
   const { cam, s } = await view(page);
   expect(s.y - cam.scrollY).toBeCloseTo(CAMERA.bandTop, 0);
   await shot(page, info, 'camera-cart-climb');
+});
+
+test('GDD-WLD-03 camera: falling into the high pit, the camera stopped at its raised bottom', async ({ page, isMobile }, info) => {
+  const lip = LAB_3T_HIGH_PIT.row * TILE;
+  await open(page, isMobile, { x: (LAB_3T_HIGH_BOTTOM.fromCol + 2) * TILE + TILE / 2, y: lip });
+  // Right into the pit, until his feet are 2 tiles under its lips, still in play.
+  await page.evaluate((y) => {
+    const d = window.__PONCHO__!;
+    for (let i = 0; i < 200 && d.state().y < y; i++) d.step(1, { move: 1, jumpHeld: false });
+  }, lip + 2 * TILE);
+  const { cam, s } = await view(page);
+  expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('playing');
+  expect(s.grounded).toBe(false);
+  expect(Math.floor(s.x / TILE)).toBeGreaterThanOrEqual(LAB_3T_HIGH_PIT.col0);
+  // The camera at the raised bottom's limit: its bottom edge 2 px above the floor line (y 432).
+  expect(cam.scrollY).toBe((LAB_3T_HIGH_BOTTOM.row + 1) * TILE - CAMERA.bottomCutPx - 270);
+  await shot(page, info, 'camera-high-pit');
+});
+
+test('GDD-WLD-03 camera: falling into the low pit at the level bottom', async ({ page, isMobile }, info) => {
+  const floor = LAB_3T_LOWEST.row * TILE;
+  await open(page, isMobile, { x: (LAB_3T_LOW_PIT.col1 + 3) * TILE + TILE / 2, y: floor });
+  // Left into the pit, until his feet are 1 tile under its lip, still in play.
+  await page.evaluate((y) => {
+    const d = window.__PONCHO__!;
+    for (let i = 0; i < 200 && d.state().y < y; i++) d.step(1, { move: -1, jumpHeld: false });
+  }, floor + TILE);
+  const { cam, s } = await view(page);
+  expect(await page.evaluate(() => window.__PONCHO__!.phase())).toBe('playing');
+  expect(s.grounded).toBe(false);
+  expect(Math.floor(s.x / TILE)).toBeLessThanOrEqual(LAB_3T_LOW_PIT.col1);
+  expect(cam.scrollY).toBe(368);
+  await shot(page, info, 'camera-low-pit');
 });

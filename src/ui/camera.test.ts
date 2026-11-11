@@ -4,7 +4,7 @@ import { LEVELS } from '../levels';
 import { flatWorld, spawn, step, type PlayerState } from '../sim/movement';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
-import { cameraDrawY, cameraLimits, cameraScroll, followCamera, followCameraY, placeCameraY, type CameraY, type CameraYInput } from './camera';
+import { cameraDrawY, cameraLimits, cameraLimitsAt, cameraScroll, cutCameraY, followCamera, followCameraY, placeCameraY, ponchoShown, stepCameraY, type CameraStepped, type CameraY, type CameraYInput } from './camera';
 
 // The screen is 480 px wide, so the dead zone, 32 px in the middle, is 224 to 256 px from the screen's left edge. The level is
 // 1440 px wide unless stated, so the camera's scroll goes from 0 to 960.
@@ -109,17 +109,22 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     expect(pan(176)).toEqual([...Array<number>(13).fill(-3), -1, ...Array<number>(6).fill(0)]);
   });
 
-  it('GDD-UI-04 a step of one or two tiles does not move it', () => {
+  it('GDD-UI-04 a step of one tile does not move it, nor one of two from the band edge, but two from its middle pan it 12 px', () => {
     // From the band's middle (136) a tile up or down stays inside it.
     expect(followCameraY(still(100), ground(236 + TILE), LIMITS).y).toBe(100);
     expect(followCameraY(still(100), ground(236 - TILE), LIMITS).y).toBe(100);
     // Two tiles from one edge towards the other stay inside it: from 116 down to 148, from 156 up to 124.
     expect(followCameraY(still(100), ground(216 + 2 * TILE), LIMITS).y).toBe(100);
     expect(followCameraY(still(100), ground(256 - 2 * TILE), LIMITS).y).toBe(100);
-    // Measured: two tiles from the middle land 8 px outside the 40 px band (168 or 104), so the camera pans 12 px to the nearer edge.
-    let cam = still(100);
-    for (let i = 0; i < 10; i++) cam = followCameraY(cam, ground(236 + 2 * TILE), LIMITS);
-    expect(cam.y).toBe(112);
+    // Measured: two tiles from the middle end 12 px outside the 40 px band (168 or 104), so the camera pans 12 px to the nearer edge; three
+    // tiles end 28 px outside it (184 or 88), and it pans 28 px.
+    const settle = (feetY: number) => {
+      let cam = still(100);
+      for (let i = 0; i < 20; i++) cam = followCameraY(cam, ground(feetY), LIMITS);
+      return cam.y - 100;
+    };
+    expect([settle(236 + 2 * TILE), settle(236 - 2 * TILE)]).toEqual([12, -12]);
+    expect([settle(236 + 3 * TILE), settle(236 - 3 * TILE)]).toEqual([28, -28]);
     // Three tiles never fit in it: from either edge it moves.
     expect(followCameraY(still(100), ground(216 + 3 * TILE), LIMITS).y).toBeGreaterThan(100);
     expect(followCameraY(still(100), ground(256 - 3 * TILE), LIMITS).y).toBeLessThan(100);
@@ -321,6 +326,93 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     expect(cameraDrawY(100, 101, 0.3)).toBe(100.25); // 100.3 to the nearest quarter px
     expect(cameraDrawY(100, 100.6, 1)).toBe(100.5);
     expect(cameraDrawY(100, 100.9, 1)).toBe(101);
+  });
+
+  it('GDD-UI-04 over a raised bottom the camera stops 2 px above its floor line', () => {
+    // A raised bottom's floor line at y 432 (GDD-WLD-03): the camera's bottom edge stops at 430, its y at 160, in a fall as on the ground.
+    const raised = cameraLimits(640, 432);
+    expect(raised).toEqual({ top: 0, bottom: 160 });
+    expect(raised.bottom + BASE_HEIGHT).toBe(432 - CAMERA.bottomCutPx);
+    let cam: CameraY = { y: 150, lead: true };
+    for (let i = 0; i < 20; i++) cam = followCameraY(cam, air(400 + 6 * i, 360), raised);
+    expect(cam.y).toBe(160);
+    expect(followCameraY(still(159), ground(600), raised).y).toBe(160);
+  });
+
+  it('GDD-UI-04 a bottom limit that rises as he walks is reached at the pan 3 px a step, never by a jump', () => {
+    // The camera at the level's own bottom limit (368); he walks onto a raised bottom that puts it 100 px higher (268) and stands there, his
+    // feet below the band: it pans up 3 px a step, 33 steps and one of 1 px, then stands at the new limit.
+    const risen = { top: 0, bottom: 268 };
+    let cam = still(368);
+    const moves: number[] = [];
+    for (let i = 0; i < 40; i++) {
+      const next = followCameraY(cam, ground(600), risen);
+      moves.push(next.y - cam.y);
+      cam = next;
+    }
+    expect(moves).toEqual([...Array<number>(33).fill(-3), -1, ...Array<number>(6).fill(0)]);
+    expect(cam.y).toBe(268);
+    // Falling, with the look-down wanting it lower, it still pans up 3 px a step; rising past the air's top line it may go up faster, 8 px at most.
+    expect(followCameraY({ y: 368, lead: true }, air(700, 360), risen)).toEqual({ y: 365, lead: true });
+    expect(followCameraY(still(368), air(368 + 20, -400), risen).y).toBe(360);
+  });
+
+  it('GDD-UI-04 a bottom limit that drops lets the camera follow by the ordinary rule', () => {
+    // At a raised bottom's limit (160) he walks off it onto ground where the limit is the level's (368): the camera does not move by itself.
+    const dropped = cameraLimits(640);
+    expect(followCameraY(still(160), ground(160 + 140), dropped)).toEqual(still(160));
+    // With his feet below the band it pans down 3 px a step as anywhere.
+    expect(followCameraY(still(160), ground(160 + 192), dropped)).toEqual(still(163));
+  });
+
+  it('GDD-UI-04 the step he appears at a respawn is a cut to the respawn point, drawn from there', () => {
+    // A level 40 rows tall with a floor at row 30 (y 480); his checkpoint on it at x 100: the cut puts his feet at 136, y 344. He fell out at
+    // x 200, far below; the camera held at 200 while he was hidden.
+    const level = levelOf(rowsOf(30, () => 30));
+    let r: RunState = { ...startRun(level), checkpoint: { x: 100, y: 480 }, player: { ...spawn(200, 700), grounded: false } };
+    r = stepRun(r, { move: 0, jumpHeld: false }, level);
+    expect(r.phase).toBe('respawning');
+    let cam = still(200);
+    let appeared: CameraStepped | null = null;
+    for (let i = 0; i < 120 && appeared === null; i++) {
+      const next = stepRun(r, { move: 0, jumpHeld: false }, level);
+      const stepped = stepCameraY(cam, r, next, level);
+      if (ponchoShown(next) && !ponchoShown(r)) appeared = stepped;
+      // Hidden, it holds, though his feet are 500 px under it and falling (a camera told he is in play would look down after him).
+      else expect(stepped, `step ${i}`).toEqual({ camera: still(200), from: 200 });
+      cam = stepped.camera;
+      r = next;
+    }
+    expect(r.phase).toBe('respawning');
+    // The cut, to where he appears, not where he fell; drawn from the new y, so nothing between the two is drawn.
+    expect(appeared).toEqual({ camera: still(344), from: 344 });
+    expect(cutCameraY(r, level)).toEqual(still(344));
+  });
+
+  it('GDD-UI-04 stepping the camera reads whether he stands and draws from its last y', () => {
+    // Standing on the floor at y 480 with his feet at screen y 380, below the band: on the ground it pans 3 px; read as in the air it would hold.
+    const level = levelOf(rowsOf(30, () => 30));
+    const r: RunState = { ...startRun(level), player: spawn(200, 480) };
+    const next = stepRun(r, { move: 0, jumpHeld: false }, level);
+    expect(next.player.grounded).toBe(true);
+    expect(stepCameraY(still(100), r, next, level)).toEqual({ camera: still(103), from: 100 });
+    // In play it reads the limits of his column: a raised bottom over it at row 29 (GDD-WLD-03, its floor line y 480 under his feet) puts its
+    // limit at 208; from 210, his feet below the band, it pans up 2 px to that limit instead of down 3.
+    const raised: Level = { ...level, bottoms: [{ fromCol: 10, toCol: 15, row: 29 }] };
+    expect(cameraLimitsAt(raised, 200)).toEqual({ top: 0, bottom: 208 });
+    const onRaised = stepRun(r, { move: 0, jumpHeld: false }, raised);
+    expect(onRaised.phase).toBe('playing');
+    expect(stepCameraY(still(210), r, onRaised, raised)).toEqual({ camera: still(208), from: 210 });
+    expect(stepCameraY(still(210), r, onRaised, level)).toEqual({ camera: still(213), from: 210 });
+  });
+
+  it('GDD-UI-04 the level start is a cut to his feet at 136, which in every level built is the camera at 0', () => {
+    // A start low in a tall level: the cut puts his feet at 136.
+    const level = { ...levelOf(rowsOf(30, () => 30)), spawn: { x: 200, y: 480 } };
+    expect(cutCameraY(startRun(level), level)).toEqual(still(344));
+    // Every level built starts where the cut puts the camera at 0, where it is before the first cut: the scene's start cut changes nothing
+    // there yet (lab-3t's start is on its plateau at row 8, his feet at y 128).
+    for (const e of LEVELS) expect(cutCameraY(startRun(e.level), e.level), e.id).toEqual(still(0));
   });
 
   it('GDD-BOS-01 a screen shake is drawn on top of the camera y', () => {

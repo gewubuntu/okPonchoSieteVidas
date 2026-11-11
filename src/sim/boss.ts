@@ -237,6 +237,7 @@ export function stepRock(r: RockState, spot: { readonly x: number; readonly y: n
   const vy = r.vy + ROCK.gravity * STEP;
   const x = r.x + r.vx * STEP;
   const y = r.y + ((r.vy + vy) / 2) * STEP;
+  // GDD-WLD-03: it leaves by the level's bottom, below a raised bottom too (only Poncho is lost at one).
   if (squareBlocked(world, x, y, ROCK.size) || y - ROCK.size > world.height * TILE) return broken({ ...r, x, y });
   return { ...r, x, y, vy };
 }

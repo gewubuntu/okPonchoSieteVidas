@@ -19,6 +19,7 @@ import { isBossLevel } from './bossLevel';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
 import { awningTops, freshAwnings, landOnAwnings, type Awning, type AwningBounce } from './awning';
 import { freshRollos, growRollos, stillPlatforms, stringTops, touchesBundle, unrollTouched, type Cordel, type Rollo, type RolloState } from './papel';
+import { floorYAt, type Bottom } from './bottoms';
 import { bounce, withSprings, type Spring } from './spring';
 import { touchesSpike, type Spike } from './hazards';
 import { collectHilos, freshHilos, type Hilo } from './hilo';
@@ -87,6 +88,8 @@ export interface Level {
   readonly estrella?: Estrella;
   /** GDD-WLD-15: the rails, each with its cart. Left out means none. */
   readonly rails?: readonly Rail[];
+  /** GDD-WLD-03: raised bottoms, spans of columns whose bottom row is above the level's last (only Poncho is lost there). Left out means none. */
+  readonly bottoms?: readonly Bottom[];
 }
 
 export interface RunState {
@@ -223,9 +226,12 @@ export function restartRun(level: Level, savedHilos?: readonly boolean[]): RunSt
   return { ...startRun(level, savedHilos), phase: 'respawning', wait: FLIP.steps + 1, restarting: true };
 }
 
-/** GDD-LIFE-02: Poncho has fallen into a pit once his whole body is below the bottom of the level. */
-export function isInPit(player: PlayerState, world: TileGrid): boolean {
-  return player.y - HITBOX.height > world.height * TILE;
+/**
+ * GDD-LIFE-02, GDD-WLD-03: Poncho has fallen into a pit once his whole body is below the floor line of the column his middle is in: the
+ * bottom of the level, or a raised bottom of `bottoms`.
+ */
+export function isInPit(player: PlayerState, world: TileGrid, bottoms?: readonly Bottom[]): boolean {
+  return player.y - HITBOX.height > floorYAt({ world, bottoms }, player.x);
 }
 
 /** GDD-WLD-05: whether Poncho's body box overlaps the ofrenda's box. Boxes that only share an edge do not touch. */
@@ -368,6 +374,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   // then he lands in the one he came down into. A falling cart falls, and breaks on what it touches.
   const rails = level.rails ?? [];
   const back = returnCarts(rails, run.carts, run.player, isBossLevel(level));
+  // GDD-WLD-03: a falling cart leaves by the level's bottom, below a raised bottom too (only Poncho is lost at one).
   const rolled = breakCarts(rails, rollCarts(rails, back), solid, level.spikes, level.world.height * TILE);
   const carried = carryOnCarts(carry(run.player, level.platforms, run.platformTick, solid), rails, back, rolled, solid);
   // GDD-WLD-05: a moving block carries or pushes him too, and stops him on every side. GDD-LIFE-02: a push or a carry up into a solid tile crushes him.
@@ -415,7 +422,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   const hilosTaken = collectHilos(level.hilos ?? [], run.hilosTaken, player);
   // GDD-LIFE-03: so is the veladora, and its life counts before one lost this step. `collectVeladora` uses it up once.
   let lives = level.veladora && touchesVeladora(player, level.veladora) ? collectVeladora(run.lives, veladoraId(level.veladora)) : run.lives;
-  if (pushed.crushed || isInPit(player, level.world)) {
+  if (pushed.crushed || isInPit(player, level.world, level.bottoms)) {
     // GDD-LIFE-02, GDD-CMB-03: a crush costs a life like a pit, in any power-up state and even while invulnerable.
     return { ...run, player, crumbles, platformTick, hilosTaken, lives: loseLife(lives), phase: 'respawning', wait: RESPAWN.delaySteps, invulnerable: 0, power: 'base', stomped: stomped.some(Boolean), fantasma: 0 };
   }
@@ -436,6 +443,7 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   // taco in Base, otherwise a chile; a special piñata always releases the Chile Fantasma (GDD-PWR-04).
   const bumped = bumpedPinata(run.player, player, level.pinatas);
   let pinatasOpen = run.pinatasOpen;
+  // GDD-WLD-03: an item leaves by the level's bottom, below a raised bottom too (only Poncho is lost at one).
   let items = run.items.map((it) => stepItem(it, solid)).filter((it) => it.y - TACO.size <= level.world.height * TILE);
   level.pinatas.forEach((p, i) => {
     if (run.pinatasOpen[i] || !(i === bumped || (box !== null && boxTouchesTile(box, p.col, p.row)))) return;

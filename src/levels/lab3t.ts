@@ -1,12 +1,14 @@
 // GDD-UI-04: lab-3t, a World 3 test level taller than one screen, for the camera that follows up and down, opened with `?level=lab-3t`
-// (GDD-UI-02). Like the other labs it has three ofrendas and no exit (GDD-TEC-04), and no pit and no enemy. 60 x 40 tiles (960 x 640 px), so
-// the camera's y goes from 0 to 368. Its exhibits, left to right and top to bottom, each reached from the one before: the start on a high
+// (GDD-UI-02). Like the other labs it has three ofrendas and no exit (GDD-TEC-04), and no enemy. 80 x 40 tiles (1280 x 640 px), so the
+// camera's y goes from 0 to 368. Its exhibits, left to right and top to bottom, each reached from the one before: the start on a high
 // plateau; a staircase of 1-tile and 2-tile steps; a walk-off drop of 10 tiles onto ground in view below; a chasm 12 tiles wide to glide
 // across, its far side 6 tiles lower; on that lower ground a spring under open sky and a second one beside a floating ledge it launches
 // him onto; a lift that climbs 14 tiles from that ledge to the highest ledge; a rail whose cart climbs 6 tiles onto a plateau and one whose
-// cart descends 6 tiles from it; and the lowest ground, at the chasm's bottom on the level's last rows. Every column is solid down to the
-// level's bottom from its ground.
+// cart descends 6 tiles from it; past its end a pit high in the level with a raised bottom (GDD-WLD-03); and the lowest ground, at the
+// chasm's bottom on the level's last rows, with a pit at the level's bottom. Every column is solid down to the level's bottom from its
+// ground, but the pits', empty all the way.
 import { TILE } from '../config/tuning';
+import type { Bottom } from '../sim/bottoms';
 import type { Rail } from '../sim/cart';
 import type { MovingPlatform } from '../sim/platform';
 import type { Level, Ofrenda } from '../sim/run';
@@ -16,7 +18,7 @@ import { parseTiles } from '../sim/tilemap';
 /** GDD-UI-02: its id, which its address names. */
 export const LAB_3T_ID = 'lab-3t';
 
-const WIDTH = 60;
+const WIDTH = 80;
 const HEIGHT = 40;
 
 /** The start: a plateau over columns 0 to 5, its top at row 8 (y = 128). */
@@ -45,6 +47,9 @@ export const LAB_3T_CHASM = { col0: 20, col1: 31, farRow: 22 } as const;
 /** The lowest ground: the chasm's bottom, columns 20 to 31, its top at row 37 (y = 592), with the camera at its bottom limit (his feet at screen y 224). */
 export const LAB_3T_LOWEST = { col0: 20, col1: 31, row: 37 } as const;
 
+/** GDD-WLD-03: the low pit: columns 20 to 22 of the lowest ground, 3 tiles wide against the landing ground's wall, open to the level's bottom. */
+export const LAB_3T_LOW_PIT = { col0: 20, col1: 22 } as const;
+
 /** GDD-WLD-05: the springs, set flush into the far side's ground: one under open sky (column 34), one beside the floating ledge (column 37). */
 export const LAB_3T_SPRINGS: readonly Spring[] = [
   { col: 34, row: LAB_3T_CHASM.farRow },
@@ -63,21 +68,35 @@ export const LAB_3T_LIFT: MovingPlatform = { x0: 42 * TILE, y0: LAB_3T_LEDGE.row
 /** The plateau the first cart climbs onto and the second rolls down from: columns 49 to 52, rows 16 to 21 (its top 6 tiles over the far side). */
 export const LAB_3T_CART_PLATEAU = { col0: 49, col1: 52, row: 16 } as const;
 
+/**
+ * GDD-WLD-03: the high pit, past the descending cart's end: columns 66 to 69, 4 tiles wide in the far side's ground (its lips at row 22, 17
+ * rows over the level's last), empty all the way down.
+ */
+export const LAB_3T_HIGH_PIT = { col0: 66, col1: 69, row: LAB_3T_CHASM.farRow } as const;
+
+/**
+ * GDD-WLD-03: its raised bottom, over the pit and 6 columns of ground on each side (columns 60 to 75), 4 rows under its lips: row 26, the
+ * floor line at y = 432, where the camera's bottom limit is 160.
+ */
+export const LAB_3T_HIGH_BOTTOM: Bottom = { fromCol: LAB_3T_HIGH_PIT.col0 - 6, toCol: LAB_3T_HIGH_PIT.col1 + 6, row: LAB_3T_HIGH_PIT.row + 4 };
+
 const FAR_Y = LAB_3T_CHASM.farRow * TILE;
 const CART_TOP_Y = LAB_3T_CART_PLATEAU.row * TILE;
 
 /**
  * GDD-WLD-15: the rails. R1 from column 42 on the far side: 1 tile level, 6 up over air (columns 43 to 48) to the plateau's top, 1 level on
- * it. R2 from column 52 on the plateau, 2 tiles past R1's end: 1 level, 6 down over air (columns 53 to 58) to the far side, 1 level to the
- * level's right edge. Both end in a buffer.
+ * it. R2 from column 52 on the plateau, 2 tiles past R1's end: 1 level, 6 down over air (columns 53 to 58) to the far side, 1 level (column
+ * 59). Both end in a buffer; past R2's the far side goes on to the high pit.
  */
 export const LAB_3T_RAILS: readonly Rail[] = [
   { x: 42 * TILE, y: FAR_Y, dir: 1, segments: [{ kind: 'level', tiles: 1 }, { kind: 'climb', tiles: 6 }, { kind: 'level', tiles: 1 }], end: 'buffer' },
   { x: 52 * TILE, y: CART_TOP_Y, dir: 1, segments: [{ kind: 'level', tiles: 1 }, { kind: 'descent', tiles: 6 }, { kind: 'level', tiles: 1 }], end: 'buffer' },
 ];
 
-/** The row the ground of column `col` starts at (it is solid from there to the level's bottom). */
+/** The row the ground of column `col` starts at (it is solid from there to the level's bottom); none in a pit. */
 function groundRow(col: number): number {
+  const pit = (p: { col0: number; col1: number }) => col >= p.col0 && col <= p.col1;
+  if (pit(LAB_3T_LOW_PIT) || pit(LAB_3T_HIGH_PIT)) return Infinity;
   if (col <= LAB_3T_PLATEAU.col1) return LAB_3T_PLATEAU.row;
   const stair = LAB_3T_STAIRS.find((s) => col >= s.col0 && col <= s.col1);
   if (stair) return stair.row;
@@ -128,4 +147,5 @@ export const LAB_3T_LEVEL: Level = {
   rails: LAB_3T_RAILS,
   // GDD-MOV-07: the glide is on, for the chasm.
   abilities: { glide: true },
+  bottoms: [LAB_3T_HIGH_BOTTOM],
 };

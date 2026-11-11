@@ -659,6 +659,9 @@ export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;
  */
 export const LEVEL_RULES = {
   minScreens: 3,
+  // GDD-WLD-03: 17 to 51 rows tall (one to three screens); a boss level is one screen tall, 17 rows.
+  minRows: 17,
+  maxRows: 51,
   maxScreens: { 0: 6, 1: 6, 2: 8, 3: 8 } as Readonly<Record<number, number>>,
   ofrendas: 3,
   maxGapTiles: { 0: 3, 1: 3, 2: 4, 3: 6 } as Readonly<Record<number, number>>,

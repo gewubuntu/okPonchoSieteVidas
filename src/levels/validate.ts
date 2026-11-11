@@ -2,6 +2,7 @@
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
 import { AWNING, BASE_WIDTH, CART, COVER, ESTRELLA, LEVEL_RULES, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
 import { bossStart } from '../sim/boss';
+import { bottomRowAt, type Bottom } from '../sim/bottoms';
 import { railGround, railLength, type Rail } from '../sim/cart';
 import { estrellaStart } from '../sim/estrella';
 import { isBossLevel } from '../sim/bossLevel';
@@ -15,12 +16,12 @@ export interface Gap {
   readonly width: number;
 }
 
-/** Runs of adjacent columns whose bottom row is empty, left to right. */
-export function gaps(world: TileGrid): readonly Gap[] {
+/** Runs of adjacent columns whose bottom row is empty, left to right: GDD-WLD-03, a raised bottom's row in its span of `bottoms`, else the last row. */
+export function gaps(world: TileGrid, bottoms?: readonly Bottom[]): readonly Gap[] {
   const found: Gap[] = [];
   let start = -1;
   for (let col = 0; col < world.width; col++) {
-    const pit = !world.solidTile(col, world.height - 1);
+    const pit = !world.solidTile(col, bottomRowAt({ world, bottoms }, col));
     if (pit && start < 0) start = col;
     if (!pit && start >= 0) {
       found.push({ col: start, width: col - start });
@@ -32,8 +33,8 @@ export function gaps(world: TileGrid): readonly Gap[] {
 }
 
 /** The top of the ground at a gap's edge: the highest tile of the solid run that stands on the bottom row there (a gap's edge is never a pit). */
-function groundTopAt(world: TileGrid, col: number): number {
-  let row = world.height - 1;
+function groundTopAt(world: TileGrid, bottoms: readonly Bottom[] | undefined, col: number): number {
+  let row = bottomRowAt({ world, bottoms }, col);
   while (row > 0 && world.solidTile(col, row - 1)) row--;
   return row * TILE;
 }
@@ -46,7 +47,7 @@ function groundTopAt(world: TileGrid, col: number): number {
 export function openGaps(level: Level): readonly Gap[] {
   const { world } = level;
   const covers = [...(level.awnings ?? []).filter((a) => a.torn !== true), ...(level.cordeles ?? []), ...(level.rollos ?? [])];
-  return gaps(world).flatMap((g) => {
+  return gaps(world, level.bottoms).flatMap((g) => {
     const left = g.col - 1;
     const right = g.col + g.width;
     const open: Gap[] = [];
@@ -55,7 +56,7 @@ export function openGaps(level: Level): readonly Gap[] {
       let covered = false;
       if (col < right) {
         const edge = left >= 0 && (right >= world.width || col - left <= right - col) ? left : right;
-        const ground = groundTopAt(world, edge);
+        const ground = groundTopAt(world, level.bottoms, edge);
         covered = covers.some((c) => c.x <= col * TILE && c.x + c.w >= (col + 1) * TILE && c.y <= ground && ground - c.y <= COVER.abovePx);
       }
       const pit = col < right && !covered;
@@ -118,6 +119,54 @@ function railProblems(rails: readonly Rail[], boss: boolean): string[] {
   return problems;
 }
 
+/** GDD-WLD-03: 17 to 51 rows tall; a boss level one screen tall, 17 rows (GDD-BOS-01). */
+function heightProblems(level: Level): string[] {
+  const rows = level.world.height;
+  if (isBossLevel(level)) return rows === LEVEL_RULES.minRows ? [] : [`${rows} rows tall, a boss level is ${LEVEL_RULES.minRows}`];
+  return rows < LEVEL_RULES.minRows || rows > LEVEL_RULES.maxRows ? [`${rows} rows tall, expected ${LEVEL_RULES.minRows} to ${LEVEL_RULES.maxRows}`] : [];
+}
+
+/**
+ * GDD-WLD-03, GDD-TEC-04: the raised bottoms. Each span's row is inside the level and above its last row (a span on the last row is no raised
+ * bottom), its columns run left to right inside the level, and no two spans share a column. Under each, every column is solid all the way
+ * down from the row below the span's to the last, or empty all the way (what is under a raised bottom is never seen). The spawn, every
+ * ofrenda and the exit stand on or above their column's bottom row.
+ */
+function bottomProblems(level: Level): string[] {
+  const { world } = level;
+  const spans = level.bottoms ?? [];
+  const last = world.height - 1;
+  const problems: string[] = [];
+  for (const b of spans) {
+    const at = `raised bottom at columns ${b.fromCol} to ${b.toCol}`;
+    if (b.row < 0 || b.row > last) problems.push(`${at} has its row ${b.row} outside the level`);
+    if (b.row === last) problems.push(`${at} is on the level's last row (${last})`);
+    if (b.fromCol > b.toCol) problems.push(`${at} runs backwards`);
+    if (b.fromCol < 0 || b.toCol >= world.width) problems.push(`${at} reaches outside the level`);
+  }
+  spans.forEach((a, i) => {
+    for (const b of spans.slice(i + 1)) {
+      if (a.fromCol <= b.toCol && b.fromCol <= a.toCol) problems.push(`raised bottoms at columns ${a.fromCol} to ${a.toCol} and ${b.fromCol} to ${b.toCol} overlap`);
+    }
+  });
+  for (const b of spans) {
+    for (let col = b.fromCol; col <= b.toCol; col++) {
+      const under = new Set(Array.from({ length: Math.max(0, last - b.row) }, (_, i) => world.solidTile(col, b.row + 1 + i)));
+      if (under.size > 1) problems.push(`column ${col} under the raised bottom at row ${b.row} is neither solid nor empty all the way down`);
+    }
+  }
+  const standing: (readonly [string, { readonly x: number; readonly y: number }])[] = [
+    ['the spawn', level.spawn],
+    ...level.ofrendas.map((o) => [`ofrenda ${o.id}`, o] as const),
+    ...(level.exit ? [['the exit', level.exit] as const] : []),
+  ];
+  for (const [name, p] of standing) {
+    const row = bottomRowAt(level, Math.floor(p.x / TILE));
+    if (p.y > row * TILE) problems.push(`${name} at ${p.x},${p.y} is below its column's bottom row (${row})`);
+  }
+  return problems;
+}
+
 /** Every problem with the level, as one sentence each; empty when it passes. */
 export function validateLevel(entry: LevelEntry): readonly string[] {
   const { level } = entry;
@@ -156,6 +205,9 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
       if (g.width > limit) problems.push(`gap of ${g.width} tiles at columns ${g.col} to ${g.col + g.width - 1}, World ${entry.world} allows ${limit}`);
     }
   }
+
+  // GDD-WLD-03, GDD-TEC-04: the level's height and its raised bottoms, a test level's too.
+  problems.push(...heightProblems(level), ...bottomProblems(level));
 
   // GDD-ENM-01: no enemy starts within 3 tiles of a respawn.
   const respawns = [level.spawn, ...level.ofrendas];
