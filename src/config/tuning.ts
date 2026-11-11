@@ -324,9 +324,16 @@ export const BLOCK = { speed: 40 } as const;
 
 /**
  * GDD-WLD-15: a vagoneta (mine cart) is `width` x `height` px, its floor `floorPx` over the rail's ground under its middle. It rolls at
- * `speedLevel` px/s on the level, `speedUp` uphill and `speedDown` downhill, each measured along the rail.
+ * `speedLevel` px/s on the level, `speedUp` uphill and `speedDown` downhill, each measured along the rail. A broken end's warning post
+ * stands `postTiles` (6) tiles before it; an empty cart is back at its start `returnSteps` (2.0 s) after it reached its rail's end.
  */
-export const CART = { width: 32, height: 16, floorPx: 8, speedLevel: 150, speedUp: 120, speedDown: 180 } as const;
+export const CART = { width: 32, height: 16, floorPx: 8, speedLevel: 150, speedUp: 120, speedDown: 180, postTiles: 6, returnSteps: Math.round(2.0 * TICK_HZ) } as const;
+
+/**
+ * GDD-WLD-15, GDD-TEC-04: a rail's limits in a level that is not a boss level (GDD-BOS-04). A broken end comes after at least
+ * `levelBeforeEnd` tiles of level rail, and a broken rail is at least `minBrokenTiles` tiles long.
+ */
+export const RAIL_RULES = { levelBeforeEnd: 6, minBrokenTiles: 12 } as const;
 
 /** GDD-CMB-03: a hit that leaves Poncho alive gives 2.0 s of invulnerability and pushes him away from the source (px/s). */
 export const HIT = { invulnerableSteps: Math.round(2.0 * TICK_HZ), knockback: 80 } as const;

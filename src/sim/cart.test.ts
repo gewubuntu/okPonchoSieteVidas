@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { CART, FANTASMA, HIT, RESPAWN, TILE } from '../config/tuning';
+import { CART, FANTASMA, HIT, RESPAWN, SPIKE, TILE } from '../config/tuning';
 import { LEVEL_1_4 } from '../levels/level1-4';
 import { bossStart } from './boss';
-import { cartFloor, floorUnder, railLength, rollCarts, type CartState, type Rail, type RailSegment } from './cart';
+import { cartFloor, fallingBox, floorUnder, railLength, rollCarts, warningPost, type CartState, type Rail, type RailSegment } from './cart';
 import { clawBox } from './claw';
 import { spawnFireball } from './fireball';
 import { hitStopSteps } from './hitStop';
-import { spawn, step, type Abilities, type PlayerInput, type PlayerState } from './movement';
+import { blocked, spawn, step, type Abilities, type PlayerInput, type PlayerState } from './movement';
 import { standsOnPlatform, type MovingPlatform } from './platform';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { parseTiles } from './tilemap';
@@ -42,7 +42,7 @@ const levelOf = (rails: readonly Rail[], o: { world?: ReturnType<typeof rows>; a
   abilities: o.abilities ?? { glide: false },
   rails,
 });
-const rail = (x: number, segments: readonly RailSegment[], o: { y?: number; dir?: 1 | -1 } = {}): Rail => ({ x, y: o.y ?? FLOOR, dir: o.dir ?? 1, segments, end: 'buffer' });
+const rail = (x: number, segments: readonly RailSegment[], o: { y?: number; dir?: 1 | -1; end?: Rail['end'] } = {}): Rail => ({ x, y: o.y ?? FLOOR, dir: o.dir ?? 1, segments, end: o.end ?? 'buffer' });
 const level = (tiles: number): RailSegment[] => [{ kind: 'level', tiles }];
 
 /** A run with Poncho as given and the carts as given (the rest as at the level start). */
@@ -255,7 +255,8 @@ describe('GDD-WLD-15 rolling', () => {
   });
 
   it('GDD-WLD-15 the floor under him follows the rail: 8 px over its ground under his feet on a slope', () => {
-    // A climb from x 160 (FLOOR) over air; the cart's middle at 50 px across, he stands 10 px ahead of it and 10 px behind it.
+    // A climb from x 160 (FLOOR) over air; the cart's middle at 50 px across, he is put 10 px ahead of it and 10 px behind it, and its walls
+    // on a slope hold him at 10 / sqrt(2) = 7.07 px from it.
     const r = rail(160, [{ kind: 'climb', tiles: 10 }]);
     const lvl = levelOf([r]);
     const ground = (x: number) => FLOOR - (x - 160);
@@ -265,7 +266,7 @@ describe('GDD-WLD-15 rolling', () => {
         expect(inCart(lvl, s)).toBe(true);
         expect(s.player.y).toBeCloseTo(ground(s.player.x) - 8, 6);
       }
-      expect(Math.abs(states[29]!.player.y - (ground(middle(lvl, states[29]!)) - 8))).toBeCloseTo(10, 6); // not the floor under the middle
+      expect(Math.abs(states[29]!.player.y - (ground(middle(lvl, states[29]!)) - 8))).toBeCloseTo(10 / SQRT2, 6); // not the floor under the middle
     }
     // Dropped into it 10 px behind its middle, he lands on the floor under his own feet.
     const drop = play(lvl, runWith(lvl, { ...spawn(160 + 50 - 10, FLOOR - 120), grounded: false }, [{ phase: 'waiting', m: 50 }]), 60);
@@ -312,6 +313,47 @@ describe('GDD-WLD-15 rolling', () => {
       expect(s.player.y).toBeCloseTo(FLOOR - 160 + (s.player.x - 160) - 8, 6);
       expect(s.player.carry).toBeUndefined();
     }
+  });
+
+  it('GDD-MOV-07 a rider kept on a descending cart\'s floor is not gliding', () => {
+    // Level for 16 tiles over air (the join at 256 px), then a descent. He takes off 10 px behind the middle with jump held, glides and lands
+    // back in it on the level; holding jump on, he stands until the cart is on the descent, then walks forward in it, so the floor falls away
+    // under his feet each step and keeps him on it: as landing does, that ends a glide.
+    const r = rail(32, [{ kind: 'level', tiles: 16 }, { kind: 'descent', tiles: 8 }], { y: FLOOR - 160 });
+    const lvl = levelOf([r], { abilities: { glide: true } });
+    const states = play(lvl, riding(lvl, 40, { dx: -10 }), 140, (_i, s) => ({ move: s.carts[0]!.m > 256 + 20 ? 1 : 0, jumpHeld: true }));
+    const back = states.findIndex((s, i) => i > 0 && s.player.grounded && !states[i - 1]!.player.grounded);
+    expect(states.slice(0, back).some((s) => s.player.gliding)).toBe(true); // he glided back into it
+    const walking = states.filter((s) => s.carts[0]!.m > 256 + 20 && s.player.vx > 0);
+    expect(walking.length).toBeGreaterThan(5);
+    expect(walking.every((s) => s.player.grounded && inCart(lvl, s))).toBe(true);
+    for (const [i, s] of states.slice(back).entries()) if (s.player.grounded) expect(s.player.gliding, `step ${back + i}`).toBe(false);
+  });
+
+  it('GDD-MOV-08 a rider kept on a descending cart\'s floor is not clinging', () => {
+    // A descent over air from x 160; a wall of tiles in column 14 (x 224), rows 0 to 5, in his way. Holding right (towards it) in the cart's
+    // front, he is stopped at its face while the cart rolls on down, and the floor falling away under his feet keeps him on it while he
+    // presses the wall: standing on it ends a wall slide, as landing does.
+    const r = rail(160, [{ kind: 'descent', tiles: 10 }], { y: FLOOR - 160 });
+    const lvl = levelOf([r], { world: withTiles(Array.from({ length: 6 }, (_, row) => [14, row] as const)), abilities: { glide: false, wallCling: true } });
+    const states = play(lvl, riding(lvl, 40, { dx: 10 }), 40, () => right);
+    const pressed = states.filter((s) => s.player.grounded && s.player.x === 224 - 6);
+    expect(pressed.length).toBeGreaterThan(0); // he stood against the wall
+    for (const [i, s] of states.entries()) if (s.player.grounded) expect(s.player.clinging, `step ${i}`).toBe(false);
+  });
+
+  it('GDD-WLD-15 a cart is not allowed to put him into a tile under a descent', () => {
+    // A descent over air from x 160, its ground at y 32 there; he walks forward in it from 10 px behind the middle. A square tile stands under
+    // the rail where the floor falling away under his feet would take his box: he is never moved into it (he is left on its top instead).
+    const r = rail(160, [{ kind: 'descent', tiles: 10 }], { y: FLOOR - 160 });
+    let onTop = 0;
+    for (const [col, row] of [[12, 4], [13, 5], [14, 6], [12, 5], [13, 6]] as const) {
+      const lvl = levelOf([r], { world: withTiles([[col, row]]) });
+      const states = play(lvl, riding(lvl, 40, { dx: -10 }), 40, () => right);
+      for (const [i, s] of states.entries()) expect(blocked(lvl.world, s.player.x, s.player.y), `tile ${col},${row}, step ${i}`).toBe(false);
+      if (states.some((s) => s.player.grounded && s.player.y === row * TILE)) onTop++;
+    }
+    expect(onTop).toBeGreaterThan(0); // the tile did come under his feet
   });
 
   it('GDD-WLD-15 past the rail\'s ends the floor is level with them', () => {
@@ -679,13 +721,34 @@ describe('GDD-WLD-15 boarding and acting in a rolling cart', () => {
   });
 
   it('GDD-WLD-15 a rolling cart\'s walls hold him: on a slope the wall puts him on the floor under his new x', () => {
-    // A climb from x 160 over air, forward held: at its front wall his feet are 8 px over the rail's ground 10 px ahead of the middle.
+    // A climb from x 160 over air, forward held: at its front wall his feet are 8 px over the rail's ground 7.07 px ahead of the middle.
     const up = levelOf([rail(160, [{ kind: 'climb', tiles: 12 }])]);
     const states = play(up, riding(up, 40), 40, () => right);
     for (const s of states.slice(20)) {
-      expect(s.player.x - middle(up, s)).toBeCloseTo(10, 9);
-      expect(s.player.y).toBeCloseTo(FLOOR - (middle(up, s) + 10 - 160) - 8, 6);
+      expect(s.player.x - middle(up, s)).toBeCloseTo(10 / SQRT2, 9);
+      expect(s.player.y).toBeCloseTo(FLOOR - (middle(up, s) + 10 / SQRT2 - 160) - 8, 6);
     }
+  });
+
+  it('GDD-WLD-15 on a slope the walls hold him within 7.07 px of the cart\'s middle', () => {
+    // Tilted 45 degrees the tub is shorter across: its walls hold him at 10 cos 45 = 10 / sqrt(2) px from its middle, forward or back held,
+    // on a climb and on a descent (over air from x 160), on the floor under his own x; on a level stretch 10 px, as before.
+    const climb = rail(160, [{ kind: 'climb', tiles: 12 }]);
+    const descent = rail(160, [{ kind: 'descent', tiles: 12 }], { y: FLOOR - 192 });
+    for (const r of [climb, descent]) {
+      const l = levelOf([r]);
+      for (const held of [right, left]) {
+        const states = play(l, riding(l, 40), 30, () => held);
+        for (const s of states.slice(15)) {
+          expect(s.player.x - middle(l, s)).toBeCloseTo(held.move * 7.0710678, 6);
+          expect(inCart(l, s)).toBe(true);
+        }
+        expect(states.every((s) => Math.abs(s.player.x - middle(l, s)) <= 10 / SQRT2 + 1e-9)).toBe(true);
+      }
+    }
+    const flat = levelOf([rail(160, level(20))]);
+    const back = play(flat, riding(flat, 40), 30, () => left)[29]!;
+    expect(back.player.x - middle(flat, back)).toBe(-10);
   });
 
   it('GDD-WLD-15 the claw swings from a rolling cart', () => {
@@ -780,5 +843,391 @@ describe('GDD-BOS-01 hit-stop and carts', () => {
     expect(ms.slice(2, 7).every((m) => m === ms[2])).toBe(true);
     expect(ms[7]!).toBeCloseTo(ms[2]! + 2.5, 9);
     expect(railLength(l.rails![0]!)).toBe(26 * TILE);
+  });
+});
+
+/** A world `COLS` wide with the floor at row 12 missing in columns `c0` to `c1`: a pit open to the level's bottom. */
+const pitWorld = (c0: number, c1: number) => parseTiles(Array.from({ length: 13 }, (_, r) => Array.from({ length: COLS }, (_c, c) => (r === 12 && (c < c0 || c > c1) ? '#' : '.')).join('')));
+/**
+ * GDD-WLD-15: how far a falling cart has dropped `k` steps after its first falling step began, from the rule: it starts at 0 px/s down, each step
+ * its speed down grows by 2250 px/s² over the step (1/60 s) up to 360 px/s, and it moves by the average of its speed before and after the step
+ * (the integration `movement.ts` documents for Poncho, exact for a constant acceleration). So it drops 2250 t² / 2 for 9 steps (25.3125 px,
+ * at 337.5 px/s), then (337.5 + 360) / 2 / 60 = 5.8125 px on the step that reaches 360 px/s, then 6 px a step.
+ */
+const dropAfter = (k: number): number => (k <= 9 ? (2250 * (k / 60) ** 2) / 2 : 25.3125 + 5.8125 + 6 * (k - 10));
+/**
+ * GDD-WLD-15: a cart that leaves a broken end with its middle 1 px past it (m 225 on a rail 224 px long) rolls off level at 2.5 px a step
+ * until a step begins with its back edge at or past the end (its middle 16 px past it, 6.4 steps of 150 px/s): its middle is 227.5 to 240
+ * after the 6 steps after the leave step, the 7th begins at 240 and is its first falling step. So `j` steps after the leave step it has
+ * dropped `dropAfter(j - 6)`, nothing before.
+ */
+const ROLL_OFF = 6;
+const droppedAfterLeaving = (j: number): number => dropAfter(Math.max(0, j - ROLL_OFF));
+
+/** A rider standing at the middle of cart 0, rolling at m 200, who does nothing for 150 steps. */
+const stayIn = (l: Level) => play(l, riding(l, 200), 150);
+/** The index of the step cart 0 leaves its rail. */
+const leaves = (states: RunState[]) => states.findIndex((s) => s.carts[0]!.phase === 'falling');
+/** The middle of falling cart 0's box. */
+const fallMiddle = (r: Rail, s: RunState) => fallingBox(r, s.carts[0]!)!.x + CART.width / 2;
+/** The index of the step cart 0 stops at its buffer. */
+const stopIn = (states: RunState[]) => states.findIndex((s) => s.carts[0]!.phase === 'stopped');
+
+describe('GDD-WLD-15 a broken end', () => {
+  /** Level for 14 tiles (224 px) from x 32, its ground at y 32, broken, over air: the floor is 160 px under it. */
+  const B = rail(32, level(14), { y: FLOOR - 160, end: 'broken' });
+  const lvl = levelOf([B]);
+  /** The same 2 tiles (32 px) over the floor. */
+  const LOW = rail(32, level(14), { y: FLOOR - 2 * TILE, end: 'broken' });
+  const low = levelOf([LOW]);
+  /** Its cart rolling at `m` with nobody in it: Poncho stands on the floor far away. */
+  const empty = (l: Level, m: number) => runWith(l, spawn(1200, FLOOR), [{ phase: 'rolling', m }]);
+
+  it('GDD-WLD-15 at a broken end the cart leaves the rail on the step its middle passes the end', () => {
+    // From m 200 at 2.5 px a step: 222.5 after 9 steps, 225 after 10, the first at or past the rail's end at 224 (a buffer would stop it at
+    // 208, its front at the end).
+    const states = play(lvl, empty(lvl, 200), 20);
+    const at = leaves(states);
+    expect(at).toBe(9);
+    expect(states[at - 1]!.carts[0]).toEqual({ phase: 'rolling', m: 222.5 });
+    expect(states[at]!.carts[0]!.phase).toBe('falling');
+    expect(states[at]!.carts[0]!.m).toBeGreaterThanOrEqual(railLength(B));
+    expect(states[at]!.carts[0]!.m).toBe(225);
+    // From m 199 its middle reaches the end exactly, 224, on the 10th step: it leaves on that step.
+    const exact = play(lvl, empty(lvl, 199), 20);
+    expect(leaves(exact)).toBe(9);
+    expect(exact[9]!.carts[0]!.m).toBe(224);
+  });
+
+  it('GDD-WLD-15 from that step it is no floor: a rider who does nothing falls on his own at the carried speed', () => {
+    const states = play(low, riding(low, 200), 80);
+    const at = leaves(states);
+    expect(at).toBe(9);
+    expect(states.slice(0, at).every((s) => s.player.grounded && inCart(low, s))).toBe(true);
+    expect(states[at]!.player).toMatchObject({ grounded: false, carry: 150, vx: 150 });
+    const land = states.findIndex((s, i) => i > at && s.player.grounded);
+    expect(land).toBeGreaterThan(at);
+    expect(states.slice(at, land).every((s) => s.player.vx === 150 && s.player.carry === 150)).toBe(true);
+    expect(states[land]!.player).toMatchObject({ grounded: true, y: FLOOR }); // on the ground below
+    expect(states.every((s) => s.phase === 'playing' && s.lives.lives === 7)).toBe(true);
+  });
+
+  it('GDD-WLD-15 no crash: staying in costs what the fall costs', () => {
+    // He stays in, doing nothing, and lands about 30 px past the rail's end (x 256).
+    // Over ground: none.
+    expect(stayIn(levelOf([LOW])).every((s) => s.phase === 'playing' && s.lives.lives === 7)).toBe(true);
+    // Over a pit (columns 15 to 40 open): one, by the pit rule (his whole body below the level's bottom).
+    const pit = stayIn(levelOf([LOW], { world: pitWorld(15, 40) }));
+    const fell = pit.findIndex((s) => s.phase === 'respawning');
+    expect(fell).toBeGreaterThan(0);
+    expect(pit[fell]!.lives.lives).toBe(6);
+    expect(pit[fell]!.player.y - 32).toBeGreaterThan(13 * TILE);
+    // Over spikes (columns 15 to 22 on the floor): one, by the spike.
+    const spiked = stayIn(levelOf([LOW], { spikes: Array.from({ length: 8 }, (_, i) => ({ col: 15 + i, row: 11 })) }));
+    const hit = spiked.findIndex((s) => s.phase === 'respawning');
+    expect(hit).toBeGreaterThan(0);
+    expect(spiked[hit]!.lives.lives).toBe(6);
+    expect(spiked[hit]!.player.y).toBeLessThanOrEqual(FLOOR);
+  });
+
+  /** A rider standing at the middle, jump pressed on step `press` after the step it leaves (0: that step) and held: the states. */
+  const pressAfterLeaving = (press: number) => {
+    const from = riding(low, 200);
+    const at = leaves(play(low, from, 20));
+    return { at, states: play(low, from, at + press + 10, (i) => ({ move: 0, jumpHeld: i >= at + press })) };
+  };
+
+  it('GDD-MOV-03 coyote time after the cart leaves him at a broken end: a jump within 6 steps still jumps and keeps the carried speed', () => {
+    for (let k = 0; k < 6; k++) {
+      const { at, states } = pressAfterLeaving(k);
+      expect(states[at + k]!.player.takeoff, `pressed ${k} steps after`).toBe('jump');
+      expect(states[at + k]!.player.vy, `pressed ${k} steps after`).toBeLessThan(0);
+      expect(states.slice(at).every((s) => s.player.vx === 150 && s.player.carry === 150), `pressed ${k} steps after`).toBe(true);
+    }
+  });
+
+  it('GDD-MOV-03 coyote time after the cart leaves him at a broken end: a press on the 7th step does not jump', () => {
+    const { at, states } = pressAfterLeaving(6);
+    expect(states.slice(at).every((s) => s.player.takeoff === undefined && s.player.vy >= 0)).toBe(true);
+  });
+
+  it('GDD-MOV-07 he can glide from a broken end at the carried speed', () => {
+    // Jump held since he hopped in (so it is no new press): the cart leaves him and he glides.
+    const gl = levelOf([B], { abilities: { glide: true } });
+    const from = riding(gl, 200);
+    const states = play(gl, { ...from, player: { ...from.player, jumpWasHeld: true, jumpHeldSteps: 30 } }, 80, () => hold);
+    const at = leaves(states);
+    const gliding = states.slice(at).filter((s) => s.player.gliding);
+    expect(gliding.length).toBeGreaterThan(20);
+    expect(gliding.every((s) => s.player.vx === 150 && s.player.carry === 150 && s.player.vy <= 70)).toBe(true);
+  });
+
+  it('GDD-WLD-15 a jump taken before the end lands on the far bank', () => {
+    // lab-3c's R5 in small: level for 14 tiles on the floor from x 32, its end at x 256 at the lip of the floor, a pit 3 tiles wide (columns
+    // 16 to 18), the far bank from x 304 at the same height, 48 px past the end.
+    const bank = levelOf([rail(32, level(14), { end: 'broken' })], { world: pitWorld(16, 18) });
+    // A plain held jump with the cart's middle 20 px before the end (its last tiles).
+    const from = riding(bank, 224 - 20);
+    const states = jumpFrom(bank, from);
+    const last = states[states.length - 1]!;
+    expect(last.player).toMatchObject({ grounded: true, y: FLOOR });
+    expect(last.player.x).toBeGreaterThan(304 - 6); // on the far bank
+    // Measured: 34 steps in the air and 87.5 px across from where he stood.
+    expect(measure(states, from)).toEqual({ steps: 34, across: 87.5 });
+    expect(states.every((s) => s.phase === 'playing')).toBe(true);
+    // Taken 2 tiles early (he stands 32 px before the end) it still lands (GDD: the first broken end is at most 3 tiles from its bank); over a
+    // pit of 4 tiles the same jump falls in.
+    const early = riding(bank, 224 - 32);
+    expect(jumpFrom(bank, early)[jumpFrom(bank, early).length - 1]!.player).toMatchObject({ grounded: true, y: FLOOR });
+    const wide = levelOf([rail(32, level(14), { end: 'broken' })], { world: pitWorld(16, 19) });
+    expect(play(wide, riding(wide, 224 - 32), 80, () => hold).some((s) => s.phase === 'respawning')).toBe(true);
+  });
+
+  it('GDD-WLD-15 a cart off a broken end stays level until its back edge has passed the end, then falls', () => {
+    const states = play(lvl, empty(lvl, 200), 20);
+    const at = leaves(states);
+    // On the step it leaves: its middle 225 px across from x 32, its box from 16 px over where the rail's ground would be (y 32) down to it.
+    expect(fallingBox(B, states[at]!.carts[0]!)).toEqual({ x: 32 + 225 - 16, y: 32 - 16, w: 32, h: 16 });
+    // The 6 steps after: level, its middle 227.5 to 240 (less than 16 px past the end at 224 when each began); then it falls.
+    for (let j = 1; j <= 6; j++) {
+      const c = states[at + j]!.carts[0]!;
+      expect(c.phase).toBe('falling');
+      expect(c.m).toBeCloseTo(225 + 2.5 * j, 9);
+      expect(fallingBox(B, c)!.y, `${j} steps on`).toBe(32 - 16);
+    }
+    expect(fallingBox(B, states[at + 7]!.carts[0]!)!.y).toBeCloseTo(32 - 16 + 0.3125, 9);
+    expect(fallingBox(B, states[at + 8]!.carts[0]!)!.y).toBeCloseTo(32 - 16 + 1.25, 9);
+    expect([ROLL_OFF, droppedAfterLeaving(7), droppedAfterLeaving(8)]).toEqual([6, 0.3125, 1.25]);
+  });
+
+  it('GDD-WLD-15 a rail that ends at the lip of its ground: the cart falls past the lip and breaks on the floor below, not on the lip', () => {
+    // Ground under the whole rail (14 tiles from x 32, columns 2 to 15, 10 rows deep down to the floor at y 192, its top at y 32), and a drop
+    // of 10 tiles after its end at x 256 down to the floor.
+    const world = rows((r) => Array.from({ length: COLS }, (_, c) => (r >= 2 && c <= 15 ? '#' : '.')).join(''));
+    const L = rail(32, level(14), { y: 32, end: 'broken' });
+    const lip = levelOf([L], { world });
+    const states = play(lip, empty(lip, 200), 60);
+    const at = leaves(states);
+    // It falls the same way as over air, and breaks on the floor 160 px down: 32 falling steps after its 6 level ones.
+    const k = Array.from({ length: 60 }, (_, i) => i).find((i) => 32 + droppedAfterLeaving(i) > FLOOR)!;
+    expect(k).toBe(38);
+    expect(states.slice(at, at + k).every((s) => s.carts[0]!.phase === 'falling')).toBe(true);
+    expect(states[at + k]!.carts[0]!.phase).toBe('gone');
+    expect(fallingBox(L, states[at + k - 1]!.carts[0]!)!.x).toBeGreaterThanOrEqual(256); // past the lip
+  });
+
+  it('GDD-WLD-15 the falling cart keeps its speed across and falls at 2250 px/s² up to 360 px/s', () => {
+    const states = play(lvl, empty(lvl, 200), 60);
+    const at = leaves(states) + ROLL_OFF; // the step before its first falling step
+    expect(fallingBox(B, states[at]!.carts[0]!)).toEqual({ x: 32 + 240 - 16, y: 32 - 16, w: 32, h: 16 });
+    // 1, 10 and 30 steps from its first falling step on.
+    for (const k of [1, 10, 30]) {
+      const box = fallingBox(B, states[at + k]!.carts[0]!)!;
+      expect(box.x, `${k} steps on`).toBeCloseTo(32 + 240 - 16 + 2.5 * k, 9); // 150 px/s across
+      expect(box.y, `${k} steps on`).toBeCloseTo(32 - 16 + dropAfter(k), 9);
+    }
+    expect([dropAfter(1), dropAfter(10), dropAfter(30)]).toEqual([0.3125, 31.125, 151.125]);
+  });
+
+  it('GDD-WLD-15 the falling cart breaks on the first tile it touches', () => {
+    // The floor's top at y 192, 160 px under the rail: its box's bottom passes it 32 falling steps on (189.1 after 31, 195.1 after 32), 38
+    // after it left the rail.
+    const k = Array.from({ length: 60 }, (_, i) => i).find((i) => 32 + droppedAfterLeaving(i) > FLOOR)!;
+    expect(k).toBe(38);
+    const states = play(lvl, empty(lvl, 200), 60);
+    const at = leaves(states);
+    expect(states[at + k - 1]!.carts[0]!.phase).toBe('falling');
+    expect(states[at + k]!.carts[0]!.phase).toBe('gone');
+    expect(states.slice(at + k).every((s) => s.carts[0]!.phase === 'gone' && fallingBox(B, s.carts[0]!) === null)).toBe(true);
+  });
+
+  it('GDD-WLD-15 the falling cart breaks on a spike', () => {
+    // A spike on the floor at column 21 (x 336 to 352), under its box 37 steps after it left the rail; its hurting part from y 184 down: the
+    // box's bottom passes it a step before it would reach the floor.
+    const spiked = levelOf([B], { spikes: [{ col: 21, row: 11 }] });
+    const k = Array.from({ length: 60 }, (_, i) => i).find((i) => 32 + droppedAfterLeaving(i) > FLOOR - SPIKE.height)!;
+    expect(k).toBe(37);
+    const states = play(spiked, empty(spiked, 200), 60);
+    const at = leaves(states);
+    expect(states[at + k - 1]!.carts[0]!.phase).toBe('falling');
+    expect(states[at + k]!.carts[0]!.phase).toBe('gone');
+  });
+
+  it('GDD-WLD-15 the falling cart breaks or falls out of the level', () => {
+    // No floor under it (columns 10 to 60 open): it is gone the step its whole box is below the level's bottom (13 rows, y 208).
+    const open = levelOf([B], { world: pitWorld(10, 60) });
+    const k = Array.from({ length: 60 }, (_, i) => i).find((i) => 32 - 16 + droppedAfterLeaving(i) > 13 * TILE)!;
+    expect(k).toBe(43);
+    const states = play(open, empty(open, 200), 60);
+    const at = leaves(states);
+    expect(states[at + k - 1]!.carts[0]!.phase).toBe('falling');
+    expect(states[at + k]!.carts[0]!.phase).toBe('gone');
+  });
+
+  it('GDD-WLD-15 a falling cart is no floor', () => {
+    // Poncho falling at 360 px/s from 30 px over the rail's ground, over the cart's middle and with its speed across, as it leaves: he catches
+    // it up and falls through it to the floor.
+    const r = runWith(lvl, { ...spawn(32 + 225, 32 - 30), grounded: false, vx: 150, vy: 360, carry: 150 }, [{ phase: 'rolling', m: 222.5 }]);
+    const states = play(lvl, r, 60);
+    expect(states[0]!.carts[0]!.phase).toBe('falling');
+    const land = states.findIndex((s) => s.player.grounded);
+    expect(states[land]!.player.y).toBe(FLOOR);
+    const through = states.slice(0, land).filter((s) => {
+      const box = fallingBox(B, s.carts[0]!);
+      return box !== null && s.player.y > box.y && s.player.y < box.y + box.h;
+    });
+    expect(through.length).toBeGreaterThan(0); // his feet were inside its box
+  });
+
+  it('GDD-WLD-15 the walls do not hold him once the cart has left the rail', () => {
+    // Holding back from the step after it leaves: he slows towards 30 px/s and the cart, at 150, leaves him behind.
+    const states = play(lvl, riding(lvl, 200), 40, (_i, s) => (s.carts[0]!.phase === 'falling' ? left : idle));
+    const at = leaves(states);
+    const falling = states.slice(at, at + 25);
+    expect(falling.every((s) => s.carts[0]!.phase === 'falling')).toBe(true);
+    expect(Math.min(...falling.map((s) => s.player.x - fallMiddle(B, s)))).toBeLessThan(-10 - 5);
+  });
+
+  it('GDD-WLD-15 a left-rolling cart leaves a broken end mirrored', () => {
+    const L = rail(600, level(14), { y: FLOOR - 160, dir: -1, end: 'broken' });
+    const l = levelOf([L]);
+    const states = play(l, empty(l, 200), 45);
+    const at = leaves(states);
+    expect(at).toBe(9);
+    expect(fallingBox(L, states[at]!.carts[0]!)).toEqual({ x: 600 - 225 - 16, y: 32 - 16, w: 32, h: 16 });
+    expect(fallingBox(L, states[at + 10]!.carts[0]!)!.x).toBeCloseTo(600 - 225 - 16 - 25, 9);
+    // A rider who does nothing falls at -150 px/s.
+    const ridden = play(l, riding(l, 200), 20);
+    expect(ridden[at]!.player).toMatchObject({ grounded: false, vx: -150, carry: -150 });
+  });
+
+  it('GDD-WLD-15 the warning post stands 6 tiles before a broken end, on the rail\'s ground, and a buffer has none', () => {
+    expect(warningPost(rail(32, level(14), { end: 'broken' }))).toEqual({ x: 32 + 224 - 96, y: FLOOR });
+    expect(warningPost(rail(32, level(14)))).toBeNull();
+    // Up 4 tiles (64 px), then level for 6: the post, 96 px before the end, stands at the climb's top, 64 px over the rail's start.
+    expect(warningPost(rail(32, [{ kind: 'climb', tiles: 4 }, { kind: 'level', tiles: 6 }], { end: 'broken' }))).toEqual({ x: 32 + 64, y: FLOOR - 64 });
+    // Rolling left from x 600: 96 px right of its end at x 376.
+    expect(warningPost(rail(600, level(14), { dir: -1, end: 'broken' }))).toEqual({ x: 600 - 224 + 96, y: FLOOR });
+  });
+});
+
+describe('GDD-WLD-15 an empty cart comes back', () => {
+  const R = rail(160, level(10)); // its buffer at x 320; stopped, its middle is 144 px across
+  const lvl = levelOf([R]);
+  const B = rail(32, level(14), { y: FLOOR - 160, end: 'broken' });
+  const broken = levelOf([B]);
+
+  it('GDD-WLD-15 an empty cart at its buffer is back at its start 2.0 s later', () => {
+    // He jumps out at once holding back: the cart leaves him on the ground and rolls on to its buffer with nobody in it.
+    const states = play(lvl, riding(lvl, 16), 300, (i) => ({ move: i < 40 ? -1 : 0, jumpHeld: i < 30 }));
+    const S = stopIn(states);
+    expect(S).toBeGreaterThan(0);
+    expect(states.slice(S).every((s) => !inCart(lvl, s))).toBe(true);
+    expect(states[S + 119]!.carts[0]).toMatchObject({ phase: 'stopped', m: 144 });
+    expect(states[S + 120]!.carts[0]).toEqual({ phase: 'waiting', m: 16 });
+  });
+
+  it('GDD-WLD-15 a cart he rode to a buffer returns 2.0 s after he steps off it', () => {
+    // He stands in it 300 steps after it stops, then walks off its front.
+    let S = -1;
+    const states = play(lvl, riding(lvl, 16), 600, (i, s) => {
+      if (S < 0 && s.carts[0]!.phase === 'stopped') S = i;
+      return S >= 0 && i >= S + 300 ? right : idle;
+    });
+    expect(S).toBeGreaterThan(0);
+    expect(states.slice(S, S + 300).every((s) => s.carts[0]!.phase === 'stopped' && inCart(lvl, s))).toBe(true);
+    const T = states.findIndex((s, i) => i > S && !inCart(lvl, s)); // the first step at whose end he does not stand on it
+    expect(T).toBeGreaterThan(S + 300);
+    expect(states[T + 119]!.carts[0]).toMatchObject({ phase: 'stopped', m: 144 });
+    expect(states[T + 120]!.carts[0]).toEqual({ phase: 'waiting', m: 16 });
+  });
+
+  it('GDD-WLD-15 stepping back on stops the count', () => {
+    // He rides it to its buffer, walks off its front, hops back in (a bot steering over its middle, x 304), stands 60 steps, and walks off again.
+    let phase: 'ride' | 'off' | 'hop' | 'stand' | 'leave' = 'ride';
+    let since = 0;
+    const T: number[] = [];
+    const states = play(lvl, riding(lvl, 16), 700, (i, s) => {
+      since++;
+      const next = (p: typeof phase) => {
+        phase = p;
+        since = 0;
+      };
+      if (phase === 'ride' && s.carts[0]!.phase === 'stopped') next('off');
+      if (phase === 'off' && s.player.x > 340) next('hop');
+      if (phase === 'hop' && since > 2 && inCart(lvl, s)) next('stand');
+      if (phase === 'stand' && since >= 60) next('leave');
+      if (phase === 'off') return right;
+      if (phase === 'hop') return { move: Math.abs(304 - s.player.x) > 4 ? Math.sign(304 - s.player.x) : 0, jumpHeld: since === 1 || (!s.player.grounded && s.player.vy < 0) };
+      if (phase === 'leave') return right;
+      void i;
+      return idle;
+    });
+    for (let i = 1; i < states.length; i++) if (inCart(lvl, states[i - 1]!) && !inCart(lvl, states[i]!) && states[i]!.carts[0]!.phase === 'stopped') T.push(i);
+    expect(T.length).toBe(2); // he stepped off twice
+    // Off for long enough the first time that a count kept from then would bring it back before 120 steps after the second.
+    const back = states.findIndex((s, i) => i > T[0]! && s.carts[0]!.phase === 'waiting');
+    expect(back).toBe(T[1]! + 120);
+    expect(states[T[1]! + 119]!.carts[0]).toMatchObject({ phase: 'stopped', m: 144 });
+  });
+
+  it('GDD-WLD-15 a cart that fell from a broken end is back 2.0 s after it left the rail', () => {
+    for (const rider of [false, true]) {
+      const states = play(broken, rider ? riding(broken, 200) : runWith(broken, spawn(1200, FLOOR), [{ phase: 'rolling', m: 200 }]), 200);
+      const at = states.findIndex((s) => s.carts[0]!.phase === 'falling');
+      expect(at, `rider ${rider}`).toBe(9);
+      expect(states[at + 119]!.carts[0]!.phase, `rider ${rider}`).toBe('gone'); // it broke on the floor 32 steps after it left
+      expect(states[at + 120]!.carts[0], `rider ${rider}`).toEqual({ phase: 'waiting', m: 16 });
+      expect(states.every((s) => s.phase === 'playing'), `rider ${rider}`).toBe(true);
+    }
+  });
+
+  it('GDD-WLD-15 the returned cart is a floor at once and rolls again when he lands in it', () => {
+    // Rolling empty from m 130 to its buffer; then Poncho dropped from 1 px over its floor at its start, so he comes down on it this step.
+    const states = play(lvl, runWith(lvl, spawn(1200, FLOOR), [{ phase: 'rolling', m: 130 }]), 200);
+    const S = stopIn(states);
+    const drop = (r: RunState): RunState => ({ ...r, player: { ...spawn(176, FLOOR - 8 - 1), grounded: false, vy: 120 } });
+    // On the step it comes back he lands in it, and it starts.
+    const back = stepRun(drop(states[S + 119]!), idle, lvl);
+    expect(back.player).toMatchObject({ grounded: true, y: FLOOR - 8 });
+    expect(back.carts[0]).toEqual({ phase: 'rolling', m: 16 });
+    expect(stepRun(back, idle, lvl).carts[0]!.m).toBeCloseTo(16 + 2.5, 9);
+    // A step earlier it is still at its buffer, and the same drop falls past to the ground.
+    const early = play(lvl, drop(states[S + 118]!), 10);
+    expect(early[0]!.carts[0]!.phase).toBe('stopped');
+    expect(early[9]!.player).toMatchObject({ grounded: true, y: FLOOR });
+  });
+
+  it('GDD-WLD-15 a Poncho standing on the ground at its start is not boarded by the returning cart', () => {
+    const states = play(lvl, runWith(lvl, spawn(176, FLOOR), [{ phase: 'rolling', m: 130 }]), 260);
+    const S = stopIn(states);
+    expect(states[S + 120]!.carts[0]).toEqual({ phase: 'waiting', m: 16 });
+    expect(states.every((s) => s.player.y === FLOOR && s.player.x === 176)).toBe(true);
+    expect(states.slice(S + 120).every((s) => s.carts[0]!.phase === 'waiting')).toBe(true);
+  });
+
+  it('GDD-WLD-15 in a boss level a cart at its rail\'s end does not come back', () => {
+    // 1-4 with a rail added on its floor (as the hit-stop test does), Poncho at its spawn under the Chile Fantasma so nothing hurts him.
+    for (const end of ['buffer', 'broken'] as const) {
+      const l: Level = { ...LEVEL_1_4, rails: [rail(16, level(26), { y: 14 * TILE, end })] };
+      const r: RunState = { ...startRun(l), fantasma: 10_000, carts: [{ phase: 'rolling', m: 26 * TILE - 30 }] };
+      const states = play(l, r, 400);
+      expect(states.every((s) => s.phase === 'playing'), end).toBe(true);
+      const at = states.findIndex((s) => s.carts[0]!.phase !== 'rolling');
+      expect(at, end).toBeGreaterThanOrEqual(0);
+      const last = end === 'buffer' ? 'stopped' : 'gone';
+      expect(states[at + 200]!.carts[0]!.phase, end).toBe(last);
+      expect(states[states.length - 1]!.carts[0]!.phase, end).toBe(last);
+    }
+  });
+
+  it('GDD-WLD-15 a lost life puts a falling, a gone and a returning cart back at once', () => {
+    const lvl3 = levelOf([B, rail(400, level(14), { y: FLOOR - 160, end: 'broken' }), rail(800, level(10))], { spikes: [{ col: 2, row: 11 }] });
+    const carts: CartState[] = [{ phase: 'falling', m: 230, fall: { y: 60, vy: 100, vx: 150 } }, { phase: 'gone', m: 240 }, { phase: 'stopped', m: 144, empty: 50 }];
+    const hit = stepRun(runWith(lvl3, spawn(40, FLOOR), carts), idle, lvl3);
+    expect(hit.phase).toBe('respawning');
+    const back = play(lvl3, hit, RESPAWN.delaySteps)[RESPAWN.delaySteps - 1]!;
+    expect(back.phase).toBe('playing');
+    expect(back.carts).toEqual([{ phase: 'waiting', m: 16 }, { phase: 'waiting', m: 16 }, { phase: 'waiting', m: 16 }]);
   });
 });

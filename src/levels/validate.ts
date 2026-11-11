@@ -1,7 +1,8 @@
 // GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have (GDD-MOV-09: its sand slopes
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
-import { AWNING, BASE_WIDTH, COVER, ESTRELLA, LEVEL_RULES, ROLLO, TILE } from '../config/tuning';
+import { AWNING, BASE_WIDTH, COVER, ESTRELLA, LEVEL_RULES, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
 import { bossStart } from '../sim/boss';
+import { railGround, railLength, type Rail } from '../sim/cart';
 import { estrellaStart } from '../sim/estrella';
 import { isBossLevel } from '../sim/bossLevel';
 import { kindOf } from '../sim/enemy';
@@ -68,6 +69,44 @@ export function openGaps(level: Level): readonly Gap[] {
   });
 }
 
+/** GDD-WLD-15: a rail's level stretches, each the px columns it covers (from x0 up to x1) and its ground's y. */
+function levelStretches(rail: Rail): { x0: number; x1: number; y: number }[] {
+  let across = 0;
+  return rail.segments.flatMap((s) => {
+    const from = across;
+    across += s.tiles * TILE;
+    if (s.kind !== 'level') return [];
+    const [a, b] = [rail.x + rail.dir * from, rail.x + rail.dir * across];
+    return [{ x0: Math.min(a, b), x1: Math.max(a, b), y: railGround(rail, from) }];
+  });
+}
+
+/**
+ * GDD-WLD-15: a broken end comes after at least RAIL_RULES.levelBeforeEnd tiles of level rail (its last stretch) and is at least
+ * RAIL_RULES.minBrokenTiles tiles from its cart's start, and no two rails share a stretch: two rails' level stretches cover no common px
+ * column at the same ground y. A buffer rail needs neither limit. Not checked here, but by each level's own tests: the far bank within 5
+ * tiles plus the drop, the 7 tiles of headroom over a cart jump, and a hanging beam's place.
+ */
+function railProblems(rails: readonly Rail[]): string[] {
+  const problems: string[] = [];
+  for (const r of rails) {
+    if (r.end !== 'broken') continue;
+    const last = r.segments[r.segments.length - 1]!;
+    const levelTiles = last.kind === 'level' ? last.tiles : 0;
+    if (levelTiles < RAIL_RULES.levelBeforeEnd) problems.push(`broken rail at ${r.x},${r.y} ends after ${levelTiles} tiles of level rail, expected at least ${RAIL_RULES.levelBeforeEnd}`);
+    const tiles = railLength(r) / TILE;
+    if (tiles < RAIL_RULES.minBrokenTiles) problems.push(`broken rail at ${r.x},${r.y} is ${tiles} tiles long, expected at least ${RAIL_RULES.minBrokenTiles}`);
+  }
+  const stretches = rails.map(levelStretches);
+  rails.forEach((a, i) => {
+    for (let j = i + 1; j < rails.length; j++) {
+      const b = rails[j]!;
+      if (stretches[i]!.some((s) => stretches[j]!.some((t) => s.y === t.y && Math.max(s.x0, t.x0) < Math.min(s.x1, t.x1)))) problems.push(`rails at ${a.x},${a.y} and ${b.x},${b.y} share a stretch`);
+    }
+  });
+  return problems;
+}
+
 /** Every problem with the level, as one sentence each; empty when it passes. */
 export function validateLevel(entry: LevelEntry): readonly string[] {
   const { level } = entry;
@@ -94,6 +133,8 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
       if (!entry.test && (width < min || width > max)) problems.push(`${width} tiles wide, expected ${min} to ${max} (${LEVEL_RULES.minScreens} to ${most} screens)`);
     }
   }
+  // GDD-WLD-15: a rail's limits, in every level but a boss level (GDD-BOS-04 exempts the arena).
+  if (!isBossLevel(level)) problems.push(...railProblems(level.rails ?? []));
 
   // GDD-WLD-03: gaps never exceed the world's limit.
   const limit = LEVEL_RULES.maxGapTiles[entry.world];

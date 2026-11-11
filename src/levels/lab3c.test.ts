@@ -1,45 +1,61 @@
 import { describe, expect, it } from 'vitest';
-import { CART, TILE } from '../config/tuning';
-import { cartFloor, floorUnder, railLength } from '../sim/cart';
+import { CART, OFRENDA, TILE } from '../config/tuning';
+import { cartFloor, fallingBox, floorUnder, railLength, warningPost } from '../sim/cart';
 import { spawn, type PlayerInput } from '../sim/movement';
 import { standsOnPlatform } from '../sim/platform';
 import { startRun, stepRun, type RunState } from '../sim/run';
 import { levelById } from './index';
-import { LAB_3C_FLOOR_Y, LAB_3C_ID, LAB_3C_LEVEL, LAB_3C_OFRENDAS, LAB_3C_PLATEAU, LAB_3C_RAILS } from './lab3c';
+import { LAB_3C_BEAM, LAB_3C_FLOOR_Y, LAB_3C_ID, LAB_3C_LEVEL, LAB_3C_OFRENDAS, LAB_3C_PIT, LAB_3C_PLATEAU, LAB_3C_RAILS, LAB_3C_SUNKEN } from './lab3c';
 import { validateLevel } from './validate';
 
 // GDD-WLD-15, GDD-TEC-04: lab-3c, over the real level data (L-014). Positions are read from `src/levels/lab3c.ts`.
 const level = LAB_3C_LEVEL;
 const idle: PlayerInput = { move: 0, jumpHeld: false };
 const PLATEAU_Y = LAB_3C_PLATEAU.row * TILE;
+const R5 = LAB_3C_RAILS[4]!;
+const R6 = LAB_3C_RAILS[5]!;
+/** The hanging beam's near face over R5 (its left edge: R5 rolls right), and its far face. */
+const BEAM_FACE = LAB_3C_BEAM.col * TILE;
+const BEAM_BACK = BEAM_FACE + TILE;
+/** The sunken floor's top past R6's end. */
+const SUNKEN_Y = LAB_3C_SUNKEN.row * TILE;
 
 const floorOf = (r: RunState, i: number) => cartFloor(LAB_3C_RAILS[i]!, r.carts[i]!);
 const middleOf = (r: RunState, i: number) => floorOf(r, i).x + CART.width / 2;
 /** Standing in cart `i`: on its floor under his feet (GDD-WLD-15: the floor follows the rail). */
 const inCart = (r: RunState, i: number) => standsOnPlatform(r.player, floorUnder(LAB_3C_RAILS[i]!, r.carts[i]!, r.player.x));
 
+/** What he holds once the cart rolls under him (L-075): right held throughout, nothing, or left. */
+type After = 'right' | 'none' | 'left';
+
 /**
- * A hop into cart `i` from standing at (x0, y0): he holds right throughout, through the landing and the whole ride, and holds jump for
- * `hold` steps from step `wait`. Whether he boarded it, and if he did, whether he is standing in it on the step it stops at its buffer (at
- * most 400 steps).
+ * A hop into cart `i` from standing at (x0, y0): he holds right until he lands in it, and holds jump for `hold` steps from step `wait`; from
+ * the landing on he holds what `after` says (with 'right', jump too while its `hold` steps last). Whether he boarded it, and if he did,
+ * whether he is standing in it on the step it stops at its buffer (at most 400 steps).
  */
-function hop(i: number, x0: number, y0: number, hold: number, wait: number): { boarded: boolean; rode: boolean } {
+function hop(i: number, x0: number, y0: number, hold: number, wait: number, after: After): { boarded: boolean; rode: boolean } {
   let r = at(x0, y0);
   for (let n = 0; n < 400; n++) {
     if (r.carts[i]!.phase === 'waiting' && n > 150) return { boarded: false, rode: false };
-    r = stepRun(r, { move: 1, jumpHeld: n >= wait && n < wait + hold }, level);
+    const jump = n >= wait && n < wait + hold;
+    const rolling = r.carts[i]!.phase !== 'waiting';
+    const input: PlayerInput = !rolling || after === 'right' ? { move: 1, jumpHeld: jump } : { move: after === 'left' ? -1 : 0, jumpHeld: false };
+    r = stepRun(r, input, level);
     if (r.carts[i]!.phase === 'stopped') return { boarded: true, rode: inCart(r, i) };
   }
   return { boarded: r.carts[i]!.phase !== 'waiting', rode: false };
 }
-/** Hops from every 2 px of `x0s`, with jump held 2 to 30 steps and pressed after 0 to 10: the takeoffs that boarded, and those of them that did not ride to the buffer. */
-function hops(i: number, x0s: readonly [number, number], y0: number): { boarded: number; lost: string[] } {
+/**
+ * Hops from every 2 px of `x0s`, with jump held 2 to 30 steps and pressed after 0 to 10, each with `after` held from the landing: the takeoffs
+ * that boarded, and those of them that did not ride to the buffer.
+ */
+function hops(i: number, x0s: readonly [number, number], y0: number, after: After): { boarded: number; lost: string[] } {
   let boarded = 0;
   const lost: string[] = [];
   for (let x0 = x0s[0]; x0 <= x0s[1]; x0 += 2) {
     for (const hold of [2, 4, 7, 10, 15, 22, 30]) {
       for (const wait of [0, 3, 6, 10]) {
-        const h = hop(i, x0, y0, hold, wait);
+        const h = hop(i, x0, y0, hold, wait, after);
         if (!h.boarded) continue;
         boarded++;
         if (!h.rode) lost.push(`x0 ${x0}, jump held ${hold} from step ${wait}`);
@@ -81,6 +97,42 @@ function ride(r: RunState, i: number, max = 600): RunState[] {
   return states;
 }
 
+/**
+ * A bot that rides cart `i` on a broken rail: on the ground it walks to the cart and hops in as `ride` does, once; standing in the rolling
+ * cart, it takes a full jump (held while rising) with `beam` when its x is 35 px before the hanging beam's near face (in the GDD's window),
+ * and with `before` when the cart's middle is that many px before the rail's end; with `out` it holds right in the air after boarding (the
+ * carried speed is held as with no input) and, once standing on the sunken floor, jumps out over its far wall. Otherwise it holds nothing.
+ * It lets go of jump for at least a step before pressing it again (L-048).
+ * The states of `steps` steps.
+ */
+function brokenRide(r: RunState, i: number, o: { beam?: boolean; before?: number; out?: boolean }, steps: number): RunState[] {
+  const rail = LAB_3C_RAILS[i]!;
+  const states: RunState[] = [];
+  let jumpWas = false;
+  let boarded = false;
+  let hopped = false;
+  for (let n = 0; n < steps; n++) {
+    const p = r.player;
+    let input = idle;
+    if (r.carts[i]!.phase !== 'waiting') boarded = true;
+    if (r.phase !== 'playing') input = idle;
+    else if (!boarded) {
+      const gap = middleOf(r, i) - p.x;
+      input = { move: Math.abs(gap) > 4 ? Math.sign(gap) : 0, jumpHeld: p.grounded ? !jumpWas && Math.abs(gap) >= 20 && Math.abs(gap) <= 60 : jumpWas && p.vy < 0 };
+    } else if (!p.grounded) input = { move: o.out ? 1 : 0, jumpHeld: jumpWas && p.vy < 0 };
+    else if (inCart(r, i) && !jumpWas) {
+      const atBeam = (o.beam ?? false) && !hopped && BEAM_FACE - p.x <= 35;
+      const atEnd = o.before !== undefined && rail.x + railLength(rail) - middleOf(r, i) <= o.before;
+      if (atBeam) hopped = true;
+      input = { move: 0, jumpHeld: atBeam || atEnd };
+    } else if (o.out && p.y === SUNKEN_Y && !jumpWas) input = { move: 1, jumpHeld: true };
+    jumpWas = input.jumpHeld;
+    r = stepRun(r, input, level);
+    states.push(r);
+  }
+  return states;
+}
+
 describe('GDD-WLD-15 lab-3c', () => {
   it('GDD-TEC-04 lab-3c passes the validator', () => {
     const entry = levelById(LAB_3C_ID)!;
@@ -88,19 +140,36 @@ describe('GDD-WLD-15 lab-3c', () => {
     expect(validateLevel(entry)).toEqual([]);
   });
 
-  it('GDD-WLD-15 lab-3c has four rails', () => {
+  it('GDD-WLD-15 lab-3c has six rails', () => {
     expect(LAB_3C_RAILS.map((r) => ({ dir: r.dir, end: r.end, segments: r.segments.map((s) => `${s.kind} ${s.tiles}`) }))).toEqual([
       { dir: 1, end: 'buffer', segments: ['level 20'] },
       { dir: 1, end: 'buffer', segments: ['level 4', 'climb 4', 'level 4'] },
       { dir: 1, end: 'buffer', segments: ['level 2', 'descent 4', 'level 3'] },
       { dir: -1, end: 'buffer', segments: ['level 8'] },
+      { dir: 1, end: 'broken', segments: ['level 20'] },
+      { dir: 1, end: 'broken', segments: ['level 12'] },
     ]);
-    // R1, R2 and R4 start on the floor, R3 on the plateau's top; R2 ends on it (4 tiles up) and R3 on the floor (4 tiles down).
-    expect(LAB_3C_RAILS.map((r) => r.y)).toEqual([LAB_3C_FLOOR_Y, LAB_3C_FLOOR_Y, PLATEAU_Y, LAB_3C_FLOOR_Y]);
+    // R1, R2, R4, R5 and R6 start on the floor, R3 on the plateau's top; R2 ends on it (4 tiles up) and R3 on the floor (4 tiles down).
+    expect(LAB_3C_RAILS.map((r) => r.y)).toEqual([LAB_3C_FLOOR_Y, LAB_3C_FLOOR_Y, PLATEAU_Y, LAB_3C_FLOOR_Y, LAB_3C_FLOOR_Y, LAB_3C_FLOOR_Y]);
     expect(LAB_3C_FLOOR_Y - PLATEAU_Y).toBe(64);
     expect(LAB_3C_RAILS[1]!.x + 8 * TILE).toBe(LAB_3C_PLATEAU.col0 * TILE); // R2's climb ends at the plateau's left edge
     expect(LAB_3C_RAILS[2]!.x + 2 * TILE).toBe((LAB_3C_PLATEAU.col1 + 1) * TILE); // R3's descent starts at its right edge
+    // R5 ends at the lip of its pit, 3 tiles wide, and R6 at the lip of the sunken floor, 2 tiles down and 6 tiles long.
+    expect(R5.x + railLength(R5)).toBe(LAB_3C_PIT.col0 * TILE);
+    expect(LAB_3C_PIT.col1 - LAB_3C_PIT.col0 + 1).toBe(3);
+    expect(R6.x + railLength(R6)).toBe(LAB_3C_SUNKEN.col0 * TILE);
+    expect([LAB_3C_SUNKEN.col1 - LAB_3C_SUNKEN.col0 + 1, LAB_3C_SUNKEN.row * TILE - LAB_3C_FLOOR_Y]).toEqual([6, 32]);
     expect(startRun(level).carts).toEqual(LAB_3C_RAILS.map(() => ({ phase: 'waiting', m: 16 })));
+  });
+
+  it('GDD-WLD-15 lab-3c: the third ofrenda overlaps no buffer, rail end or cart', () => {
+    const o = LAB_3C_OFRENDAS[2]!;
+    // The ofrenda's box, OFRENDA.width wide, against each rail's ends (a buffer is drawn 8 px past its end) and each cart at its start.
+    const spans = LAB_3C_RAILS.flatMap((r) => {
+      const end = r.x + r.dir * railLength(r);
+      return [[Math.min(r.x, r.x + r.dir * CART.width), Math.max(r.x, r.x + r.dir * CART.width)], [Math.min(end, end + r.dir * 8), Math.max(end, end + r.dir * 8)]];
+    });
+    expect(spans.filter(([a, b]) => o.x + OFRENDA.width / 2 > a! && o.x - OFRENDA.width / 2 < b!)).toEqual([]);
   });
 
   it('GDD-WLD-15 lab-3c R1: a bot hops in and rides 20 tiles to the buffer', () => {
@@ -131,24 +200,27 @@ describe('GDD-WLD-15 lab-3c', () => {
     expect(states[states.length - 1]!.player).toMatchObject({ grounded: true, y: PLATEAU_Y });
   });
 
-  it('GDD-WLD-15 lab-3c: every hop that boards R3 rides it to its buffer', () => {
-    // From the plateau before its cart (x 600 to 654): its floor follows the rail over the descent, wherever in it he landed.
-    const { boarded, lost } = hops(2, [600, 654], PLATEAU_Y);
-    expect(boarded).toBeGreaterThan(200);
-    expect(lost).toEqual([]);
-  });
+  for (const after of ['right', 'none', 'left'] as const) {
+    it(`GDD-WLD-15 lab-3c: every hop that boards R3 rides it to its buffer, ${after} held after the landing`, () => {
+      // From the plateau before its cart (x 600 to 654): its floor follows the rail over the descent, wherever in it he landed.
+      const { boarded, lost } = hops(2, [600, 654], PLATEAU_Y, after);
+      expect(boarded).toBeGreaterThan(200);
+      expect(lost).toEqual([]);
+    });
 
-  it('GDD-WLD-15 lab-3c: every hop that boards R2 rides it to its buffer', () => {
-    // From the floor before its cart (x 376 to 434), up the climb onto the plateau.
-    const { boarded, lost } = hops(1, [376, 434], LAB_3C_FLOOR_Y);
-    expect(boarded).toBeGreaterThan(200);
-    expect(lost).toEqual([]);
-  });
+    it(`GDD-WLD-15 lab-3c: every hop that boards R2 rides it to its buffer, ${after} held after the landing`, () => {
+      // From the floor before its cart (x 376 to 434), up the climb onto the plateau.
+      const { boarded, lost } = hops(1, [376, 434], LAB_3C_FLOOR_Y, after);
+      expect(boarded).toBeGreaterThan(200);
+      expect(lost).toEqual([]);
+    });
+  }
 
   it('GDD-WLD-15 lab-3c R3 takes him back down', () => {
     const states = ride(at(LAB_3C_OFRENDAS[1]!.x, LAB_3C_OFRENDAS[1]!.y), 2);
     const last = states[states.length - 1]!;
-    expect(last.carts[2]).toEqual({ phase: 'stopped', m: railLength(LAB_3C_RAILS[2]!) - 16 });
+    // (Stopped with nobody in it, it counts towards its return: `toMatchObject`.)
+    expect(last.carts[2]).toMatchObject({ phase: 'stopped', m: railLength(LAB_3C_RAILS[2]!) - 16 });
     expect(last.player).toMatchObject({ grounded: true, y: LAB_3C_FLOOR_Y });
   });
 
@@ -178,5 +250,92 @@ describe('GDD-WLD-15 lab-3c', () => {
     expect(inCart(r, 0)).toBe(true);
     expect(r.carts[0]!.phase).toBe('rolling');
     expect(r.player.x - middleOf(r, 0)).toBeCloseTo(offset, 6);
+  });
+
+  it('GDD-WLD-15 lab-3c R5: a jump from the cart crosses the pit and the cart is back 2 s after it fell', () => {
+    // From the third ofrenda: he hops in, hops the hanging beam and lands back in the cart, and jumps with its middle 20 px before the end.
+    const states = brokenRide(at(LAB_3C_OFRENDAS[2]!.x, LAB_3C_OFRENDAS[2]!.y), 4, { beam: true, before: 20 }, 450);
+    expect(states.every((s) => s.phase === 'playing')).toBe(true);
+    const over = states.findIndex((s) => !s.player.grounded && s.player.x > BEAM_FACE - 6 && s.player.x < BEAM_BACK + 6);
+    expect(over).toBeGreaterThan(0);
+    expect(states[over]!.player.y).toBeLessThanOrEqual(LAB_3C_BEAM.row * TILE); // over its top
+    const left = states.findIndex((s) => s.carts[4]!.phase === 'falling');
+    expect(states.slice(over, left).some((s) => inCart(s, 4) && s.player.x > BEAM_BACK + 6)).toBe(true); // back in the cart past it
+    const last = states[states.length - 1]!;
+    expect(last.player).toMatchObject({ grounded: true, y: LAB_3C_FLOOR_Y });
+    expect(last.player.x).toBeGreaterThan((LAB_3C_PIT.col1 + 1) * TILE - 6); // on the far bank
+    const landed = states.findIndex((s, i) => i > left && s.player.grounded);
+    // Measured: he lands 78.5 px past the rail's end (its far bank starts 48 px past it, the pit being 3 tiles).
+    expect(states[landed]!.player.x - (R5.x + railLength(R5))).toBeCloseTo(78.5, 6);
+    expect(states[left + 119]!.carts[4]!.phase).toBe('gone');
+    expect(states[left + 120]!.carts[4]).toEqual({ phase: 'waiting', m: 16 });
+  });
+
+  it('GDD-WLD-15 lab-3c R5: staying in costs a life in the pit, and the respawn finds the cart at its start', () => {
+    const start = at(LAB_3C_OFRENDAS[2]!.x, LAB_3C_OFRENDAS[2]!.y);
+    const states = brokenRide(start, 4, { beam: true }, 400);
+    const fell = states.findIndex((s) => s.phase === 'respawning');
+    expect(fell).toBeGreaterThan(0);
+    expect(states[fell]!.lives.lives).toBe(start.lives.lives - 1);
+    expect(states[fell]!.player.y - 32).toBeGreaterThan(level.world.height * TILE); // by the pit rule
+    const back = states.findIndex((s, i) => i > fell && s.phase === 'playing');
+    expect(back).toBeGreaterThan(fell);
+    expect(states[back]!.player).toMatchObject({ x: LAB_3C_OFRENDAS[2]!.x, y: LAB_3C_OFRENDAS[2]!.y });
+    expect(states[back]!.carts[4]).toEqual({ phase: 'waiting', m: 16 });
+  });
+
+  it('GDD-WLD-15 lab-3c R5: the hanging beam is hopped from the cart', () => {
+    // Its underside 2 tiles (32 px) over the rail's ground, open space over it, the post at least 6 tiles past it.
+    expect(LAB_3C_FLOOR_Y - (LAB_3C_BEAM.row + 1) * TILE).toBe(32);
+    expect(level.world.solidTile(LAB_3C_BEAM.col, LAB_3C_BEAM.row - 1)).toBe(false);
+    expect(warningPost(R5)!.x - BEAM_BACK).toBeGreaterThanOrEqual(6 * TILE);
+    // The bot hops it and lands back in the cart past it.
+    const hopped = brokenRide(at(LAB_3C_OFRENDAS[2]!.x, LAB_3C_OFRENDAS[2]!.y), 4, { beam: true }, 200);
+    expect(hopped.some((s) => inCart(s, 4) && s.player.x > BEAM_BACK + 6)).toBe(true);
+    // The takeoffs that clear it: a full held jump from standing at the cart's middle, its middle at m, for every m a ride passes (2.5 px a
+    // step from 16): those that land back in the cart past the beam. Measured: 8 steps, from 45 px before its near face to 27.5 px (the
+    // GDD's scratch figure was 9 steps, 25 to 45 px). Earlier ones land on the beam's top or hit its face; later ones hit its face.
+    const clears: number[] = [];
+    for (let m = 16; R5.x + m < BEAM_FACE; m += 2.5) {
+      let r: RunState = { ...startRun(level), player: spawn(R5.x + m, LAB_3C_FLOOR_Y - CART.floorPx), carts: LAB_3C_RAILS.map((_, i) => (i === 4 ? { phase: 'rolling', m } : { phase: 'waiting', m: 16 })) };
+      for (let n = 0; n < 60 && !(n > 0 && r.player.grounded); n++) r = stepRun(r, { move: 0, jumpHeld: true }, level);
+      if (inCart(r, 4) && r.player.x > BEAM_BACK + 6) clears.push(BEAM_FACE - (R5.x + m));
+    }
+    expect(clears.length).toBe(8);
+    expect([Math.max(...clears), Math.min(...clears)]).toEqual([45, 27.5]);
+    expect(clears.every((d, i) => i === 0 || clears[i - 1]! - d === 2.5)).toBe(true); // one window, no gaps
+    // A rider who does not hop is stopped by it, at its face, while the cart rolls on.
+    const stays = brokenRide(at(LAB_3C_OFRENDAS[2]!.x, LAB_3C_OFRENDAS[2]!.y), 4, { beam: false }, 200);
+    expect(Math.max(...stays.map((s) => s.player.x))).toBeLessThanOrEqual(BEAM_FACE - 6 + 1e-6);
+    expect(stays[stays.length - 1]!.player).toMatchObject({ grounded: true, y: LAB_3C_FLOOR_Y });
+    expect(stays.some((s) => s.carts[4]!.phase === 'rolling' && middleOf(s, 4) > BEAM_BACK + 50)).toBe(true);
+  });
+
+  it('GDD-WLD-15 lab-3c R6: the cart breaks on the sunken floor and a Poncho who stays in lands there with no life lost and jumps back out', () => {
+    // From the far bank of R5's pit, 3 tiles before R6's start: he hops in, stays in over the end, and once on the sunken floor jumps out
+    // over its far wall.
+    const start = at(R6.x - 3 * TILE, LAB_3C_FLOOR_Y);
+    const states = brokenRide(start, 5, { out: true }, 400);
+    expect(states.every((s) => s.phase === 'playing' && s.lives.lives === start.lives.lives)).toBe(true);
+    const left = states.findIndex((s) => s.carts[5]!.phase === 'falling');
+    const gone = states.findIndex((s) => s.carts[5]!.phase === 'gone');
+    expect(left).toBeGreaterThan(0);
+    // It breaks on the sunken floor: the step before, its box is over it and above its top; that step its bottom is past it.
+    const before = fallingBox(R6, states[gone - 1]!.carts[5]!)!;
+    expect(before.y + before.h).toBeLessThanOrEqual(SUNKEN_Y);
+    expect(before.x).toBeGreaterThanOrEqual(LAB_3C_SUNKEN.col0 * TILE);
+    expect(before.x + before.w).toBeLessThanOrEqual((LAB_3C_SUNKEN.col1 + 1) * TILE);
+    // Measured: 17 steps from the step it left the rail (6 rolling off level, then 11 falling).
+    expect(gone - left).toBe(17);
+    // He lands on the sunken floor, and jumps back out onto the floor past its far wall.
+    const down = states.findIndex((s) => s.player.grounded && s.player.y === SUNKEN_Y);
+    expect(down).toBeGreaterThan(left);
+    const last = states[states.length - 1]!;
+    expect(last.player).toMatchObject({ grounded: true, y: LAB_3C_FLOOR_Y });
+    expect(last.player.x).toBeGreaterThan((LAB_3C_SUNKEN.col1 + 1) * TILE);
+  });
+
+  it('GDD-WLD-15 lab-3c: each broken end\'s post is 6 tiles before it', () => {
+    expect(LAB_3C_RAILS.map((r) => warningPost(r))).toEqual([null, null, null, null, { x: R5.x + railLength(R5) - 96, y: LAB_3C_FLOOR_Y }, { x: R6.x + railLength(R6) - 96, y: LAB_3C_FLOOR_Y }]);
   });
 });

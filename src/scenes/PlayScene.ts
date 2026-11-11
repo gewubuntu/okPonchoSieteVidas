@@ -67,7 +67,8 @@ import { estrellaStart } from '../sim/estrella';
 import { estrellaFrameInfo, estrellaPose, tejocoteBoxes } from '../ui/estrellaPose';
 import { flipPose } from '../sim/respawnFlip';
 import { blockAt } from '../sim/block';
-import { cartFloor, floorUnder, railGround, railLength, type CartState } from '../sim/cart';
+import { cartFloor, fallingBox, railGround, railLength, warningPost, type CartState } from '../sim/cart';
+import { cartPose, WHEEL_OFFSET } from '../ui/cartPose';
 import { platformAt } from '../sim/platform';
 import { buttonsDown, respawnPoint, restartRun, restarts, resumeRun, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
@@ -345,11 +346,13 @@ export interface PonchoDebug {
   /** Where each moving block is: its top left corner and size (GDD-WLD-05). */
   blocks(): { x: number; y: number; w: number; h: number }[];
   /**
-   * GDD-WLD-15: each cart, in the order of the level's rails, read from the run: its floor's left end and width (the cart's), the floor's
-   * top under the cart's middle (8 px over the rail's ground there; the floor follows the rail, so on a slope it is that much higher or lower
-   * under a Poncho standing off the middle), and its phase ('waiting', 'rolling' or 'stopped').
+   * GDD-WLD-15: each cart, in the order of the level's rails, read from the run, with its phase ('waiting', 'rolling', 'stopped', 'falling'
+   * or 'gone'). On its rail: its floor's left end and width (the cart's) and the floor's top under the cart's middle (8 px over the rail's
+   * ground there; the floor follows the rail, so on a slope it is that much higher or lower under a Poncho standing off the middle). Falling
+   * from a broken end: its box's left end, top, width and height (`h`). Gone: its phase only, no place. On its rail it also gives the `angle`
+   * in degrees it was last drawn at (`cartPose`; positive clockwise on the screen: -45 with its right side up, 0 on level rail).
    */
-  carts(): { x: number; y: number; w: number; phase: string }[];
+  carts(): { x?: number; y?: number; w?: number; h?: number; angle?: number; phase: string }[];
   /** The crumbling tiles and their state, read from the run (GDD-WLD-05). */
   crumbles(): { col: number; row: number; phase: string; steps: number }[];
   /**
@@ -576,6 +579,8 @@ export class PlayScene extends Phaser.Scene {
   private cartBackGfx!: Phaser.GameObjects.Graphics;
   private cartFrontGfx!: Phaser.GameObjects.Graphics;
   private prevCarts: readonly CartState[] = [];
+  /** GDD-WLD-15: the angle each cart on its rail was last drawn at, in degrees (`cartPose`), for the debug `carts()`. */
+  private cartAngles: number[] = [];
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
   /** GDD-PWR-02, GDD-ART-04: the level's taco pickups, one image each, and what Poncho holds, the claw swipe and the effect at his mouth. */
@@ -1358,7 +1363,13 @@ export class PlayScene extends Phaser.Scene {
         ofrendas: () => this.ofrendasDrawn,
         platforms: () => this.level.platforms.map((p) => platformAt(p, this.run.platformTick)),
         blocks: () => (this.level.blocks ?? []).map((b) => blockAt(b, this.run.platformTick)),
-        carts: () => (this.level.rails ?? []).map((r, i) => ({ ...cartFloor(r, this.run.carts[i]!), phase: this.run.carts[i]!.phase })),
+        carts: () =>
+          (this.level.rails ?? []).map((r, i) => {
+            const c = this.run.carts[i]!;
+            if (c.phase === 'gone') return { phase: c.phase };
+            const fell = fallingBox(r, c);
+            return fell ? { ...fell, phase: c.phase } : { ...cartFloor(r, c), phase: c.phase, angle: this.cartAngles[i] ?? 0 };
+          }),
         crumbles: () => this.level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
         market: () => ({
           ...(this.market?.drawn ?? { awnings: [], rollos: [] }),
@@ -1544,20 +1555,33 @@ export class PlayScene extends Phaser.Scene {
   /**
    * GDD-WLD-15, GDD-ART-06 (placeholders in World 3's colours): each rail as two 1 px rows, steel over iron dark, 4 px over its ground and
    * following its segments, on timber sleepers 4 px wide and 2 px tall every 8 px with the backdrop between them, no outline, so it does not read as a
-   * floor; and at its end a buffer, an outlined timber block 8 x 12 px standing on the ground past the rail's last px. Drawn once: rails do
-   * not move.
+   * floor; and at its end a buffer, an outlined timber block 8 x 12 px standing on the ground past the rail's last px, or, at a broken end,
+   * splayed pale tips and its warning post 6 tiles before it (`drawPost`). Drawn once: rails do not move.
    */
   private drawRails(): void {
     const g = this.railGfx;
     for (const r of this.level.rails ?? []) {
       const length = railLength(r);
+      const broken = r.end === 'broken';
       for (let d = 0; d < length; d++) {
         const x = r.dir > 0 ? r.x + d : r.x - d - 1;
         const ground = Math.round(railGround(r, d + 0.5));
+        // A broken end: over its last 6 px the two rows bend up and apart (the top one 1 px a px, the lower one 1 px every 2), their tips
+        // mist white, and its last sleeper hangs by one end.
+        const k = broken ? d - (length - 6) : -1;
+        if (k >= 0) {
+          g.fillStyle(k >= 4 ? 0xeef1ea : 0x93a0ae, 1).fillRect(x, ground - 5 - k, 1, 1);
+          g.fillStyle(k >= 4 ? 0xeef1ea : 0x353a48, 1).fillRect(x, ground - 3 - Math.floor(k / 2), 1, 1);
+          if (k === 0) g.fillStyle(0x75614f, 1).fillRect(x - r.dir * 2, ground - 2, 2, 4);
+          continue;
+        }
         if (d % 8 < 4) g.fillStyle(0x75614f, 1).fillRect(x, ground - 2, 1, 2);
         g.fillStyle(0x93a0ae, 1).fillRect(x, ground - 4, 1, 1);
         g.fillStyle(0x353a48, 1).fillRect(x, ground - 3, 1, 1);
       }
+      const post = warningPost(r);
+      if (post) this.drawPost(post.x, post.y);
+      if (broken) continue;
       const end = r.x + r.dir * length;
       const ground = railGround(r, length);
       const bx = r.dir > 0 ? end : end - 8;
@@ -1568,39 +1592,85 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
+   * GDD-WLD-15, GDD-ART-06 (placeholder): a broken end's warning post standing on the ground at (x, ground), 8 x 24 px: a timber pole 2 px
+   * wide, a diamond board 8 x 8 at its top (outlined, a mist white rim round lamp amber, a dark line with a gap across it), and under the
+   * board a lit lantern 4 x 5 (outlined, lamp amber inside, 2 x 3 px). Drawn with the rails, behind Poncho and the carts.
+   */
+  private drawPost(x: number, ground: number): void {
+    const g = this.railGfx;
+    g.fillStyle(0x75614f, 1).fillRect(x - 1, ground - 16, 2, 16);
+    const top = ground - 24;
+    for (let row = 0; row < 8; row++) {
+      const half = row < 4 ? row + 1 : 8 - row;
+      g.fillStyle(0x070509, 1).fillRect(x - half, top + row, half * 2, 1);
+      if (half > 1) g.fillStyle(0xeef1ea, 1).fillRect(x - half + 1, top + row, half * 2 - 2, 1);
+      if (half > 2) g.fillStyle(0xf0a23a, 1).fillRect(x - half + 2, top + row, half * 2 - 4, 1);
+    }
+    g.fillStyle(0x353a48, 1).fillRect(x - 2, top + 4, 1, 1).fillRect(x + 1, top + 4, 1, 1);
+    g.fillStyle(0x070509, 1).fillRect(x - 2, ground - 16, 4, 5);
+    g.fillStyle(0xf0a23a, 1).fillRect(x - 1, ground - 15, 2, 3);
+  }
+
+  /**
    * GDD-WLD-15, GDD-ART-06, GDD-ART-05 (placeholders): each cart, a rust tub 32 px wide with the 1 px dark outline of touchable things, from
-   * 16 px over the rail's ground down to its wheels on the rail. It follows the rail like its floor: each px column of it stands on the rail's
-   * ground under that column, so on a slope it is drawn sheared. Its back wall and the dark inside are drawn behind Poncho, and its front
+   * 16 px over the rail's ground down to its wheels on the rail. It is drawn rigid, standing on its two wheels and tilted with the rail under
+   * them (`cartPose`): level on level rail, 45 degrees on a slope, turning as its wheels pass a join. Its back wall and the dark inside are drawn behind Poncho, and its front
    * wall, from 12 px over the ground to 4 px over it, in front of him, so it hides his feet on the floor 8 px over the ground wherever he
-   * stands in it, and he reads as standing in it. Drawn between the last two steps, like Poncho, so he does not slide in it.
+   * stands in it, and he reads as standing in it. Drawn between the last two steps, like Poncho, so he does not slide in it. A cart falling
+   * from a broken end is drawn level at its box; a gone one is not drawn.
    */
   private renderCarts(alpha: number): void {
     const back = this.cartBackGfx.clear();
     const front = this.cartFrontGfx.clear();
+    this.cartAngles = [];
     (this.level.rails ?? []).forEach((r, i) => {
       const now = this.run.carts[i]!;
       const was = this.prevCarts[i] ?? now;
-      const cart = { ...now, m: was.m + (now.m - was.m) * alpha };
-      const x = cartFloor(r, cart).x;
-      const groundAt = (c: number) => floorUnder(r, cart, x + c + 0.5).y + CART.floorPx;
-      for (let c = 0; c < CART.width; c++) {
-        const ground = groundAt(c);
-        const edge = c === 0 || c === CART.width - 1;
-        // Behind him: the back wall's rim and the dark inside, outlined.
-        back.fillStyle(0x070509, 1).fillRect(x + c, ground - CART.height, 1, 11);
-        if (!edge) back.fillStyle(0x93a0ae, 1).fillRect(x + c, ground - 15, 1, 1).fillStyle(0x5a3b28, 1).fillRect(x + c, ground - 14, 1, 8);
-        // In front of him: the front wall, rust under a steel rim, outlined.
-        front.fillStyle(0x070509, 1).fillRect(x + c, ground - 12, 1, 8);
-        if (!edge) front.fillStyle(0x93a0ae, 1).fillRect(x + c, ground - 12, 1, 1).fillStyle(0xb0562e, 1).fillRect(x + c, ground - 11, 1, 6);
+      // Gone, it is not drawn. Falling from a broken end, it is drawn level, from where it was (on the rail on the step it left it) to where it is.
+      if (now.phase === 'gone') return;
+      const fell = fallingBox(r, now);
+      if (fell) {
+        const from = fallingBox(r, was) ?? { x: r.x + r.dir * was.m - CART.width / 2, y: railGround(r, was.m) - CART.height };
+        this.drawTub(from.x + (fell.x - from.x) * alpha, from.y + (fell.y - from.y) * alpha + CART.height);
+        return;
       }
-      // Two iron wheels with steel hubs, each standing on the rail under its middle.
-      for (const wx of [5, CART.width - 9]) {
-        const ground = groundAt(wx + 2);
-        front.fillStyle(0x353a48, 1).fillRect(x + wx, ground - 8, 4, 4);
-        front.fillStyle(0x93a0ae, 1).fillRect(x + wx + 1, ground - 7, 2, 2);
+      // A cart back at its start is drawn there, not slid back along its rail.
+      const start = was.m > now.m || was.phase === 'falling' || was.phase === 'gone' ? now : was;
+      const pose = cartPose(r, { ...now, m: start.m + (now.m - start.m) * alpha });
+      const angle = pose.angle;
+      this.cartAngles[i] = (angle * 180) / Math.PI;
+      if (angle === 0) {
+        this.drawTub(pose.x - CART.width / 2, pose.y + pose.bottom);
+        return;
       }
+      // Tilted with the rail: drawn level with its floor line's middle on its pose's point, then turned there, front and back together.
+      for (const g of [back, front]) g.save().translateCanvas(pose.x, pose.y).rotateCanvas(angle);
+      this.drawTub(-CART.width / 2, pose.bottom);
+      for (const g of [back, front]) g.restore();
     });
   }
+
+  /**
+   * GDD-WLD-15 (placeholder): a cart's tub, level, its left end at `x` and its wheels on the ground at `ground`: the back wall's rim and the
+   * dark inside, outlined, behind Poncho; the front wall, rust under a steel rim, outlined, and two iron wheels with steel hubs, in front.
+   */
+  private drawTub(x: number, ground: number): void {
+    const back = this.cartBackGfx;
+    const front = this.cartFrontGfx;
+    for (let c = 0; c < CART.width; c++) {
+      const edge = c === 0 || c === CART.width - 1;
+      back.fillStyle(0x070509, 1).fillRect(x + c, ground - CART.height, 1, 11);
+      if (!edge) back.fillStyle(0x93a0ae, 1).fillRect(x + c, ground - 15, 1, 1).fillStyle(0x5a3b28, 1).fillRect(x + c, ground - 14, 1, 8);
+      front.fillStyle(0x070509, 1).fillRect(x + c, ground - 12, 1, 8);
+      if (!edge) front.fillStyle(0x93a0ae, 1).fillRect(x + c, ground - 12, 1, 1).fillStyle(0xb0562e, 1).fillRect(x + c, ground - 11, 1, 6);
+    }
+    // Each wheel's middle WHEEL_OFFSET from the tub's middle.
+    for (const wx of [CART.width / 2 - WHEEL_OFFSET - 2, CART.width / 2 + WHEEL_OFFSET - 2]) {
+      front.fillStyle(0x353a48, 1).fillRect(x + wx, ground - 8, 4, 4);
+      front.fillStyle(0x93a0ae, 1).fillRect(x + wx + 1, ground - 7, 2, 2);
+    }
+  }
+
 
   /**
    * Draws every live enemy as an image of its kind's sheet, posed by `enemyPose` (GDD-ENM-02, GDD-ENM-03); a defeated one is not drawn but

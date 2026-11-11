@@ -14,7 +14,8 @@ import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } f
 import { releaseFrom, stepItem, touchesItem, type Item } from './item';
 import { bumpedPinata, freshPinatas, withPinatas, type Pinata } from './pinata';
 import { collideBlocks, moveBlocks, type MovingBlock } from './block';
-import { boardCarts, carryOnCarts, freshCarts, holdInCarts, keepCarry, landInCarts, rollCarts, type CartState, type Rail } from './cart';
+import { boardCarts, breakCarts, carryOnCarts, freshCarts, holdInCarts, keepCarry, landInCarts, returnCarts, rollCarts, type CartState, type Rail } from './cart';
+import { isBossLevel } from './bossLevel';
 import { carry, landOnPlatforms, type MovingPlatform } from './platform';
 import { awningTops, freshAwnings, landOnAwnings, type Awning, type AwningBounce } from './awning';
 import { freshRollos, growRollos, stillPlatforms, stringTops, touchesBundle, unrollTouched, type Cordel, type Rollo, type RolloState } from './papel';
@@ -363,19 +364,22 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
 
   // GDD-WLD-05: a platform carries Poncho, then he lands on the one he came down on.
   const solid = withFragiles(withDoors(withPinatas(withCrumbles(withSprings(level.world, level.springs), level.crumbles, run.crumbles), level.pinatas), level.doors, run.doorsOpen), level.fragiles, run.fragilesBroken);
-  // GDD-WLD-15: a rolling cart moves along its rail and carries him the same way, then he lands in the one he came down into.
+  // GDD-WLD-15: an empty cart at its rail's end comes back to its start; a rolling cart moves along its rail and carries him the same way,
+  // then he lands in the one he came down into. A falling cart falls, and breaks on what it touches.
   const rails = level.rails ?? [];
-  const rolled = rollCarts(rails, run.carts);
-  const carried = carryOnCarts(carry(run.player, level.platforms, run.platformTick, solid), rails, run.carts, rolled, solid);
+  const back = returnCarts(rails, run.carts, run.player, isBossLevel(level));
+  const rolled = breakCarts(rails, rollCarts(rails, back), solid, level.spikes, level.world.height * TILE);
+  const carried = carryOnCarts(carry(run.player, level.platforms, run.platformTick, solid), rails, back, rolled, solid);
   // GDD-WLD-05: a moving block carries or pushes him too, and stops him on every side. GDD-LIFE-02: a push or a carry up into a solid tile crushes him.
   const pushed = moveBlocks(carried, level.blocks ?? [], run.platformTick, solid);
   const stepped = step(pushed.player, input, solid, level.abilities, run.fantasma > 0 ? FANTASMA.runSpeed : RUN.maxSpeed);
   // GDD-WLD-11: the rollos that are unrolling grow, then Poncho lands on a cordel or a rollo's strung part like on a platform that stays put.
   const grown = growRollos(run.rollos);
   const strung = landOnPlatforms(pushed.player, stepped, stillPlatforms(stringTops(level.cordeles ?? [], level.rollos ?? [], grown)), 0, solid);
-  const onFloor = landInCarts(run.player, pushed.player, landOnPlatforms(pushed.player, strung, level.platforms, run.platformTick, solid), rails, run.carts, rolled, solid);
-  // GDD-WLD-15: a rolling cart's walls hold its rider; off a rolling cart's floor he keeps its speed across (the carry rule).
-  const landed = keepCarry(run.player, holdInCarts(collideBlocks(pushed.player, onFloor, level.blocks ?? [], run.platformTick), rails, rolled, solid), rails, run.carts);
+  const onFloor = landInCarts(run.player, pushed.player, landOnPlatforms(pushed.player, strung, level.platforms, run.platformTick, solid), rails, back, rolled, solid);
+  // GDD-WLD-15: a rolling cart's walls hold its rider; off a rolling cart's floor he keeps its speed across (the carry rule), also when it
+  // leaves a broken end under him.
+  const landed = keepCarry(run.player, holdInCarts(collideBlocks(pushed.player, onFloor, level.blocks ?? [], run.platformTick), rails, rolled, solid), rails, back);
   const platformTick = run.platformTick + 1;
   // GDD-WLD-05: a spring throws Poncho up the step he stands on it.
   const sprung = bounce(landed, level.springs);
