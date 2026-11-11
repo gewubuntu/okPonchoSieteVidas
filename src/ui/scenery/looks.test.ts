@@ -30,6 +30,7 @@ describe('GDD-ART-06 a look per world', () => {
       slopes: 'desierto',
       'lab-2m': 'mercado',
       'lab-2e': 'mercado',
+      'lab-3c': 'desierto',
     });
   });
 

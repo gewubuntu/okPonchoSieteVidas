@@ -18,6 +18,7 @@ import { SANDBOX_LEVEL } from './sandbox';
 import { SLOPES_LEVEL } from './slopes';
 import { LAB_2M_LEVEL } from './lab2m';
 import { LAB_2E_ID, LAB_2E_LEVEL } from './lab2e';
+import { LAB_3C_ID, LAB_3C_LEVEL } from './lab3c';
 
 export interface LevelEntry {
   readonly id: string;
@@ -53,6 +54,8 @@ export const LEVELS: readonly LevelEntry[] = [
   // GDD-WLD-10, GDD-WLD-11: the Mercado lab, a World 2 test level.
   { id: 'lab-2m', world: 2, test: true, level: LAB_2M_LEVEL },
   { id: LAB_2E_ID, world: 2, test: true, level: LAB_2E_LEVEL },
+  // GDD-WLD-15: the vagonetas lab, a World 3 test level.
+  { id: LAB_3C_ID, world: 3, test: true, level: LAB_3C_LEVEL },
 ];
 
 /** GDD-PRG-02: the levels whose progress is saved (the real ones, not the test level), by id, with their hilo counts: what `readSave` needs to read their entries. */
@@ -69,7 +72,7 @@ export const worldLevels = (world: number): readonly LevelEntry[] => LEVELS.filt
 
 /**
  * GDD-LIFE-05, GDD-PRG-02: the worlds whose lives the save keeps: those of the seven worlds that have a real level (Worlds 1 and 2; a
- * test level, such as the sandbox or the World 2 labs lab-2m and lab-2e, adds no world).
+ * test level, such as the sandbox, the World 2 labs lab-2m and lab-2e or the World 3 lab lab-3c, adds no world).
  */
 export const SAVED_WORLDS: readonly number[] = [...new Set(LEVELS.filter((e) => e.world >= 1 && !e.test).map((e) => e.world))];
 

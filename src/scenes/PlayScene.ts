@@ -2,7 +2,7 @@
 // Poncho is drawn from his sprite sheet (GDD-ART-02, GDD-ART-04), and the backdrop, the decor and the ground tiles are the level's
 // world's art (GDD-ART-06, `src/ui/scenery/`); the rest is placeholder until its art (GDD-ART-01), Tiled levels with GDD-TEC-04.
 import Phaser from 'phaser';
-import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, BOSS_ART, BOSS_BAR, ENEMY_ART, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
+import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, BOSS_ART, BOSS_BAR, CART, ENEMY_ART, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
 import { bossCrown, bossStart } from '../sim/boss';
 import { isBossLevel, levelBoss } from '../sim/bossLevel';
 import { centre, enemyPhase, feetOf, kindOf, type EnemyKind } from '../sim/enemy';
@@ -67,6 +67,7 @@ import { estrellaStart } from '../sim/estrella';
 import { estrellaFrameInfo, estrellaPose, tejocoteBoxes } from '../ui/estrellaPose';
 import { flipPose } from '../sim/respawnFlip';
 import { blockAt } from '../sim/block';
+import { cartFloor, railGround, railLength, type CartState } from '../sim/cart';
 import { platformAt } from '../sim/platform';
 import { buttonsDown, respawnPoint, restartRun, restarts, resumeRun, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
@@ -343,6 +344,11 @@ export interface PonchoDebug {
   platforms(): { x: number; y: number; w: number }[];
   /** Where each moving block is: its top left corner and size (GDD-WLD-05). */
   blocks(): { x: number; y: number; w: number; h: number }[];
+  /**
+   * GDD-WLD-15: each cart, in the order of the level's rails, read from the run: its floor, the one-way surface Poncho stands on (its left
+   * end, its top and its width, 8 px over the rail's ground and as wide as the cart), and its phase ('waiting', 'rolling' or 'stopped').
+   */
+  carts(): { x: number; y: number; w: number; phase: string }[];
   /** The crumbling tiles and their state, read from the run (GDD-WLD-05). */
   crumbles(): { col: number; row: number; phase: string; steps: number }[];
   /**
@@ -564,6 +570,11 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-WLD-10, GDD-WLD-11: the awnings, cordeles and rollos, in a level that has any. */
   private market: MarketThings | null = null;
   private blockGfx!: Phaser.GameObjects.Graphics;
+  /** GDD-WLD-15: the rails and buffers (drawn once), each cart's back wall behind Poncho and its front wall in front of him, and the carts drawn on the step before. */
+  private railGfx!: Phaser.GameObjects.Graphics;
+  private cartBackGfx!: Phaser.GameObjects.Graphics;
+  private cartFrontGfx!: Phaser.GameObjects.Graphics;
+  private prevCarts: readonly CartState[] = [];
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
   /** GDD-PWR-02, GDD-ART-04: the level's taco pickups, one image each, and what Poncho holds, the claw swipe and the effect at his mouth. */
@@ -961,6 +972,10 @@ export class PlayScene extends Phaser.Scene {
     this.platformGfx = this.add.graphics().setDepth(1);
     this.market = hasMarketThings(this.level) ? new MarketThings(this, this.level) : null;
     this.blockGfx = this.add.graphics().setDepth(1);
+    this.railGfx = this.add.graphics().setDepth(1);
+    this.drawRails();
+    this.cartBackGfx = this.add.graphics().setDepth(2.5);
+    this.cartFrontGfx = this.add.graphics().setDepth(3.2);
     this.crumbleGfx = this.add.graphics().setDepth(1);
     this.drawCrumbles();
 
@@ -1331,6 +1346,7 @@ export class PlayScene extends Phaser.Scene {
           this.renderPlatforms(1);
           this.market?.draw(this.run);
           this.renderBlocks(1);
+          this.renderCarts(1);
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
           this.followBody();
           this.drawVeladora();
@@ -1341,6 +1357,7 @@ export class PlayScene extends Phaser.Scene {
         ofrendas: () => this.ofrendasDrawn,
         platforms: () => this.level.platforms.map((p) => platformAt(p, this.run.platformTick)),
         blocks: () => (this.level.blocks ?? []).map((b) => blockAt(b, this.run.platformTick)),
+        carts: () => (this.level.rails ?? []).map((r, i) => ({ ...cartFloor(r, this.run.carts[i]!), phase: this.run.carts[i]!.phase })),
         crumbles: () => this.level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
         market: () => ({
           ...(this.market?.drawn ?? { awnings: [], rollos: [] }),
@@ -1521,6 +1538,63 @@ export class PlayScene extends Phaser.Scene {
       this.blockGfx.fillStyle(0x3a3a3a, 1);
       for (const [sx, sy] of [[1, 1], [at.w - 3, 1], [1, at.h - 3], [at.w - 3, at.h - 3]] as const) this.blockGfx.fillRect(at.x + sx, at.y + sy, 2, 2);
     }
+  }
+
+  /**
+   * GDD-WLD-15, GDD-ART-06 (placeholders in World 3's colours): each rail as two 1 px rows, steel over iron dark, 4 px over its ground and
+   * following its segments, on timber sleepers 4 px wide and 2 px tall every 8 px with the backdrop between them, no outline, so it does not read as a
+   * floor; and at its end a buffer, an outlined timber block 8 x 12 px standing on the ground past the rail's last px. Drawn once: rails do
+   * not move.
+   */
+  private drawRails(): void {
+    const g = this.railGfx;
+    for (const r of this.level.rails ?? []) {
+      const length = railLength(r);
+      for (let d = 0; d < length; d++) {
+        const x = r.dir > 0 ? r.x + d : r.x - d - 1;
+        const ground = Math.round(railGround(r, d + 0.5));
+        if (d % 8 < 4) g.fillStyle(0x75614f, 1).fillRect(x, ground - 2, 1, 2);
+        g.fillStyle(0x93a0ae, 1).fillRect(x, ground - 4, 1, 1);
+        g.fillStyle(0x353a48, 1).fillRect(x, ground - 3, 1, 1);
+      }
+      const end = r.x + r.dir * length;
+      const ground = railGround(r, length);
+      const bx = r.dir > 0 ? end : end - 8;
+      g.fillStyle(0x070509, 1).fillRect(bx, ground - 12, 8, 12);
+      g.fillStyle(0x75614f, 1).fillRect(bx + 1, ground - 11, 6, 10);
+      g.fillStyle(0xa89480, 1).fillRect(bx + 1, ground - 11, 6, 1);
+    }
+  }
+
+  /**
+   * GDD-WLD-15, GDD-ART-06, GDD-ART-05 (placeholders): each cart, a rust tub 32 px wide with the 1 px dark outline of touchable things, from
+   * 16 px over the rail's ground down to its wheels on the rail. Its back wall and the dark inside are drawn behind Poncho, and its front
+   * wall, from 12 px over the ground to its bottom, in front of him, so it hides his feet on the floor 8 px over the ground and he reads as
+   * standing in it. Drawn between the last two steps, like Poncho, so he does not slide in it.
+   */
+  private renderCarts(alpha: number): void {
+    const back = this.cartBackGfx.clear();
+    const front = this.cartFrontGfx.clear();
+    (this.level.rails ?? []).forEach((r, i) => {
+      const now = this.run.carts[i]!;
+      const was = this.prevCarts[i] ?? now;
+      const floor = cartFloor(r, { ...now, m: was.m + (now.m - was.m) * alpha });
+      const x = floor.x;
+      const ground = floor.y + CART.floorPx;
+      const top = ground - CART.height;
+      // Behind him: the back wall's rim and the dark inside, outlined.
+      back.fillStyle(0x070509, 1).fillRect(x, top, CART.width, 11);
+      back.fillStyle(0x5a3b28, 1).fillRect(x + 1, top + 2, CART.width - 2, 8);
+      back.fillStyle(0x93a0ae, 1).fillRect(x + 1, top + 1, CART.width - 2, 1);
+      // In front of him: the front wall, rust under a steel rim, outlined, and two iron wheels with steel hubs standing on the rail.
+      front.fillStyle(0x070509, 1).fillRect(x, ground - 12, CART.width, 8);
+      front.fillStyle(0x93a0ae, 1).fillRect(x + 1, ground - 12, CART.width - 2, 1);
+      front.fillStyle(0xb0562e, 1).fillRect(x + 1, ground - 11, CART.width - 2, 6);
+      for (const wx of [5, CART.width - 9]) {
+        front.fillStyle(0x353a48, 1).fillRect(x + wx, ground - 8, 4, 4);
+        front.fillStyle(0x93a0ae, 1).fillRect(x + wx + 1, ground - 7, 2, 2);
+      }
+    });
   }
 
   /**
@@ -2149,6 +2223,7 @@ export class PlayScene extends Phaser.Scene {
     if (vibration !== null) this.vibrate(vibration);
     // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
+    this.prevCarts = before.phase === 'playing' && this.run.phase === 'playing' ? before.carts : this.run.carts;
     this.ticks++;
     if (this.run.phase !== before.phase) this.phaseSince = this.ticks;
     if (this.run.phase === 'clear' && before.phase !== 'clear') {
@@ -2415,6 +2490,7 @@ export class PlayScene extends Phaser.Scene {
     this.renderPlatforms(alpha);
     this.market?.draw(this.run);
     this.renderBlocks(alpha);
+    this.renderCarts(alpha);
     if (this.level.veladora && veladoraUsed(this.run.lives, this.level.veladora) !== this.veladoraUsedDrawn) this.drawVeladora();
     this.renderBody(alpha);
     this.followBody();
@@ -2581,6 +2657,7 @@ export class PlayScene extends Phaser.Scene {
    */
   private resumeHere(saved: SavedRun): void {
     this.run = resumeRun(this.level, saved, this.progress[this.entry.id]?.hilos);
+    this.prevCarts = this.run.carts;
     this.defeats = [];
     this.drawnLives = this.run.lives.lives;
     this.cracks = [];
@@ -2630,6 +2707,7 @@ export class PlayScene extends Phaser.Scene {
       return true;
     }
     this.run = startRun(this.level, this.progress[this.entry.id]?.hilos, start.lives);
+    this.prevCarts = this.run.carts;
     this.prevPlayer = this.run.player;
     this.pose = startPose(this.run.player.x);
     this.peak = 0;
