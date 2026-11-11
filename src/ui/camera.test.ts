@@ -406,6 +406,20 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     expect(stepCameraY(still(210), r, onRaised, level)).toEqual({ camera: still(213), from: 210 });
   });
 
+  it("GDD-UI-04 a cut over a raised bottom stops at the span's limit", () => {
+    // The 40-row level with its floor at row 30 (y 480), a raised bottom over columns 10 to 15 at row 30 (GDD-WLD-03): its floor line y 496,
+    // its limit 224 (the level's own 368). His feet at 480 want the camera at 344: inside the span the cut stops at 224, outside it does not.
+    const level: Level = { ...levelOf(rowsOf(30, () => 30)), bottoms: [{ fromCol: 10, toCol: 15, row: 30 }] };
+    expect(cameraLimitsAt(level, 12 * TILE)).toEqual({ top: 0, bottom: 224 });
+    const run = startRun(level);
+    expect(cutCameraY({ ...run, player: spawn(12 * TILE, 480) }, level)).toEqual(still(224));
+    expect(cutCameraY({ ...run, player: spawn(20 * TILE, 480) }, level)).toEqual(still(344));
+    // At a respawn the respawn point's column counts, not where he fell.
+    const waiting: RunState = { ...run, phase: 'respawning', wait: 10, checkpoint: { x: 12 * TILE, y: 480 }, player: spawn(20 * TILE, 900) };
+    expect(cutCameraY(waiting, level)).toEqual(still(224));
+    expect(cutCameraY({ ...waiting, checkpoint: { x: 20 * TILE, y: 480 }, player: spawn(12 * TILE, 900) }, level)).toEqual(still(344));
+  });
+
   it('GDD-UI-04 the level start is a cut to his feet at 136, which in every level built is the camera at 0', () => {
     // A start low in a tall level: the cut puts his feet at 136.
     const level = { ...levelOf(rowsOf(30, () => 30)), spawn: { x: 200, y: 480 } };

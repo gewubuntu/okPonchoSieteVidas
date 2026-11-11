@@ -8,7 +8,7 @@ import type { Rail } from '../sim/cart';
 import type { Level, Ofrenda, Point } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import type { LevelEntry } from './index';
-import { gaps, validateLevel } from './validate';
+import { gaps, openGaps, validateLevel } from './validate';
 
 const HEIGHT = 17;
 const FLOOR_ROWS = 3;
@@ -513,6 +513,12 @@ const tall = (bottoms: readonly Bottom[], o: Options = {}) => entry({ world: 3, 
 const shelf = (pit: readonly number[], o: Options = {}) =>
   tall([{ fromCol: 56, toCol: 71, row: 13 }], { pits: cols(56, 71), solid: cols(56, 71).filter((c) => !pit.includes(c)).flatMap((c) => [10, 11, 12, 13].map((r) => [c, r] as const)), ...o });
 
+/** A pillar at column 14 from row 20 down to the floor (rows 20 to 26), but the rows in `skip`. */
+const pillar = (skip: readonly number[] = []) => Array.from({ length: 7 }, (_, i) => 20 + i).filter((r) => !skip.includes(r)).map((r) => [14, r] as const);
+/** The problem of column `col` under a raised bottom at row 20. */
+const fails = (col: number) => [`column ${col} under the raised bottom at row 20 is neither solid nor empty all the way down`];
+/** Row 26 made solid in columns `from` to `to`, on the floor (rows 27 to 29). */
+const row26 = (from: number, to: number) => cols(from, to).map((c) => [c, 26] as const);
 /** A cordel over column 63, its top at y. */
 const cordel = (y: number) => ({ cordeles: [{ x: 63 * TILE, y, w: TILE }] });
 /** A raised bottom at `row` over a pit at columns 10 to 13, empty all the way down. */
@@ -527,18 +533,18 @@ const tallArena = (height: number) => entry({ width: 30, ofrendas: [], exit: nul
 describe('GDD-TEC-04 and GDD-WLD-03 raised bottoms in the validator', () => {
   it('GDD-WLD-03 a pit column under a raised bottom is one whose own bottom row is empty', () => {
     // The shelf's ground ends at its row 13, the span's bottom row: only the pit's columns are empty there. Read on the last row, every
-    // column of the shelf would be a pit.
+    // column of the shelf would be a pit. (The shelf breaks the rule that a column under a raised bottom is solid all the way down, so in a
+    // level that passes the validator both readings agree: the gaps are read off the tiles here, as `openGaps` reads them.)
     expect(gaps(shelf(cols(60, 65)).level.world, shelf(cols(60, 65)).level.bottoms)).toEqual([{ col: 60, width: 6 }]);
     expect(gaps(shelf(cols(60, 65)).level.world)).toEqual([{ col: 56, width: 16 }]);
-    expect(validateLevel(shelf(cols(60, 65)))).toEqual([]);
-    expect(validateLevel(shelf(cols(60, 66)))).toEqual(['gap of 7 tiles at columns 60 to 66, World 3 allows 6']);
+    expect(openGaps(shelf(cols(60, 66)).level)).toEqual([{ col: 60, width: 7 }]);
   });
 
   it('GDD-WLD-03 under a raised bottom the bank is found from the span row', () => {
     // A cordel over column 63 of a 7-tile pit covers it when its top is at most 48 px over the shelf's top (y 160): the bank found by
     // walking up from the span's row 13. From the last row there is no ground at all.
-    expect(validateLevel(shelf(cols(60, 66), { level: cordel(112) }))).toEqual([]);
-    expect(validateLevel(shelf(cols(60, 66), { level: cordel(111) }))).toEqual(['gap of 7 tiles at columns 60 to 66, World 3 allows 6']);
+    expect(openGaps(shelf(cols(60, 66), { level: cordel(112) }).level)).toEqual([{ col: 60, width: 3 }, { col: 64, width: 3 }]);
+    expect(openGaps(shelf(cols(60, 66), { level: cordel(111) }).level)).toEqual([{ col: 60, width: 7 }]);
   });
 
   it('GDD-TEC-04 a raised bottom row is inside the level', () => {
@@ -573,30 +579,41 @@ describe('GDD-TEC-04 and GDD-WLD-03 raised bottoms in the validator', () => {
   });
 
   it('GDD-TEC-04 under a raised bottom every column is solid or empty all the way down', () => {
-    // Over a pit: empty all the way. A tile hung in it (a solid tile with air under it) is a ledge nobody sees.
-    expect(validateLevel(tall([{ fromCol: 10, toCol: 13, row: 20 }], { pits: cols(10, 13) }))).toEqual([]);
-    expect(validateLevel(tall([{ fromCol: 10, toCol: 13, row: 20 }], { pits: cols(10, 13), solid: [[11, 24]] }))).toEqual([
-      'column 11 under the raised bottom at row 20 is neither solid nor empty all the way down',
-    ]);
-    // Over the floor (its top row 27): from row 26 down it is solid all the way; from row 20, air with solid under it.
-    expect(validateLevel(tall([{ fromCol: 14, toCol: 17, row: 26 }]))).toEqual([]);
-    expect(validateLevel(tall([{ fromCol: 14, toCol: 14, row: 20 }]))).toEqual(['column 14 under the raised bottom at row 20 is neither solid nor empty all the way down']);
+    // A span at row 20 over a pit (columns 10 to 13, empty from row 0 to the last, 29) and over a pillar at column 14 (solid from row 20 to
+    // the last): it passes. Each case below differs from it in one tile, or in the review's case in the pit column's ground.
+    const span = [{ fromCol: 10, toCol: 14, row: 20 }];
+    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: pillar() }))).toEqual([]);
+    // A pit column with a tile right under its bottom row, or one in the level's last row.
+    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: [...pillar(), [11, 21]] }))).toEqual(fails(11));
+    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: [...pillar(), [11, 29]] }))).toEqual(fails(11));
+    // A solid column with air right under its bottom row, or in the level's last row (column 14 out of the floor, its rows 20 to 28 solid).
+    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: pillar([21]) }))).toEqual(fails(14));
+    expect(validateLevel(tall(span, { pits: [...cols(10, 14)], solid: [...pillar(), [14, 27], [14, 28]] }))).toEqual(fails(14));
+    // The review's case: a pit column empty on its bottom row with ground right under it, solid down to the last row: he would land on the
+    // floor line and stand below the picture, never lost.
+    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: [...pillar(), ...Array.from({ length: 9 }, (_, i) => [11, 21 + i] as const)] }))).toEqual(fails(11));
+    // A tile hung in the pit is a ledge nobody sees.
+    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: [...pillar(), [11, 24]] }))).toEqual(fails(11));
+    // Over the floor (its top row 27): from row 27 down it is solid all the way; from row 26, air with solid under it.
+    expect(validateLevel(tall([{ fromCol: 15, toCol: 17, row: 27 }]))).toEqual([]);
+    expect(validateLevel(tall([{ fromCol: 15, toCol: 15, row: 26 }]))).toEqual(['column 15 under the raised bottom at row 26 is neither solid nor empty all the way down']);
   });
 
   it("GDD-TEC-04 the spawn stands above its column's bottom row", () => {
-    // The spawn stands on the floor's top row 27 (y 432): on it as the bottom row passes, one row higher fails.
+    // The spawn stands on the floor's top row 27 (y 432): on it as the bottom row passes, one row higher fails (the columns made solid from
+    // that row down, so only this check fails).
     expect(validateLevel(tall([{ fromCol: 2, toCol: 4, row: 27 }]))).toEqual([]);
-    expect(validateLevel(tall([{ fromCol: 2, toCol: 4, row: 26 }]))).toEqual(["the spawn at 56,432 is below its column's bottom row (26)"]);
+    expect(validateLevel(tall([{ fromCol: 2, toCol: 4, row: 26 }], { solid: row26(2, 4) }))).toEqual(["the spawn at 56,432 is below its column's bottom row (26)"]);
   });
 
   it("GDD-TEC-04 every ofrenda stands above its column's bottom row", () => {
     expect(validateLevel(tall([{ fromCol: 29, toCol: 31, row: 27 }]))).toEqual([]);
-    expect(validateLevel(tall([{ fromCol: 29, toCol: 31, row: 26 }]))).toEqual(["ofrenda o0 at 488,432 is below its column's bottom row (26)"]);
+    expect(validateLevel(tall([{ fromCol: 29, toCol: 31, row: 26 }], { solid: row26(29, 31) }))).toEqual(["ofrenda o0 at 488,432 is below its column's bottom row (26)"]);
   });
 
   it("GDD-TEC-04 the exit stands above its column's bottom row", () => {
     expect(validateLevel(tall([{ fromCol: 84, toCol: 86, row: 27 }]))).toEqual([]);
-    expect(validateLevel(tall([{ fromCol: 84, toCol: 86, row: 26 }]))).toEqual(["the exit at 1368,432 is below its column's bottom row (26)"]);
+    expect(validateLevel(tall([{ fromCol: 84, toCol: 86, row: 26 }], { solid: row26(84, 86) }))).toEqual(["the exit at 1368,432 is below its column's bottom row (26)"]);
   });
 
   it('GDD-WLD-03 a level is 17 to 51 rows tall: 16 fails, 17 passes, 51 passes, 52 fails', () => {
@@ -624,7 +641,9 @@ describe('GDD-TEC-04 and GDD-WLD-03 raised bottoms in the validator', () => {
       { fromCol: 2, toCol: 4, row: 48 },
       { fromCol: 29, toCol: 31, row: 48 },
     ];
-    expect(validateLevel(entry({ world: 3, height: 52, test: true, exit: null, pits: cols(10, 13), level: { bottoms: broken } }))).toEqual([
+    // Row 48 solid under the last two, so they break only the standing check.
+    const solid = [...cols(2, 4), ...cols(29, 31)].map((c) => [c, 48] as const);
+    expect(validateLevel(entry({ world: 3, height: 52, test: true, exit: null, pits: cols(10, 13), solid, level: { bottoms: broken } }))).toEqual([
       '52 rows tall, expected 17 to 51',
       'raised bottom at columns 10 to 13 has its row -1 outside the level',
       "raised bottom at columns 20 to 21 is on the level's last row (51)",

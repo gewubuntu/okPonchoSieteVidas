@@ -129,7 +129,8 @@ function heightProblems(level: Level): string[] {
 /**
  * GDD-WLD-03, GDD-TEC-04: the raised bottoms. Each span's row is inside the level and above its last row (a span on the last row is no raised
  * bottom), its columns run left to right inside the level, and no two spans share a column. Under each, every column is solid all the way
- * down from the row below the span's to the last, or empty all the way (what is under a raised bottom is never seen). The spawn, every
+ * down from the span's row to the last, or empty all the way: its bottom-row tile decides which, and every tile below it is the same (what
+ * is under a raised bottom is never seen, and a pit column never has ground under its floor line to stand on). The spawn, every
  * ofrenda and the exit stand on or above their column's bottom row.
  */
 function bottomProblems(level: Level): string[] {
@@ -151,7 +152,7 @@ function bottomProblems(level: Level): string[] {
   });
   for (const b of spans) {
     for (let col = b.fromCol; col <= b.toCol; col++) {
-      const under = new Set(Array.from({ length: Math.max(0, last - b.row) }, (_, i) => world.solidTile(col, b.row + 1 + i)));
+      const under = new Set(Array.from({ length: Math.max(0, last - b.row + 1) }, (_, i) => world.solidTile(col, b.row + i)));
       if (under.size > 1) problems.push(`column ${col} under the raised bottom at row ${b.row} is neither solid nor empty all the way down`);
     }
   }

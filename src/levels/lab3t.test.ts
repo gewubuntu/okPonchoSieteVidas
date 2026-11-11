@@ -4,9 +4,10 @@ import { cartFloor } from '../sim/cart';
 import { spawn, type PlayerInput } from '../sim/movement';
 import { platformAt } from '../sim/platform';
 import { startRun, stepRun, type RunState } from '../sim/run';
+import { parseTiles } from '../sim/tilemap';
 import { cameraLimits, cameraLimitsAt, cutCameraY, followCamera, ponchoShown as shown, stepCameraY, type CameraY } from '../ui/camera';
 import { levelById } from './index';
-import { LAB_3T_CART_PLATEAU, LAB_3T_CHASM, LAB_3T_DROP, LAB_3T_HIGH_BOTTOM, LAB_3T_HIGH_PIT, LAB_3T_ID, LAB_3T_LEDGE, LAB_3T_LEVEL, LAB_3T_LIFT, LAB_3T_LOW_PIT, LAB_3T_LOWEST, LAB_3T_OFRENDAS, LAB_3T_PLATEAU, LAB_3T_RAILS, LAB_3T_SPAWN, LAB_3T_SPRINGS, LAB_3T_STAIRS, LAB_3T_TOP } from './lab3t';
+import { LAB_3T_CART_PLATEAU, LAB_3T_CHASM, LAB_3T_DROP, LAB_3T_HIGH_BOTTOM, LAB_3T_HIGH_PIT, LAB_3T_ID, LAB_3T_LEDGE, LAB_3T_LEVEL, LAB_3T_LIFT, LAB_3T_LOW_PIT, LAB_3T_LOWEST, LAB_3T_OFRENDAS, LAB_3T_PLATEAU, LAB_3T_RAILS, LAB_3T_ROWS, LAB_3T_SPAWN, LAB_3T_SPRINGS, LAB_3T_STAIRS, LAB_3T_TOP } from './lab3t';
 import { gaps } from './validate';
 import { validateLevel } from './validate';
 
@@ -134,6 +135,14 @@ function lift(): Frame[] {
 }
 
 describe('GDD-UI-04 lab-3t, the tall lab', () => {
+  it('GDD-TEC-04 lab-3t with ground hidden under its high pit fails the validator', () => {
+    // The review's input: the high pit's columns solid from the row right under its raised bottom (27) down to the last. He would land on its
+    // floor line, never be lost, and stand below the picture.
+    const rows = LAB_3T_ROWS.map((r, row) => (row > LAB_3T_HIGH_BOTTOM.row ? r.slice(0, LAB_3T_HIGH_PIT.col0) + '#'.repeat(4) + r.slice(LAB_3T_HIGH_PIT.col1 + 1) : r));
+    const hidden = { ...levelById(LAB_3T_ID)!, level: { ...level, world: parseTiles(rows) } };
+    expect(validateLevel(hidden)).toEqual([66, 67, 68, 69].map((c) => `column ${c} under the raised bottom at row 26 is neither solid nor empty all the way down`));
+  });
+
   it('GDD-TEC-04 lab-3t passes the validator', () => {
     const entry = levelById(LAB_3T_ID)!;
     expect(entry).toMatchObject({ world: 3, test: true });
