@@ -976,7 +976,7 @@ export class PlayScene extends Phaser.Scene {
     if (hasMarketThings(this.level)) loadMarketThings(this);
     // GDD-WLD-05, GDD-ART-06: World 3's rock ledge, its two frames a tile each, only in a Sierra level with crumbling tiles (GDD-TEC-03).
     if (this.drawsLedges()) this.load.spritesheet(textureKey('sierra', 'ledge'), ledgePng, { frameWidth: TILE * ART_SCALE, frameHeight: TILE * ART_SCALE });
-    // GDD-WLD-17: the rock back wall, its two versions a tile each, only in a level that has back walls (GDD-TEC-03).
+    // GDD-WLD-17: the rock back wall, its four versions a tile each, only in a level that has back walls (GDD-TEC-03).
     if ((this.level.backWalls ?? []).length > 0) this.load.spritesheet(textureKey('sierra', 'backwall'), backwallPng, { frameWidth: TILE * ART_SCALE, frameHeight: TILE * ART_SCALE });
     // GDD-WLD-15, GDD-ART-06: World 3's railway sheets, only in a level with rails (GDD-TEC-03).
     if ((this.level.rails ?? []).length > 0) {

@@ -67,7 +67,7 @@ test('GDD-WLD-15 vagonetas: waiting, riding, a jump over the cart and stopped at
     d.step(20);
   });
   seen = await cart(page, 0);
-  expect(seen.cart.phase).toBe('stopped');
+  expect([seen.cart.phase, seen.cart.look]).toEqual(['stopped', 'stopped']);
   expect([seen.s.grounded, seen.s.y]).toEqual([true, seen.cart.y]);
   await shot(page, info, 'cart-buffer');
 });

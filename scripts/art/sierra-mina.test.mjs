@@ -8,7 +8,7 @@ import { DECOR_FRAME } from '../../src/config/tuning';
 import { drawGround } from './sierra.mjs';
 import {
   drawBackwall, drawDecorMina, drawFarMina, drawGroundMina, drawMidMina, drawMinaSkyStrip, FAR_MINA, LAMPS, MID_MINA, MID_MINA_FOOT, MINA_DECOR_SIZES,
-  MINA_FOOT, MINA_SKY_END, MINA_STRIP, STRATA_MINA, strataRow, TUNNELS, veinRow,
+  MINA_FOOT, MINA_SKY_END, MINA_STRIP, STRATA_MINA, strataRow, TUNNELS, VEIN_BED, veinRow,
 } from './sierra-mina.mjs';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'sprites', 'sierra');
@@ -22,6 +22,9 @@ const MIST = '#EEF1EA', PINE_DEEP = '#24403A', PINE = '#3F6350', ZACATE = '#A3A8
 const ROCK_DEEP = '#5A3B28', TIMBER_LIT = '#A89480', TIMBER = '#75614F', STEEL = '#93A0AE', GALLERY_DEEP = '#221D2E', GALLERY_BASE = '#3D3650';
 const GALLERY_LIT = '#5C5269', LAMP_AMBER = '#F0A23A', TIMBER_DARK = '#43362F';
 const NEAR_BLACK = '#070509';
+/** The back wall's versions (`src/ui/scenery/backWall.ts`), and its mean L* over the four, measured (L-072). */
+const WALL_VERSIONS = [0, 1, 2, 3];
+const WALL_L = 47.8;
 
 const painted = (grid) => new Set(grid.cells.filter((c) => c !== null));
 /** The art pixels that differ from the top left pixel of their 4 x 4 game pixel. */
@@ -82,10 +85,11 @@ describe('World 3 (Sierra) art, the mine', () => {
     const built = buildMina();
     expect(Object.keys(built).sort()).toEqual(['backwall.png', 'decor-mina.png', 'far-mina.png', 'ground-mina.png', 'mid-mina.png', 'sky-mina.png']);
     for (const [name, bytes] of Object.entries(built)) expect(bytes.equals(readFileSync(join(dir, name))), name).toBe(true);
-    // The GDD's sizes, art px: far-mina 1920 x 640 (game y 40 to 200), mid-mina 1920 x 496 (y 100 to 224), the ground sheet's 28 frames of 64,
-    // seven decor frames of 64 x 160, the back wall's two of 64; the roof band's strip 1920 x 2, at game y 40.
+    // The GDD's sizes, art px: far-mina 1920 x 640 (game y 40 to 200), mid-mina 1920 x 496 (y 100 to 224), the ground sheet's 28 frames of
+    // 64 and the mine's 7 after them (the underside, deep rock and the one-tile ledge in two versions each, the plain rock tile's second
+    // version with no ore), seven decor frames of 64 x 160, the back wall's versions of 64; the roof band's strip 1920 x 2, at game y 40.
     const sizes = [drawMinaSkyStrip(), drawFarMina(), drawMidMina(), drawGroundMina(), drawDecorMina(), drawBackwall()].map((g) => [g.width, g.height]);
-    expect(sizes).toEqual([[1920, 2], [1920, 640], [1920, 496], [28 * 64, 64], [7 * 64, 160], [2 * 64, 64]]);
+    expect(sizes).toEqual([[1920, 2], [1920, 640], [1920, 496], [35 * 64, 64], [7 * 64, 160], [4 * 64, 64]]);
     expect([FAR_MINA.top, FAR_MINA.h, MID_MINA.top, MID_MINA.h, MINA_SKY_END, MINA_STRIP]).toEqual([40, 160, 100, 124, 160, 2]);
     // The decor sheet's frames are World 1's plants' frame, 16 x 40 game px, as the scene slices it (`DECOR_FRAME`).
     expect([DECOR_FRAME.w, DECOR_FRAME.h]).toEqual([16, 40]);
@@ -126,6 +130,60 @@ describe('World 3 (Sierra) art, the mine', () => {
       const pairs = Array.from({ length: 479 }, (_, x) => x).filter((x) => plain(x) && plain(x + 1)).map((x) => columnDiff(px, top, h, x, x + 1)).sort((a, b) => a - b);
       expect(plain(479) && plain(0), name).toBe(true);
       expect(columnDiff(px, top, h, 479, 0), name).toBeLessThanOrEqual(pairs.at(-1));
+    }
+  });
+
+  it('GDD-ART-06 the ore vein is a seam in the rock: three or four runs 2 to 4 px thick along a bed, of uneven thickness, a few pockets', () => {
+    const far = at(drawFarMina(), FAR_MINA.top);
+    const ore = (x, y) => far(x, y) === STEEL || far(x, y) === MIST;
+    // Its course follows one of the wall's beds, a fixed distance under it.
+    const offsets = new Set(Array.from({ length: 480 }, (_, x) => veinRow(x) - strataRow(STRATA_MINA[VEIN_BED], x, VEIN_BED)));
+    expect(offsets.size).toBe(1);
+    expect([...offsets][0]).toBeGreaterThanOrEqual(8);
+    // In each column, the ore in the band along its course (a row over it to 4 under) is one unbroken piece 2 to 4 px thick, or none.
+    const thick = Array.from({ length: 480 }, (_, x) => {
+      const rows = Array.from({ length: 6 }, (_, i) => veinRow(x) - 1 + i).filter((y) => ore(x, y));
+      if (rows.length > 0) expect(rows.at(-1) - rows[0] + 1, `column ${x} unbroken`).toBe(rows.length);
+      return rows.length;
+    });
+    const runs = [];
+    thick.forEach((t, x) => {
+      if (t === 0) return;
+      expect(t, `column ${x}`).toBeGreaterThanOrEqual(2);
+      expect(t, `column ${x}`).toBeLessThanOrEqual(4);
+      if (x > 0 && thick[x - 1] > 0) runs.at(-1)[1] = x;
+      else runs.push([x, x]);
+    });
+    expect(runs.length).toBeGreaterThanOrEqual(3);
+    expect(runs.length).toBeLessThanOrEqual(4);
+    // Each run long, the gaps between them clear, and its thickness uneven: 2, 3 and 4 px all show.
+    for (const [x0, x1] of runs) expect(x1 - x0 + 1, `run ${x0}`).toBeGreaterThanOrEqual(30);
+    expect(new Set(thick.filter((t) => t > 0))).toEqual(new Set([2, 3, 4]));
+    // The pockets: ore off the band, in small pieces no bigger than 3 x 3, not touching it.
+    const seen = new Set();
+    const pockets = [];
+    for (let x = 0; x < 480; x++) {
+      for (let y = FAR_MINA.top; y < FAR_MINA.top + FAR_MINA.h; y++) {
+        if (!ore(x, y) || seen.has(`${x},${y}`) || (y >= veinRow(x) - 1 && y <= veinRow(x) + 4)) continue;
+        const piece = [];
+        const stack = [[x, y]];
+        while (stack.length) {
+          const [cx, cy] = stack.pop();
+          if (cx < 0 || cx >= 480 || seen.has(`${cx},${cy}`) || !ore(cx, cy)) continue;
+          seen.add(`${cx},${cy}`);
+          piece.push([cx, cy]);
+          stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+        }
+        pockets.push(piece);
+      }
+    }
+    expect(pockets.length).toBeGreaterThanOrEqual(3);
+    expect(pockets.length).toBeLessThanOrEqual(6);
+    for (const piece of pockets) {
+      const xs = piece.map(([px]) => px), ys = piece.map(([, py]) => py);
+      expect(Math.max(...xs) - Math.min(...xs), `pocket at ${xs[0]}`).toBeLessThan(3);
+      expect(Math.max(...ys) - Math.min(...ys), `pocket at ${xs[0]}`).toBeLessThan(3);
+      expect(piece.every(([px, py]) => py < veinRow(px) - 2 || py > veinRow(px) + 5), `pocket at ${xs[0]} detached`).toBe(true);
     }
   });
 
@@ -215,6 +273,93 @@ describe('World 3 (Sierra) art, the mine', () => {
     for (const n of [0, 1, 2, 3]) expect(tileColumn(g, n, 0), `frame ${n}`).toEqual(tileColumn(g, n, 15));
   });
 
+  // The mine's frames after the shared 28 (`src/ui/groundTiles.ts`): the underside 28 and 29, deep rock 30 and 31, the one-tile ledge 32
+  // and 33, the plain rock tile's second version with no ore 34. Frame 3 is the rock tile with the ore streak.
+  const UNDERSIDE = [28, 29], DEEP = [30, 31], LEDGE = [32, 33], ROCK = [2, 34];
+  /** Deep rock's mean L*, measured (L-072). */
+  const DEEP_L = 46.6;
+
+  it('GDD-ART-06 the ore streak underground is frame 3 alone: no slope, no tile under a slope and no new frame carries it', () => {
+    const g = drawGroundMina();
+    const streak = Array.from({ length: 35 }, (_, n) => n).filter((n) => tileCells(g, n).includes(MIST));
+    expect(streak).toEqual([3]);
+    // The plain rock tile's second version is frame 3 without it: the same strata and specks, ochre where the streak was.
+    const diff = tileCells(g, 3).map((c, i) => [c, tileCells(g, 34)[i]]).filter(([a, b]) => a !== b);
+    expect(diff.length).toBeGreaterThan(0);
+    expect(diff.every(([a, b]) => [STEEL, MIST].includes(a) && b === OCHRE)).toBe(true);
+  });
+
+  it('GDD-ART-06 the underside: the rock frame over a 3 px lip of ochre shade, its last row a broken line of rock deep, a chip or two, no pale colour', () => {
+    const g = drawGroundMina();
+    for (const v of [0, 1]) {
+      const n = UNDERSIDE[v];
+      // Above the lip the tile is the plain rock frame of its version, the lit skin.
+      for (let r = 0; r < 13; r++) expect(tileRow(g, n, r), `frame ${n} row ${r}`).toEqual(tileRow(g, ROCK[v], r));
+      const lip = [13, 14, 15].flatMap((r) => tileRow(g, n, r));
+      expect(new Set(lip), `frame ${n}`).toEqual(new Set([OCHRE_SHADE, ROCK_DEEP]));
+      for (const c of [OCHRE_LIGHT, OCHRE, ZACATE]) expect(lip.includes(c), `frame ${n} ${c}`).toBe(false);
+      // Rows 13 and 14 ochre shade but for the chips; the last row rock deep, broken.
+      expect(tileRow(g, n, 13).every((c) => c === OCHRE_SHADE), `frame ${n} row 13`).toBe(true);
+      const last = tileRow(g, n, 15);
+      expect(last.filter((c) => c === ROCK_DEEP).length, `frame ${n} row 15`).toBeGreaterThanOrEqual(10);
+      expect(last.includes(OCHRE_SHADE), `frame ${n} row 15 broken`).toBe(true);
+      // The chips: rock deep in row 14 over rock deep in row 15, with a break in the line beside them, one or two per tile.
+      const chipsAt = tileRow(g, n, 14).flatMap((c, x) => (c === ROCK_DEEP ? [x] : []));
+      expect(chipsAt.length, `frame ${n} chips`).toBeGreaterThanOrEqual(1);
+      expect(chipsAt.length, `frame ${n} chips`).toBeLessThanOrEqual(2);
+      for (const x of chipsAt) expect([last[x], last[x - 1], last[x + 1]], `frame ${n} chip ${x}`).toEqual([ROCK_DEEP, OCHRE_SHADE, OCHRE_SHADE]);
+    }
+    expect(tileCells(g, UNDERSIDE[0])).not.toEqual(tileCells(g, UNDERSIDE[1]));
+  });
+
+  it('GDD-ART-06 the one-tile ledge: the top tile walk line and ledge over the underside lip of its version', () => {
+    const g = drawGroundMina();
+    for (const v of [0, 1]) {
+      for (let r = 0; r < 13; r++) expect(tileRow(g, LEDGE[v], r), `frame ${LEDGE[v]} row ${r}`).toEqual(tileRow(g, v, r));
+      for (const r of [13, 14, 15]) expect(tileRow(g, LEDGE[v], r), `frame ${LEDGE[v]} row ${r}`).toEqual(tileRow(g, UNDERSIDE[v], r));
+    }
+  });
+
+  it('GDD-ART-06 deep rock: ochre shade with two long broken strata of rock deep and a few ochre specks, no ore, quieter than the lit skin', () => {
+    const g = drawGroundMina();
+    for (const n of DEEP) {
+      const cells = tileCells(g, n);
+      expect(new Set(cells), `frame ${n}`).toEqual(new Set([OCHRE_SHADE, ROCK_DEEP, OCHRE]));
+      // Two strata, each mostly across the tile: rock deep in at least 12 of the 16 columns over the two rows of each (its row and its dip).
+      for (const row of [5, 12]) {
+        const cols = Array.from({ length: 16 }, (_, x) => cell(g, n, x, row) === ROCK_DEEP || cell(g, n, x, row + 1) === ROCK_DEEP).filter(Boolean).length;
+        expect(cols, `frame ${n} stratum ${row}`).toBeGreaterThanOrEqual(12);
+        expect(cols, `frame ${n} stratum ${row} broken`).toBeLessThan(16);
+      }
+      expect(cells.filter((c) => c === OCHRE).length, `frame ${n} specks`).toBeGreaterThanOrEqual(2);
+      expect(cells.filter((c) => c === OCHRE).length, `frame ${n} specks`).toBeLessThanOrEqual(4);
+    }
+    expect(tileCells(g, DEEP[0])).not.toEqual(tileCells(g, DEEP[1]));
+    // Measured (L-072): deep rock's mean L* 46.6, ΔL 17.8 under the bright rock frame's 64.4 (frames 2 and 3, as B1 measured it) and
+    // 22.2 over gallery base's.
+    const deep = meanL(g, 30 * 64, 128), bright = meanL(g, 128, 128), gallery = lab(GALLERY_BASE)[0];
+    expect([Math.round(deep * 10) / 10, Math.round(bright * 10) / 10]).toEqual([DEEP_L, 64.4]);
+    expect([Math.round((bright - deep) * 10) / 10, Math.round((deep - gallery) * 10) / 10]).toEqual([17.8, 22.2]);
+    expect(bright - deep).toBeGreaterThanOrEqual(12);
+    expect(deep - gallery).toBeGreaterThanOrEqual(15);
+    // The floor's ochre over gallery base stays ΔL 41.9.
+    expect(Math.round((lab(OCHRE)[0] - gallery) * 10) / 10).toBe(41.9);
+  });
+
+  it('GDD-ART-06 the mine new frames meet their neighbours without a seam, left to right and deep over deep', () => {
+    const g = drawGroundMina();
+    // Left to right: each new frame's two edge columns are alike, and alike in both versions; the underside and the ledge share the plain
+    // rock's and the top tile's edges above the lip.
+    for (const pair of [UNDERSIDE, DEEP, LEDGE, ROCK]) {
+      for (const n of pair) expect(tileColumn(g, n, 0), `frame ${n}`).toEqual(tileColumn(g, n, 15));
+      expect(tileColumn(g, pair[0], 0), `frames ${pair}`).toEqual(tileColumn(g, pair[1], 0));
+    }
+    expect(tileColumn(g, UNDERSIDE[0], 0).slice(0, 13)).toEqual(tileColumn(g, 2, 0).slice(0, 13));
+    expect(tileColumn(g, LEDGE[0], 0).slice(0, 13)).toEqual(tileColumn(g, 0, 0).slice(0, 13));
+    // Deep over deep, in any order of versions: a tile's last row meets the first row of the one under it.
+    for (const a of DEEP) for (const b of DEEP) expect(tileRow(g, a, 15), `${a} over ${b}`).toEqual(tileRow(g, b, 0));
+  });
+
   it('GDD-ART-06 each mine decor frame is as tall as its kind and stands on the frame bottom row', () => {
     // The GDD's sizes, game px: ore heap 14 x 8, timber stack 16 x 10, barrel 10 x 12, pick and shovel 12 x 16, ore bucket 10 x 10, lantern
     // on a peg post 8 x 24, ore sacks 14 x 10.
@@ -249,31 +394,35 @@ describe('World 3 (Sierra) art, the mine', () => {
   it('GDD-WLD-17 the back wall: ochre shade with rock deep marks and ochre specks, no walk line, darker than the rock tile and far from the outline', () => {
     const wall = drawBackwall();
     const ground = drawGroundMina();
-    for (const n of [0, 1]) {
+    for (const n of WALL_VERSIONS) {
       const cells = tileCells(wall, n);
       expect(new Set(cells), `version ${n}`).toEqual(new Set([OCHRE_SHADE, ROCK_DEEP, OCHRE]));
       // Mostly ochre shade, a handful of marks.
       expect(cells.filter((c) => c === OCHRE_SHADE).length, `version ${n}`).toBeGreaterThanOrEqual(256 - 16);
       expect(tileRow(wall, n, 0).every((c) => c === OCHRE_SHADE), `version ${n} no walk line`).toBe(true);
     }
-    expect(tileCells(wall, 0)).not.toEqual(tileCells(wall, 1));
-    // Measured (L-072): the back wall's mean L* is 47.9 in each version, the rock tile's 64.4 (the canyon's 64.3): ΔL 16.5.
-    const dl = meanL(ground, 128, 128) - meanL(wall, 0, 128);
-    expect(Math.round(dl * 10) / 10).toBe(16.5);
+    // Four versions, each its own.
+    expect(new Set(WALL_VERSIONS.map((n) => tileCells(wall, n).join())).size).toBe(4);
+    // Measured (L-072): the back wall's mean L* over its four versions is 47.8, the rock tile's 64.4 (the canyon's 64.3): ΔL 16.6 (B1's
+    // two versions gave 47.9 and 16.5).
+    const dl = meanL(ground, 128, 128) - meanL(wall, 0, 256);
+    expect(Math.round(meanL(wall, 0, 256) * 10) / 10).toBe(WALL_L);
+    expect(Math.round(dl * 10) / 10).toBe(16.6);
     expect(dl).toBeGreaterThanOrEqual(15);
-    expect(meanL(drawGround(), 128, 128) - meanL(wall, 0, 128)).toBeGreaterThanOrEqual(15);
+    expect(meanL(drawGround(), 128, 128) - meanL(wall, 0, 256)).toBeGreaterThanOrEqual(15);
+    for (const n of WALL_VERSIONS) expect(meanL(ground, 128, 128) - meanL(wall, 64 * n, 64), `version ${n}`).toBeGreaterThanOrEqual(15);
     // Its colours are ΔE 20 or more from the outline (measured: ochre shade 64.6, rock deep 33.9, ochre 84.8).
     for (const c of painted(wall)) expect(deltaE(c, NEAR_BLACK), c).toBeGreaterThanOrEqual(20);
   });
 
   it('GDD-WLD-17 the back wall tiles meet without a seam on every side in any order of versions', () => {
     const wall = drawBackwall();
-    for (const n of [0, 1]) {
+    for (const n of WALL_VERSIONS) {
       for (const i of [0, 15]) {
         expect(tileRow(wall, n, i).every((c) => c === OCHRE_SHADE), `version ${n} row ${i}`).toBe(true);
         expect(tileColumn(wall, n, i).every((c) => c === OCHRE_SHADE), `version ${n} column ${i}`).toBe(true);
       }
-      // Its lower right 2 x 2 cells are plain ochre shade in both versions: where `e2e/level3-1.spec.ts` reads it by pixels (L-017).
+      // Its lower right 2 x 2 cells are plain ochre shade in every version: where `e2e/level3-1.spec.ts` reads it by pixels (L-017).
       for (const [x, r] of [[14, 14], [15, 14], [14, 15], [15, 15]]) expect(cell(wall, n, x, r), `version ${n} ${x},${r}`).toBe(OCHRE_SHADE);
     }
   });

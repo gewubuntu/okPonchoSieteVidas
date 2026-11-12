@@ -131,7 +131,7 @@ test('GDD-ART-06 rails: the cart at R1\'s buffer, Poncho stepped off', async ({ 
   }, end + TILE - 4);
   expect(steps).toBeLessThan(600);
   const at = await seen(page, 0);
-  expect(at.cart.phase).toBe('stopped');
+  expect([at.cart.phase, at.cart.look]).toEqual(['stopped', 'stopped']);
   expect(at.cart.x! + CART.width).toBe(end);
   expect([at.s.grounded, at.s.y]).toEqual([true, r1.y]);
   expect(at.s.x).toBeGreaterThan(end + TILE / 2);

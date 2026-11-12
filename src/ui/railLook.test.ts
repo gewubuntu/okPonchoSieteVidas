@@ -89,6 +89,34 @@ describe('GDD-ART-06 the railway as drawn (railLook)', () => {
     // Each from 130 down to 192: its top (24) and legs of 24 and 14 px.
     for (const c of [10, 12, 14]) expect(look.filter((im) => im.part === 'leg' && im.x / TILE === c).map((im) => [im.y, im.height])).toEqual([[154, 24], [178, 14]]);
     expect(look.filter((im) => im.part === 'buffer').map((im) => im.x / TILE)).toEqual([18]);
+    // It meets no ground, so it has no sill.
+    expect(look.filter((im) => im.part === 'sill')).toEqual([]);
+  });
+
+  it('GDD-ART-06 a bent\'s legs show its X braces in step, every 32 px: the leg frames in turn, 1, 2, 3, then 0', () => {
+    // A level 30 rows tall (bottom y = 480), a pit open to it at columns 10 to 14: a bent from 130 to 480, its top and 14 legs.
+    const world = parseTiles(Array.from({ length: 30 }, (_, r) => Array.from({ length: 24 }, (_t, c) => (r >= 8 && (c < 10 || c > 14) ? '#' : '.')).join('')));
+    const rail: Rail = { x: 6 * TILE, y: 128, dir: 1, segments: [{ kind: 'level', tiles: 12 }], end: 'buffer' };
+    const legs = railLook(world, [rail], 30).filter((im) => im.part === 'leg' && im.x / TILE === 10);
+    expect(legs.map((im) => im.y)).toEqual(Array.from({ length: 14 }, (_, k) => 154 + 24 * k));
+    expect(legs.map((im) => im.frame)).toEqual(Array.from({ length: 14 }, (_, k) => `leg${(k + 1) % 4}`));
+    // Lab-3c's: R2's at column 33 and R3's at 43 and 45, as listed in the test above.
+    expect([...of(1, 'leg'), ...of(2, 'leg')].map((im) => [im.x / TILE, im.frame])).toEqual([[33, 'leg1'], [43, 'leg1'], [43, 'leg2'], [45, 'leg1']]);
+  });
+
+  it('GDD-ART-06 a bent that meets the ground stands on a sill, 2 px tall, at its foot, drawn after its legs', () => {
+    // R1's three notches (floor 240), R2's and R3's bents (the floor, 224).
+    expect(LOOK.filter((im) => im.part === 'sill').map((im) => [im.rail, im.frame, im.x / TILE, im.y, im.height])).toEqual([
+      [0, 'sill', 14, 238, 2], [0, 'sill', 18, 238, 2], [0, 'sill', 22, 238, 2],
+      [1, 'sill', 31, 222, 2], [1, 'sill', 33, 222, 2],
+      [2, 'sill', 43, 222, 2], [2, 'sill', 45, 222, 2],
+    ]);
+    for (const sill of LOOK.filter((im) => im.part === 'sill')) {
+      const i = LOOK.indexOf(sill);
+      const own = LOOK.filter((im, k) => k !== i && im.x === sill.x && (im.part === 'bent' || im.part === 'leg'));
+      expect(own.length).toBeGreaterThan(0);
+      for (const im of own) expect(LOOK.indexOf(im)).toBeLessThan(i);
+    }
   });
 });
 
@@ -102,11 +130,12 @@ describe('GDD-ART-06 the cart\'s look (cartLook)', () => {
     ]);
   });
 
-  it('GDD-ART-06 a cart falling off a broken end, or stopped at its buffer, keeps the last frame it rolled with', () => {
-    for (const last of ['rolling0', 'rolling1'] as const) {
-      expect(cartLook(at('falling'), 100, last)).toBe(last);
-      expect(cartLook(at('stopped'), 100, last)).toBe(last);
-    }
+  it('GDD-ART-06 a cart falling off a broken end keeps the last frame it rolled with', () => {
+    for (const last of ['rolling0', 'rolling1'] as const) expect(cartLook(at('falling'), 100, last)).toBe(last);
     expect(cartLook(at('gone'), 100, 'rolling0')).toBeNull();
+  });
+
+  it('GDD-ART-06 a cart stopped at its buffer shows the stopped frame, not its last rolling one with the dust', () => {
+    for (const last of ['rolling0', 'rolling1'] as const) for (const clock of [100, 101, 104]) expect(cartLook(at('stopped'), clock, last)).toBe('stopped');
   });
 });

@@ -494,8 +494,17 @@ export function drawGround() {
 
 /** A ground sheet in World 1's layout from `tile(top, version)`, which draws a top tile or a rock tile as 16 x 16 cells (the mine's too). */
 export function groundSheet(tile) {
+  return tileSheet(groundFrames(tile));
+}
+
+/** The 28 frames of a ground sheet in World 1's layout, as 16 x 16 cells each, from `tile(top, version)`. */
+export function groundFrames(tile) {
   const pairs = SLOPE_ORDER.flatMap(([, left, right]) => [0, 1].map((v) => cutSlope(tile(true, v), tile(false, v), left, right)));
-  const frames = [tile(true, 0), tile(true, 1), tile(false, 0), tile(false, 1), ...pairs.map((p) => p.slope), ...pairs.map((p) => p.foot)];
+  return [tile(true, 0), tile(true, 1), tile(false, 0), tile(false, 1), ...pairs.map((p) => p.slope), ...pairs.map((p) => p.foot)];
+}
+
+/** A sheet of tiles in one row, 64 x 64 art px each, from their 16 x 16 cells. */
+export function tileSheet(frames) {
   const g = new Grid(frames.length * 64, 64);
   frames.forEach((tile, n) => {
     const px = tile.scaled();

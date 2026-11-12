@@ -352,7 +352,7 @@ test('GDD-WLD-15 the cart is drawn tilted on the climb', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('GDD-ART-06 the standing cart shows its chock and the rolling cart does not', async ({ page }) => {
+test('GDD-ART-06 the standing cart shows its chock, the rolling cart does not, and the stopped cart shows neither chock nor dust', async ({ page }) => {
   const errors = await boot(page, '/?level=lab-3c');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
   await frames(page);
@@ -382,23 +382,57 @@ test('GDD-ART-06 the standing cart shows its chock and the rolling cart does not
   });
   expect(held.after).toBe(held.before);
   expect(held.stepped).not.toBe(held.before);
-  // Unpaused, over the game's own frames (L-021): both rolling looks show while it rolls, never the chock, until it stops.
+  // Unpaused, over the game's own frames (L-021): both rolling looks show while it rolls, never the chock, until it is 3 tiles short of its
+  // stop, where the frame that sees it there pauses the game.
   await page.evaluate(() => window.__PONCHO__!.pause(false));
   const looks = await page.evaluate(
-    () =>
+    (near) =>
       new Promise<string[]>((resolve) => {
         const d = window.__PONCHO__!;
         const out: string[] = [];
         const tick = () => {
           const c = d.carts()[0]!;
           if (c.phase === 'rolling') out.push(c.look!);
-          if (c.phase === 'stopped' || out.length > 3000) resolve(out);
+          if (c.phase !== 'rolling' || c.x! >= near || out.length > 3000) {
+            d.pause(true);
+            resolve(out);
+          } else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    R1_STOP_X - 3 * TILE,
+  );
+  expect(new Set(looks)).toEqual(new Set(['rolling0', 'rolling1']));
+  // By steps through the stop: rolling looks until the step it stops, and from that step on the stopped frame, without the chock or the
+  // dust (GDD-ART-06).
+  const toStop = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    const out: string[] = [];
+    for (let n = 0; n < 60 && d.carts()[0]!.phase !== 'stopped'; n++) {
+      d.step(1);
+      out.push(`${d.carts()[0]!.phase} ${d.carts()[0]!.look}`);
+    }
+    return out;
+  });
+  expect(toStop[0]).toMatch(/^rolling rolling[01]$/);
+  expect(toStop.slice(0, -1).every((l) => l === 'rolling rolling0' || l === 'rolling rolling1'), toStop.join()).toBe(true);
+  expect(toStop[toStop.length - 1]).toBe('stopped stopped');
+  // And so it stays, unpaused, over the game's own frames.
+  await page.evaluate(() => window.__PONCHO__!.pause(false));
+  const after = await page.evaluate(
+    () =>
+      new Promise<string[]>((resolve) => {
+        const d = window.__PONCHO__!;
+        const out: string[] = [];
+        const tick = () => {
+          out.push(`${d.carts()[0]!.phase} ${d.carts()[0]!.look}`);
+          if (out.length >= 20) resolve(out);
           else requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
       }),
   );
-  expect(new Set(looks)).toEqual(new Set(['rolling0', 'rolling1']));
+  expect(new Set(after)).toEqual(new Set(['stopped stopped']));
   expect(errors).toEqual([]);
 });
 
@@ -451,8 +485,9 @@ test('GDD-ART-06 a rail over a pit stands on a trestle', async ({ page }) => {
   const drawn = await page.evaluate(() => window.__PONCHO__!.rails());
   expect(drawn).toEqual({ tiles: count('rail'), trestleBents: count('bent'), buffers: count('buffer'), posts: count('post'), brokenEnds: listed.filter((im) => im.frame === 'broken').length });
   expect(drawn.trestleBents).toBeGreaterThan(0);
-  // R3's first bent, over the air under its descent (column 43): its first leg's left post, 2 px wide at columns 2 and 3 of its frame, is
-  // timber dark (#43362F) on the screen; the air between its posts (column 7) is not. Poncho is put down on the floor 9 tiles on, clear of it.
+  // R3's first bent, over the air under its descent (column 43): its first leg's left post, 3 px wide at columns 1 to 3 of its frame (its
+  // edge at 1 timber, 2 and 3 timber dark), is timber dark (#43362F) on the screen; halfway down the leg, where its X braces are at the posts,
+  // the air between them (column 7) is not. Poncho is put down on the floor 9 tiles on, clear of it.
   const leg = listed.find((im) => im.rail === 2 && im.part === 'leg')!;
   await page.evaluate(
     (p) => {

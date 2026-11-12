@@ -43,7 +43,7 @@ export interface ArtFiles {
   readonly far: string;
   readonly mid: string;
   readonly plaza: string | null;
-  /** The ground sheet, 28 frames in `groundFrame`'s layout, and the decor sheet, one frame per kind. */
+  /** The ground sheet, 28 frames in `groundFrame`'s layout (the mine's 7 more after them, `mineGroundFrame`), and the decor sheet, one frame per kind. */
   readonly ground: string;
   readonly decor: string;
 }

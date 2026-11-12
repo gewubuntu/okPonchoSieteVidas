@@ -188,7 +188,8 @@ describe('GDD-ART-06 a World 3 level chooses its place', () => {
     expect(pngSize('sierra', 'sky-mina.png')).toEqual([1920, m.stripArt * m.skyEnds.length]);
     expect(pngSize('sierra', 'far-mina.png')).toEqual([1920, m.farBandArt]);
     expect(pngSize('sierra', 'mid-mina.png')).toEqual([1920, m.midBandArt]);
-    expect(pngSize('sierra', 'ground-mina.png')).toEqual([28 * 64, 64]);
+    // The shared layout's 28 frames and the mine's 7 after them (`mineGroundFrame`).
+    expect(pngSize('sierra', 'ground-mina.png')).toEqual([35 * 64, 64]);
     expect(pngSize('sierra', 'decor-mina.png')).toEqual([7 * 16 * 4, 40 * 4]);
     expect(Math.max(...m.decor.map((d) => d.w))).toBe(16);
     expect(Math.max(...m.decor.map((d) => d.h))).toBe(24);

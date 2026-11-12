@@ -5,7 +5,7 @@
 // the HUD), in the side tunnels and in the foot below the floor, so his near-black outline always has a lighter wall behind it.
 import { Cells, noise, S, stamp } from './cells.mjs';
 import { Grid } from './raster.mjs';
-import { DECOR_FRAME, drawTile, groundSheet, SIERRA_PALETTE } from './sierra.mjs';
+import { DECOR_FRAME, drawTile, groundFrames, SIERRA_PALETTE, tileSheet } from './sierra.mjs';
 
 const {
   mistWhite: MIST, ochreLight: OCHRE_LIGHT, ochre: OCHRE, ochreShade: OCHRE_SHADE, rockDeep: ROCK_DEEP, timberLit: TIMBER_LIT, timber: TIMBER,
@@ -76,8 +76,16 @@ export const STRATA_MINA = [33, 57, 79, 98, 124, 146, 169, 193, 214];
 /** A stratum's row at column x: its height, a slow wave 14 px deep that runs once across the strip, and a second, smaller one. */
 export const strataRow = (y0, x, k) => Math.round(y0 + 14 * Math.sin((2 * Math.PI * x) / 480) + (3 + (k % 3)) * Math.sin((4 * Math.PI * x) / 480 + k));
 
-/** The ore vein's course at column x (screen y), before its jagged steps: a slow wave across the strip and back, one every 480 px. */
-export const veinRow = (x) => Math.round(118 + 22 * Math.sin((2 * Math.PI * x) / 480 + 2.2) + 6 * Math.sin((6 * Math.PI * x) / 480));
+/** The bed the ore vein follows (its index in `STRATA_MINA`), and how far under it the vein's course lies (game px). */
+export const VEIN_BED = 3;
+const VEIN_BELOW = 12;
+
+/** The ore vein's course at column x (screen y): its bed's course, `VEIN_BELOW` px lower, so it runs along the strata and on over the seam. */
+export const veinRow = (x) => strataRow(STRATA_MINA[VEIN_BED] + VEIN_BELOW, x, VEIN_BED);
+
+/** The vein's runs, [first column, last column], with the bare rock between them, and its pockets, [column, rows from its course]. */
+const VEIN_RUNS = [[14, 104], [146, 214], [252, 361], [398, 452]];
+const VEIN_POCKETS = [[124, -6], [131, 6], [232, -5], [380, 6], [470, -6]];
 
 /** The far band's cells, 480 x 160 (screen game y 40 to 200). */
 function farMinaCells() {
@@ -97,18 +105,26 @@ function farMinaCells() {
       x += len + 5 + Math.floor(noise(x, 340 + k) * 20);
     }
   });
-  // The ore vein: a broken, jagged line of steel that wanders across the strip and back over the seam, swelling to two rows in places, a
-  // mist white glint every 20 px or so.
-  const vein = (x) => veinRow(x) + Math.floor(noise(x >> 2, 363) * 3) - 1;
-  for (let x = 0; x < w; x++) {
-    if (noise(x >> 2, 360) < 0.3) continue;
-    set(x, vein(x), STEEL);
-    if (noise(x >> 3, 361) < 0.3) set(x, vein(x) + 1, STEEL);
+  // The ore vein: a seam of steel in the rock along a bed, in four runs with bare rock between them, 2 to 4 px thick and swelling and
+  // thinning every few px, its top edge stepping up a row now and then, 2 px at each run's ends; a mist white glint on its top edge every
+  // 20 px or so; and a few small pockets of ore off it.
+  const inRun = (x) => VEIN_RUNS.some(([x0, x1]) => x >= x0 && x <= x1);
+  const veinTop = (x) => veinRow(x) - (noise(x >> 2, 363) < 0.3 ? 1 : 0);
+  for (const [x0, x1] of VEIN_RUNS) {
+    for (let x = x0; x <= x1; x++) {
+      const t = x - x0 < 3 || x1 - x < 3 ? 2 : 2 + Math.floor(noise(x >> 3, 361) * 3);
+      for (let i = 0; i < t; i++) set(x, veinTop(x) + i, STEEL);
+    }
   }
   for (let block = 0; block < w / 20; block++) {
     const x = block * 20 + 4 + Math.floor(noise(block, 362) * 12);
-    set(x, vein(x), MIST);
+    if (inRun(x)) set(x, veinTop(x), MIST);
   }
+  VEIN_POCKETS.forEach(([x, dy], i) => {
+    const y = veinRow(x) + dy;
+    for (const [px, py] of i % 2 === 0 ? [[0, 0], [1, 0], [0, 1], [1, 1]] : [[0, 0], [1, 0], [2, 0], [1, 1]]) set(x + px, y + py, STEEL);
+    if (i % 2 === 0) set(x, y, MIST);
+  });
   // The side tunnels: dark openings with rounded top corners, each in a small frame of timber dark, its posts' left edges and its cap's top
   // lit in gallery lit.
   for (const { x0, x1, y0, y1 } of TUNNELS) {
@@ -288,9 +304,10 @@ export function drawMidMina() {
 
 /**
  * One ground tile underground: the canyon's top tile with no grass (the same walk line and pale ledge over a trodden floor with two chips
- * of ochre shade and one of steel) or its rock tile with a streak of ore (steel, one mist white pixel) where the canyon's has lichen.
+ * of ochre shade and one of steel) or its rock tile with ochre where the canyon's has lichen; with `ore`, a streak of ore there (steel,
+ * one mist white pixel).
  */
-function drawMinaTile(top, version) {
+function drawMinaTile(top, version, ore = false) {
   const c = drawTile(top, version);
   if (top) {
     for (let y = 1; y < 4; y++) for (let x = 0; x < 16; x++) c.set(x, y, OCHRE);
@@ -298,16 +315,67 @@ function drawMinaTile(top, version) {
     for (const [x, y, colour] of chips) c.set(x, y, colour);
     return c;
   }
-  if (version === 1) {
-    for (const [x, y] of [[7, 2], [8, 2], [8, 3]]) c.set(x, y, OCHRE);
-    for (const [x, y, colour] of [[6, 3, STEEL], [7, 3, STEEL], [8, 2, MIST], [9, 2, STEEL]]) c.set(x, y, colour);
-  }
+  if (version === 1) for (const [x, y] of [[7, 2], [8, 2], [8, 3]]) c.set(x, y, OCHRE);
+  if (ore) for (const [x, y, colour] of [[6, 3, STEEL], [7, 3, STEEL], [8, 2, MIST], [9, 2, STEEL]]) c.set(x, y, colour);
   return c;
 }
 
-/** The ground sheet underground, 1792 x 64, in the outdoor sheet's layout: top and rock tiles, the six slopes (a ramp) and the tiles under them. */
+/**
+ * The lip along a ceiling's underside, rows 13 to 15 by version: ochre shade, its last row a broken line of rock deep, and a chip or two
+ * hanging from it (rock deep a row higher, the line broken either side). Never a pale colour: a ceiling is the walk line's opposite. Both
+ * ends of every row are alike in both versions, so lips meet without a seam.
+ */
+const LIP = [
+  ['oooooooooooooooo', 'ooooKooooooKoooo', 'KKKoKoKKKKoKoKKK'],
+  ['oooooooooooooooo', 'ooooooooKooooooo', 'KKKoKKKoKoKKKoKK'],
+];
+
+/** `c` with the underside's lip of `version` over its last three rows. */
+function withLip(c, version) {
+  LIP[version].forEach((row, j) => [...row].forEach((ch, x) => c.set(x, 13 + j, INK[ch])));
+  return c;
+}
+
+/**
+ * Deep rock, the mass behind the lit skin, by version: two long strata of rock deep at the rock tile's rows (5 and 12), each broken by a
+ * gap or two and stepping down a row for a few columns, ending on its row at both edges; and a few ochre specks, on ochre shade. No ore.
+ * Rows 0 and 15 are plain, so deep rock stacks without a seam.
+ */
+const DEEP_STRATA = [
+  [[5, [3, 10], 6], [12, [8], 2]],
+  [[5, [12], 8], [12, [5, 13], 9]],
+];
+const DEEP_SPECKS = [[[11, 2], [4, 9], [13, 14]], [[3, 2], [12, 8], [6, 14]]];
+
+function drawDeepTile(version) {
+  const c = new Cells(16, 16);
+  for (let i = 0; i < 256; i++) c.cells[i] = OCHRE_SHADE;
+  for (const [row, gaps, dipAt] of DEEP_STRATA[version]) {
+    for (let x = 0; x < 16; x++) if (!gaps.includes(x)) c.set(x, x >= dipAt && x < dipAt + 3 ? row + 1 : row, ROCK_DEEP);
+  }
+  for (const [x, y] of DEEP_SPECKS[version]) c.set(x, y, OCHRE);
+  return c;
+}
+
+/**
+ * The ground sheet underground, 2240 x 64: the outdoor sheet's layout (top and rock tiles, the six slopes as a ramp and the tiles under
+ * them; the rock tile's second version, frame 3, carries the ore streak, and no slope or tile under one does), then the mine's own frames
+ * (`src/ui/groundTiles.ts`): the underside 28 and 29, deep rock 30 and 31, the one-tile ledge 32 and 33, and 34, the rock tile's second
+ * version with no ore.
+ */
 export function drawGroundMina() {
-  return groundSheet(drawMinaTile);
+  const frames = groundFrames(drawMinaTile);
+  frames[3] = drawMinaTile(false, 1, true);
+  return tileSheet([
+    ...frames,
+    withLip(drawMinaTile(false, 0), 0),
+    withLip(drawMinaTile(false, 1), 1),
+    drawDeepTile(0),
+    drawDeepTile(1),
+    withLip(drawMinaTile(true, 0), 0),
+    withLip(drawMinaTile(true, 1), 1),
+    drawMinaTile(false, 1),
+  ]);
 }
 
 // ---------------------------------------------------------------------------------------------------- decor underground
@@ -453,13 +521,15 @@ export function drawDecorMina() {
 // ---------------------------------------------------------------------------------------------------- the rock back wall
 
 /**
- * The back wall's marks on ochre shade, [x, y, colour] by version: short broken pieces of bedding and a small crack in rock deep, a few
- * ochre specks. None touches the tile's edges, so tiles of either version meet on every side without a seam, and no bed runs through a
- * whole tile, so a tall wall of them never reads as stripes.
+ * The back wall's marks on ochre shade, [x, y, colour] by version, four of them: short broken pieces of bedding and a small crack in rock
+ * deep, a few ochre specks, each version's in other places. None touches the tile's edges, so tiles of any version meet on every side
+ * without a seam, and no bed runs through a whole tile, so a tall wall of them never reads as stripes.
  */
 const BACKWALL_MARKS = [
   [[2, 4, 'K'], [3, 4, 'K'], [4, 4, 'K'], [5, 5, 'K'], [6, 5, 'K'], [10, 11, 'K'], [11, 11, 'K'], [12, 11, 'K'], [13, 12, 'K'], [9, 7, 'K'], [9, 8, 'K'], [8, 9, 'K'], [5, 12, 'O'], [12, 3, 'O']],
   [[7, 3, 'K'], [8, 3, 'K'], [9, 3, 'K'], [10, 4, 'K'], [1, 10, 'K'], [2, 10, 'K'], [3, 10, 'K'], [4, 11, 'K'], [5, 11, 'K'], [12, 8, 'K'], [12, 9, 'K'], [13, 10, 'K'], [4, 6, 'O'], [10, 13, 'O']],
+  [[3, 7, 'K'], [4, 7, 'K'], [5, 7, 'K'], [6, 8, 'K'], [9, 2, 'K'], [10, 2, 'K'], [11, 3, 'K'], [11, 12, 'K'], [12, 12, 'K'], [13, 12, 'K'], [8, 10, 'K'], [8, 11, 'K'], [7, 12, 'K'], [2, 13, 'O'], [13, 6, 'O']],
+  [[1, 5, 'K'], [2, 5, 'K'], [3, 5, 'K'], [4, 6, 'K'], [8, 9, 'K'], [9, 9, 'K'], [10, 9, 'K'], [11, 10, 'K'], [5, 13, 'K'], [6, 13, 'K'], [7, 13, 'K'], [12, 3, 'K'], [12, 4, 'K'], [13, 5, 'K'], [7, 3, 'O'], [3, 11, 'O']],
 ];
 
 /**
@@ -473,10 +543,10 @@ function drawBackwallTile(version) {
   return c;
 }
 
-/** The back wall sheet, 128 x 64 art px: its two versions, a tile each. */
+/** The back wall sheet, 256 x 64 art px: its four versions, a tile each (`src/ui/scenery/backWall.ts` chooses among them). */
 export function drawBackwall() {
-  const g = new Grid(2 * 64, 64);
-  [0, 1].forEach((v) => {
+  const g = new Grid(BACKWALL_MARKS.length * 64, 64);
+  BACKWALL_MARKS.forEach((_, v) => {
     const px = drawBackwallTile(v).scaled();
     for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) g.set(v * 64 + x, y, px.get(x, y));
   });

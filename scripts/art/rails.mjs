@@ -74,10 +74,13 @@ function sheetOf(frames, w, h, columns = frames.length) {
  * lower of the rail's grounds at the tile's two edges, so that ground is at row `ground`: the rail fills the 4 px over it (the bottom of its
  * tile) and on a slope steps 1 px per px up to 16 px higher, which a 16 px tall frame cannot hold. The stringer frames go at the same place;
  * a bent's at the stringer's underside (`bentTop`). Frames: the rail level, up (rising to the right on the screen) and down, the broken end
- * (level, rolling right), the stringer level, up and down, a bent's top level, up and down, and the leg that carries a bent on downwards.
+ * (level, rolling right), the stringer level, up and down, a bent's top level, up and down, the four legs that carry a bent on downwards
+ * (leg n shows its rows from 24 n, mod 96, on; they follow its top in turn, 1, 2, 3, 0) and the sill at its foot.
  */
 export const RAIL_ART = { w: 16, h: 24, ground: 20 };
-export const RAIL_FRAMES = ['level', 'slopeUp', 'slopeDown', 'broken', 'stringerLevel', 'stringerUp', 'stringerDown', 'bentLevel', 'bentUp', 'bentDown', 'leg'];
+export const RAIL_FRAMES = [
+  'level', 'slopeUp', 'slopeDown', 'broken', 'stringerLevel', 'stringerUp', 'stringerDown', 'bentLevel', 'bentUp', 'bentDown', 'leg0', 'leg1', 'leg2', 'leg3', 'sill',
+];
 /** Where a bent's frame goes, over the lower ground of its tile: a level one 2 px under it (the stringer's underside), a sloped one 13 px over it. */
 export const BENT_TOP = { level: 2, slope: -13 };
 /** The sleepers' columns in a tile: 4 px wide every 8 px, the same mirrored, so a broken end drawn facing left keeps them in step. */
@@ -136,35 +139,65 @@ function stringerCells(kind) {
   return c;
 }
 
-/** A bent post's left column at `r` rows under the bent's top: 2 px wide, leaning in, from column 5 at the top out to 2 over 12 px. */
-const postX = (r) => 5 - Math.min(3, Math.max(0, Math.floor(r / 4)));
+/** A bent's X of cross braces is this many rows tall, one under another: one X per 32 px of its height. */
+const BRACE_ROWS = 32;
 
 /**
- * A bent's top under a stringer of `kind`: two posts 2 px wide in timber dark, leaning in, and one cross brace between them, each post cut
- * along the stringer's underside (the frame's row 0 on the level, its top at the slope's high end otherwise). Scenery, no outline.
+ * A bent, squared timber, as rows from its frame's top down: two posts 3 px wide, timber dark with a 1 px timber edge on the lit left side,
+ * leaning in 2 px (a step of 1 px out at rows 11 and 19, plumb below), and between them an X of cross braces 2 px wide, timber dark, every
+ * 32 rows from row 3 (under the cap), each arm a stair from one post's foot of the X to the other's head. The cap and the sill are drawn
+ * over it (`bentCells`, `sillCells`). The X repeats every 32 rows and a frame is 24, so the legs under a bent's top are four frames cut from
+ * this, used in turn (LEG_FRAMES): the pattern repeats every 96 rows.
+ */
+function bentPattern(r, x) {
+  // The left post's left column (the right post mirrors it), 3 at the top, 1 from row 19 down.
+  const left = 1 + (r < 19 ? 1 : 0) + (r < 11 ? 1 : 0);
+  if (x === left || x === 13 - left) return TIMBER;
+  if ((x > left && x < left + 3) || (x > 13 - left && x < 16 - left)) return TIMBER_DARK;
+  if (r < 3) return null;
+  // The X: down its 32 rows, the arm from the left goes 6 px right in whole px at a steady rate, the other mirrors it.
+  const s = Math.round((6 * ((r - 3) % BRACE_ROWS)) / (BRACE_ROWS - 1));
+  return x === 4 + s || x === 5 + s || x === 11 - s || x === 10 - s ? TIMBER_DARK : null;
+}
+
+/**
+ * A bent's top under a stringer of `kind`: its pattern's first 24 rows under a cap 3 px deep across columns 2 to 13, its left end lit, laid
+ * along the stringer's underside (the frame's row 0 on the level, a stair of 1 px per px on a slope) so that it meets the stringer in each of
+ * its columns; nothing over the underside. Scenery, no outline.
  */
 function bentCells(kind) {
   const c = new Cells(RAIL_ART.w, RAIL_ART.h);
-  // The stringer's underside at column x, as a row of this frame, and the bent's top, the underside at its middle.
+  // The stringer's underside at column x, as a row of this frame.
   const under = (x) => (kind === 'level' ? 0 : kind === 'up' ? 15 - x : x);
-  const top = kind === 'level' ? 0 : 8;
   for (let y = 0; y < RAIL_ART.h; y++) {
-    const x0 = postX(y - top);
-    for (const x of [x0, x0 + 1, 15 - x0, 14 - x0]) if (y >= under(x)) c.set(x, y, TIMBER_DARK);
-  }
-  // The cross brace: one diagonal from the left post high up to the right post lower down.
-  for (let i = 0; i <= 8; i++) {
-    const y = top + 3 + i;
-    const x = Math.round(postX(3) + 2 + (i * (13 - postX(11) - (postX(3) + 2))) / 8);
-    if (y >= under(x)) c.set(x, y, TIMBER_DARK);
+    for (let x = 0; x < RAIL_ART.w; x++) {
+      if (y < under(x)) continue;
+      const cap = x >= 2 && x <= 13 && y < under(x) + 3;
+      const colour = cap ? (x === 2 ? TIMBER : TIMBER_DARK) : bentPattern(y, x);
+      if (colour) c.set(x, y, colour);
+    }
   }
   return c;
 }
 
-/** The leg: a bent's two posts straight down at their widest, repeated under its top as far as it goes. */
-function legCells() {
+/** Leg `n`: the bent's pattern from row 24 n on (leg 0 from row 96, a whole number of Xs on, with the posts plumb). */
+function legCells(n) {
   const c = new Cells(RAIL_ART.w, RAIL_ART.h);
-  for (let y = 0; y < RAIL_ART.h; y++) for (const x of [2, 3, 12, 13]) c.set(x, y, TIMBER_DARK);
+  const from = RAIL_ART.h * (n === 0 ? 4 : n);
+  for (let y = 0; y < RAIL_ART.h; y++) {
+    for (let x = 0; x < RAIL_ART.w; x++) {
+      const colour = bentPattern(from + y, x);
+      if (colour) c.set(x, y, colour);
+    }
+  }
+  return c;
+}
+
+/** The sill: a timber SILL_ROWS tall across the tile at a bent's foot where it meets the ground, its left end lit, in the frame's top rows. */
+export const SILL_ROWS = 2;
+function sillCells() {
+  const c = new Cells(RAIL_ART.w, RAIL_ART.h);
+  for (let y = 0; y < SILL_ROWS; y++) for (let x = 0; x < RAIL_ART.w; x++) c.set(x, y, x === 0 ? TIMBER : TIMBER_DARK);
   return c;
 }
 
@@ -173,11 +206,11 @@ export function railFrameCells() {
   return [
     railCells('level'), railCells('up'), railCells('down'), brokenCells(),
     stringerCells('level'), stringerCells('up'), stringerCells('down'),
-    bentCells('level'), bentCells('up'), bentCells('down'), legCells(),
+    bentCells('level'), bentCells('up'), bentCells('down'), legCells(0), legCells(1), legCells(2), legCells(3), sillCells(),
   ];
 }
 
-/** The rail sheet, 704 x 96 art px: RAIL_FRAMES in one row. */
+/** The rail sheet, 960 x 96 art px: RAIL_FRAMES in one row. */
 export function drawRail() {
   return sheetOf(railFrameCells().map((c) => c.scaled()), RAIL_ART.w * S, RAIL_ART.h * S);
 }
@@ -272,7 +305,7 @@ export function drawPost() {
  * row is the back layers, its second the front ones, each in CART_LOOKS order; drawn rolling right (the game mirrors a cart rolling left).
  */
 export const CART_ART = { w: 32, h: 16, floor: 8 };
-export const CART_LOOKS = ['standing', 'rolling0', 'rolling1'];
+export const CART_LOOKS = ['standing', 'rolling0', 'rolling1', 'stopped'];
 
 /** The tub's left edge at each row from its rim down: 30 px wide at the rim (rows 0 to 4), 24 at the floor (row 10). */
 const TUB_LEFT = [1, 1, 1, 1, 1, 2, 2, 3, 3, 4, 4];
@@ -292,9 +325,10 @@ const WHEEL = [
   'IIIIII',
   '.IIII.',
 ];
-/** The hubs' glint, a mist white px on the hub (2 x 2 from its wheel's column 2, row 2), turning: the standing and rolling looks. */
-const GLINT = { standing: [0, 0], rolling0: [1, 0], rolling1: [1, 1] };
-/** The chock wedged under the leading wheel while it stands: timber, its slope lit. */
+/** The hubs' glint, a mist white px on the hub (2 x 2 from its wheel's column 2, row 2), turning: the standing and rolling looks; stopped at
+ * its buffer it is the standing frame without the chock or the dust. */
+const GLINT = { standing: [0, 0], rolling0: [1, 0], rolling1: [1, 1], stopped: [0, 0] };
+/** The chock wedged under the leading wheel while it waits at its start: timber, its slope lit. */
 // prettier-ignore
 const CHOCK = ['T...', 'Tt..', 'Ttt.', 'tttt'];
 const CHOCK_AT = { x: 28, y: 8 };
@@ -336,7 +370,7 @@ export function drawCartFrames() {
   });
 }
 
-/** The vagoneta sheet, 384 x 128 art px: the back layers in a row over the front layers. */
+/** The vagoneta sheet, 512 x 128 art px: the back layers in a row over the front layers. */
 export function drawVagoneta() {
   const frames = drawCartFrames();
   return sheetOf([...frames.map((f) => f.back), ...frames.map((f) => f.front)], CART_ART.w * S, CART_ART.h * S, CART_LOOKS.length);
@@ -344,17 +378,20 @@ export function drawVagoneta() {
 
 // ---------------------------------------------------------------------------------------------------- the low beam
 
-/** The low beam's pieces, 16 x 16 game px: its left end, a middle that repeats and its right end; the beam is the tile's bottom 10 px. */
+/**
+ * The low beam's pieces, 16 x 16 game px: its left end, a middle that repeats, its right end, and a beam one tile long with both ends in
+ * one piece; the beam is the tile's bottom 10 px.
+ */
 export const VIGA_ART = { w: 16, h: 16, thick: 10 };
-export const VIGA_PIECES = ['left', 'middle', 'right'];
+export const VIGA_PIECES = ['left', 'middle', 'right', 'single'];
 
 /**
- * The beam (viga), drawn as one strip of its three pieces so that only its ends and its top and bottom are outlined: a squared cap timber
- * 10 px thick against its tile's bottom edge, timber lit on top, timber, timber dark underneath, the saw-cut end grain as rings on each end,
- * an iron strap round it in the middle of every piece, and a row of mist white along its lower front edge, the edge he must clear.
+ * The beam (viga), `tiles` long, drawn as one strip so that only its ends and its top and bottom are outlined: a squared cap timber 10 px
+ * thick against its tile's bottom edge, timber lit on top, timber, timber dark underneath, the saw-cut end grain as rings on each end, an
+ * iron strap round it in the middle of every tile, and a row of mist white along its lower front edge, the edge he must clear.
  */
-function vigaCells() {
-  const w = VIGA_ART.w * VIGA_PIECES.length;
+function vigaCells(tiles) {
+  const w = VIGA_ART.w * tiles;
   const c = new Cells(w, VIGA_ART.h);
   const top = VIGA_ART.h - VIGA_ART.thick;
   for (let r = 0; r < VIGA_ART.thick; r++) {
@@ -372,17 +409,19 @@ function vigaCells() {
   return c;
 }
 
-/** The beam's pieces: [{ piece, grid }], each 64 x 64 art px. */
+/** The beam's pieces: [{ piece, grid }], each 64 x 64 art px: the ends and the middle cut from a beam 3 tiles long, the single one a beam of 1. */
 export function drawVigaPieces() {
-  const strip = outlined(vigaCells());
+  const strip = outlined(vigaCells(3));
+  const single = outlined(vigaCells(1));
   return VIGA_PIECES.map((piece, n) => {
+    if (piece === 'single') return { piece, grid: single };
     const g = new Grid(VIGA_ART.w * S, VIGA_ART.h * S);
     for (let y = 0; y < g.height; y++) for (let x = 0; x < g.width; x++) g.set(x, y, strip.get(n * VIGA_ART.w * S + x, y));
     return { piece, grid: g };
   });
 }
 
-/** The viga sheet, 192 x 64 art px: VIGA_PIECES in a row. */
+/** The viga sheet, 256 x 64 art px: VIGA_PIECES in a row. */
 export function drawViga() {
   return sheetOf(drawVigaPieces().map((p) => p.grid), VIGA_ART.w * S, VIGA_ART.h * S);
 }

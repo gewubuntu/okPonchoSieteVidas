@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -87,6 +88,25 @@ describe('World 3 (Sierra) art, the canyon', () => {
     expect(SKY_ENDS).toEqual([240, 440]);
     expect(STRIP).toBe(2);
     expect([DECOR_FRAME.w, DECOR_FRAME.h]).toEqual([16, 40]);
+  });
+
+  it('GDD-ART-06 the canyon files are byte for byte the approved ones, whatever the mine draws', () => {
+    // The SHA-256 of each file as approved (user, 2026-11-11: "Approved go on"), written here so that a change to the mine's drawing that
+    // reaches the canyon's fails even after the files are written again.
+    const approved = {
+      'sky-strips.png': '63fd05e5da79fb77207c51f0caeac5129b23053214a9da89ceb5465de1ffef4c',
+      'cloud-0.png': '86fccef103697e2fbe0543668b02db01524f197cfde9830c7e9b50f386e47207',
+      'cloud-1.png': '91630c84b1dda469a56d509fc0aa2ad956b0aea109c20b463dc85024af4b11cf',
+      'cloud-2.png': 'c2ce4c25ac2b3d6ef9bc286e2b7f1f15666b4b1a3131f8b4ac99eed5a7514819',
+      'far-barranca.png': 'c3acf00e6c0ad15e2001f29b4ea737902b5e713038ff27f2e1c1a1b9768d3287',
+      'mid-barranca.png': 'bcd9788bfd70422ddcc86653011e74b5f4f2053abcda2dd6a5db0df3c9c5168c',
+      'ground.png': '00d0de31122fead918d3b9c254539e14585bcf1c7e9bce2046d2f78bb1f83801',
+      'decor.png': '03a512c8bf2cf898df849045e7690cac9b1fe3dce1224d35b10e9d11f280e980',
+      'ledge.png': '4045167c855bcfac5fbd8a1bdfc69025271033a934c61177f6ae0e709d040497',
+    };
+    const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
+    expect(Object.fromEntries(Object.entries(buildSierra()).map(([name, bytes]) => [name, sha(bytes)]))).toEqual(approved);
+    for (const [name, hash] of Object.entries(approved)) expect(sha(readFileSync(join(dir, name))), name).toBe(hash);
   });
 
   it('GDD-ART-03 the Sierra uses only its 24 colours, and the outline only on the ledge', () => {

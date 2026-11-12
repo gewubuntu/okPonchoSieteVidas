@@ -3,7 +3,10 @@ import { TILE } from '../../config/tuning';
 import { LEVEL_3_1, LEVEL_3_1_GROUND, LEVEL_3_1_PIECES } from '../../levels/level3-1';
 import type { Level } from '../../sim/run';
 import { parseTiles } from '../../sim/tilemap';
-import { BACK_WALL_DEPTH, backWallTiles } from './backWall';
+import { BACK_WALL_DEPTH, BACK_WALL_VERSIONS, backWallTiles } from './backWall';
+
+/** The back wall tiles of each version over 3-1's two rectangles, measured. */
+const VERSIONS_3_1 = [70, 65, 75, 69];
 
 /** A level of `rows` with back walls `walls`, nothing else in it. */
 const levelOf = (rows: string[], walls: Level['backWalls']): Level => ({
@@ -34,12 +37,56 @@ describe('GDD-WLD-17 the rock back wall', () => {
     expect(backWallTiles(levelOf(['....', '####'], undefined))).toEqual([]);
   });
 
-  it('GDD-WLD-17 backwall version: (7 x column + 3 x row) mod 2, as the rock tile', () => {
-    const level = levelOf(['....', '....', '####'], [{ col0: 0, col1: 3, row0: 0, row1: 1 }]);
-    expect(backWallTiles(level).map(({ tx, ty, frame }) => [tx, ty, frame])).toEqual([
-      [0, 0, 0], [1, 0, 1], [2, 0, 0], [3, 0, 1],
-      [0, 1, 1], [1, 1, 0], [2, 1, 1], [3, 1, 0],
-    ]);
+  it('GDD-WLD-17 backwall version: one of four, never the version of the tile above or beside it, the hash picking among the rest', () => {
+    // A wide open field, one rectangle over all of it but the floor.
+    const rows = [...Array.from({ length: 40 }, () => '.'.repeat(120)), '#'.repeat(120)];
+    const level = levelOf(rows, [{ col0: 0, col1: 119, row0: 0, row1: 39 }]);
+    const tiles = backWallTiles(level);
+    const at = new Map(tiles.map(({ tx, ty, frame }) => [`${tx},${ty}`, frame]));
+    expect(BACK_WALL_VERSIONS).toBe(4);
+    for (const { tx, ty, frame } of tiles) {
+      expect([0, 1, 2, 3]).toContain(frame);
+      expect(frame, `${tx},${ty} under ${tx},${ty - 1}`).not.toBe(at.get(`${tx},${ty - 1}`));
+      expect(frame, `${tx},${ty} beside ${tx - 1},${ty}`).not.toBe(at.get(`${tx - 1},${ty}`));
+    }
+    // Every version shows, in about a quarter of the tiles each, and the same level gives the same wall.
+    for (let v = 0; v < 4; v++) expect(Math.abs(tiles.filter((t) => t.frame === v).length / tiles.length - 0.25), `version ${v}`).toBeLessThan(0.03);
+    expect(backWallTiles(level)).toEqual(tiles);
+    // Two rectangles, the lower listed first: the tile under the upper one's last row still differs from it (the versions are chosen from
+    // the top row down whatever the order of the rectangles).
+    const split = levelOf(rows, [{ col0: 0, col1: 119, row0: 20, row1: 39 }, { col0: 0, col1: 119, row0: 0, row1: 19 }]);
+    const splitAt = new Map(backWallTiles(split).map(({ tx, ty, frame }) => [`${tx},${ty}`, frame]));
+    for (let tx = 0; tx < 120; tx++) expect(splitAt.get(`${tx},20`), `column ${tx}`).not.toBe(splitAt.get(`${tx},19`));
+  });
+
+  it('GDD-WLD-17 backwall over 3-1 galleries: no checker and no stripes, no version in one column more than 3 rows running', () => {
+    // 3-1's two rectangles as one field (columns 136 to 164, rows 27 to 37; 25 x 11 where both reach).
+    const tiles = backWallTiles(LEVEL_3_1);
+    const at = new Map(tiles.map(({ tx, ty, frame }) => [`${tx},${ty}`, frame]));
+    const [a, b] = LEVEL_3_1.backWalls!;
+    const runs: string[] = [];
+    for (let tx = a!.col0; tx <= b!.col1; tx++) {
+      let run = 1;
+      for (let ty = a!.row0 + 1; ty <= b!.row1; ty++) {
+        run = at.has(`${tx},${ty}`) && at.get(`${tx},${ty}`) === at.get(`${tx},${ty - 1}`) ? run + 1 : 1;
+        if (run > 3) runs.push(`column ${tx} to row ${ty}`);
+      }
+    }
+    for (let ty = a!.row0; ty <= b!.row1; ty++) {
+      let run = 1;
+      for (let tx = a!.col0 + 1; tx <= b!.col1; tx++) {
+        run = at.has(`${tx},${ty}`) && at.get(`${tx},${ty}`) === at.get(`${tx - 1},${ty}`) ? run + 1 : 1;
+        if (run > 3) runs.push(`row ${ty} to column ${tx}`);
+      }
+    }
+    expect(runs).toEqual([]);
+    // No checker: neither the rows nor the columns repeat every second tile, and diagonal neighbours do not always match.
+    const same = (dx: number, dy: number) => tiles.filter(({ tx, ty, frame }) => at.has(`${tx + dx},${ty + dy}`) && at.get(`${tx + dx},${ty + dy}`) === frame).length;
+    const pairs = (dx: number, dy: number) => tiles.filter(({ tx, ty }) => at.has(`${tx + dx},${ty + dy}`)).length;
+    for (const [dx, dy] of [[2, 0], [0, 2], [1, 1], [1, -1]] as const) {
+      expect(same(dx, dy), `${dx},${dy}`).toBeLessThan(pairs(dx, dy) / 2);
+      expect(pairs(dx, dy), `${dx},${dy}`).toBeGreaterThan(100);
+    }
   });
 
   it('GDD-WLD-17 backwall depth: in front of the backdrop layers, behind everything in the level', () => {
@@ -65,8 +112,9 @@ describe('GDD-WLD-17 the rock back wall', () => {
     const tiles = backWallTiles(LEVEL_3_1);
     // Nothing above F1's underside, none at or right of column 165, none on a solid tile.
     expect(tiles.every(({ tx, ty }) => ty >= 27 && tx >= 136 && tx <= 164 && !LEVEL_3_1.world.solidTile(tx, ty))).toBe(true);
-    // Measured: 279 tiles, 138 of version 0 and 141 of version 1 (the rectangles hold 107 and 172 open tiles).
-    expect([tiles.length, tiles.filter((t) => t.frame === 0).length, tiles.filter((t) => t.frame === 1).length]).toEqual([279, 138, 141]);
+    // Measured: 279 tiles (the rectangles hold 107 and 172 open tiles), and of each version, in order (L-072).
+    expect(tiles.length).toBe(279);
+    expect([0, 1, 2, 3].map((v) => tiles.filter((t) => t.frame === v).length)).toEqual(VERSIONS_3_1);
     expect(TILE).toBe(16);
   });
 });

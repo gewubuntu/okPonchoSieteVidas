@@ -5,7 +5,7 @@ import type Phaser from 'phaser';
 import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, DECOR_FRAME, TILE } from '../../config/tuning';
 import type { Level } from '../../sim/run';
 import { parallaxOffset } from '../backdrop';
-import { groundFrame } from '../groundTiles';
+import { groundFrameFor } from '../groundTiles';
 import { plantSpots } from '../plants';
 import { BACK_WALL_DEPTH, backWallTiles } from './backWall';
 import { artFiles, type ArtFiles } from './files';
@@ -112,7 +112,7 @@ class BandScenery implements Scenery {
 
   preload(load: Phaser.Loader.LoaderPlugin): void {
     // The sky's dither strips, the sun, a picture of each cloud, the far band and the ground sheet, 28 frames of one tile (TILE * ART_SCALE)
-    // each (GDD-MOV-09).
+    // each (GDD-MOV-09), the mine's 35 (`groundFrameFor`).
     load.spritesheet(this.key('sky-strips'), this.files.skyStrips, { frameWidth: BASE_WIDTH * ART_SCALE, frameHeight: this.look.stripArt });
     if (this.files.sun !== null) load.image(this.key('sun'), this.files.sun);
     this.files.clouds.forEach((png, i) => load.image(this.key(`cloud-${i}`), png));
@@ -179,7 +179,7 @@ class BandScenery implements Scenery {
         const slope = world.slopeAt(tx, ty);
         if (!world.solidTile(tx, ty) && slope === null) continue;
         // Hidden until the first `follow` shows those in the view (GDD-TEC-03).
-        const image = scene.add.image(tx * TILE, ty * TILE, this.key('ground'), groundFrame((x, y) => world.solidTile(x, y), tx, ty, (x, y) => world.slopeAt(x, y))).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1).setVisible(false);
+        const image = scene.add.image(tx * TILE, ty * TILE, this.key('ground'), groundFrameFor(this.place, world, tx, ty)).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1).setVisible(false);
         this.groundImages[ty * world.width + tx] = image;
       }
     }

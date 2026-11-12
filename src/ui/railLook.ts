@@ -7,18 +7,24 @@ import type { World } from '../sim/movement';
 
 /**
  * The rail sheet's layout (`scripts/art/rails.mjs`, a test compares them): frames 16 x 24 game px, a rail tile's frame placed with the lower
- * of its two grounds at row `ground`. The frames in sheet order; a bent's top goes `BENT_TOP` px under (over, if negative) that ground.
+ * of its two grounds at row `ground`. The frames in sheet order; a bent's top goes `BENT_TOP` px under (over, if negative) that ground, its
+ * legs follow it in turn (`leg1`, `leg2`, `leg3`, `leg0`, so its braces stay in step), and its sill, `SILL_ROWS` tall, ends at its foot.
  */
 export const RAIL_ART = { w: 16, h: 24, ground: 20 } as const;
-export const RAIL_FRAMES = ['level', 'slopeUp', 'slopeDown', 'broken', 'stringerLevel', 'stringerUp', 'stringerDown', 'bentLevel', 'bentUp', 'bentDown', 'leg'] as const;
+export const RAIL_FRAMES = [
+  'level', 'slopeUp', 'slopeDown', 'broken', 'stringerLevel', 'stringerUp', 'stringerDown', 'bentLevel', 'bentUp', 'bentDown', 'leg0', 'leg1', 'leg2', 'leg3', 'sill',
+] as const;
 export type RailFrame = (typeof RAIL_FRAMES)[number];
 export const BENT_TOP = { level: 2, slope: -13 } as const;
+export const SILL_ROWS = 2;
+/** The leg frames, used in turn under a bent's top. */
+const LEG_FRAMES = ['leg0', 'leg1', 'leg2', 'leg3'] as const;
 /** The buffer's frame (16 x 16) and the warning post's (8 x 24), each a sheet of one frame. */
 export const BUFFER_SIZE = { w: 16, h: 16 } as const;
 export const POST_SIZE = { w: 8, h: 24 } as const;
 
-/** The cart's looks, in the vagoneta sheet's order: its back layers are frames 0 to 2, its front layers 3 to 5. */
-export const CART_LOOKS = ['standing', 'rolling0', 'rolling1'] as const;
+/** The cart's looks, in the vagoneta sheet's order: its back layers are frames 0 to 3, its front layers 4 to 7. */
+export const CART_LOOKS = ['standing', 'rolling0', 'rolling1', 'stopped'] as const;
 export type CartLook = (typeof CART_LOOKS)[number];
 /** GDD-ART-06: a rolling cart shows its next rolling frame every `CART_FRAME_STEPS` steps. */
 export const CART_FRAME_STEPS = 4;
@@ -29,7 +35,7 @@ export const CART_FRAME_STEPS = 4;
  * the frame where a bent reaches the ground), and `rail` the rail's place in the level's list.
  */
 export interface RailImage {
-  readonly part: 'rail' | 'stringer' | 'bent' | 'leg' | 'buffer' | 'post';
+  readonly part: 'rail' | 'stringer' | 'bent' | 'leg' | 'sill' | 'buffer' | 'post';
   readonly frame: RailFrame | 'buffer' | 'post';
   readonly x: number;
   readonly y: number;
@@ -49,7 +55,8 @@ const groundAt = (world: World, tx: number, ty: number): boolean => world.solidT
  * its ground runs on the screen (rising to the right is up, whichever way the cart rolls), and a broken rail's last tile its broken end,
  * mirrored for a cart rolling left. A rail tile with no ground in the tile its rail lies in (under a level tile's ground, or the tile a slope
  * crosses) stands on a trestle: a stringer under it, and on every second tile of each run of such tiles, from the run's first, a bent (32 px
- * apart) down to the top of the first ground tile under it or the level's bottom (`rows` tiles down): its top, then legs as far as it goes.
+ * apart) down to the top of the first ground tile under it or the level's bottom (`rows` tiles down): its top, then legs as far as it goes,
+ * and where it meets ground, a sill at its foot over them.
  * A buffer stands on the ground past the rail's end, its plate toward the cart; a broken rail's warning post 6 tiles before its end
  * (`warningPost`). The crumbling tiles are not ground here: no level lays a rail on them yet.
  */
@@ -85,9 +92,10 @@ export function railLook(world: World, rails: readonly Rail[], rows: number): Ra
         let ty = Math.floor(low / TILE);
         while (ty < rows && !groundAt(world, col, ty)) ty++;
         const foot = Math.min(ty * TILE, bottom);
-        for (let y = top, first = true; y < foot; y += RAIL_ART.h, first = false) {
-          out.push({ part: first ? 'bent' : 'leg', frame: first ? `bent${shape}` : 'leg', x: col * TILE, y, flip: false, height: Math.min(RAIL_ART.h, foot - y), rail });
+        for (let y = top, n = 0; y < foot; y += RAIL_ART.h, n++) {
+          out.push({ part: n === 0 ? 'bent' : 'leg', frame: n === 0 ? `bent${shape}` : LEG_FRAMES[n % LEG_FRAMES.length]!, x: col * TILE, y, flip: false, height: Math.min(RAIL_ART.h, foot - y), rail });
         }
+        if (ty < rows) out.push({ part: 'sill', frame: 'sill', x: col * TILE, y: foot - SILL_ROWS, flip: false, height: SILL_ROWS, rail });
       });
     }
     const post = warningPost(r);
@@ -102,8 +110,9 @@ export function railLook(world: World, rails: readonly Rail[], rows: number): Ra
 
 /**
  * GDD-ART-06: the look a cart is drawn with. Waiting at its start it stands, with its chock; rolling it shows rolling0 and rolling1 by
- * turns, a new one every CART_FRAME_STEPS of the run's steps (`clock`, so it holds still while the game is paused); stopped at its buffer or
- * falling off a broken end it keeps `last`, the look of its last rolling step; gone it is not drawn (null).
+ * turns, a new one every CART_FRAME_STEPS of the run's steps (`clock`, so it holds still while the game is paused); stopped at its buffer it
+ * shows the stopped frame (no chock, no dust) from the step it stops; falling off a broken end it keeps `last`, the look of its last rolling
+ * step; gone it is not drawn (null).
  */
 export function cartLook(cart: CartState, clock: number, last: CartLook): CartLook | null {
   switch (cart.phase) {
@@ -111,6 +120,8 @@ export function cartLook(cart: CartState, clock: number, last: CartLook): CartLo
       return 'standing';
     case 'rolling':
       return Math.floor(clock / CART_FRAME_STEPS) % 2 === 0 ? 'rolling0' : 'rolling1';
+    case 'stopped':
+      return 'stopped';
     case 'gone':
       return null;
     default:

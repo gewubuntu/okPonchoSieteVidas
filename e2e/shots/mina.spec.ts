@@ -72,6 +72,32 @@ test('GDD-ART-06 mina: under the low roof', async ({ page, isMobile }, info) => 
   await shot(page, info, 'mina-low');
 });
 
+test('GDD-ART-06 mina: under the 5-row roof, its underside lip, the lit skin and the deep rock behind it', async ({ page, isMobile }, info) => {
+  // Standing on the floor between the pit and the low roof: in view the roof's last row over the gallery (an underside) with deep rock
+  // over it, the pit's walls (plain rock, the lit skin) and the low roof's underside. The frames are the mine's (`mineGroundFrame`): the
+  // underside 28 or 29, deep rock 30 or 31, plain rock 2 or 34, the ore streak 3.
+  const col = LAB_3M_LOW_ROOF.col0 - 1;
+  await open(page, isMobile, { x: col * TILE + TILE / 2, y: FLOOR_Y });
+  const { cam, s } = await view(page);
+  expect(s).toMatchObject({ y: FLOOR_Y, grounded: true });
+  expect(Math.floor(s.x / TILE)).toBe(col);
+  const roofLast = 4;
+  const tiles = { underside: [LAB_3M_PIT.col0, roofLast], deep: [LAB_3M_PIT.col0, roofLast - 2], skin: [LAB_3M_PIT.col0 - 1, LAB_3M_FLOOR_ROW + 1], low: [LAB_3M_LOW_ROOF.col0 + 1, LAB_3M_LOW_ROOF.row] } as const;
+  const frames = await page.evaluate((ts) => Object.fromEntries(Object.entries(ts).map(([k, [tx, ty]]) => [k, window.__PONCHO__!.groundFrame(tx, ty)])), tiles);
+  expect([28, 29]).toContain(frames.underside);
+  expect([30, 31]).toContain(frames.deep);
+  expect([2, 3, 34]).toContain(frames.skin);
+  expect([28, 29]).toContain(frames.low);
+  // Each of them on screen.
+  for (const [k, [tx, ty]] of Object.entries(tiles)) {
+    expect(tx * TILE - cam.viewX, k).toBeGreaterThanOrEqual(0);
+    expect((tx + 1) * TILE - cam.viewX, k).toBeLessThanOrEqual(480);
+    expect(ty * TILE - cam.scrollY, k).toBeGreaterThanOrEqual(0);
+    expect((ty + 1) * TILE - cam.scrollY, k).toBeLessThanOrEqual(270);
+  }
+  await shot(page, info, 'mina-roof');
+});
+
 test('GDD-ART-06 mina: beside the placeholder cart and its rail on the lower floor', async ({ page, isMobile }, info) => {
   const rail = LAB_3M_RAILS[0]!;
   await open(page, isMobile, { x: rail.x - TILE / 2, y: rail.y });
