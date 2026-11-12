@@ -476,6 +476,17 @@ export const ENEMY_ART = {
   rockSteps: 4,
   /** GDD-ENM-04 (Proposed): the Murciélago shows the next flap frame every `batFlapSteps` of its own steps. */
   batFlapSteps: 5,
+  /** GDD-ENM-04 (Proposed): the rolling Armadillo shows the next roll frame every `rollPx` px it rolls, its way. */
+  rollPx: 6,
+  /** GDD-ENM-04 (Proposed): kicking (`ARMADILLO.kickSteps`), the dazed Armadillo shows dazedKick on every other block of `kickFlipSteps` steps. */
+  kickFlipSteps: 4,
+  /**
+   * GDD-ENM-04 (Proposed): the dazed Armadillo lies facing the wall that stopped it, and is drawn `dazedBack` px back from it: its dazed
+   * frames reach that far past its box's front (pinned by `scripts/art/enemies3.test.mjs`), so their front is on its box's front.
+   */
+  dazedBack: 5,
+  /** GDD-ENM-04 (Proposed): the claw rang off the rolling ball: it is drawn white for `rangSteps` steps, the step it rang and the next. */
+  rangSteps: 2,
 } as const;
 
 /**

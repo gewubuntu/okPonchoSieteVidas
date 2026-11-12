@@ -121,6 +121,9 @@ function rollStep(world: TileGrid, x: number, y: number, dir: 1 | -1, vy: number
 /** Its box has fallen wholly below the level's last row (GDD-WLD-03: an enemy falls to the level's last row, under a raised bottom too). */
 const outOfLevel = (world: TileGrid, y: number): boolean => y - ARMADILLO.height > world.height * TILE;
 
+/** GDD-ENM-04, for the scene: is it an Armadillo gone because it fell out of the level (it goes in no poof)? */
+export const fellOut = (world: TileGrid, state: EnemyState): boolean => state.shell !== undefined && state.y !== undefined && outOfLevel(world, state.y);
+
 /**
  * GDD-ENM-04, GDD-TEC-04: a ball rolling the way `dir` faces from (x, y), its feet on the ground, played out with no Poncho for at most
  * `steps` steps: where it is after each step, until a wall stops it (`end` 'dazed'), it falls out of the level ('gone'), or the steps run

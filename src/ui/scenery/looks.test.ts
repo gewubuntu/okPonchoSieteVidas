@@ -37,6 +37,7 @@ describe('GDD-ART-06 a look per world', () => {
       'lab-3c': 'sierra',
       'lab-3t': 'sierra',
       'lab-3m': 'sierra',
+      'lab-3a': 'sierra',
     });
   });
 
@@ -146,9 +147,9 @@ describe('GDD-ART-06 a look per world', () => {
 });
 
 describe('GDD-ART-06 a World 3 level chooses its place', () => {
-  it('GDD-ART-06 place of every World 3 level: 3-1 and the canyon labs the barranca, 3-2 and lab-3m the mine, none outside World 3', () => {
+  it('GDD-ART-06 place of every World 3 level: 3-1 and the canyon labs the barranca, 3-2, lab-3m and lab-3a the mine, none outside World 3', () => {
     const places = Object.fromEntries(LEVELS.map((e) => [e.id, placeFor(e.world, e.place)]));
-    expect(Object.fromEntries(Object.entries(places).filter(([, p]) => p !== null))).toEqual({ '3-1': 'barranca', '3-2': 'mina', 'lab-3c': 'barranca', 'lab-3t': 'barranca', 'lab-3m': 'mina' });
+    expect(Object.fromEntries(Object.entries(places).filter(([, p]) => p !== null))).toEqual({ '3-1': 'barranca', '3-2': 'mina', 'lab-3c': 'barranca', 'lab-3t': 'barranca', 'lab-3m': 'mina', 'lab-3a': 'mina' });
     // Left out, a World 3 level's place is the barranca; outside World 3 there is none, whatever is asked.
     expect([placeFor(3), placeFor(3, 'mina'), placeFor(2), placeFor(2, 'mina'), placeFor(1, 'barranca')]).toEqual(['barranca', 'mina', null, null, null]);
   });

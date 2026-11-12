@@ -7,8 +7,8 @@ import { bossCrown, bossStart } from '../sim/boss';
 import { isBossLevel, levelBoss } from '../sim/bossLevel';
 import { centre, enemyPhase, feetOf, kindOf, type EnemyKind } from '../sim/enemy';
 import { defeatLook, stepDefeats, type DefeatFx } from '../ui/defeatFx';
-import { frameLook, SHEETS, type EnemyLook, type Sheet } from '../ui/enemyLooks';
-import { ARMADILLO_PLACEHOLDER, armadilloBox, enemyPose } from '../ui/enemyPose';
+import { frameLook, SHEETS, sheetsFor, type EnemyLook, type Sheet } from '../ui/enemyLooks';
+import { enemyPose, stepRang } from '../ui/enemyPose';
 import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, unlockedAbilities, withUnlocks, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
@@ -29,6 +29,7 @@ import palomaPng from '../../assets/sprites/enemies/paloma.png';
 import chapulinPng from '../../assets/sprites/enemies/chapulin.png';
 import trompoPng from '../../assets/sprites/enemies/trompo.png';
 import murcielagoPng from '../../assets/sprites/enemies/murcielago.png';
+import armadilloPng from '../../assets/sprites/enemies/armadillo.png';
 import poofPng from '../../assets/sprites/enemies/poof.png';
 import tacoPng from '../../assets/sprites/poncho/taco.png';
 import chilePng from '../../assets/sprites/poncho/chile.png';
@@ -119,7 +120,7 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 import { hasMarketThings, loadMarketThings, MarketThings, type MarketDrawn } from '../ui/MarketThings';
 
 /** GDD-ENM-02, GDD-ENM-03, GDD-ENM-04: the enemy sheets and the defeat poof's. */
-const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, paloma: palomaPng, chapulin: chapulinPng, trompo: trompoPng, murcielago: murcielagoPng, poof: poofPng };
+const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, paloma: palomaPng, chapulin: chapulinPng, trompo: trompoPng, murcielago: murcielagoPng, armadillo: armadilloPng, poof: poofPng };
 /** GDD-ART-04, GDD-PWR-04: the taco, chile and Chile Fantasma pickups, what Poncho holds, the claw swipe, the effects at his mouth and his glow's, one sheet each (`ITEM_LOOKS`). */
 const ITEM_PNGS: Readonly<Record<ItemSheet, string>> = { taco: tacoPng, chile: chilePng, held: heldPng, swipe: swipePng, fx: fxPng, fantasma: fantasmaPng, glow: glowPng };
 /** A sheet's frames stand on their bottom middle (a walker's feet), or the Zopilote's, the Murciélago's and the poof's on their middle. */
@@ -490,9 +491,17 @@ export interface PonchoDebug {
   /**
    * Where the scene drew the live enemies, read back from what was drawn (L-010): each sprite's x and, for a walker, its bottom (its feet; a
    * flying Paloma's, lifted by its flight and bobbing), for a Zopilote its middle (its flight y) and a Murciélago's (GDD-ENM-04), with the look of the frame it shows and
-   * whether it is mirrored (GDD-ENM-02, GDD-ENM-03).
+   * whether it is mirrored (GDD-ENM-02, GDD-ENM-03). `red`: the frame is a telegraph's red one (`teleRed`, the Armadillo's `tuckRed`: the
+   * flash is on in this frame). `white`: the sprite is filled plain white, the Armadillo's flash for the claw ringing off its ball, on the step
+   * it rang and the next (GDD-ENM-04). An Armadillo's `x` and `y` are its sprite's: ENEMY_ART.dazedBack px back from its middle while it lies dazed, and shifted off a wall
+   * and raised off a slope as `enemyPose` keeps its drawing out of them.
    */
-  enemiesDrawn(): { x: number; y: number; kind: EnemyKind; look: EnemyLook; flip: boolean }[];
+  enemiesDrawn(): { x: number; y: number; kind: EnemyKind; look: EnemyLook; flip: boolean; red: boolean; white: boolean }[];
+  /**
+   * GDD-ENM-04, GDD-TEC-03: the enemy sheets the scene has as textures, read from its texture manager (each `enemy-<sheet>` key it holds):
+   * every level's sheets, and the Armadillo's only in a level that has one.
+   */
+  enemySheetsLoaded(): Sheet[];
   /**
    * GDD-ENM-02: the defeated enemies' squash, hit and poof frames as drawn, read back from their images: the kind, the look of the frame, its
    * x and its y (a walker's feet for a squash or hit frame, else the frame's middle).
@@ -703,8 +712,8 @@ export class PlayScene extends Phaser.Scene {
   private enemiesPainted: ReturnType<PonchoDebug['enemiesDrawn']> = [];
   /** GDD-ENM-02: World 1's enemies' sprites, and the defeat effects' (`defeatFx`), each a pool of images reused frame to frame. */
   private enemyImages: Phaser.GameObjects.Image[] = [];
-  /** GDD-ENM-04: the Armadillos' placeholder boxes. placeholder until armadillo.png (run B2) */
-  private armadilloGfx!: Phaser.GameObjects.Graphics;
+  /** GDD-ENM-04: the steps left of each enemy's white flash, after the claw rang off its ball (`stepRang`). */
+  private rangLeft: number[] = [];
   private defeatImages: Phaser.GameObjects.Image[] = [];
   private defeats: readonly DefeatFx[] = [];
   private defeatsPainted: ReturnType<PonchoDebug['defeatsDrawn']> = [];
@@ -957,8 +966,9 @@ export class PlayScene extends Phaser.Scene {
       this.load.image('estrella-rope', estrellaRopePng);
       this.load.image('estrella-cable', estrellaCablePng);
     }
-    // GDD-ENM-02: World 1's enemies and the defeat poof, one row of frames each (`ENEMY_LOOKS`). Every level loads them: they are small.
-    for (const sheet of SHEETS) this.load.spritesheet(`enemy-${sheet}`, ENEMY_PNGS[sheet], { frameWidth: ENEMY_ART.frames[sheet].w * ART_SCALE, frameHeight: ENEMY_ART.frames[sheet].h * ART_SCALE });
+    // GDD-ENM-02: the enemies and the defeat poof, one row of frames each (`ENEMY_LOOKS`). Every level loads them, they are small, but the
+    // Armadillo's, only in a level that has one (GDD-ENM-04, GDD-TEC-03; `sheetsFor`).
+    for (const sheet of sheetsFor(this.level)) this.load.spritesheet(`enemy-${sheet}`, ENEMY_PNGS[sheet], { frameWidth: ENEMY_ART.frames[sheet].w * ART_SCALE, frameHeight: ENEMY_ART.frames[sheet].h * ART_SCALE });
     // GDD-AUD-02: Ogg where it plays, MP3 elsewhere. Phaser picks the first format the browser supports.
     this.load.audio('sfx-ofrenda', [ofrendaOgg, ofrendaMp3]);
     this.load.audio('sfx-jump', [jumpOgg, jumpMp3]);
@@ -1069,7 +1079,6 @@ export class PlayScene extends Phaser.Scene {
     this.glowCopies = glowOffsets().map(() => this.add.image(0, 0, 'poncho', ponchoFrame('idle')).setOrigin(0.5, 1).setScale(1 / ART_SCALE).setDepth(2.9).setTintMode(Phaser.TintModes.FILL).setVisible(false));
     this.glowSparks = Array.from({ length: GLOW_FX_MAX }, () => this.add.image(0, 0, 'poncho-glow', 0).setScale(1 / ART_SCALE).setDepth(3.4).setVisible(false));
     this.fireballGfx = this.add.graphics().setDepth(4);
-    this.armadilloGfx = this.add.graphics().setDepth(3); // placeholder until armadillo.png (run B2)
     this.bossSprite = this.add.image(0, 0, 'boss', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3).setVisible(false);
     this.crownSprite = this.add.image(0, 0, 'boss-crown', 0).setOrigin(0.5, 1).setScale(1 / ART_SCALE).setDepth(3).setVisible(false);
     // GDD-UI-01: below the HUD (depth 10): she passes behind the boss bar.
@@ -1539,6 +1548,7 @@ export class PlayScene extends Phaser.Scene {
         fireballsDrawn: () => this.fireballsPainted,
         enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? e.loop?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: enemyPhase(e) })),
         enemiesDrawn: () => this.enemiesPainted,
+        enemySheetsLoaded: () => [...SHEETS, 'armadillo' as const].filter((sheet) => this.textures.exists(`enemy-${sheet}`)),
         defeatsDrawn: () => this.defeatsPainted,
         boss: () => {
           const b = this.run.boss;
@@ -1780,39 +1790,38 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * Draws every live enemy as an image of its kind's sheet, posed by `enemyPose` (GDD-ENM-02, GDD-ENM-03); a defeated one is not drawn but
+   * Draws every live enemy as an image of its kind's sheet, posed by `enemyPose` (GDD-ENM-02, GDD-ENM-03, GDD-ENM-04); a defeated one is not drawn but
    * goes in a poof (`drawDefeats`).
    */
   private drawEnemies(): void {
     this.enemiesPainted = [];
-    const ctx = { clock: this.run.clock, poncho: centre(this.run.player) };
+    const ctx = { clock: this.run.clock, poncho: centre(this.run.player), world: this.level.world };
     let sprites = 0;
-    this.armadilloGfx.clear();
     this.level.enemies.forEach((def, i) => {
       const e = this.run.enemies[i]!;
       if (!e.alive) return;
       const kind = kindOf(def);
-      // placeholder until armadillo.png (run B2): a box in timber lit (`armadilloBox`), not in the debug hook's list.
-      if (kind === 'armadillo') {
-        const b = armadilloBox(def, e);
-        this.armadilloGfx.fillStyle(ARMADILLO_PLACEHOLDER, 1).fillRect(b.x, b.y, b.w, b.h);
-        return;
-      }
       const pose = enemyPose(def, e, ctx);
       const image = this.poolImage(this.enemyImages, sprites++, kind, pose.frame, pose.flip).setPosition(pose.x, pose.y);
-      // L-010: read back from the image: where it stands, its frame's look and its mirroring, not the pose.
-      this.enemiesPainted.push({ x: image.x, y: image.y, kind, look: frameLook(kind, Number(image.frame.name)), flip: image.flipX });
+      // GDD-ENM-04: the claw rang off its ball: drawn plain white (`stepRang`).
+      if ((this.rangLeft[i] ?? 0) > 0) image.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
+      // L-010: read back from the image: where it stands, its frame's look and its mirroring, not the pose; red, a telegraph's red frame; white,
+      // filled white.
+      const look = frameLook(kind, Number(image.frame.name));
+      const white = image.tintMode === Phaser.TintModes.FILL && image.tintTopLeft === 0xffffff;
+      this.enemiesPainted.push({ x: image.x, y: image.y, kind, look, flip: image.flipX, red: look === 'teleRed' || look === 'tuckRed', white });
     });
     this.enemyImages.forEach((image, i) => image.setVisible(i < sprites));
   }
 
   /**
    * The `index`th image of `pool`, made if the pool is that short, showing `frame` of `sheet`'s sheet, mirrored when `flip`, at depth 3 and
-   * at the scale of the art (GDD-ART-01), standing on its bottom middle or centred as the sheet's frames are (`centred`). Visible.
+   * at the scale of the art (GDD-ART-01), standing on its bottom middle or centred as the sheet's frames are (`centred`). Visible, with no
+   * tint (L-069: an image drawn white for the Armadillo's rang flash last frame may show another enemy now).
    */
   private poolImage(pool: Phaser.GameObjects.Image[], index: number, sheet: Sheet, frame: number, flip: boolean): Phaser.GameObjects.Image {
     while (pool.length <= index) pool.push(this.add.image(0, 0, `enemy-${sheet}`, 0).setScale(1 / ART_SCALE).setDepth(3));
-    const image = pool[index]!.setTexture(`enemy-${sheet}`, frame).setFlipX(flip).setVisible(true);
+    const image = pool[index]!.setTexture(`enemy-${sheet}`, frame).setFlipX(flip).setVisible(true).clearTint();
     return centred(sheet) ? image.setOrigin(0.5) : image.setOrigin(0.5, 1);
   }
 
@@ -2448,6 +2457,7 @@ export class PlayScene extends Phaser.Scene {
     this.run = after;
     this.shake = nextShake(this.shake, shakeStarts(before, after, this.level)); // GDD-BOS-01: also on the debug `step()`, which is a real step
     this.defeats = stepDefeats(this.defeats, before, this.run, this.level);
+    this.rangLeft = stepRang(this.rangLeft, this.run);
     const { sounds, combo } = stepSounds(before, this.run, this.hiloCombo);
     this.hiloCombo = combo;
     for (const sound of sounds) this.playSfx(sound.name, sound.semitones);
@@ -2896,6 +2906,7 @@ export class PlayScene extends Phaser.Scene {
     this.run = resumeRun(this.level, saved, this.progress[this.entry.id]?.hilos);
     this.prevCarts = this.run.carts;
     this.defeats = [];
+    this.rangLeft = [];
     this.drawnLives = this.run.lives.lives;
     this.cracks = [];
     this.drawHud();
@@ -2950,6 +2961,7 @@ export class PlayScene extends Phaser.Scene {
     this.peak = 0;
     this.hiloCombo = NO_COMBO;
     this.defeats = [];
+    this.rangLeft = [];
     this.tipFade = NO_TIP;
     this.tipsDoneNow = (this.entry.tips ?? []).map(() => false);
     this.tipStep = 0;

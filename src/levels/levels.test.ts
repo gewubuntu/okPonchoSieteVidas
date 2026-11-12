@@ -132,7 +132,7 @@ describe('GDD-UI-02 which level', () => {
   it('GDD-WLD-01 World 1 levels are 1-1, 1-2, 1-3 and the boss arena 1-4 in order, the test levels left out', () => {
     expect(worldLevels(1).map((x) => x.id)).toEqual(['1-1', '1-2', '1-3', '1-4']);
     expect(worldLevels(0).map((x) => x.id)).toEqual(['0-1']);
-    // World 3's labs lab-3c and lab-3t are test levels: 3-1 and 3-2 are its levels, in that order.
+    // World 3's labs lab-3c, lab-3t, lab-3m and lab-3a are test levels: 3-1 and 3-2 are its levels, in that order.
     expect(worldLevels(3).map((x) => x.id)).toEqual(['3-1', '3-2']);
   });
 

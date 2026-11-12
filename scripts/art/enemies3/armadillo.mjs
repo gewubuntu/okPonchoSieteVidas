@@ -10,21 +10,21 @@ import { FLASH } from '../enemies1/kit.mjs';
 /** World 3's colours the Armadillo is drawn in (GDD-ART-06). */
 export const W3 = {
   mist: '#EEF1EA', timberLit: '#A89480', timber: '#75614F', timberDark: '#43362F', rust: '#B0562E', ironDark: '#353A48', peakLit: '#A9B8AC',
-  lampAmber: '#F0A23A',
+  lampAmber: '#F0A23A', ochreLight: '#EDCB86',
 };
 
 /** Every cell of the sheet is 28 x 16 game px. */
 export const FRAME = { w: 56, h: 32 };
 /** The 16 x 12 game px hit box (tuning ARMADILLO, GDD-ENM-04), feet on the frame's bottom row. */
 export const BOX = { x0: 12, y0: 8, x1: 44, y1: 32 };
-export const LOOKS = ['walk0', 'walk1', 'walk2', 'walk3', 'tuck', 'tuckRed', 'roll0', 'roll1', 'roll2', 'roll3', 'dazed', 'dazedKick'];
+export const LOOKS = ['walk0', 'walk1', 'walk2', 'walk3', 'tuck', 'tuckRed', 'roll0', 'roll1', 'roll2', 'roll3', 'dazed', 'dazedKick', 'squash'];
 /**
- * The box each look is drawn in, in game px within its 28 x 16 cell: walking and dazed the whole cell, the tuck and the roll the 20 x 16
- * middle (GDD-ENM-04's frames). `src/ui/enemyLooks.ts` has the same table for the game (a test compares them).
+ * The box each look is drawn in, in game px within its 28 x 16 cell: walking, dazed and squashed the whole cell, the tuck and the roll the
+ * 20 x 16 middle (GDD-ENM-04's frames). `src/ui/enemyLooks.ts` has the same table for the game (a test compares them).
  */
 const WIDE = { x: 0, y: 0, w: 28, h: 16 };
 const BALL = { x: 4, y: 0, w: 20, h: 16 };
-export const LOOK_BOXES = { walk0: WIDE, walk1: WIDE, walk2: WIDE, walk3: WIDE, tuck: BALL, tuckRed: BALL, roll0: BALL, roll1: BALL, roll2: BALL, roll3: BALL, dazed: WIDE, dazedKick: WIDE };
+export const LOOK_BOXES = { walk0: WIDE, walk1: WIDE, walk2: WIDE, walk3: WIDE, tuck: BALL, tuckRed: BALL, roll0: BALL, roll1: BALL, roll2: BALL, roll3: BALL, dazed: WIDE, dazedKick: WIDE, squash: WIDE };
 
 // Materials as [light, base, shadow], light from the upper left.
 const SHELL = [W3.mist, W3.timberLit, W3.timber];
@@ -89,45 +89,67 @@ function drawTuck() {
 }
 
 /**
- * Rolling: a plain disc, its bands as spokes round its middle turned `k` eighths of a quarter turn on each frame, one ear tip and the
- * tail's end painted on its rim (inside the disc, so it stays round), and 2 or 3 px of dust behind it, not outlined.
+ * Rolling: a plain ball 14 x 12 game px with its outline (1 px inside its box on each side, touching its top and its feet), its bands as
+ * hoops round it, one ear tip and the tail's end painted on its rim (inside the ball, so it stays whole), and 2 or 3 px of dust behind it,
+ * not outlined. Frame `k` turns it a quarter turn on from the last, clockwise as it rolls right: the ear tip at 12, 3, 6 and 9 o'clock and
+ * the tail's end opposite, so four frames make one whole turn; the bands slide a quarter of their spacing forward each frame.
  */
 function drawRoll(k) {
   const g = new Grid(FRAME.w, FRAME.h);
-  const [cx, cy, r] = [28, 20.5, 11];
-  const disc = ellipse(cx, cy, r, r);
+  const [cx, cy, rx, ry] = [28, 20, 13, 11];
+  const disc = ellipse(cx, cy, rx, ry);
   paint(g, disc, SHELL);
-  const turn = (k * Math.PI) / 8;
+  // A hard shell, not a pale egg: its lower half timber, its lowest rim timber dark, under the bands.
+  g.fill((x, y) => disc(x, y) && y > cy + 1, W3.timber, true);
+  g.fill((x, y) => disc(x, y) && y > cy + 6, W3.timberDark, true);
+  const turn = (k * Math.PI) / 2;
   // The bands: hoops round the ball seen side on, upright stripes that slide forward across it as it turns and crowd together at its edges
-  // (a hoop at angle a round it is at cx + r sin a), a new place every frame.
+  // (a hoop at angle a round it is at cx + rx sin a), a quarter of their spacing on every frame, so they come back to their place after four.
   for (let i = 0; i < 8; i++) {
-    const a = turn / 2 + (i * Math.PI) / 4 - Math.PI;
+    const a = (k * Math.PI) / 16 + (i * Math.PI) / 4 - Math.PI;
     if (Math.cos(a) <= 0.2) continue;
-    const bx = cx + (r - 1) * Math.sin(a);
-    g.fill((x, y) => disc(x, y) && Math.abs(x - bx) < 0.75 + 0.25 * Math.cos(a) && Math.abs(y - cy) < r - 2, W3.mist, true);
+    const bx = cx + (rx - 1) * Math.sin(a);
+    g.fill((x, y) => disc(x, y) && Math.abs(x - bx) < 0.75 + 0.25 * Math.cos(a) && Math.abs(y - cy) < ry - 2, W3.mist, true);
   }
-  // The ear tip and the tail's end on the rim, opposite each other, going round with the bands.
-  const at = (a, d) => [cx + Math.cos(a) * d, cy + Math.sin(a) * d];
-  const [ex, ey] = at(turn - Math.PI / 2, r - 1.5);
+  // The ear tip and the tail's end on the rim, opposite each other, a quarter turn on each frame.
+  const at = (a) => [cx + Math.cos(a) * (rx - 1.5), cy + Math.sin(a) * (ry - 1.5)];
+  const [ex, ey] = at(turn - Math.PI / 2);
   g.fill((x, y) => disc(x, y) && Math.hypot(x - ex, y - ey) <= 2, W3.rust, true);
-  const [tx, ty] = at(turn + Math.PI / 2, r - 1.5);
-  g.fill((x, y) => disc(x, y) && Math.hypot(x - tx, y - ty) <= 2, W3.timberDark, true);
+  const [tx, ty] = at(turn + Math.PI / 2);
+  g.fill((x, y) => disc(x, y) && Math.hypot(x - tx, y - ty) <= 2, W3.ironDark, true); // iron dark: apart from the rim's timber dark
   g.outline(OUTLINE, 1);
-  // The dust behind it, on the ground.
-  const dust = [[[13, 31], [11, 30]], [[12, 31], [14, 30]], [[11, 31], [13, 30], [10, 29]], [[14, 31], [12, 29]]][k];
-  for (const [x, y] of dust) g.set(x, y, W3.peakLit);
+  // The dust behind it: a puff of three clumps of 2 x 2 game px (4 x 4 drawing px), mist white and ochre light, kicked up behind the ball
+  // and drifting back and up from frame to frame, inside the ball's 20 x 16 look box and clear of the ball.
+  const puffs = [
+    [[14, 28, W3.mist], [9, 25, W3.ochreLight], [8, 20, W3.mist]],
+    [[13, 28, W3.ochreLight], [9, 24, W3.mist], [9, 19, W3.ochreLight]],
+    [[14, 28, W3.mist], [8, 26, W3.ochreLight], [10, 21, W3.mist]],
+    [[12, 28, W3.ochreLight], [10, 24, W3.mist], [8, 19, W3.mist]],
+  ][k];
+  for (const [px, py, c] of puffs) for (let y = py; y < py + 4; y++) for (let x = px; x < px + 4; x++) if (g.get(x, y) === null) g.set(x, y, c);
   return g;
 }
 
 /**
- * Dazed on its back: the shell's dome down on the ground, the belly up with its four legs in the air (still, or kicking), the head lolled
- * back with an X eye, two small stars over it. Its shell is on the bottom row.
+ * Dazed on its back: the shell's dome down on the ground, the belly up with its four legs in the air, long enough to read as legs (still,
+ * or kicking: the pairs apart), each with a dark paw; the head lolled back at the front with its pointed snout and its long ear flopped out
+ * along the ground, an X eye; two small stars over the head. Its shell is on the bottom row.
  */
 function drawDazed(kick) {
   const g = new Grid(FRAME.w, FRAME.h);
-  const legs = kick ? [[19, 14], [24, 12], [32, 12], [37, 14]] : [[19, 13], [24, 13], [32, 13], [37, 13]];
-  for (const [lx, top] of legs) paint(g, rect(lx, top, 3, 20 - top), SKIN);
-  paint(g, polygon([[42, 19], [52, 22], [51, 26], [42, 26]]), SKIN); // the head, lolled back
+  // Each leg from the belly up and out, splayed: the hind pair leaning back, the fore pair forward, a dark paw at its tip. Kicking, the
+  // outer legs fling wider and the inner two stand straight up.
+  const lean = kick ? [-3, 0, 0, 2] : [-2, -1, 1, 2];
+  [19, 24, 32, 37].forEach((lx, i) => {
+    const tip = lx + 1 + lean[i] * 2;
+    const leg = polygon([[lx, 19], [lx + 3, 19], [tip + 2, 8], [tip - 1, 8]]);
+    paint(g, leg, SKIN);
+    g.fill((x, y) => leg(x, y) && y < 10.5, W3.timberDark, true); // the paw
+  });
+  const ear = polygon([[42, 24], [44, 22], [50, 28], [47, 30]]);
+  paint(g, ear, SKIN); // the long ear, flopped out along the ground
+  g.fill((x, y) => ear(x, y) && x > 44 && x < 48.5 && y > 24.5 && y < 28.5, W3.rust, true);
+  paint(g, polygon([[41, 18], [47, 17], [53, 21], [52, 23], [41, 24]]), SKIN); // the head, lolled back, and its pointed snout
   paint(g, polygon([[14, 22], [4, 19], [3, 21], [14, 26]]), SKIN); // the tail
   const shell = ellipse(28, 19, 14, 12.5);
   const bowl = (x, y) => shell(x, y) && y > 19;
@@ -135,12 +157,31 @@ function drawDazed(kick) {
   bands(g, bowl, 22, 3, 5);
   paint(g, ellipse(28, 19, 13, 1.6), SKIN); // the belly's edge
   g.outline(OUTLINE, 1);
-  for (const [x, y] of [[45, 23], [47, 25], [47, 23], [45, 25]]) g.set(x, y, OUTLINE); // the X eye
-  // The stars: small mist white crosses with a lamp amber heart over its belly.
-  for (const [sx, sy] of kick ? [[22, 4], [33, 6]] : [[24, 5], [35, 4]]) {
+  for (const [x, y] of [[44, 19], [46, 21], [46, 19], [44, 21]]) g.set(x, y, OUTLINE); // the X eye
+  // The stars: small mist white crosses with a lamp amber heart over the head.
+  for (const [sx, sy] of kick ? [[45, 12], [51, 15]] : [[46, 13], [51, 12]]) {
     for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0], [0, 1]]) g.set(sx + dx, sy + dy, W3.mist);
     g.set(sx, sy, W3.lampAmber);
   }
+  return g;
+}
+
+/**
+ * Squashed by a stomp (GDD-ENM-02's defeat, GDD-ENM-04): the dazed pose pressed flat, on its back, the shell's bowl half as deep, the belly
+ * and the four legs stubs over it, the head and the tail flat on the ground, the X eye; no stars. Its shell is on the bottom row.
+ */
+function drawSquash() {
+  const g = new Grid(FRAME.w, FRAME.h);
+  for (const lx of [19, 24, 32, 37]) paint(g, rect(lx, 22, 3, 4), SKIN);
+  paint(g, polygon([[42, 25], [52, 27], [51, 30], [42, 30]]), SKIN); // the head, flat
+  paint(g, polygon([[14, 26], [4, 26], [3, 28], [14, 30]]), SKIN); // the tail
+  const shell = ellipse(28, 25, 15, 6.5);
+  const bowl = (x, y) => shell(x, y) && y > 25;
+  paint(g, bowl, SHELL);
+  bands(g, bowl, 22, 3, 5);
+  paint(g, ellipse(28, 25, 14, 1.4), SKIN); // the belly's edge
+  g.outline(OUTLINE, 1);
+  for (const [x, y] of [[45, 26], [47, 28], [47, 26], [45, 28]]) g.set(x, y, OUTLINE); // the X eye
   return g;
 }
 
@@ -158,6 +199,7 @@ function drawLook(look) {
     case 'roll3': return drawRoll(3);
     case 'dazed': return drawDazed(false);
     case 'dazedKick': return drawDazed(true);
+    case 'squash': return drawSquash();
     default: throw new Error(`no look ${look}`);
   }
 }
