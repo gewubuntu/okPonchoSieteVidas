@@ -16,7 +16,9 @@ project get better at itself over time.
 | `.claude/agents/implementer.md` | The subagent that builds a feature from the main session's plan. |
 | `.claude/settings.json` | Project hooks, each a script in `scripts/hooks/` with a test beside it. After the GitHub tool creates a PR, `after-pr.mjs` tells Claude to run the reviewer and not to merge before it reports (L-043), and after a `git push`, `after-push.mjs` tells it to open a draft PR or have the new commits re-reviewed (L-043), with the PR description first rewritten to match the head (L-070). Before a shell command, `gate-pipe.mjs` denies one that commits (`git commit`, and `cherry-pick`, `merge`, `revert`, `am` or `rebase`) after a run of the gate (`node scripts/check.mjs` or `npm run check`) with anything but `&&` between them (L-012). Before a `git push` or a new PR, `stale-main.mjs` fetches `main` and asks the user first when the branch lacks some of it (L-052, L-030). Before a merge, `before-merge.mjs` asks the user, with the reason that a PR is merged only after its review (L-043). |
 | `scripts/check.mjs` | The gate. Zero dependencies. Run before every commit and in CI. |
-| `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every push and pull request, and warns when a visible change has no screenshots. |
+| `.github/workflows/check.yml` | Runs the gate, the build and the playtests on every pull request and on every push to `main` (one run per push; a new push to a pull request stops the run before it), and warns when a visible change has no screenshots. The playtests run in four shards, and a pull request that changes only documents skips them (`scripts/playtest-scope.mjs`, L-077). |
+| `scripts/sync-main.mjs` | Merges `origin/main` into a stream's branch and renumbers the GDD version and the lesson IDs main took meanwhile (Parallel streams, L-077). |
+| `.gitattributes` | Text files are LF in every checkout, a Windows one included: the gate reads them line by line (L-078). |
 | `.github/pull_request_template.md` | The PR description every PR follows, including screenshots for visible changes. |
 
 ## What `scripts/check.mjs` enforces
@@ -35,7 +37,7 @@ project get better at itself over time.
 11. No playtest in `e2e/` compares the whole saved game or the whole saved settings with `toEqual` (`whole-save-pins`, L-054); a test of the save format itself marks its line `// L-054: format`.
 12. No screenshot scenario in `e2e/shots/` that only the phone takes (`test.skip(!isMobile, ...)`) presses keys: it is driven by touch, as a phone player plays (`phone-shots-by-touch`, L-045).
 13. Every character sprite sheet (each folder of `assets/sprites/` but the scenery sets', and each PNG at its top) is named by its path (`sprites/<folder>/`, with the slash, or `sprites/<file>`) in a test that cites L-059: one that pins how far its frames reach past their box and fits them over the real levels (`sprite-fit`, `scripts/sprite-fit.mjs`, L-059). A sheet with no such test yet is listed in that module's `EXEMPT` with its reason.
-14. If `package.json` defines `lint`, `typecheck`, `test` or `test:abilities` scripts, they run and must pass. `test:abilities` reruns the simulation tests with every progression ability on (`src/sim/all-abilities.setup.ts`, L-024); a test that must keep an ability off is listed there with its reason, and a new ability fails the typecheck until it is switched on there. Run `npm install` first; the gate fails without `node_modules`.
+14. If `package.json` defines `lint`, `typecheck`, `test` or `test:abilities` scripts, they run and must pass. Lint and typecheck start beside the unit tests, and each one's output is printed whole, in that order, when it ends; the two test runs never overlap, since side by side they pushed slow tests past their time limit (L-077). `test:abilities` reruns the simulation tests with every progression ability on (`src/sim/all-abilities.setup.ts`, L-024); a test that must keep an ability off is listed there with its reason, and a new ability fails the typecheck until it is switched on there. Run `npm install` first; the gate fails without `node_modules`.
 
 ## The improvement loop
 
@@ -74,6 +76,22 @@ Planning a feature takes judgement (the user's decisions, conflicts across the G
 3. The main session reads the diff, re-runs the gate and any unaccounted mutant, then does screenshots, docs, the retro and the commit as before. The `pr-reviewer` still reviews the PR.
 
 Repository files do not name models (gate check 7), so the agent file sets no model. Step 6 of `harness-feature` launches it with the Agent tool's `model` parameter set to the tier one below the main session's model, but never the smallest tier (the main session's own tier when that is the middle one); that parameter overrides the agent file, and needs no environment setting, so it works from any device. The `pr-reviewer` sets `model: inherit` (the gate requires it) and is launched without a `model`, so it always runs on the main session's model.
+
+## Parallel streams
+
+Work runs in parallel streams (user, 2026-11-12; L-077). A stream is one session, in its own checkout (a cloud session), on its own branch, with at most one open pull request; inside a stream the rules in `CLAUDE.md` hold as before (small PRs, the next one after the merge, the branch restarted from `main`).
+
+| Stream | Owns | Does not |
+| --- | --- | --- |
+| World 3 build | GDD-WLD-16 to GDD-WLD-18, GDD-ENM-04, GDD-BOS-04, GDD-PRG-01; new enemy kinds, new `Level` fields, bosses | – |
+| World 1 and 2 polish | the rows still `doing`: GDD-ENM-02, GDD-BOS-02, GDD-ENM-03, GDD-BOS-03 (sounds, the burst, confetti, tumbles) | add an enemy kind, a `Level` field, a boss or a GDD ID |
+| World 4+ design | new GDD sections for Worlds 4 to 7, all `Proposed` until the user decides, and their backlog rows; it alone allocates new GDD-WLD, GDD-ENM and GDD-BOS numbers | touch `src/`, `e2e/` or `assets/`; remove an Open Question (it adds at the end of the list, so no number moves) |
+
+The user names a session's stream in its first message, and changes this table by saying so. Rules that keep the streams apart:
+
+- Only one stream at a time adds an enemy kind, a `Level` field or a boss: each is a line in a table that every kind shares (`src/sim/enemy.ts`, `src/sim/run.ts`, `src/sim/bossLevel.ts`), where two branches always conflict.
+- Every stream edits `docs/GDD.md` (the version and the changelog's top line), `docs/LESSONS.md` (the next ID, at the end) and often `docs/BACKLOG.md`. `node scripts/sync-main.mjs` merges `origin/main` and settles the first two: the branch's changelog line goes on top under the version after main's, its new lessons follow main's under the next IDs, and every place the branch cites them is rewritten. It never rebases (L-052), leaves any other conflict to the session with the files listed, and says what it renumbered, so the PR description can follow (L-070). Run it right before each push, then the gate and the touched playtests.
+- A harness change (a skill, a hook, the gate, `CLAUDE.md`) made in one stream reaches the others only when they merge `main`: keep it small and merge it soon.
 
 ## Pull request review
 
@@ -117,4 +135,4 @@ the registry; do not rely on memory (see L-005).
 
 The `harness-playtest` skill (`npm run test:e2e`) drives the real game in headless Chromium on a desktop and a
 landscape phone viewport and asserts on game state. It is not part of the gate because it needs a browser;
-CI runs it as a separate job. That job installs the browser and, in a step of its own, the browser's system packages, which are tried twice and end in a warning when the runner's mirrors cannot be reached: the playtests run either way (L-076). When CI's playtests cannot run for a cause outside the pull request, run the whole suite locally on its head and say so in its description.
+CI runs it as a separate job, in four shards side by side (`--shard=N/4`) with the browser cached between runs, and one `e2e` result for all four; a pull request that changes only documents (`docs/`, Markdown) skips the shards, since no playtest reads them, and `e2e` is green (`scripts/playtest-scope.mjs`, L-077). Each shard installs the browser and, in a step of its own, the browser's system packages, which are tried twice and end in a warning when the runner's mirrors cannot be reached: the playtests run either way (L-076). When CI's playtests cannot run for a cause outside the pull request, run the whole suite locally on its head and say so in its description.

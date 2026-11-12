@@ -864,3 +864,23 @@ Retired IDs: L-046
 - **Rule:** In CI a step that fetches something the tests can run without (extra system packages from a distribution mirror) is separate from the steps the tests need, is retried within a time limit, and ends in a warning, never in skipped tests. When CI's playtests cannot run for a cause outside the PR, the whole suite is run locally on the PR's head and the description says so, before anyone is asked to merge.
 - **Recurrence:** 1
 - **Promoted:** `.github/workflows/check.yml` (the `e2e` job's two install steps) and docs/HARNESS.md (Playtesting)
+
+## L-077 Every pull request waited on the one before it, and on the same playtests several times
+
+- **Date:** 2026-11-12
+- **Area:** harness, process
+- **What went wrong:** The user found the work slow (2026-11-12: "waiting for Playtests and stuff like that is slowing me down. Can we parralelise the different worlds?"). The rules allowed one open pull request at a time on one branch, so nothing else could move while a PR waited for its playtests, its review or an approval. Each push ran CI twice (the workflow ran on `push` and on `pull_request`), an older push's run was never stopped, the playtests ran in one job with the browser downloaded each time, a GDD-only change ran them too, and the gate ran lint, typecheck and the two test runs one after another.
+- **Root cause:** The harness was written for one session. Two branches could not be open together because both take the same next numbers (the GDD version and the changelog's top line, the next lesson ID) and merge them by hand, and nothing said which files a second session may touch; CI's cost per push had never been looked at.
+- **Rule:** Work runs in streams, each one session on its own branch with one open PR and a lane in `docs/HARNESS.md` (Parallel streams); only one stream at a time adds an enemy kind, a `Level` field or a boss. Before each push `node scripts/sync-main.mjs` merges `main` and renumbers the branch's GDD version and new lessons after main's. CI runs once per push, stops the run of an older push, shards the playtests and skips them for a documents-only pull request; the gate runs lint and typecheck beside the unit tests, but never two test runs at once (together they pushed slow tests past their 5 s limit).
+- **Recurrence:** 1
+- **Promoted:** `scripts/sync-main.mjs`, `scripts/playtest-scope.mjs`, `.github/workflows/check.yml`, `scripts/check.mjs` (the toolchain check), `CLAUDE.md` (Pull requests) and docs/HARNESS.md (Parallel streams)
+
+## L-078 The gate could not pass in a Windows checkout
+
+- **Date:** 2026-11-12
+- **Area:** harness
+- **What went wrong:** On the user's Windows machine the gate failed on a clean `main`: git had checked the text files out with CRLF line endings (`core.autocrlf`), so the skills and agents had "no frontmatter" and the key-down check's one-line pattern matched no line; and the toolchain check could not start `npm`, which is `npm.cmd` there.
+- **Root cause:** Every session so far had run on Linux, so nothing had shown that the checks read lines split on `\n` only, or that the gate started `npm` without a shell.
+- **Rule:** The repository fixes its text files' line endings itself (`.gitattributes`: `* text=auto eol=lf`), and a script that starts `npm` uses a shell on Windows. A check that reads files line by line is run once on a Windows checkout when it is written, if one is at hand.
+- **Recurrence:** 1
+- **Promoted:** `.gitattributes` and `scripts/check.mjs` (the toolchain check)

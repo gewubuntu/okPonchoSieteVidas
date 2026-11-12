@@ -30,7 +30,7 @@ export function publishes(input) {
 export function staleReason(behind) {
   if (!(behind > 0)) return null;
   return (
-    `L-052: origin/main has ${behind} commit(s) this branch does not contain. Merge it first, read its new GDD changelog ` +
+    `L-052: origin/main has ${behind} commit(s) this branch does not contain. Merge it first (node scripts/sync-main.mjs), read its new GDD changelog ` +
     'lines for conventions this branch must follow, rerun the gate and the touched playtests, and retake the screenshots ' +
     'the merged change affects (harness-feature, Push and pull request). Approve only to publish without it.'
   );

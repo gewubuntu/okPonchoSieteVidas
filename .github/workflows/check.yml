@@ -1,8 +1,16 @@
 name: check
 
+# One run per push (L-077): pushes to main, and pull requests. A branch's own pushes run through its pull request, which every
+# pushed branch has (CLAUDE.md, Conventions).
 on:
   push:
+    branches: [main]
   pull_request:
+
+# A new push to a pull request stops the run of the push before it; runs on main are never stopped.
+concurrency:
+  group: check-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -21,8 +29,35 @@ jobs:
       - name: Build
         run: npm run build
 
-  e2e:
+  # A pull request that changes only documents (docs/, Markdown) skips the playtests; the gate above still runs (L-077).
+  scope:
     runs-on: ubuntu-latest
+    outputs:
+      playtests: ${{ steps.scope.outputs.playtests }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - id: scope
+        name: Does this change need the playtests?
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            node scripts/playtest-scope.mjs "origin/${{ github.base_ref }}" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "playtests=true" | tee -a "$GITHUB_OUTPUT"
+          fi
+
+  playtests:
+    needs: scope
+    if: needs.scope.outputs.playtests == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -30,9 +65,17 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      # L-076: the browser itself comes from Playwright's own host; its system packages (fonts) come from the runner's Ubuntu mirrors,
-      # which can be unreachable for hours. They are tried twice, each for at most 4 minutes; without them the playtests still run,
-      # on the fonts the runner image has, and the job says so in a warning.
+      - id: playwright
+        name: Playwright's version (the browser cache's key)
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      # L-076: the browser itself comes from Playwright's own host (or the cache above; the install then finds it and downloads
+      # nothing); its system packages (fonts) come from the runner's Ubuntu mirrors, which can be unreachable for hours. They are
+      # tried twice, each for at most 4 minutes; without them the playtests still run, on the fonts the runner image has, and the
+      # job says so in a warning.
       - name: Install the browser
         run: npx playwright install chromium
       - name: Install the browser's system packages (retried; a warning if the mirrors are down)
@@ -43,10 +86,24 @@ jobs:
             sleep 15
           done
           echo "::warning title=Playtests run without the browser's extra system packages::npx playwright install-deps chromium failed twice (the Ubuntu mirrors could not be reached); the playtests run on the runner image's own fonts."
-      - name: Playtests
-        run: npm run test:e2e
+      - name: Playtests (shard ${{ matrix.shard }} of 4)
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
         env:
           CI: "true"
+
+  # One result for the four shards, under the job's old name: green when every shard passed, or when a documents-only pull
+  # request skipped them; red when a shard failed or was stopped.
+  e2e:
+    needs: [scope, playtests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Playtests passed, or were not needed
+        run: |
+          echo "scope: ${{ needs.scope.result }} (playtests=${{ needs.scope.outputs.playtests }}), shards: ${{ needs.playtests.result }}"
+          if [ "${{ needs.playtests.result }}" = "success" ]; then exit 0; fi
+          if [ "${{ needs.scope.result }}" = "success" ] && [ "${{ needs.scope.outputs.playtests }}" = "false" ] && [ "${{ needs.playtests.result }}" = "skipped" ]; then exit 0; fi
+          exit 1
 
   screenshots:
     if: github.event_name == 'pull_request'

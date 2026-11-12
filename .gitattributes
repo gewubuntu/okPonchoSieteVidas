@@ -1,0 +1,2 @@
+# Text files are LF in every checkout: the gate and the scripts read them line by line (L-078).
+* text=auto eol=lf

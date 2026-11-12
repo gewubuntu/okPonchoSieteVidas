@@ -8,7 +8,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { gddVersionErrors } from './gdd-version.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 
@@ -401,17 +401,31 @@ function checkNoModelIds() {
   return errors;
 }
 
-// Toolchain slots: run the project's own lint/typecheck/test once package.json defines them.
-function checkToolchain() {
+// Toolchain slots: run the project's own lint/typecheck/test once package.json defines them. Lint and typecheck start beside the
+// unit tests, and each one's output is printed whole, in this order, when it ends (L-077). The two test runs never overlap: side
+// by side they took each other's processors and slow tests ran past their time limit.
+async function checkToolchain() {
   if (!exists('package.json')) return [];
   const scripts = JSON.parse(read('package.json')).scripts ?? {};
-  const errors = [];
   // test:abilities reruns the simulation tests with every progression ability on (L-024).
-  for (const name of ['lint', 'typecheck', 'test', 'test:abilities']) {
-    if (!scripts[name]) continue;
-    console.log(`  running npm run ${name} ...`);
-    const r = spawnSync('npm', ['run', name, '--silent'], { cwd: ROOT, stdio: 'inherit' });
-    if (r.status !== 0) errors.push(`npm run ${name} failed`);
+  const names = ['lint', 'typecheck', 'test', 'test:abilities'].filter((name) => scripts[name]);
+  const start = (name) => new Promise((resolve) => {
+    const started = Date.now();
+    let out = '';
+    // npm is npm.cmd on Windows, which only a shell starts.
+    const child = spawn('npm', ['run', name, '--silent'], { cwd: ROOT, shell: process.platform === 'win32' });
+    child.stdout.on('data', (chunk) => (out += chunk));
+    child.stderr.on('data', (chunk) => (out += chunk));
+    child.on('error', (e) => resolve({ name, status: 1, out: out + String(e), seconds: (Date.now() - started) / 1000 }));
+    child.on('close', (status) => resolve({ name, status, out, seconds: (Date.now() - started) / 1000 }));
+  });
+  const runs = new Map(names.filter((name) => name !== 'test:abilities').map((name) => [name, start(name)]));
+  const errors = [];
+  for (const name of names) {
+    const r = await (runs.get(name) ?? start(name));
+    console.log(`  npm run ${r.name} (${r.seconds.toFixed(0)} s)`);
+    if (r.out.trim() !== '') console.log(r.out.trimEnd());
+    if (r.status !== 0) errors.push(`npm run ${r.name} failed`);
   }
   return errors;
 }
@@ -553,7 +567,7 @@ if (process.argv.includes('--backlog-stub')) {
 
 let failed = 0;
 for (const [name, fn] of checks) {
-  const errors = fn();
+  const errors = await fn();
   if (errors.length === 0) {
     console.log(`ok    ${name}`);
   } else {

@@ -53,6 +53,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `node scripts/pr-screenshots.mjs [base]` | Warn if visible files changed and no screenshot was added under `docs/screenshots/`. |
 | `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `harness-playtest` skill). |
 | `node scripts/mutate.mjs <mutants.json>` | Run mutants (L-010) and restore each file; `--restore` after an interrupted run, which the gate otherwise fails on (L-020). |
+| `node scripts/sync-main.mjs` | Before a push: merge `origin/main` into the branch and renumber the GDD version and the new lesson IDs that main took meanwhile (L-077). Never rebases; a conflict it cannot settle is left for you, listed. |
 | `node scripts/check.mjs --backlog-stub` | Print backlog rows for GDD IDs missing from `docs/BACKLOG.md`. |
 | `node scripts/check.mjs --lessons [area,...]` | Print each lesson's title, areas and rule from `docs/LESSONS.md`, only those areas' if named. |
 
@@ -86,9 +87,10 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 
 ## Pull requests
 
-- Base branch is `main`. Work step by step: one small PR at a time, each one a single GDD ID or a tight group of them.
+- Base branch is `main`. Work step by step: one small PR at a time in each stream, each one a single GDD ID or a tight group of them.
+- **Streams** (user, 2026-11-12: "Can we parralelise the different worlds?"; L-077): work runs in parallel streams, each one session on its own branch with at most one open PR. `docs/HARNESS.md` (Parallel streams) lists the streams and what each owns; a session works only inside its stream, and asks the user before touching what another stream owns. Before each push, `node scripts/sync-main.mjs` merges `main` and renumbers what the streams both allocate.
 - Every PR keeps the gate green (`node scripts/check.mjs`) and CI green, updates the backlog row, and fills in `.github/pull_request_template.md`.
 - **Every PR gets a deep review from the `pr-reviewer` subagent.** Right after you create a PR, and again after each later push to it (hooks remind you; a review of an older head does not cover new commits, L-043), launch it with the Agent tool: `subagent_type` `pr-reviewer`, no `model` (so it runs on this session's model, `docs/HARNESS.md`), prompt with the PR number. It checks the PR out, runs it, audits the GDD changes, looks at the screenshots and posts one GitHub review. Fix its blocking findings, run the `harness-retro` skill on them and push, all before you tell the user the PR is ready, and include its verdict in your report. When the user says they opened a PR, launch it on that PR too. If the agent type is not available in the session (the first time `.claude/agents/` appears a restart is needed), launch a general-purpose agent with the instruction to follow `.claude/agents/pr-reviewer.md` exactly.
 - **Visible changes need the user's approval before the PR is marked ready.** For any UI or UX work (scenes, HUD, layout, art, colours, animation, text on screen): run `npm run shots`, look at every image yourself, then show them to the user with `SendUserFile` (display `render`, desktop and phone) and ask whether they like it. Iterate until they approve. Only then commit the approved images under `docs/screenshots/<slug>/` plus one `overview.png` sheet of them (`node scripts/overview.mjs docs/screenshots/<slug>`), embed the overview in the PR description as a markdown image with a `/raw/<commit sha>/` URL, and say "approved in session" there. Read the description back after writing it: the GitHub tool can mangle image URLs (L-009). Until then the PR stays a draft that says its screenshots await approval; never mark it ready without that approval. CI warns when visible files change and no screenshots are added (`scripts/pr-screenshots.mjs`).
-- Do not start the next PR's work until the current one is merged or the user says to.
-- After a PR is merged, restart the working branch from `main` (same branch name) before the next piece.
+- Do not start the stream's next PR until its current one is merged or the user says to.
+- After a PR is merged, restart the stream's branch from `main` (same branch name) before the next piece.
