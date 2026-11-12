@@ -7,8 +7,8 @@ import { plantSpots } from '../src/ui/plants';
 import { boot, openGame, phase3Hit, pixelsAt, resultsRowCentre, stepUntil, tapAt, waitForResults } from './helpers';
 
 // World 2, the Mercado (user, 2026-11-04): its levels opened by their address (GDD-UI-02), drawn in the Mercado's look (GDD-ART-06),
-// "Start" following the latest world reached, the restart at 2-1 with seven after the last life (GDD-LIFE-05), and 2-4, the last level
-// built, naming no next level. Pits, exits, spawns and decor are read from the level modules (GDD-WLD-12, GDD-WLD-13), so a redesign
+// "Start" following the latest world reached, the restart at 2-1 with seven after the last life (GDD-LIFE-05), and 2-4, World 2's last
+// level, naming World 3's first, 3-1. Pits, exits, spawns and decor are read from the level modules (GDD-WLD-12, GDD-WLD-13), so a redesign
 // of a level moves the tests with it; 2-4 is La Estrella's arena (GDD-BOS-03). Timed in simulation steps (L-042); pixel samples are at
 // least 2 px from edges and clear of the touch buttons (L-017, L-018).
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
@@ -203,13 +203,19 @@ test('GDD-UI-02 a save from before World 2 that cleared 1-4 opens on the title o
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
 });
 
-test('GDD-UI-02 2-4, the last level built, names no next level: its clear greys Next level and opens on Retry', async ({ page, isMobile }) => {
+test("GDD-UI-02 2-4's clear offers Next level, which starts 3-1 with seven lives", async ({ page, isMobile }) => {
   await boot(page, '/?level=2-4');
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
   await api(page, () => window.__PONCHO__!.pause(true));
   // GDD-ART-06: World 2's arena is drawn with the plaza in place of the rooftops; GDD-UI-01: its boss bar names its boss.
   expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'mercado', midKey: 'mercado:plaza' });
   expect(await api(page, () => window.__PONCHO__!.bossBar())).toMatchObject({ shown: true, name: 'La Estrella', pips: 3 });
+  // Two lives lost first, so the seven of the next world are not the lives at the clear (GDD-LIFE-05).
+  for (let i = 0; i < 2; i++) {
+    await api(page, () => window.__PONCHO__!.loseLife());
+    expect(await stepUntil(page, { phase: 'playing' }, 300)).toBeLessThan(300);
+  }
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
   // La Estrella set to two hits (phase 3): her first drop tears the middle awning away beside Poncho on the left cordel, and from there a
   // jump bumps her as she hangs, the third hit (GDD-BOS-03).
   await api(page, () => window.__PONCHO__!.setEstrella(2));
@@ -218,21 +224,18 @@ test('GDD-UI-02 2-4, the last level built, names no next level: its clear greys 
   await stepUntil(page, { phase: 'clear' }, 70);
   await api(page, () => window.__PONCHO__!.step(61));
   await waitForResults(page);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
-  // World 2's run ends there: a new one at 2-1.
-  expect(await storedProgress(page)).toMatchObject({ worldAt: { '2': '2-1' } });
+  // 2-4 names 3-1 (GDD-WLD-16): Next level is offered and chosen.
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'next', colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'] });
+  // World 2's run ends there: a new one at 2-1, with the lives at the clear.
+  expect(await storedProgress(page)).toMatchObject({ worldLives: { '2': 5 }, worldAt: { '2': '2-1' } });
   await api(page, () => window.__PONCHO__!.pause(false));
-  // Up from Retry stays there, and a tap or click on the greyed row does nothing.
-  await page.keyboard.press('ArrowUp');
-  const t0 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 10, t0);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
-  const row = await resultsRowCentre(page, 'next');
-  if (isMobile) await page.touchscreen.tap(row.x, row.y);
-  else await page.mouse.click(row.x, row.y);
-  const t1 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 20, t1);
-  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
-  expect(await api(page, () => window.__PONCHO__!.level())).toBe('2-4');
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
+  if (isMobile) {
+    const row = await resultsRowCentre(page, 'next');
+    await page.touchscreen.tap(row.x, row.y);
+  } else await page.keyboard.press('Enter', { delay: 30 });
+  // 3-1, a new world, starts at once with seven lives, at its spawn.
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '3-1' && window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false);
+  expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'sierra', midKey: 'sierra:mid' });
 });

@@ -216,8 +216,14 @@ export interface PonchoDebug {
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number };
   /** The art set the scenery is drawn from (`desierto`, `mercado`) and the texture key of the drawn mid band (`mercado:plaza` in World 2's arena) (GDD-ART-06). */
   scenery(): { set: string; midKey: string };
-  /** The frame of the ground sheet drawn at tile (tx, ty), or null where no ground image is (GDD-ART-06). Read from the drawn image. */
+  /** The frame of the ground sheet drawn at tile (tx, ty), or null where no ground image is (GDD-ART-06), whether the image is shown or not. Read from the drawn image. */
   groundFrame(tx: number, ty: number): number | null;
+  /**
+   * GDD-TEC-03: how many of the level's ground images are shown (`shown`, read from the images' visibility as last set, by the frame or the
+   * debug `step` that last drew) and how many there are (`total`, one per solid or slope tile). Only those in the camera's view, the screen
+   * widened by 2 tiles on every side, are shown.
+   */
+  groundShown(): { shown: number; total: number };
   /** The plants (World 2's decor) drawn in the level (GDD-ART-06): each one's kind (its frame in the sheet), where its foot is drawn (the middle of its tile, in game px) and its depth. Read from the drawn images. */
   plants(): { kind: number; x: number; y: number; depth: number }[];
   /**
@@ -1322,6 +1328,7 @@ export class PlayScene extends Phaser.Scene {
         backdropLayout: () => this.scenery.backdropLayout(),
         scenery: () => this.scenery.drawn(),
         groundFrame: (tx, ty) => this.scenery.groundFrame(tx, ty),
+        groundShown: () => this.scenery.groundShown(),
         plants: () => this.scenery.plants(),
         tip: () => this.tipPainted,
         tipsDone: () => this.tipsDoneNow,
@@ -2365,10 +2372,11 @@ export class PlayScene extends Phaser.Scene {
     // down, so the camera goes up from its y) and the far backdrop, which the camera does not move (a scroll factor of 0), is drawn the same
     // offset lower. The HUD, the touch buttons and the screens (scroll factor 0, not shifted) stay still.
     const offset = shakeOffset(this.shake, this.settings.shake === 'on');
-    this.cameras.main.setScroll(this.scrollX, cameraScroll(this.drawnCameraY, offset));
+    const scrollY = cameraScroll(this.drawnCameraY, offset);
+    this.cameras.main.setScroll(this.scrollX, scrollY);
     // GDD-ART-06: the far layers move at a share of the scroll, in art pixels of their textures, and in a tall level sink by their shares
-    // of the camera's rise above its lowest.
-    this.scenery.follow(this.scrollX, this.drawnCameraY, this.cameraBounds.bottom, offset);
+    // of the camera's rise above its lowest. GDD-TEC-03: only the ground and decor in view at the scroll are shown.
+    this.scenery.follow(this.scrollX, scrollY, this.drawnCameraY, this.cameraBounds.bottom, offset);
   }
 
   /** GDD-UI-04: the cut (`cutCameraY`), with nothing to draw between. */

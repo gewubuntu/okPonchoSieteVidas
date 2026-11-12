@@ -196,6 +196,12 @@ export const VELADORA = { size: 12 } as const;
  */
 export const CAMERA = { deadZone: 32, bandTop: 116, bandBottom: 156, airTop: 56, panSpeed: 180, leadSpeed: 120, maxSpeed: 480, spawnFeet: 136, bottomCutPx: 2 } as const;
 
+/**
+ * GDD-TEC-03: the ground and decor images drawn are those in the screen at the camera's scroll, widened by `marginTiles` tiles on every
+ * side, so a screen shake and the camera's own motion within a frame stay inside it.
+ */
+export const VIEW = { marginTiles: 2 } as const;
+
 /** GDD-CTL-03: touch buttons, in game pixels except `minCssPx`. */
 export const TOUCH = {
   /** Left, right and jump button sizes (jump is larger), and the space around them. */
