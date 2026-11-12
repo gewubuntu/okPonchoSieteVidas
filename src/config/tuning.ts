@@ -196,6 +196,12 @@ export const VELADORA = { size: 12 } as const;
  */
 export const CAMERA = { deadZone: 32, bandTop: 116, bandBottom: 156, airTop: 56, panSpeed: 180, leadSpeed: 120, maxSpeed: 480, spawnFeet: 136, bottomCutPx: 2 } as const;
 
+/**
+ * GDD-TEC-03: the ground and decor images drawn are those in the screen at the camera's scroll, widened by `marginTiles` tiles on every
+ * side, so a screen shake and the camera's own motion within a frame stay inside it.
+ */
+export const VIEW = { marginTiles: 2 } as const;
+
 /** GDD-CTL-03: touch buttons, in game pixels except `minCssPx`. */
 export const TOUCH = {
   /** Left, right and jump button sizes (jump is larger), and the space around them. */
@@ -278,8 +284,11 @@ export const LIFE_LOSS = { crackSteps: Math.round(0.4 * TICK_HZ) } as const;
 /** GDD-LIFE-02 and GDD-MOV-05: in the last 0.35 s of the wait Poncho drops in 48 px above the respawn point, turning once, and lands feet-first. */
 export const FLIP = { steps: Math.round(0.35 * TICK_HZ), height: 48, turns: 1 } as const;
 
-/** GDD-WLD-05: a crumbling tile gives 0.5 s of warning from the step Poncho lands on it, then is gone. */
-export const CRUMBLE = { warningSteps: Math.round(0.5 * TICK_HZ) } as const;
+/**
+ * GDD-WLD-05: a crumbling tile gives 0.5 s of warning from the step Poncho lands on it, then is gone. In a level whose ledges come back
+ * (World 3's) it is whole again 2.0 s after it went (user, 2026-11-10: "Come back after 2 s").
+ */
+export const CRUMBLE = { warningSteps: Math.round(0.5 * TICK_HZ), returnSteps: Math.round(2 * TICK_HZ) } as const;
 
 /**
  * GDD-WLD-05: a spring launches Poncho upwards at `velocity` (a jump takes off at 410). A jump pressed in the 0.1 s
@@ -417,8 +426,8 @@ export const ZOPILOTE = {
 } as const;
 
 /**
- * GDD-ENM-02, GDD-ENM-03, GDD-ART-05: the enemy sprites, World 1's and World 2's. `frames` is each sheet's frame in game px (a walker's box's middle on the frame's middle
- * column and its feet on the bottom row; the Zopilote's and the poof's middle on the frame's middle). A walker shows the next walk frame every
+ * GDD-ENM-02, GDD-ENM-03, GDD-ENM-04, GDD-ART-05: the enemy sprites, World 1's, World 2's and World 3's Murciélago. `frames` is each sheet's frame in game px (a walker's box's middle on the frame's middle
+ * column and its feet on the bottom row; the Zopilote's, the Murciélago's and the poof's middle on the frame's middle). A walker shows the next walk frame every
  * `walkPx` px it walks, the Tlacuache the next run frame every `chargePx` px it charges; the Zopilote the next flap every `flapSteps` and the
  * next climb every `climbSteps`; a telegraph flashes red for `flashSteps` and plain for as many (GDD-ENM-01). A Zopilote dives steep while its
  * dive's drop is at least `steepRatio` times its run. The cactus buddy breathes every `dozeSteps`, peeks while Poncho's hurtbox centre is
@@ -430,7 +439,7 @@ export const ZOPILOTE = {
  * `scripts/art/enemies1.levels.test.mjs`, and World 2's by `scripts/art/enemies2.levels.test.mjs`). World 2's own pose steps are the last six.
  */
 export const ENEMY_ART = {
-  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, poof: { w: 24, h: 24 } },
+  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, murcielago: { w: 32, h: 24 }, poof: { w: 24, h: 24 } },
   reach: {
     alacran: { behind: 4.5, front: 1.5, above: 3, below: 0 },
     zopilote: { behind: 6, front: 0.5, above: 6.5, below: 3.5 },
@@ -465,6 +474,8 @@ export const ENEMY_ART = {
   spinSteps: 3,
   /** GDD-ENM-03 (Proposed): a stunned Trompo's rock in its last `TROMPO.wobbleSteps` shows stunWobble on every other block of `rockSteps` steps. */
   rockSteps: 4,
+  /** GDD-ENM-04 (Proposed): the Murciélago shows the next flap frame every `batFlapSteps` of its own steps. */
+  batFlapSteps: 5,
 } as const;
 
 /**
@@ -499,6 +510,12 @@ export const CHAPULIN = { width: 12, height: 10, crouchSteps: Math.round(0.6 * T
  * along at `speed` px/s. A claw swipe or a fireball stuns it for `stunSteps` (1.0 s); it wobbles in the last `wobbleSteps` (0.5 s).
  */
 export const TROMPO = { width: 14, height: 14, speed: 70, stunSteps: Math.round(1.0 * TICK_HZ), wobbleSteps: Math.round(0.5 * TICK_HZ) } as const;
+
+/**
+ * GDD-ENM-04: the Murciélago (bat) is `width` x `height` px, centred on where it flies. It loops round the middle the level gives, `rx` px
+ * across (0 to `maxRx`) and `ry` px up and down (0 to `maxRy`), once every `periodSteps` (4.0 s).
+ */
+export const MURCIELAGO = { width: 16, height: 10, periodSteps: Math.round(4.0 * TICK_HZ), maxRx: 48, maxRy: 24 } as const;
 
 /**
  * GDD-BOS-02: Don Zopilote, World 1's boss, a `width` x `height` px box (three times the Zopilote). He laps an ellipse `rx` px either
@@ -653,9 +670,11 @@ export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;
 /**
  * GDD-TEC-04: what the level validator checks. GDD-WLD-03: a level is `minScreens` to `maxScreens` (for its world: 6 in Worlds 0 and 1, 8 from
  * World 2 on, user, 2026-11-04) screens of BASE_WIDTH wide, has 3 ofrendas,
- * and its gaps never exceed `maxGapTiles` for its world (Worlds 1 to 3 have a limit so far, World 2 a tile more, and the tutorial 0-1, outside the seven worlds, follows World 1: GDD-WLD-01). GDD-ENM-01: no enemy starts
- * closer than 3 tiles to a respawn. World 3's 6 tiles is GDD-WLD-03's limit at the same height only: the tile more per tile of drop, the
- * limits by rise and the roof's reduction are not built.
+ * and its gaps never exceed `maxGapTiles` for its world (Worlds 1 and 2 have a limit so far, World 2 a tile more, and the tutorial 0-1, outside the seven worlds, follows World 1: GDD-WLD-01). GDD-ENM-01: no enemy starts
+ * closer than 3 tiles to a respawn. GDD-WLD-03: World 3's gaps follow `world3Gap` instead: `base` tiles plus `perDropTile` for each tile the
+ * right bank lies below the left, counting at most `maxDropTiles`; `byRise` with the right bank 1, 2 or 3 tiles higher, and no higher rise
+ * over a pit; `perMissingRoofTile` off for each tile of headroom over the left bank under `roofTiles`, never under 1, and a headroom under
+ * `minHeadroomLevel` not allowed where the gap does not drop.
  */
 export const LEVEL_RULES = {
   minScreens: 3,
@@ -664,7 +683,8 @@ export const LEVEL_RULES = {
   maxRows: 51,
   maxScreens: { 0: 6, 1: 6, 2: 8, 3: 8 } as Readonly<Record<number, number>>,
   ofrendas: 3,
-  maxGapTiles: { 0: 3, 1: 3, 2: 4, 3: 6 } as Readonly<Record<number, number>>,
+  maxGapTiles: { 0: 3, 1: 3, 2: 4 } as Readonly<Record<number, number>>,
+  world3Gap: { base: 6, perDropTile: 1, maxDropTiles: 8, byRise: [4, 3, 2], roofTiles: 6, perMissingRoofTile: 2, minHeadroomLevel: 4 },
   enemyClearance: 3 * TILE,
 } as const;
 
@@ -764,5 +784,42 @@ export const MERCADO = {
     { name: 'farol', w: 8, h: 40 },
     { name: 'rebozos', w: 16, h: 24 },
     { name: 'loteria', w: 12, h: 16 },
+  ],
+} as const;
+
+/**
+ * GDD-ART-06: World 3's (Sierra) backdrop and decor for the canyon, from `scripts/art/sierra.mjs`, put together as World 2's: the clouds
+ * scroll at `cloudFactor` of the camera's scroll, the far ranges at `farFactor` and the canyon's far wall at `midFactor`. The sky's grey-blue
+ * bands are flat colours (`skyBands`), the first two ending `skyEnds` art px from the top (y 60 and 110) with a dither strip of `stripArt`
+ * px; the last is the camera's background. No sun. Each of the three streaks of cloud is an image at `clouds` (game px), on the sky's top
+ * band, clear of the lives and the hilo counter. The far band is `farBandArt` art px tall from game y `farTop`, with the flat foot in
+ * `footColour` (pine deep) below it; the mid band is `midBandArt` art px tall from `midTop` (down to the floor's top at 224). `decor` is the
+ * pine-oak forest's seven kinds (pino, encino, madroño, maguey, sotol, tocón, zacatón), their size in game px, placed by World 1's plant rule.
+ */
+export const SIERRA = {
+  cloudFactor: 0.1,
+  farFactor: 0.3,
+  midFactor: 0.5,
+  skyBands: [0x527391, 0x8aa5b8, 0xbfcdd2],
+  skyEnds: [240, 440],
+  stripArt: 2,
+  clouds: [
+    { x: 118, y: 24 },
+    { x: 206, y: 46 },
+    { x: 292, y: 30 },
+  ],
+  farTop: 84,
+  farBandArt: 464,
+  midTop: 148,
+  midBandArt: 304,
+  footColour: 0x24403a,
+  decor: [
+    { name: 'pino', w: 16, h: 40 },
+    { name: 'encino', w: 16, h: 28 },
+    { name: 'madrono', w: 14, h: 24 },
+    { name: 'maguey', w: 16, h: 12 },
+    { name: 'sotol', w: 10, h: 32 },
+    { name: 'tocon', w: 14, h: 8 },
+    { name: 'zacaton', w: 12, h: 8 },
   ],
 } as const;

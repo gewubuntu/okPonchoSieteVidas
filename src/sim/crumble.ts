@@ -1,5 +1,5 @@
-// GDD-WLD-05: crumbling tiles. Solid like a floor until Poncho has stood on one for 0.5 s, then gone until he loses a life.
-// Pure logic, no Phaser (GDD-TEC-02).
+// GDD-WLD-05: crumbling tiles. Solid like a floor until Poncho has stood on one for 0.5 s, then gone until he loses a life, or in a
+// level whose ledges come back (World 3's) for 2.0 s. Pure logic, no Phaser (GDD-TEC-02).
 import { CRUMBLE, HITBOX, TILE } from '../config/tuning';
 import type { PlayerState } from './movement';
 import type { TileGrid } from './tilemap';
@@ -12,7 +12,10 @@ export interface Crumble {
 
 export interface CrumbleState {
   readonly phase: 'idle' | 'warning' | 'gone';
-  /** Steps of warning left. Only used while warning. */
+  /**
+   * While warning, the steps of warning left. While gone, the steps left before it may come back: 0 in a level whose ledges do not come
+   * back, and once its time is up while Poncho's box is in it.
+   */
   readonly steps: number;
 }
 
@@ -36,15 +39,26 @@ export function standsOn(player: PlayerState, c: Crumble): boolean {
   return player.grounded && player.y === c.row * TILE && Math.abs(player.x - (c.col * TILE + TILE / 2)) < (HITBOX.width + TILE) / 2;
 }
 
+/** Does Poncho's body box overlap this tile? Boxes that only share an edge do not. */
+function inTile(player: PlayerState, c: Crumble): boolean {
+  const left = player.x - HITBOX.width / 2;
+  const top = player.y - HITBOX.height;
+  return left < (c.col + 1) * TILE && left + HITBOX.width > c.col * TILE && top < (c.row + 1) * TILE && player.y > c.row * TILE;
+}
+
 /**
  * Advances every tile one step. Landing on an idle tile starts its warning with the full 0.5 s; from then on it counts
- * down on its own, even if Poncho walks off, and the tile is gone when it reaches 0.
+ * down on its own, even if Poncho walks off, and the tile is gone when it reaches 0. Where the ledges come back (`returns`, World 3),
+ * a gone tile is whole (idle) again CRUMBLE.returnSteps after the step it went, or, if Poncho's body box is in its tile then, on the
+ * first step it is clear of it.
  */
-export function stepCrumbles(crumbles: readonly Crumble[], states: readonly CrumbleState[], player: PlayerState): CrumbleState[] {
+export function stepCrumbles(crumbles: readonly Crumble[], states: readonly CrumbleState[], player: PlayerState, returns = false): CrumbleState[] {
   return crumbles.map((c, i) => {
     const s = states[i] ?? IDLE;
     if (s.phase === 'idle') return standsOn(player, c) ? { phase: 'warning', steps: CRUMBLE.warningSteps } : s;
-    if (s.phase === 'warning') return s.steps <= 1 ? { phase: 'gone', steps: 0 } : { phase: 'warning', steps: s.steps - 1 };
-    return s;
+    if (s.phase === 'warning') return s.steps <= 1 ? { phase: 'gone', steps: returns ? CRUMBLE.returnSteps : 0 } : { phase: 'warning', steps: s.steps - 1 };
+    if (!returns) return s;
+    if (s.steps > 1) return { phase: 'gone', steps: s.steps - 1 };
+    return inTile(player, c) ? { phase: 'gone', steps: 0 } : IDLE;
   });
 }

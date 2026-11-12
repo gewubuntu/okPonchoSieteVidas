@@ -9,6 +9,7 @@ import { groundFrame } from '../groundTiles';
 import { plantSpots } from '../plants';
 import { FILES, type ArtFiles } from './files';
 import { artSetFor, LOOKS, midImage, riseShift, textureKey, type ArtSet, type BackdropLayer, type Look } from './looks';
+import { decorInView, tileInView, tilesInView, type TileView } from './view';
 
 /** What the debug hooks read of the drawn scenery (`PonchoDebug.backdrop`, `backdropLayout`, `groundFrame`, `plants`, `scenery`). */
 export interface Scenery {
@@ -20,9 +21,10 @@ export interface Scenery {
    * Moves the far layers by their shares of the camera's scroll (game px); draws the far strip, its foot and the mid strip their shares of
    * the camera's rise above its lowest y lower (`cameraY` and `lowestY`, GDD-UI-04, GDD-ART-06: 0 in a one-screen level); and draws the
    * whole backdrop `offsetY` game px lower (negative: higher), the offset the camera draws the world at, so that a screen shake moves the
-   * backdrop with the level (GDD-BOS-01).
+   * backdrop with the level (GDD-BOS-01). Shows only the ground and decor images in the view at the scroll (`scrollX`, `scrollY`, the y
+   * scroll the camera draws at, shake included; GDD-TEC-03).
    */
-  follow(scrollX: number, cameraY: number, lowestY: number, offsetY: number): void;
+  follow(scrollX: number, scrollY: number, cameraY: number, lowestY: number, offsetY: number): void;
   /** How far each object of the backdrop is drawn from where it rests, in game px: its share of the camera's rise plus `follow`'s `offsetY`. */
   backdropShifts(): number[];
   /** How far the clouds, the far band and the mid band are shifted, in game px, read back from what was drawn. */
@@ -34,8 +36,10 @@ export interface Scenery {
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number };
   /** The art set chosen and the texture key of the drawn mid band (`mercado:plaza` in World 2's arena). */
   drawn(): { set: ArtSet; midKey: string };
-  /** The ground sheet's frame drawn at tile (tx, ty), or null where no ground image is. */
+  /** The ground sheet's frame drawn at tile (tx, ty), or null where no ground image is, whether the image is shown or not. */
   groundFrame(tx: number, ty: number): number | null;
+  /** How many ground images are shown (in the view, GDD-TEC-03) and how many there are. */
+  groundShown(): { shown: number; total: number };
   /** The decor drawn: each item's kind (its frame), its foot (game px) and its depth. */
   plants(): { kind: number; x: number; y: number; depth: number }[];
 }
@@ -50,7 +54,8 @@ export const sceneryFor = (world: number, bossLevel: boolean): Scenery => new Ba
  * clouds, the far band and the mid band each move by their share of the camera's scroll, and in a tall level the far band, its foot and
  * the mid band sink by their shares of the camera's rise, in `follow`. The decor is one image per spot of
  * `plantSpots`, rooted 1 game px into its top tile, behind the ground (depth 1) and in front of the backdrop; the ground one image of the
- * ground sheet per solid or slope tile (GDD-MOV-09).
+ * ground sheet per solid or slope tile (GDD-MOV-09). Only the ground and decor images in the camera's view are shown (GDD-TEC-03): each
+ * frame the view moves, the images it leaves are hidden and those it reaches shown, and no other image is touched.
  */
 class BandScenery implements Scenery {
   private readonly set: ArtSet;
@@ -66,7 +71,14 @@ class BandScenery implements Scenery {
   private readonly layers: { readonly object: Phaser.GameObjects.Components.Transform; readonly layer: BackdropLayer; readonly rest: number }[] = [];
   private offsetY = 0;
   private decorImages: Phaser.GameObjects.Image[] = [];
-  private readonly groundImages = new Map<string, Phaser.GameObjects.Image>();
+  /** Each decor image's column, foot and height, for the view (GDD-TEC-03). */
+  private decorPlaces: { col: number; footY: number; height: number }[] = [];
+  /** The ground images by tile, `ty * columns + tx`, null where none is. */
+  private groundImages: (Phaser.GameObjects.Image | null)[] = [];
+  private columns = 0;
+  private rows = 0;
+  /** The view whose images are shown, null before the first `follow`. */
+  private view: TileView | null = null;
 
   constructor(set: ArtSet, bossLevel: boolean) {
     this.set = set;
@@ -130,24 +142,68 @@ class BandScenery implements Scenery {
   }
 
   private drawDecor(scene: Phaser.Scene, level: Level): void {
-    this.decorImages = plantSpots(level, this.look.decor).map(({ kind, col, row }) =>
-      scene.add.image(col * TILE + TILE / 2, row * TILE + 1, this.key('decor'), kind).setOrigin(0.5, 1).setScale(1 / ART_SCALE).setDepth(0.5),
+    const spots = plantSpots(level, this.look.decor);
+    // Hidden until the first `follow` shows those in the view (GDD-TEC-03).
+    this.decorImages = spots.map(({ kind, col, row }) =>
+      scene.add.image(col * TILE + TILE / 2, row * TILE + 1, this.key('decor'), kind).setOrigin(0.5, 1).setScale(1 / ART_SCALE).setDepth(0.5).setVisible(false),
     );
+    this.decorPlaces = spots.map(({ kind, col, row }) => ({ col, footY: row * TILE + 1, height: this.look.decor[kind]!.h }));
   }
 
   private drawTiles(scene: Phaser.Scene, level: Level): void {
     const world = level.world;
+    this.columns = world.width;
+    this.rows = world.height;
+    this.groundImages = Array.from({ length: world.width * world.height }, () => null);
     for (let ty = 0; ty < world.height; ty++) {
       for (let tx = 0; tx < world.width; tx++) {
         const slope = world.slopeAt(tx, ty);
         if (!world.solidTile(tx, ty) && slope === null) continue;
-        const image = scene.add.image(tx * TILE, ty * TILE, this.key('ground'), groundFrame((x, y) => world.solidTile(x, y), tx, ty, (x, y) => world.slopeAt(x, y))).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1);
-        this.groundImages.set(`${tx},${ty}`, image);
+        // Hidden until the first `follow` shows those in the view (GDD-TEC-03).
+        const image = scene.add.image(tx * TILE, ty * TILE, this.key('ground'), groundFrame((x, y) => world.solidTile(x, y), tx, ty, (x, y) => world.slopeAt(x, y))).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1).setVisible(false);
+        this.groundImages[ty * world.width + tx] = image;
       }
     }
   }
 
-  follow(scrollX: number, cameraY: number, lowestY: number, offsetY: number): void {
+  /** The ground image at tile (tx, ty), or null outside the level and where none is. */
+  private groundAt(tx: number, ty: number): Phaser.GameObjects.Image | null {
+    if (tx < 0 || ty < 0 || tx >= this.columns || ty >= this.rows) return null;
+    return this.groundImages[ty * this.columns + tx]!;
+  }
+
+  /**
+   * GDD-TEC-03: shows the ground and decor images in the view at the scroll and hides those that left it. Only when the view's tiles change,
+   * and then only the images whose visibility changes: the tiles of the old view not in the new are hidden, those of the new not in the old
+   * shown.
+   */
+  private showView(scrollX: number, scrollY: number): void {
+    const next = tilesInView(scrollX, scrollY);
+    const last = this.view;
+    if (last !== null && last.col0 === next.col0 && last.col1 === next.col1 && last.row0 === next.row0 && last.row1 === next.row1) return;
+    if (last !== null) this.setTiles(last, next, false);
+    this.setTiles(next, last, true);
+    this.view = next;
+    this.decorImages.forEach((image, i) => {
+      const { col, footY, height } = this.decorPlaces[i]!;
+      const shown = decorInView(next, col, footY, height);
+      if (image.visible !== shown) image.setVisible(shown);
+    });
+  }
+
+  /** Sets the ground images of the tiles in `view` but not in `except` to `shown`. */
+  private setTiles(view: TileView, except: TileView | null, shown: boolean): void {
+    for (let ty = Math.max(0, view.row0); ty <= Math.min(this.rows - 1, view.row1); ty++) {
+      for (let tx = Math.max(0, view.col0); tx <= Math.min(this.columns - 1, view.col1); tx++) {
+        if (except !== null && tileInView(except, tx, ty)) continue;
+        const image = this.groundAt(tx, ty);
+        if (image !== null && image.visible !== shown) image.setVisible(shown);
+      }
+    }
+  }
+
+  follow(scrollX: number, scrollY: number, cameraY: number, lowestY: number, offsetY: number): void {
+    this.showView(scrollX, scrollY);
     this.offsetY = offsetY;
     for (const { object, layer, rest } of this.layers) object.y = rest + riseShift(layer, cameraY, lowestY) + offsetY;
     const cloudShift = parallaxOffset(scrollX, this.look.cloudFactor);
@@ -179,8 +235,13 @@ class BandScenery implements Scenery {
   }
 
   groundFrame(tx: number, ty: number): number | null {
-    const image = this.groundImages.get(`${tx},${ty}`);
-    return image === undefined ? null : Number(image.frame.name);
+    const image = this.groundAt(tx, ty);
+    return image === null ? null : Number(image.frame.name);
+  }
+
+  groundShown(): { shown: number; total: number } {
+    const images = this.groundImages.filter((image) => image !== null);
+    return { shown: images.filter((image) => image.visible).length, total: images.length };
   }
 
   plants(): { kind: number; x: number; y: number; depth: number }[] {

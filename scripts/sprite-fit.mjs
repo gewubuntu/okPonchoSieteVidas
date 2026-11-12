@@ -3,7 +3,7 @@
 // checks them over the real levels: a test file that cites L-059 and names the sheet's path (`sprites/<folder>` or `sprites/<file>`).
 
 /** Scenery folders: backdrops and tiles, not characters (one per art set, `src/ui/scenery/looks.ts`). */
-export const SCENERY = ['desierto', 'mercado'];
+export const SCENERY = ['desierto', 'mercado', 'sierra'];
 
 /** Sheets that have no fit test yet, each with the reason. None now: Poncho's frames (GDD-ART-04) brought his. */
 export const EXEMPT = {};

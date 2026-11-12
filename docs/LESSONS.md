@@ -76,7 +76,8 @@ Retired IDs: L-046
 - **Recurrence 8 (2026-11-10, GDD-PWR-04, found by the implementer before it wrote the level data):** my plan put the sandbox's special piñata at row 3, "48 px above the ledge", but row 3's underside is 32 px above it, his body's height, so his head is flush and no jump can bump it; the intent was row 2. The plan told the implementer to measure the spot first, which caught it; the row was still picked by hand.
 - **Recurrence 9 (2026-11-10, PR #93, GDD-WLD-16, GDD-WLD-03, found by the review):** World 3's detailed design took "measured" figures from design agents' scratch tests outside the repository. One was wrong (a jump with no glide "falls in" at 3-1's secret pillar; on the real `step` it crosses, as the PR's own gap table said), and a sight rule of "5 tiles up" contradicted the measured 3-tile jump. The rule asks for a test, and a scratch test nobody else can run passed for one. The skill now says such a figure is written as a target until a test in the repository pins it.
 - **Recurrence 10 (2026-11-11, PR #95, GDD-UI-04, found by the review):** the GDD said a 2-tile step from the band's middle ends "8 px outside the band" and offered a 48 px band as the fix; it is 12 px outside, and only 64 px or more stops the move. The camera did pan the measured 12 px in the test; the "8" was a figure from the implementer's report that I copied into the GDD and the open question without checking it against the test's own numbers. The rule covered it; a figure that explains a measured one was not itself held by an assertion.
-- **Recurrence:** 10
+- **Recurrence 11 (2026-11-11, PR #97, GDD-WLD-16, found by the advisor and by the level's screenshots):** I told the user the drop through 3-1's crumbling floor "lands 3 tiles clear" of the pen's Alacrán before anything had measured it (the pen was then moved and the distance pinned, 53 px box to box), and the GDD said the solid ground past the pit's ledges is on screen from the gallery's edge, which the screenshot scenario showed it is not. The rule covers the GDD; the first claim was made in a message, not the GDD, and the second was a sentence about the camera written while the level's numbers were being measured by tests that do not know the camera.
+- **Recurrence:** 11
 - **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test). Guard: none (no script can tell a measured claim from one worked out by hand; the implementer measures every planned number in a test before the GDD takes it, which caught recurrence 8; a figure from a scratch test outside the repository stays a target, recurrence 9)
 
 ## L-004 Debug hook returned the wrong value after landing
@@ -226,8 +227,11 @@ Retired IDs: L-046
 - **What went wrong:** The GDD, a code comment, an e2e comment and the PR description said only the spring ledge and the moving platform put Poncho in the Zopilote's reach. It also reached the Alacrán's platform (89 px below its line, inside the 80 px trigger at the low end of its bob). The reviewer found it by running the sandbox level.
 - **Root cause:** I reasoned about the geometry from the floor and two obvious places and never ran the real level through the sim. A statement about the level is a claim the sim can check.
 - **Rule:** When the GDD or a comment says where something can or cannot happen in the sandbox level (reach, spotting, clearance from a respawn), put a test over the real level data (`src/levels/sandbox.test.ts`) that runs the sim and states it, and mutate the level numbers to see it fail.
-- **Recurrence:** 2
-- **Promoted:** src/levels/sandbox.test.ts (the Zopilote's reach); .claude/skills/harness-feature (step 5: a placement rule is run over every real level before it goes into the GDD or a plan). Second time (2026-10-27, GDD-ART-06): I wrote the plants' kind rule as (7 x column + row) mod 7 into the GDD and the plan without running it; a coefficient equal to the modulus cancels, so it was just row mod 7 and every plant on a row was the same kind, and 0-1 got 5 plants and the sandbox none. The rule was rerun over both levels and the counts (12 and 4) went into the GDD and a test.
+- **Recurrence 3 (2026-11-12, PR #97, GDD-WLD-16, found by the review):** 3-1's test of the held glide from the stone drove it on a copy of the level with the enemies taken out, so "a miss costs nothing" was true of an empty level only: on the real one the flight flew into a bat at 12 to 17 of 24 start times, and with the bat gone into an Alacrán. The rule asks for a test over the real level data; the test file's own helper for measuring a reach without enemies made the wrong level the convenient one, and the plan did not say which claims are about what a path costs. Both enemies were taken out and every such claim in the file is now driven on the real level.
+- **Recurrence 4 (2026-11-12, PR #97, GDD-WLD-16, found by the re-review):** the same fault one bat earlier: the held stomp on 3-1's first bat, a move the level rewards with two hilos, bounced him over the second chasm into its bat (29 of 32 stomps from one take-off), with that bat off screen at the take-off. The test did drive it on the real level, as the rule now asks, but asserted only the stomps and the hilos, never the lives or where he lands, and from one take-off. The bat was moved under every crossing flight, which a sweep of take-offs now pins. The skill's sentence now also asks for the lives and the landing over a range of take-offs.
+- **Recurrence 5 (2026-11-12, PR #97, GDD-WLD-16, found by the next re-review):** the fix's own test asserted the held stomp's lives at three take-offs a tile apart with one run-up; from a standstill on the first tile of the stretch every stomp fell short into the chasm. The skill's sentence of the same day asked for a sweep of take-offs and the plan to the builder named three columns. The bat moved two columns, chosen from a table over every candidate column, and the test sweeps the stretch standing and running.
+- **Recurrence:** 5
+- **Promoted:** src/levels/sandbox.test.ts (the Zopilote's reach); .claude/skills/harness-feature (step 5: a placement rule is run over every real level before it goes into the GDD or a plan). Second time (2026-10-27, GDD-ART-06): I wrote the plants' kind rule as (7 x column + row) mod 7 into the GDD and the plan without running it; a coefficient equal to the modulus cancels, so it was just row mod 7 and every plant on a row was the same kind, and 0-1 got 5 plants and the sandbox none. The rule was rerun over both levels and the counts (12 and 4) went into the GDD and a test. Third time: .claude/skills/harness-feature (step 5, Placement rules: a claim about what a path costs is driven on the level with every enemy in it). Guard: none (no script can tell a claim that needs the enemies from a reach that is geometry alone; the reviewer's probe on the real level found it)
 
 ## L-015 An e2e test picked an enemy out by where it is, and a new enemy matched
 
@@ -771,8 +775,9 @@ Retired IDs: L-046
 - **What went wrong:** The plan for Poncho's animations in the game (the sheet, the pose module, the scene, the items, the stand-in specs, the level fit test, 80 mutants, the shots) ran the implementer into its 150-turn limit with no report; it had to be resumed to finish.
 - **Root cause:** One plan held several features' worth of work, and nothing sized a plan against the implementer's turn budget.
 - **Rule:** A plan with more than about four independent parts (art build, pure logic, scene wiring, playtests, rewritten specs, mutants) is split into phases, each its own implementer run with its own report; the main session checks each before starting the next.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-11, PR #97, GDD-ART-06):** the run that drew the Sierra's canyon set hit the 150-turn limit with no report and was resumed. The PR was split into five runs by subject, but that one still held six parts (the art build and its tests, the scene's art set, the rock ledge's look, the lives' outline, a test level's ledges, the screenshots): the rule was in this file only, and the plan step of the skill did not ask for a count.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-feature (step 5, Plan size)
 
 ## L-068 A one-row sprite sheet grew past the texture size a phone can load
 
@@ -864,3 +869,23 @@ Retired IDs: L-046
 - **Rule:** In CI a step that fetches something the tests can run without (extra system packages from a distribution mirror) is separate from the steps the tests need, is retried within a time limit, and ends in a warning, never in skipped tests. When CI's playtests cannot run for a cause outside the PR, the whole suite is run locally on the PR's head and the description says so, before anyone is asked to merge.
 - **Recurrence:** 1
 - **Promoted:** `.github/workflows/check.yml` (the `e2e` job's two install steps) and docs/HARNESS.md (Playtesting)
+
+## L-077 A plan's rule failed the plan's own test cases and an existing fixture
+
+- **Date:** 2026-11-11
+- **Area:** process, tests, level
+- **What went wrong:** The plan for World 3's gap rule (GDD-WLD-03, PR #97) defined a gap's headroom as counted over the right bank's column too, so every gap that rises read its own far bank as a roof and the plan's rise cases could not pass. One of its tests could not kill the mutant it named, the problem text for a level gap was left open, and an existing validator fixture (a World 3 pit with a 7-tile rise) broke the new rule. The implementer stopped on the three contradictions and the part was replanned as its own run.
+- **Root cause:** The rule was written as a sentence and its tests as a table, and neither was worked through the other: no test case was evaluated by hand against the definition before the plan went out, and the existing fixtures of the file the rule lands in were not read for ones the rule would newly fail.
+- **Rule:** Before a plan with a new validator or simulation rule goes to the implementer, work two of its own test cases through the rule's definition as written (one that must pass, one that must fail, with the numbers), and grep the test file the rule lands in for fixtures of the same kind (the same world, the same flag) that the rule would newly reject; the plan says what happens to each.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-078 A failed gate stopped the chained commit, and the push that followed pushed nothing
+
+- **Date:** 2026-11-11
+- **Area:** process
+- **What went wrong:** On PR #97 I changed a validator message ("1 tiles" to "1 tile") after the last gate run and then ran the gate chained to the commit with its output sent to a file. A test that pinned the old text failed, so the commit did not happen (L-012's rule held), but the next command pushed the unchanged branch and I went on as if the fix were on the PR until `git status` showed the files still modified.
+- **Root cause:** The gate's result was not read before the next step: with the output in a file, a failure prints nothing, and nothing compared the branch's head before and after.
+- **Rule:** The command that runs the gate and commits ends by showing what happened (`node scripts/check.mjs > gate.log 2>&1 && git commit ... ; echo "exit $?"; git log -1 --oneline; git status --short`), and the push is its own command, made only after reading that the head moved. An edit after a green gate, however small, means the gate runs again before the commit.
+- **Recurrence:** 1
+- **Promoted:** no

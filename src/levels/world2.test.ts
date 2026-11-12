@@ -25,10 +25,11 @@ describe('GDD-WLD-01 World 2 levels', () => {
     expect(['1-4', '2-1', '2-2', '2-3'].map((id) => levelById(id)!.next)).toEqual(['2-1', '2-2', '2-3', '2-4']);
   });
 
-  it('GDD-BOS-03 2-4 is World 2 boss arena, La Estrella level, the last level built (its layout in level2-4.test.ts)', () => {
+  it('GDD-BOS-03 2-4 is World 2 boss arena, La Estrella level, and its next level is 3-1, World 3 first (its layout in level2-4.test.ts)', () => {
     expect(levelById('2-4')).toMatchObject({ world: 2, test: false });
     expect(levelById('2-4')!.level).toBe(LEVEL_2_4);
-    expect(levelById('2-4')!.next).toBeUndefined();
+    expect(levelById('2-4')!.next).toBe('3-1');
+    expect(levelById('3-1')).toMatchObject({ world: 3, test: false });
     expect(LEVEL_2_4.estrella).toBeDefined();
     expect(LEVEL_2_4.boss).toBeUndefined();
   });

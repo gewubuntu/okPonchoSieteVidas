@@ -11,12 +11,29 @@ export const hiloColour = (index: number): number => HILO_COLOURS[index % HILO_C
 
 /**
  * GDD-UI-01: the counter's right edge is `margin` from the screen's right edge, or `pauseGap` left of the pause button on touch;
- * its top is level with the lives; the icon is `iconSize` wide, `iconGap` left of the text.
+ * its top is level with the lives; the icon is `iconSize` wide, `iconGap` left of the text. The text and the icon have the lives' dark
+ * outline, `outline.px` wide just outside their edge (`LIVES_HUD.outline`).
  */
-export const HILO_HUD = { margin: 8, pauseGap: 6, top: LIVES_HUD.top, iconSize: HILO.size, iconGap: 3 } as const;
+export const HILO_HUD = {
+  margin: 8,
+  pauseGap: 6,
+  top: LIVES_HUD.top,
+  iconSize: HILO.size,
+  iconGap: 3,
+  outline: { colour: LIVES_HUD.outline.colour, px: LIVES_HUD.outline.px },
+} as const;
 
 /** "collected/total", e.g. "12/20". */
 export const hiloCounterText = (taken: number, total: number): string => `${taken}/${total}`;
 
 /** Where the counter's right edge is: against the pause button when there is one, else against the screen's edge. */
 export const hiloCounterRight = (pause: { x: number } | undefined): number => (pause ? pause.x - HILO_HUD.pauseGap : BASE_WIDTH - HILO_HUD.margin);
+
+/** The text stroke that draws an outline `px` wide outside each glyph: a stroke lies half outside the glyph's edge. */
+export const hiloStroke = (px: number): number => 2 * px;
+
+/**
+ * Where the counter's text object goes (its origin is its top right) so that its glyphs' right edge is at `right` and their top at
+ * `HILO_HUD.top`, drawn with a stroke `stroke` px thick: Phaser pads the text's box by the stroke, half of it on each side of the glyphs.
+ */
+export const hiloTextPlace = (right: number, stroke: number): { x: number; y: number } => ({ x: right + stroke / 2, y: HILO_HUD.top - stroke / 2 });

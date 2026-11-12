@@ -6,7 +6,8 @@
 // him onto; a lift that climbs 14 tiles from that ledge to the highest ledge; a rail whose cart climbs 6 tiles onto a plateau and one whose
 // cart descends 6 tiles from it; past its end a pit high in the level with a raised bottom (GDD-WLD-03); and the lowest ground, at the
 // chasm's bottom on the level's last rows, with a pit at the level's bottom. Every column is solid down to the level's bottom from its
-// ground, but the pits', empty all the way.
+// ground, but the pits', empty all the way. Three crumbling tiles hang high over the far side, out of every route's reach, to show World 3's
+// rock ledge (GDD-ART-06).
 import { TILE } from '../config/tuning';
 import type { Bottom } from '../sim/bottoms';
 import type { Rail } from '../sim/cart';
@@ -80,6 +81,12 @@ export const LAB_3T_HIGH_PIT = { col0: 66, col1: 69, row: LAB_3T_CHASM.farRow } 
  */
 export const LAB_3T_HIGH_BOTTOM: Bottom = { fromCol: LAB_3T_HIGH_PIT.col0 - 6, toCol: LAB_3T_HIGH_PIT.col1 + 6, row: LAB_3T_HIGH_PIT.row + 4 };
 
+/**
+ * GDD-WLD-05, GDD-ART-06: three crumbling tiles, the rock ledge on show, over the far side between the descending cart's end and the high
+ * pit: columns 60 to 62 at row 12 (their top 10 tiles over the ground, out of every route's reach, a teleport puts him on them).
+ */
+export const LAB_3T_LEDGES = { col0: 60, col1: 62, row: 12 } as const;
+
 const FAR_Y = LAB_3T_CHASM.farRow * TILE;
 const CART_TOP_Y = LAB_3T_CART_PLATEAU.row * TILE;
 
@@ -135,7 +142,9 @@ export const LAB_3T_LEVEL: Level = {
   spawn: LAB_3T_SPAWN,
   ofrendas: LAB_3T_OFRENDAS,
   spikes: [],
-  crumbles: [],
+  crumbles: Array.from({ length: LAB_3T_LEDGES.col1 - LAB_3T_LEDGES.col0 + 1 }, (_, i) => ({ col: LAB_3T_LEDGES.col0 + i, row: LAB_3T_LEDGES.row })),
+  // GDD-WLD-05: a World 3 level's crumbled ledges come back.
+  crumblesReturn: true,
   springs: LAB_3T_SPRINGS,
   platforms: [LAB_3T_LIFT],
   tacos: [],

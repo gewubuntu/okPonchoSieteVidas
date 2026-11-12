@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BASE_HEIGHT, CAMERA, GLIDE, GRAVITY, STEP, TILE } from '../config/tuning';
-import { LEVELS } from '../levels';
+import { LEVELS, levelById } from '../levels';
 import { flatWorld, spawn, step, type PlayerState } from '../sim/movement';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
@@ -294,8 +294,9 @@ describe('GDD-UI-04 the camera follows up and down', () => {
   });
 
   it('GDD-UI-04 a level 17 rows tall never moves it: every level in the game today', () => {
-    // Every level but the tall lab is 17 rows (272 px): its camera has no room to move (the approved screenshots hold).
-    expect(LEVELS.filter((e) => e.level.world.height !== 17).map((e) => e.id)).toEqual(['lab-3t']);
+    // Every level but 3-1 (51 rows, GDD-WLD-16) and the tall lab is 17 rows (272 px): its camera has no room to move (the approved
+    // screenshots hold).
+    expect(LEVELS.filter((e) => e.level.world.height !== 17).map((e) => e.id)).toEqual(['3-1', 'lab-3t']);
     for (const e of LEVELS.filter((l) => l.level.world.height === 17)) expect(cameraLimits(e.level.world.height * TILE), e.id).toEqual({ top: 0, bottom: 0 });
     // Any inputs at all: it stays at 0.
     const limits = cameraLimits(17 * TILE);
@@ -420,13 +421,16 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     expect(cutCameraY({ ...waiting, checkpoint: { x: 20 * TILE, y: 480 }, player: spawn(12 * TILE, 900) }, level)).toEqual(still(344));
   });
 
-  it('GDD-UI-04 the level start is a cut to his feet at 136, which in every level built is the camera at 0', () => {
+  it('GDD-UI-04 the level start is a cut to his feet at 136, which in every level built but 3-1 is the camera at 0', () => {
     // A start low in a tall level: the cut puts his feet at 136.
     const level = { ...levelOf(rowsOf(30, () => 30)), spawn: { x: 200, y: 480 } };
     expect(cutCameraY(startRun(level), level)).toEqual(still(344));
-    // Every level built starts where the cut puts the camera at 0, where it is before the first cut: the scene's start cut changes nothing
-    // there yet (lab-3t's start is on its plateau at row 8, his feet at y 128).
-    for (const e of LEVELS) expect(cutCameraY(startRun(e.level), e.level), e.id).toEqual(still(0));
+    // Every level built but 3-1 starts where the cut puts the camera at 0, where it is before the first cut: the scene's start cut changes
+    // nothing there (lab-3t's start is on its plateau at row 8, his feet at y 128). 3-1 starts on its rim at row 9 (GDD-WLD-16), his feet at
+    // y 144: the cut puts them at 136, the camera at 8.
+    for (const e of LEVELS.filter((l) => l.id !== '3-1')) expect(cutCameraY(startRun(e.level), e.level), e.id).toEqual(still(0));
+    const rim = levelById('3-1')!.level;
+    expect(cutCameraY(startRun(rim), rim)).toEqual(still(8));
   });
 
   it('GDD-BOS-01 a screen shake is drawn on top of the camera y', () => {

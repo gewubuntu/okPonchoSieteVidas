@@ -7,6 +7,7 @@ describe('L-059 sprite-fit: every character sheet has a fit test', () => {
       { name: 'boss', dir: true },
       { name: 'desierto', dir: true },
       { name: 'mercado', dir: true },
+      { name: 'sierra', dir: true },
       { name: 'enemies', dir: true },
       { name: 'poncho.png', dir: false },
       { name: 'README.md', dir: false },

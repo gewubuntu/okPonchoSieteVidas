@@ -9,7 +9,7 @@ import { centre, enemyPhase, feetOf, kindOf, type EnemyKind } from '../sim/enemy
 import { defeatLook, stepDefeats, type DefeatFx } from '../ui/defeatFx';
 import { frameLook, SHEETS, type EnemyLook, type Sheet } from '../ui/enemyLooks';
 import { enemyPose } from '../ui/enemyPose';
-import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
+import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, unlockedAbilities, withUnlocks, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
 import donZopilotePng from '../../assets/sprites/boss/don-zopilote.png';
@@ -28,6 +28,7 @@ import tlacuachePng from '../../assets/sprites/enemies/tlacuache.png';
 import palomaPng from '../../assets/sprites/enemies/paloma.png';
 import chapulinPng from '../../assets/sprites/enemies/chapulin.png';
 import trompoPng from '../../assets/sprites/enemies/trompo.png';
+import murcielagoPng from '../../assets/sprites/enemies/murcielago.png';
 import poofPng from '../../assets/sprites/enemies/poof.png';
 import tacoPng from '../../assets/sprites/poncho/taco.png';
 import chilePng from '../../assets/sprites/poncho/chile.png';
@@ -36,6 +37,7 @@ import swipePng from '../../assets/sprites/poncho/swipe.png';
 import fxPng from '../../assets/sprites/poncho/fx.png';
 import fantasmaPng from '../../assets/sprites/poncho/fantasma.png';
 import glowPng from '../../assets/sprites/poncho/glow.png';
+import ledgePng from '../../assets/sprites/sierra/ledge.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import jumpOgg from '../../assets/audio/sfx/jump.ogg';
@@ -88,11 +90,13 @@ import { cameraDrawY, cameraLimits, cameraScroll, cutCameraY, followCamera, step
 import { dashedRect } from '../ui/dashed';
 import { GamepadReader } from '../ui/gamepad';
 import { sceneryFor, type Scenery } from '../ui/scenery/scenery';
+import { artSetFor, textureKey } from '../ui/scenery/looks';
+import { crumbleLook } from '../ui/crumbleLook';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
-import { lastLifePulse, pulsedPoints, updatePulseStart } from '../ui/lastLife';
-import { HILO_COLOURS, HILO_HUD, hiloColour, hiloCounterRight, hiloCounterText } from '../ui/hiloCounter';
-import { layoutLives, LIVES_HUD } from '../ui/livesLayout';
+import { lastLifePulse, updatePulseStart } from '../ui/lastLife';
+import { HILO_COLOURS, HILO_HUD, hiloColour, hiloCounterRight, hiloCounterText, hiloStroke, hiloTextPlace } from '../ui/hiloCounter';
+import { drawnLife, layoutLives, LIVES_HUD, type TrianglePoints } from '../ui/livesLayout';
 import { gamePoint } from '../ui/gamePoint';
 import { ITEM_FRAMES } from '../ui/ponchoFrames';
 import { ITEM_LOOKS, ITEM_SHEETS, itemFrame, ponchoFrame, ponchoLookAt, type FxLook, type HeldLook, type ItemLook, type ItemSheet, type PonchoLook, type SwipeLook } from '../ui/ponchoLooks';
@@ -108,12 +112,12 @@ import { activeTip, highlightBox, initialDevice, NO_TIP, pulse, stepTipFade, tip
 import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 import { hasMarketThings, loadMarketThings, MarketThings, type MarketDrawn } from '../ui/MarketThings';
 
-/** GDD-ENM-02, GDD-ENM-03: the enemy sheets and the defeat poof's. */
-const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, paloma: palomaPng, chapulin: chapulinPng, trompo: trompoPng, poof: poofPng };
+/** GDD-ENM-02, GDD-ENM-03, GDD-ENM-04: the enemy sheets and the defeat poof's. */
+const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, paloma: palomaPng, chapulin: chapulinPng, trompo: trompoPng, murcielago: murcielagoPng, poof: poofPng };
 /** GDD-ART-04, GDD-PWR-04: the taco, chile and Chile Fantasma pickups, what Poncho holds, the claw swipe, the effects at his mouth and his glow's, one sheet each (`ITEM_LOOKS`). */
 const ITEM_PNGS: Readonly<Record<ItemSheet, string>> = { taco: tacoPng, chile: chilePng, held: heldPng, swipe: swipePng, fx: fxPng, fantasma: fantasmaPng, glow: glowPng };
-/** A sheet's frames stand on their bottom middle (a walker's feet), or the Zopilote's and the poof's on their middle. */
-const centred = (sheet: Sheet): boolean => sheet === 'zopilote' || sheet === 'poof';
+/** A sheet's frames stand on their bottom middle (a walker's feet), or the Zopilote's, the Murciélago's and the poof's on their middle. */
+const centred = (sheet: Sheet): boolean => sheet === 'zopilote' || sheet === 'murcielago' || sheet === 'poof';
 
 /** GDD-AUD-02: the cache keys of every sound effect. */
 const SFX_KEYS = ['ofrenda', 'jump', 'land', 'claw', 'stomp', 'hilo', 'lifeLost', 'meow', 'tick', 'hiss', 'grunt', 'bossDefeat'].map((n) => `sfx-${n}`);
@@ -212,8 +216,14 @@ export interface PonchoDebug {
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number };
   /** The art set the scenery is drawn from (`desierto`, `mercado`) and the texture key of the drawn mid band (`mercado:plaza` in World 2's arena) (GDD-ART-06). */
   scenery(): { set: string; midKey: string };
-  /** The frame of the ground sheet drawn at tile (tx, ty), or null where no ground image is (GDD-ART-06). Read from the drawn image. */
+  /** The frame of the ground sheet drawn at tile (tx, ty), or null where no ground image is (GDD-ART-06), whether the image is shown or not. Read from the drawn image. */
   groundFrame(tx: number, ty: number): number | null;
+  /**
+   * GDD-TEC-03: how many of the level's ground images are shown (`shown`, read from the images' visibility as last set, by the frame or the
+   * debug `step` that last drew) and how many there are (`total`, one per solid or slope tile). Only those in the camera's view, the screen
+   * widened by 2 tiles on every side, are shown.
+   */
+  groundShown(): { shown: number; total: number };
   /** The plants (World 2's decor) drawn in the level (GDD-ART-06): each one's kind (its frame in the sheet), where its foot is drawn (the middle of its tile, in game px) and its depth. Read from the drawn images. */
   plants(): { kind: number; x: number; y: number; depth: number }[];
   /**
@@ -256,6 +266,12 @@ export interface PonchoDebug {
   hudCracking(): { index: number; fillAlpha: number; crackAlpha: number }[];
   /** The scale the last triangle was drawn at while one life is left, or null when it does not pulse (GDD-LIFE-04). */
   hudPulse(): number | null;
+  /**
+   * GDD-UI-01: the dark outline the HUD last stroked round each life triangle, in the row's order: the triangle's place, whether it was
+   * drawn filled (a life kept) or not (lost, or cracking), the outline's three corners (game px, six numbers), its colour and line width.
+   * Read from what was drawn, one entry per triangle stroked; the 1 px line itself is too thin to sample on the phone (L-017).
+   */
+  hudOutlines(): { index: number; filled: boolean; points: number[]; colour: number; px: number }[];
   /** Freezes the simulation and the animations on the current frame, for screenshots and pixel tests. Not the player's pause. */
   pause(on: boolean): void;
   /** The player's pause (GDD-UI-02): whether the level is paused, whether because the phone is upright, and the chosen menu item. */
@@ -368,8 +384,13 @@ export interface PonchoDebug {
    * in degrees it was last drawn at (`cartPose`; positive clockwise on the screen: -45 with its right side up, 0 on level rail).
    */
   carts(): { x?: number; y?: number; w?: number; h?: number; angle?: number; phase: string }[];
-  /** The crumbling tiles and their state, read from the run (GDD-WLD-05). */
-  crumbles(): { col: number; row: number; phase: string; steps: number }[];
+  /**
+   * The crumbling tiles and their state, read from the run (GDD-WLD-05), and how each was last drawn, read from what was drawn: `look`,
+   * 'ledge' where it is World 3's rock ledge image (GDD-ART-06, in a Sierra level) or 'placeholder' for the sandy tile; `x`, the drawn
+   * tile's left edge in game px (its column's edge, 1 px either side while it shakes in its warning); `frame`, 0 at rest and 1 in its pale
+   * flash; `visible`, false once it is gone. Read after the frame that drew the state (a step's state is drawn in the frame after it).
+   */
+  crumbles(): { col: number; row: number; phase: string; steps: number; look: 'ledge' | 'placeholder'; x: number; frame: number; visible: boolean }[];
   /**
    * GDD-WLD-10, GDD-WLD-11: the awnings, cordeles and rollos as drawn (each awning's sag and lift in px and whether it is drawn torn apart;
    * each rollo's bundle frame, null once strung, and its line tiles), and from the run: Poncho's held rebounds in a row, the torn awnings
@@ -388,8 +409,12 @@ export interface PonchoDebug {
   hilos(): { taken: number; total: number; drawn: number; faded: number };
   /** GDD-PRG-02: the progress the scene holds for the levels, as saved at each level clear (and read when the scene was made). */
   progress(): Record<string, LevelProgress>;
-  /** GDD-UI-01: the hilo counter as drawn: its text, the right edge and top of the text, and the middle x of the skein icon. */
-  hudHilos(): { text: string; right: number; top: number; iconX: number };
+  /**
+   * GDD-UI-01: the hilo counter as drawn: its text, the right edge and top of the text's glyphs, the middle x of the skein icon, and the
+   * dark outline round the glyphs (its colour, and how far it lies outside them: half the text's stroke). Read from the text object as
+   * drawn, its box less the stroke's padding.
+   */
+  hudHilos(): { text: string; right: number; top: number; iconX: number; outline: { colour: number; px: number } };
   /** Whether the taco in Poncho's hand and the power-up icon on the HUD are drawn. Read from what was drawn. */
   heldTacoVisible(): boolean;
   /**
@@ -430,13 +455,14 @@ export interface PonchoDebug {
   fireballAt(): { x: number; y: number }[];
   fireballsDrawn(): number;
   /**
-   * The enemies in the simulation, and where the scene painted the live ones (GDD-ENM-02). `y` is a Zopilote's flight y, else the feet of a
-   * walker where it walked to (GDD-MOV-09: it follows slopes), which is its start's y until it moves.
+   * The enemies in the simulation, and where the scene painted the live ones (GDD-ENM-02). `y` is a Zopilote's flight y, a Murciélago's middle on its
+   * loop (GDD-ENM-04), else the feet of a walker where it walked to (GDD-MOV-09: it follows slopes), which is its start's y until it moves.
+   * `phase` is `enemyPhase`'s.
    */
   enemies(): { x: number; y: number; alive: boolean; dir: number; phase: string }[];
   /**
    * Where the scene drew the live enemies, read back from what was drawn (L-010): each sprite's x and, for a walker, its bottom (its feet; a
-   * flying Paloma's, lifted by its flight and bobbing), for a Zopilote its middle (its flight y), with the look of the frame it shows and
+   * flying Paloma's, lifted by its flight and bobbing), for a Zopilote its middle (its flight y) and a Murciélago's (GDD-ENM-04), with the look of the frame it shows and
    * whether it is mirrored (GDD-ENM-02, GDD-ENM-03).
    */
   enemiesDrawn(): { x: number; y: number; kind: EnemyKind; look: EnemyLook; flip: boolean }[];
@@ -570,7 +596,8 @@ export class PlayScene extends Phaser.Scene {
   // GDD-UI-02: the level played, 0-1, 1-1, 1-2, 1-3, the boss arena 1-4 or a test level. GDD-MOV-06: Poncho collides with its tile grid.
   // The spawn stands on the floor, so its y is the floor level.
   private readonly entry: LevelEntry;
-  private readonly level: Level;
+  /** GDD-PRG-01: with the abilities the saved progress unlocks added in `create`, once the progress is read. */
+  private level: Level;
   private readonly world: TileGrid;
   private readonly floorY: number;
   private run: RunState;
@@ -598,6 +625,10 @@ export class PlayScene extends Phaser.Scene {
   private cartAngles: number[] = [];
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
+  /** GDD-WLD-05, GDD-ART-06: in a Sierra level the rock ledge's image for each crumbling tile, else null (the placeholder is drawn). */
+  private ledgeImages: Phaser.GameObjects.Image[] | null = null;
+  /** How each crumbling tile was last drawn (`PonchoDebug.crumbles`). */
+  private crumblesDrawn: { look: 'ledge' | 'placeholder'; x: number; frame: number; visible: boolean }[] = [];
   /** GDD-PWR-02, GDD-ART-04: the level's taco pickups, one image each, and what Poncho holds, the claw swipe and the effect at his mouth. */
   private tacoImages: Phaser.GameObjects.Image[] = [];
   /** GDD-PWR-04: the four copies of his body that make the glow's outline, just under it, and the pool of images for what floats round him. */
@@ -671,6 +702,8 @@ export class PlayScene extends Phaser.Scene {
   private drawnLives = 0;
   private cracks: Crack[] = [];
   private cracksDrawn: { index: number; fillAlpha: number; crackAlpha: number }[] = [];
+  /** GDD-UI-01: the outline stroked round each life triangle in the last HUD drawing (`PonchoDebug.hudOutlines`). */
+  private outlinesDrawn: { index: number; filled: boolean; points: number[]; colour: number; px: number }[] = [];
   private paused = false;
   /** GDD-UI-02: the player's pause, the events that change it since the last frame, and the pause screen. */
   private pauseState: PauseState = PLAYING;
@@ -907,6 +940,13 @@ export class PlayScene extends Phaser.Scene {
     this.load.audio('sfx-bossDefeat', [bossDefeatOgg, bossDefeatMp3]);
     // GDD-WLD-10, GDD-WLD-11: World 2's awning, cordel and rollo sheets, only for a level that has them.
     if (hasMarketThings(this.level)) loadMarketThings(this);
+    // GDD-WLD-05, GDD-ART-06: World 3's rock ledge, its two frames a tile each, only in a Sierra level with crumbling tiles (GDD-TEC-03).
+    if (this.drawsLedges()) this.load.spritesheet(textureKey('sierra', 'ledge'), ledgePng, { frameWidth: TILE * ART_SCALE, frameHeight: TILE * ART_SCALE });
+  }
+
+  /** GDD-ART-06: a level drawn in the Sierra look dresses its crumbling tiles as the rock ledge; every other keeps the placeholder. */
+  private drawsLedges(): boolean {
+    return artSetFor(this.entry.world) === 'sierra' && this.level.crumbles.length > 0;
   }
 
   create(): void {
@@ -924,6 +964,8 @@ export class PlayScene extends Phaser.Scene {
     this.tutorialPlayed = save.tutorialPlayed || playedThisVisit;
     // GDD-PRG-02, GDD-WLD-04: the hilos saved in an earlier run count from the start. The sandbox has no saved progress.
     this.progress = mergeLevels(save.levels, progressThisVisit);
+    // GDD-PRG-01: the glide, once 2-4 is cleared, in every level (this visit's clears count where the browser refuses storage).
+    this.level = withUnlocks(this.entry.level, unlockedAbilities(this.progress));
     // GDD-LIFE-05: the lives kept per world, this visit's winning where the browser refuses storage.
     this.worldLives = { ...save.worldLives, ...worldLivesThisVisit };
     // GDD-UI-02, GDD-PRG-02: where each world's run is, this visit's winning where the browser refuses storage.
@@ -1009,6 +1051,8 @@ export class PlayScene extends Phaser.Scene {
     this.cartBackGfx = this.add.graphics().setDepth(2.5);
     this.cartFrontGfx = this.add.graphics().setDepth(3.2);
     this.crumbleGfx = this.add.graphics().setDepth(1);
+    // GDD-ART-06: at the placeholder's depth.
+    this.ledgeImages = this.drawsLedges() ? this.level.crumbles.map((c) => this.add.image(c.col * TILE, c.row * TILE, textureKey('sierra', 'ledge'), 0).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1)) : null;
     this.drawCrumbles();
 
     // GDD-LIFE-05: the Siete vidas gastadas screen, over the level and under the HUD and the touch buttons (so Jump stays
@@ -1094,7 +1138,11 @@ export class PlayScene extends Phaser.Scene {
 
     // GDD-UI-01: the hilo counter in the top right, left of the touch pause button where there is one.
     this.hiloIcon = this.add.graphics().setScrollFactor(0).setDepth(10);
-    this.hiloText = this.add.text(0, HILO_HUD.top, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff3dc' }).setOrigin(1, 0).setScrollFactor(0).setDepth(10);
+    this.hiloText = this.add
+      .text(0, HILO_HUD.top, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff3dc', stroke: `#${HILO_HUD.outline.colour.toString(16).padStart(6, '0')}`, strokeThickness: hiloStroke(HILO_HUD.outline.px) })
+      .setOrigin(1, 0)
+      .setScrollFactor(0)
+      .setDepth(10);
     this.drawHiloCounter();
 
     // GDD-UI-02: the pause screen, over the level and the Siete vidas gastadas screen, under the HUD and the touch buttons
@@ -1288,6 +1336,7 @@ export class PlayScene extends Phaser.Scene {
         backdropLayout: () => this.scenery.backdropLayout(),
         scenery: () => this.scenery.drawn(),
         groundFrame: (tx, ty) => this.scenery.groundFrame(tx, ty),
+        groundShown: () => this.scenery.groundShown(),
         plants: () => this.scenery.plants(),
         tip: () => this.tipPainted,
         tipsDone: () => this.tipsDoneNow,
@@ -1312,6 +1361,7 @@ export class PlayScene extends Phaser.Scene {
         hudFilled: () => this.hudFilled,
         hudCracking: () => this.cracksDrawn,
         hudPulse: () => this.pulseDrawn,
+        hudOutlines: () => this.outlinesDrawn,
         pause: (on) => {
           this.paused = on;
         },
@@ -1404,7 +1454,7 @@ export class PlayScene extends Phaser.Scene {
             const fell = fallingBox(r, c);
             return fell ? { ...fell, phase: c.phase } : { ...cartFloor(r, c), phase: c.phase, angle: this.cartAngles[i] ?? 0 };
           }),
-        crumbles: () => this.level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]! })),
+        crumbles: () => this.level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]!, ...this.crumblesDrawn[i]! })),
         market: () => ({
           ...(this.market?.drawn ?? { awnings: [], rollos: [] }),
           chain: this.run.player.awningChain ?? 0,
@@ -1417,7 +1467,11 @@ export class PlayScene extends Phaser.Scene {
         tacosDrawn: () => this.tacosPainted,
         hilos: () => ({ taken: hilosCollected(this.run.hilosTaken), total: this.level.hilos?.length ?? 0, drawn: this.hilosPainted, faded: this.hilosFaded }),
         progress: () => this.progress,
-        hudHilos: () => ({ text: this.hiloText.text, right: this.hiloText.x, top: this.hiloText.y, iconX: this.hiloIconX }),
+        hudHilos: () => {
+          const stroke = this.hiloText.style.strokeThickness;
+          const outline = { colour: typeof this.hiloText.style.stroke === 'string' ? parseInt(this.hiloText.style.stroke.slice(1), 16) : -1, px: stroke / 2 };
+          return { text: this.hiloText.text, right: this.hiloText.x - stroke / 2, top: this.hiloText.y + stroke / 2, iconX: this.hiloIconX, outline };
+        },
         heldTacoVisible: () => this.heldImage.visible,
         heldDrawn: () => (this.heldImage.visible ? { look: ITEM_LOOKS.held[Number(this.heldImage.frame.name)]!, x: this.heldImage.x, y: this.heldImage.y, alpha: this.heldImage.alpha } : null),
         fxDrawn: () => (this.fxImage.visible ? [{ look: ITEM_LOOKS.fx[Number(this.fxImage.frame.name)]!, x: this.fxImage.x, y: this.fxImage.y }] : []),
@@ -1428,7 +1482,7 @@ export class PlayScene extends Phaser.Scene {
         spits: () => this.spits,
         fireballAt: () => this.run.fireballs.map((f) => ({ x: f.x, y: f.y })),
         fireballsDrawn: () => this.fireballsPainted,
-        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: enemyPhase(e) })),
+        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? e.loop?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: enemyPhase(e) })),
         enemiesDrawn: () => this.enemiesPainted,
         defeatsDrawn: () => this.defeatsPainted,
         boss: () => {
@@ -1537,20 +1591,27 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * Placeholder crumbling tiles (GDD-WLD-05): sandy blocks with a crack. While warning they shake sideways and flash pale
-   * in turn, so the warning shows by movement and not only by colour (GDD-UI-03); once gone they are not drawn.
+   * Crumbling tiles (GDD-WLD-05): in a Sierra level World 3's rock ledge (GDD-ART-06), elsewhere the placeholder, sandy blocks with a
+   * crack. While warning they shake sideways and flash pale in turn (`crumbleLook`), so the warning shows by movement and not only by
+   * colour (GDD-UI-03); once gone they are not drawn.
    */
   private drawCrumbles(): void {
     this.crumblesKey = this.run.crumbles.map((c) => `${c.phase}${c.steps}`).join();
     this.crumbleGfx.clear();
+    this.crumblesDrawn = [];
     this.level.crumbles.forEach((c, i) => {
-      const state = this.run.crumbles[i]!;
-      if (state.phase === 'gone') return;
-      const warning = state.phase === 'warning';
-      const dx = warning ? (state.steps % 4 < 2 ? -1 : 1) : 0;
-      const x = c.col * TILE + dx;
+      const look = crumbleLook(this.run.crumbles[i]!);
+      const x = c.col * TILE + look.dx;
       const y = c.row * TILE;
-      this.crumbleGfx.fillStyle(warning && state.steps % 8 < 4 ? 0xe9d3a3 : 0xc9a46a, 1).fillRect(x, y, TILE, TILE);
+      const ledge = this.ledgeImages?.[i];
+      if (ledge) {
+        ledge.setPosition(x, y).setFrame(look.frame).setVisible(look.visible);
+        this.crumblesDrawn.push({ look: 'ledge', x: ledge.x, frame: Number(ledge.frame.name), visible: ledge.visible });
+        return;
+      }
+      this.crumblesDrawn.push({ look: 'placeholder', x, frame: look.frame, visible: look.visible });
+      if (!look.visible) return;
+      this.crumbleGfx.fillStyle(look.frame === 1 ? 0xe9d3a3 : 0xc9a46a, 1).fillRect(x, y, TILE, TILE);
       this.crumbleGfx.lineStyle(1, 0x7d6038, 1).strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
       this.crumbleGfx.lineBetween(x + 4, y + 1, x + 8, y + 7).lineBetween(x + 8, y + 7, x + 6, y + 14);
     });
@@ -1925,8 +1986,17 @@ export class PlayScene extends Phaser.Scene {
     return `${this.run.hilosTaken.join()}|${this.run.hilosSaved.join()}`;
   }
 
-  /** Placeholder skein (GDD-WLD-04): a round coil of thread, two dark wraps across it and a short loose end. The middle stays plain colour. */
-  private paintHilo(g: Phaser.GameObjects.Graphics, cx: number, cy: number, colour: number): void {
+  /**
+   * Placeholder skein (GDD-WLD-04): a round coil of thread, two dark wraps across it and a short loose end. The middle stays plain colour.
+   * With an `edge` (the HUD's icon, GDD-UI-01), a dark disc `edge.px` wider than the coil and the loose end drawn `edge.px` to each side
+   * go under it first.
+   */
+  private paintHilo(g: Phaser.GameObjects.Graphics, cx: number, cy: number, colour: number, edge?: { colour: number; px: number }): void {
+    if (edge) {
+      g.fillStyle(edge.colour, 1).fillCircle(cx, cy, HILO.size / 2 + edge.px);
+      g.lineStyle(1, edge.colour, 1);
+      for (const [dx, dy] of [[-edge.px, 0], [edge.px, 0], [0, -edge.px], [0, edge.px]] as const) g.beginPath().moveTo(cx + 3 + dx, cy + 3 + dy).lineTo(cx + 6 + dx, cy + 5 + dy).strokePath();
+    }
     g.fillStyle(colour, 1).fillCircle(cx, cy, HILO.size / 2);
     g.lineStyle(1, 0x382e47, 0.6);
     for (const dy of [-2, 2]) g.beginPath().moveTo(cx - 3, cy + dy).lineTo(cx + 3, cy + dy).strokePath();
@@ -1943,10 +2013,13 @@ export class PlayScene extends Phaser.Scene {
     const right = hiloCounterRight(pause);
     if (`${text}|${right}` === this.hiloHudKey) return;
     this.hiloHudKey = `${text}|${right}`;
-    this.hiloText.setText(text).setPosition(right, HILO_HUD.top);
-    this.hiloIconX = right - this.hiloText.width - HILO_HUD.iconGap - HILO_HUD.iconSize / 2;
+    // GDD-UI-01: the text's box is padded by its stroke, so it is placed and measured so that the glyphs keep their place.
+    const stroke = this.hiloText.style.strokeThickness;
+    const place = hiloTextPlace(right, stroke);
+    this.hiloText.setText(text).setPosition(place.x, place.y);
+    this.hiloIconX = right - (this.hiloText.width - stroke) - HILO_HUD.iconGap - HILO_HUD.iconSize / 2;
     this.hiloIcon.clear();
-    this.paintHilo(this.hiloIcon, this.hiloIconX, HILO_HUD.top + this.hiloText.height / 2, HILO_COLOURS[1]);
+    this.paintHilo(this.hiloIcon, this.hiloIconX, HILO_HUD.top + (this.hiloText.height - stroke) / 2, HILO_COLOURS[1], HILO_HUD.outline);
   }
 
   /**
@@ -2178,9 +2251,13 @@ export class PlayScene extends Phaser.Scene {
     // GDD-LIFE-04: with one life left, its triangle pulses, counted from the step the lives dropped to one.
     this.pulseStart = updatePulseStart(this.pulseStart, this.run.lives.lives, this.ticks);
     this.pulseDrawn = lastLifePulse(this.run.lives.lives, this.ticks - (this.pulseStart ?? 0));
+    this.outlinesDrawn = [];
     layoutLives(this.run.lives.lives).forEach((triangle, index) => {
-      const [x1, y1, x2, y2, x3, y3] = index === 0 && this.pulseDrawn !== null ? pulsedPoints(triangle, this.pulseDrawn) : triangle.points;
+      const { points, outline } = drawnLife(triangle, index === 0 ? this.pulseDrawn : null);
+      const [x1, y1, x2, y2, x3, y3] = points;
       const { filled } = triangle;
+      // GDD-UI-01: a dark line 1 px outside every triangle's edge, kept or lost, under it.
+      this.strokeLifeOutline(index, filled, outline);
       if (filled) {
         this.hudFilled++;
         this.hud.fillStyle(0xb94842, 1).fillTriangle(x1, y1, x2, y2, x3, y3);
@@ -2199,6 +2276,14 @@ export class PlayScene extends Phaser.Scene {
       }
       this.hud.lineStyle(1, 0x9ba3c4, 1).strokeTriangle(x1, y1, x2, y2, x3, y3);
     });
+  }
+
+  /** GDD-UI-01: strokes a life triangle's dark outline (`drawnLife`), before the triangle so its edge lies over it, and notes it for the playtests. */
+  private strokeLifeOutline(index: number, filled: boolean, outline: TrianglePoints): void {
+    const { colour, px } = LIVES_HUD.outline;
+    const [x1, y1, x2, y2, x3, y3] = outline;
+    this.hud.lineStyle(px, colour, 1).strokeTriangle(x1, y1, x2, y2, x3, y3);
+    this.outlinesDrawn.push({ index, filled, points: [...outline], colour, px });
   }
 
   /** GDD-LIFE-05: the screen is up while the run shows it; its prompt only once a press would be taken (after 1.0 s). */
@@ -2311,10 +2396,11 @@ export class PlayScene extends Phaser.Scene {
     // down, so the camera goes up from its y) and the far backdrop, which the camera does not move (a scroll factor of 0), is drawn the same
     // offset lower. The HUD, the touch buttons and the screens (scroll factor 0, not shifted) stay still.
     const offset = shakeOffset(this.shake, this.settings.shake === 'on');
-    this.cameras.main.setScroll(this.scrollX, cameraScroll(this.drawnCameraY, offset));
+    const scrollY = cameraScroll(this.drawnCameraY, offset);
+    this.cameras.main.setScroll(this.scrollX, scrollY);
     // GDD-ART-06: the far layers move at a share of the scroll, in art pixels of their textures, and in a tall level sink by their shares
-    // of the camera's rise above its lowest.
-    this.scenery.follow(this.scrollX, this.drawnCameraY, this.cameraBounds.bottom, offset);
+    // of the camera's rise above its lowest. GDD-TEC-03: only the ground and decor in view at the scroll are shown.
+    this.scenery.follow(this.scrollX, scrollY, this.drawnCameraY, this.cameraBounds.bottom, offset);
   }
 
   /** GDD-UI-04: the cut (`cutCameraY`), with nothing to draw between. */

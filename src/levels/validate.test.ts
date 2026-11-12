@@ -189,6 +189,120 @@ describe('GDD-TEC-04 and GDD-WLD-03 gaps', () => {
   });
 });
 
+/**
+ * GDD-WLD-03: a World 3 level with a pit at columns 10 to 9 + `width` (the floor's top row 14). A positive `drop` raises the left bank
+ * (column 9) by that many tiles, a negative one raises the right bank (the column after the pit) by as many: a rise.
+ */
+const dropGap = (width: number, drop: number, o: Options = {}) => {
+  const bank = drop >= 0 ? 9 : 10 + width;
+  const raised = Array.from({ length: Math.abs(drop) }, (_, i) => [bank, 13 - i] as const);
+  return entry({ world: 3, pits: cols(10, 9 + width), ...o, solid: [...raised, ...(o.solid ?? [])] });
+};
+/** Crumbling tiles at the floor's top row 14 in the columns given. */
+const ledges = (columns: readonly number[]) => columns.map((col) => ({ col, row: 14 }));
+/** A roof: solid tiles at `row` over columns `from` to `to`. */
+const roof = (row: number, from = 9, to = 24) => cols(from, to).map((c) => [c, row] as const);
+
+describe('GDD-TEC-04 and GDD-WLD-03 World 3 gaps', () => {
+  it('GDD-WLD-03 World 3 gaps the limit by drop: for each drop in the table a gap at the limit passes and one tile wider fails', () => {
+    // The GDD's row "World 3's limit", by the drop to the far side (negative: a rise).
+    const table: (readonly [number, number])[] = [[-3, 2], [-2, 3], [-1, 4], [0, 6], [1, 7], [2, 8], [3, 9], [4, 10], [6, 12], [8, 14]];
+    for (const [drop, limit] of table) {
+      expect(validateLevel(dropGap(limit, drop)), `drop ${drop}`).toEqual([]);
+      const unit = Math.abs(drop) === 1 ? 'tile' : 'tiles';
+      const slope = drop > 0 ? ` with a drop of ${drop} ${unit}` : drop < 0 ? ` with a rise of ${-drop} ${unit}` : '';
+      expect(validateLevel(dropGap(limit + 1, drop)), `drop ${drop}`).toEqual([`gap of ${limit + 1} tiles at columns 10 to ${10 + limit}${slope}, World 3 allows ${limit}`]);
+    }
+  });
+
+  it('GDD-WLD-03 World 3 gaps a drop of more than 8 tiles counts as 8', () => {
+    for (const drop of [9, 12]) {
+      expect(validateLevel(dropGap(14, drop)), `drop ${drop}`).toEqual([]);
+      expect(validateLevel(dropGap(15, drop)), `drop ${drop}`).toEqual([`gap of 15 tiles at columns 10 to 24 with a drop of ${drop} tiles, World 3 allows 14`]);
+    }
+  });
+
+  it('GDD-WLD-03 World 3 gaps a rise of more than 3 tiles over a pit fails at any width', () => {
+    expect(validateLevel(dropGap(1, -4))).toEqual(['gap at columns 10 to 10 rises 4 tiles over a pit, World 3 allows 3']);
+  });
+
+  it('GDD-WLD-03 World 3 gaps the same data as World 2 keeps the flat 4 tiles', () => {
+    // L-028: the rule is by world, both ways.
+    expect(validateLevel(dropGap(5, 3, { world: 2 }))).toEqual(['gap of 5 tiles at columns 10 to 14, World 2 allows 4']);
+    expect(validateLevel(dropGap(5, 3))).toEqual([]);
+    expect(validateLevel(dropGap(4, -2, { world: 2 }))).toEqual([]);
+    expect(validateLevel(dropGap(4, -2))).toEqual(['gap of 4 tiles at columns 10 to 13 with a rise of 2 tiles, World 3 allows 3']);
+  });
+
+  it('GDD-WLD-03 World 3 gaps a roof takes 2 tiles off for each tile of headroom under 6', () => {
+    // The left bank's top is row 14 at the same height: a roof at row 8 leaves 5 empty tiles over it, at row 9 4.
+    expect(validateLevel(dropGap(4, 0, { solid: roof(8) }))).toEqual([]);
+    expect(validateLevel(dropGap(5, 0, { solid: roof(8) }))).toEqual(['gap of 5 tiles at columns 10 to 14 under a roof 5 tiles over its left bank, World 3 allows 4']);
+    expect(validateLevel(dropGap(2, 0, { solid: roof(9) }))).toEqual([]);
+    expect(validateLevel(dropGap(3, 0, { solid: roof(9) }))).toEqual(['gap of 3 tiles at columns 10 to 12 under a roof 4 tiles over its left bank, World 3 allows 2']);
+    // A drop of 4 (the left bank's top row 10) under a roof at row 4: headroom 5.
+    expect(validateLevel(dropGap(8, 4, { solid: roof(4) }))).toEqual([]);
+    expect(validateLevel(dropGap(9, 4, { solid: roof(4) }))).toEqual(['gap of 9 tiles at columns 10 to 18 with a drop of 4 tiles under a roof 5 tiles over its left bank, World 3 allows 8']);
+    // A drop of 2 (the left bank's top row 12) under a roof at row 8: headroom 3.
+    expect(validateLevel(dropGap(2, 2, { solid: roof(8) }))).toEqual([]);
+    expect(validateLevel(dropGap(3, 2, { solid: roof(8) }))).toEqual(['gap of 3 tiles at columns 10 to 12 with a drop of 2 tiles under a roof 3 tiles over its left bank, World 3 allows 2']);
+  });
+
+  it('GDD-WLD-03 World 3 gaps a headroom of 3 with no drop fails at any width', () => {
+    // A roof at row 10 over the left bank's top row 14: 3 empty tiles.
+    expect(validateLevel(dropGap(1, 0, { solid: roof(10) }))).toEqual(['gap at columns 10 to 10 has 3 tiles of headroom over its left bank, World 3 needs 4 where it does not drop']);
+    // With a rise too (the right bank, column 11, a tile up).
+    expect(validateLevel(dropGap(1, -1, { solid: roof(10, 9, 10) }))).toEqual(['gap at columns 10 to 10 has 3 tiles of headroom over its left bank, World 3 needs 4 where it does not drop']);
+    // With a drop of 1 (the left bank's top row 13) and a roof at row 10, headroom 2: 7 - 8 tiles is -1, never under 1.
+    expect(validateLevel(dropGap(1, 1, { solid: roof(10) }))).toEqual([]);
+    expect(validateLevel(dropGap(2, 1, { solid: roof(10) }))).toEqual(['gap of 2 tiles at columns 10 to 11 with a drop of 1 tile under a roof 2 tiles over its left bank, World 3 allows 1']);
+  });
+
+  it('GDD-WLD-03 World 3 gaps the roof is measured over the left bank and the whole gap', () => {
+    // A 6-tile gap at columns 10 to 15 at the same height, its banks at columns 9 and 16. One roof tile at row 8, 5 empty tiles over the
+    // left bank's top, cuts the limit to 4 over the gap's last column or over the left bank, and not over the right bank (a rise is no roof)
+    // or past it.
+    const fails = ['gap of 6 tiles at columns 10 to 15 under a roof 5 tiles over its left bank, World 3 allows 4'];
+    expect(validateLevel(dropGap(6, 0, { solid: [[15, 8]] }))).toEqual(fails);
+    expect(validateLevel(dropGap(6, 0, { solid: [[9, 8]] }))).toEqual(fails);
+    expect(validateLevel(dropGap(6, 0, { solid: [[16, 8]] }))).toEqual([]);
+    expect(validateLevel(dropGap(6, 0, { solid: [[17, 8]] }))).toEqual([]);
+  });
+
+  it('GDD-WLD-03 World 3 gaps a ledge that comes back is a bank', () => {
+    // An 18-tile pit at columns 10 to 27 with ledges at its columns 3 to 5 and 9 to 12 (13 to 15 and 19 to 22), at the floor's height: gaps
+    // of 3, 3 and 5, as 3-1's.
+    const pit = cols(10, 27);
+    const both = ledges([...cols(13, 15), ...cols(19, 22)]);
+    expect(validateLevel(entry({ world: 3, pits: pit, level: { crumbles: both, crumblesReturn: true } }))).toEqual([]);
+    expect(validateLevel(entry({ world: 3, pits: pit, level: { crumbles: both } }))).toEqual(['gap of 18 tiles at columns 10 to 27, World 3 allows 6', "crumbling tiles that do not come back, World 3's do"]);
+    // L-028: the flag exempts only the columns that hold a ledge.
+    expect(validateLevel(entry({ world: 3, pits: pit, level: { crumbles: ledges(cols(13, 15)), crumblesReturn: true } }))).toEqual(['gap of 12 tiles at columns 16 to 27, World 3 allows 6']);
+  });
+
+  it("GDD-WLD-03 World 3 gaps a ledge bank's height is its own row", () => {
+    // The left bank's top at row 10, a pit at columns 10 to 20 and a ledge 7 columns on (column 17): at row 12 the drop is 2 (limit 8), at
+    // row 10 none (limit 6).
+    expect(validateLevel(dropGap(11, 4, { level: { crumbles: [{ col: 17, row: 12 }], crumblesReturn: true } }))).toEqual([]);
+    expect(validateLevel(dropGap(11, 4, { level: { crumbles: [{ col: 17, row: 10 }], crumblesReturn: true } }))).toEqual(['gap of 7 tiles at columns 10 to 16, World 3 allows 6']);
+    // With crumbling tiles at rows 12 and 10 in the column, in either order, the highest one's row counts.
+    for (const rows of [[12, 10], [10, 12]]) {
+      expect(validateLevel(dropGap(11, 4, { level: { crumbles: rows.map((row) => ({ col: 17, row })), crumblesReturn: true } })), `rows ${rows.join(', ')}`).toEqual(['gap of 7 tiles at columns 10 to 16, World 3 allows 6']);
+    }
+  });
+
+  it("GDD-WLD-03 World 3 gaps a gap at the level's edge has the same-height limit", () => {
+    // A bank on one side only: 6 tiles, with no roof reading.
+    expect(validateLevel(entry({ world: 3, pits: cols(0, 5) }))).toEqual([]);
+    expect(validateLevel(entry({ world: 3, pits: cols(0, 6) }))).toEqual(['gap of 7 tiles at columns 0 to 6, World 3 allows 6']);
+    const right = (from: number, o: Options = {}) => entry({ world: 3, pits: cols(from, 89), exit: onFloor(80), ...o });
+    expect(validateLevel(right(84))).toEqual([]);
+    // A roof 3 empty tiles over its left bank's top (column 83, row 14).
+    expect(validateLevel(right(84, { solid: roof(10, 83, 89) }))).toEqual([]);
+    expect(validateLevel(right(83))).toEqual(['gap of 7 tiles at columns 83 to 89, World 3 allows 6']);
+  });
+});
+
 describe('GDD-TEC-04 and GDD-ENM-01 enemies start 3 tiles from a respawn', () => {
   it('an enemy exactly 48 px from the spawn passes', () => {
     expect(validateLevel(entry({ enemies: [{ x: spawnAt.x + 48, y: spawnAt.y }] }))).toEqual([]);
@@ -580,20 +694,21 @@ describe('GDD-TEC-04 and GDD-WLD-03 raised bottoms in the validator', () => {
 
   it('GDD-TEC-04 under a raised bottom every column is solid or empty all the way down', () => {
     // A span at row 20 over a pit (columns 10 to 13, empty from row 0 to the last, 29) and over a pillar at column 14 (solid from row 20 to
-    // the last): it passes. Each case below differs from it in one tile, or in the review's case in the pit column's ground.
+    // the last): it passes. Each case below differs from it in one tile, or in the review's case in the pit column's ground. Registered as
+    // World 2 (raised bottoms are checked in every world): the pillar rises 7 tiles over the pit, which World 3's gap rule does not allow.
     const span = [{ fromCol: 10, toCol: 14, row: 20 }];
-    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: pillar() }))).toEqual([]);
+    expect(validateLevel(tall(span, { world: 2, pits: cols(10, 13), solid: pillar() }))).toEqual([]);
     // A pit column with a tile right under its bottom row, or one in the level's last row.
-    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: [...pillar(), [11, 21]] }))).toEqual(fails(11));
-    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: [...pillar(), [11, 29]] }))).toEqual(fails(11));
+    expect(validateLevel(tall(span, { world: 2, pits: cols(10, 13), solid: [...pillar(), [11, 21]] }))).toEqual(fails(11));
+    expect(validateLevel(tall(span, { world: 2, pits: cols(10, 13), solid: [...pillar(), [11, 29]] }))).toEqual(fails(11));
     // A solid column with air right under its bottom row, or in the level's last row (column 14 out of the floor, its rows 20 to 28 solid).
-    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: pillar([21]) }))).toEqual(fails(14));
-    expect(validateLevel(tall(span, { pits: [...cols(10, 14)], solid: [...pillar(), [14, 27], [14, 28]] }))).toEqual(fails(14));
+    expect(validateLevel(tall(span, { world: 2, pits: cols(10, 13), solid: pillar([21]) }))).toEqual(fails(14));
+    expect(validateLevel(tall(span, { world: 2, pits: [...cols(10, 14)], solid: [...pillar(), [14, 27], [14, 28]] }))).toEqual(fails(14));
     // The review's case: a pit column empty on its bottom row with ground right under it, solid down to the last row: he would land on the
     // floor line and stand below the picture, never lost.
-    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: [...pillar(), ...Array.from({ length: 9 }, (_, i) => [11, 21 + i] as const)] }))).toEqual(fails(11));
+    expect(validateLevel(tall(span, { world: 2, pits: cols(10, 13), solid: [...pillar(), ...Array.from({ length: 9 }, (_, i) => [11, 21 + i] as const)] }))).toEqual(fails(11));
     // A tile hung in the pit is a ledge nobody sees.
-    expect(validateLevel(tall(span, { pits: cols(10, 13), solid: [...pillar(), [11, 24]] }))).toEqual(fails(11));
+    expect(validateLevel(tall(span, { world: 2, pits: cols(10, 13), solid: [...pillar(), [11, 24]] }))).toEqual(fails(11));
     // Over the floor (its top row 27): from row 27 down it is solid all the way; from row 26, air with solid under it.
     expect(validateLevel(tall([{ fromCol: 15, toCol: 17, row: 27 }]))).toEqual([]);
     expect(validateLevel(tall([{ fromCol: 15, toCol: 15, row: 26 }]))).toEqual(['column 15 under the raised bottom at row 26 is neither solid nor empty all the way down']);
@@ -654,5 +769,66 @@ describe('GDD-TEC-04 and GDD-WLD-03 raised bottoms in the validator', () => {
       "the spawn at 56,784 is below its column's bottom row (48)",
       "ofrenda o0 at 488,784 is below its column's bottom row (48)",
     ]);
+  });
+});
+
+describe('GDD-TEC-04 and GDD-WLD-05 crumbled ledges that come back', () => {
+  const ledge = { crumbles: [{ col: 40, row: 10 }] };
+
+  it('GDD-WLD-05 only a World 3 level may have ledges that come back, and a World 3 level with crumbling tiles must', () => {
+    expect(validateLevel(entry({ world: 2, level: { ...ledge, crumblesReturn: true } }))).toEqual(['crumbling tiles that come back, only World 3 has them']);
+    expect(validateLevel(entry({ world: 1, level: { crumblesReturn: true } }))).toEqual(['crumbling tiles that come back, only World 3 has them']);
+    expect(validateLevel(entry({ world: 3, level: ledge }))).toEqual(["crumbling tiles that do not come back, World 3's do"]);
+    expect(validateLevel(entry({ world: 3, test: true, exit: null, level: ledge }))).toEqual(["crumbling tiles that do not come back, World 3's do"]);
+    expect(validateLevel(entry({ world: 3, level: { ...ledge, crumblesReturn: true } }))).toEqual([]);
+    expect(validateLevel(entry({ world: 3 }))).toEqual([]);
+    // L-028: the other worlds keep their tiles that stay gone.
+    expect(validateLevel(entry({ world: 2, level: ledge }))).toEqual([]);
+  });
+});
+
+/** GDD-ENM-04: a Murciélago with the loop given, its middle at (x, y). */
+const bat = (x: number, y: number, o: Partial<Enemy> = {}): Enemy => ({ x, y, kind: 'murcielago', ...o });
+/** The problems of the level with one Murciélago whose loop's middle is (800, 100), high over the floor and far from every respawn. */
+const looping = (o: Partial<Enemy>) => validateLevel(entry({ enemies: [bat(800, 100, o)] }));
+
+describe('GDD-TEC-04 and GDD-ENM-04 Murciélagos in the validator', () => {
+  it("GDD-ENM-04 a Murciélago's loop is within 48 px across and 24 px up and down, its phase a whole step of the loop", () => {
+    expect(looping({ rx: 48, ry: 24, phase: 239 })).toEqual([]);
+    expect(looping({ rx: 0, ry: 0, phase: 0 })).toEqual([]);
+    expect(looping({ rx: 49 })).toEqual(['murciélago at 800,100 has rx 49, expected 0 to 48']);
+    expect(looping({ rx: -1 })).toEqual(['murciélago at 800,100 has rx -1, expected 0 to 48']);
+    expect(looping({ ry: 25 })).toEqual(['murciélago at 800,100 has ry 25, expected 0 to 24']);
+    expect(looping({ ry: -1 })).toEqual(['murciélago at 800,100 has ry -1, expected 0 to 24']);
+    for (const phase of [240, 1.5, -1]) expect(looping({ phase }), `phase ${phase}`).toEqual([`murciélago at 800,100 has phase ${phase}, expected a whole step from 0 to 239`]);
+  });
+
+  it("GDD-ENM-04 a Murciélago's box touches no solid tile, spike or crumbling tile anywhere on its loop", () => {
+    // A loop 48 px across and 24 px up and down that starts at its top (phase 180). From (792, 99) its far right end puts its box's right
+    // edge at x 848, the left edge of column 53, and its lowest point puts its box's bottom at y 128, the top of row 8, over column 49 (its
+    // box x 784 to 800 there). A tile at column 53, row 6 (y 96 to 112) is beside its right end.
+    const loop = { rx: 48, ry: 24, phase: 180 };
+    const flying = (x: number, y: number, o: Options = {}) => validateLevel(entry({ ...o, enemies: [bat(x, y, loop)] }));
+    expect(flying(792, 99)).toEqual([]);
+    // Moved 1 px right, only its far right end reaches into column 53; moved 1 px down, only its lowest point reaches into row 8.
+    expect(flying(793, 99, { solid: [[53, 6]] })).toEqual(['murciélago at 793,99 touches a tile on its loop']);
+    expect(flying(792, 100, { solid: [[49, 8]] })).toEqual(['murciélago at 792,100 touches a tile on its loop']);
+    // A crumbling tile or a spike's tile there is the same.
+    expect(flying(793, 99, { level: { crumbles: [{ col: 53, row: 6 }] } })).toEqual(['murciélago at 793,99 touches a tile on its loop']);
+    expect(flying(793, 99, { level: { spikes: [{ col: 53, row: 6 }] } })).toEqual(['murciélago at 793,99 touches a tile on its loop']);
+    expect(flying(792, 100, { level: { crumbles: [{ col: 49, row: 8 }] } })).toEqual(['murciélago at 792,100 touches a tile on its loop']);
+    // Where its box only shares an edge with the tile: at (792, 99) its right edge meets column 53 and its bottom meets row 8.
+    expect(flying(792, 99, { solid: [[53, 6], [49, 8]] })).toEqual([]);
+    expect(flying(792, 99, { level: { crumbles: [{ col: 53, row: 6 }, { col: 49, row: 8 }], spikes: [{ col: 53, row: 6 }] } })).toEqual([]);
+  });
+
+  it('GDD-ENM-01 a Murciélago keeps 3 tiles from every respawn along its whole loop', () => {
+    // The first ofrenda stands on a pillar at column 30 (its top y 160) at (488, 160); the bat's loop's middle is 80 px to its right, at the
+    // same height, and a loop 40 px across brings it to x 528, 40 px from the ofrenda. With rx 0 it hovers 80 px away.
+    const stand = [10, 11, 12, 13].map((r) => [30, r] as const);
+    const ofrendas = [{ id: 'o0', x: 488, y: 160 }, { id: 'o1', x: 808, y: 224 }, { id: 'o2', x: 1208, y: 224 }];
+    const fromOfrenda = (rx: number) => validateLevel(entry({ solid: stand, level: { ofrendas }, enemies: [bat(568, 160, { rx })] }));
+    expect(fromOfrenda(40)).toEqual(['murcielago at 568,160 is 40 px from the respawn at 488,160, under 48']);
+    expect(fromOfrenda(0)).toEqual([]);
   });
 });

@@ -1,12 +1,13 @@
 // GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have (GDD-MOV-09: its sand slopes
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
-import { AWNING, BASE_WIDTH, CART, COVER, ESTRELLA, LEVEL_RULES, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
+import { AWNING, BASE_WIDTH, CART, COVER, ESTRELLA, LEVEL_RULES, MURCIELAGO, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
 import { bossStart } from '../sim/boss';
 import { bottomRowAt, type Bottom } from '../sim/bottoms';
 import { railGround, railLength, type Rail } from '../sim/cart';
 import { estrellaStart } from '../sim/estrella';
 import { isBossLevel } from '../sim/bossLevel';
-import { kindOf } from '../sim/enemy';
+import { kindOf, type Enemy } from '../sim/enemy';
+import { murcielagoAt } from '../sim/murcielago';
 import type { Level } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
 import type { LevelEntry } from './index';
@@ -70,6 +71,65 @@ export function openGaps(level: Level): readonly Gap[] {
   });
 }
 
+/**
+ * GDD-WLD-03: World 3's gaps, the open gaps read left to right. In a level whose ledges come back (GDD-WLD-05) a pit column holding a
+ * crumbling tile is a bank at its highest crumbling tile's row, not a pit column. A gap's banks are the columns either side of it, each at
+ * that row or else at its ground's top, and its limit is set by the drop from the left bank to the right: `base` plus a tile per tile of
+ * drop up to `maxDropTiles`, `byRise` for a rise of 1 to 3 tiles, and a higher rise not allowed. Its headroom, the fewest empty tiles over
+ * the left bank's top in the left bank's column and every column of the gap (not the right bank's, so a rise is no roof), takes
+ * `perMissingRoofTile` off for each tile under `roofTiles`, never under 1; under `minHeadroomLevel` with no drop it is not allowed. A gap at
+ * the level's edge has a bank on one side only: the same-height limit, with no roof reading. Not checked here: the one-way direction, rails
+ * and the sight rules.
+ */
+function world3GapProblems(level: Level): string[] {
+  const { world } = level;
+  const rule = LEVEL_RULES.world3Gap;
+  const ledges = new Map<number, number>();
+  for (const t of level.crumblesReturn === true ? level.crumbles : []) {
+    if (!world.solidTile(t.col, bottomRowAt(level, t.col))) ledges.set(t.col, Math.min(t.row, ledges.get(t.col) ?? t.row));
+  }
+  const top = (col: number): number => ledges.get(col) ?? groundTopAt(world, level.bottoms, col) / TILE;
+  const problems: string[] = [];
+  for (const open of openGaps(level)) {
+    const end = open.col + open.width;
+    let start = -1;
+    for (let col = open.col; col <= end; col++) {
+      const pit = col < end && !ledges.has(col);
+      if (pit && start < 0) start = col;
+      if (pit || start < 0) continue;
+      const [left, right, width] = [start - 1, col, col - start];
+      start = -1;
+      const at = `columns ${left + 1} to ${right - 1}`;
+      if (left < 0 || right >= world.width) {
+        if (width > rule.base) problems.push(`gap of ${width} tiles at ${at}, World 3 allows ${rule.base}`);
+        continue;
+      }
+      const drop = top(right) - top(left);
+      if (drop < -rule.byRise.length) {
+        problems.push(`gap at ${at} rises ${-drop} tiles over a pit, World 3 allows ${rule.byRise.length}`);
+        continue;
+      }
+      let headroom: number = rule.roofTiles;
+      for (let c = left; c < right; c++) {
+        let empty = 0;
+        while (empty < headroom && !world.solidTile(c, top(left) - 1 - empty)) empty++;
+        headroom = empty;
+      }
+      if (drop <= 0 && headroom < rule.minHeadroomLevel) {
+        problems.push(`gap at ${at} has ${headroom} tiles of headroom over its left bank, World 3 needs ${rule.minHeadroomLevel} where it does not drop`);
+        continue;
+      }
+      const byDrop = drop >= 0 ? rule.base + rule.perDropTile * Math.min(drop, rule.maxDropTiles) : rule.byRise[-drop - 1]!;
+      const limit = Math.max(1, byDrop - rule.perMissingRoofTile * (rule.roofTiles - headroom));
+      if (width <= limit) continue;
+      const slope = drop > 0 ? ` with a drop of ${drop} tile${drop === 1 ? '' : 's'}` : drop < 0 ? ` with a rise of ${-drop} tile${drop === -1 ? '' : 's'}` : '';
+      const roof = headroom < rule.roofTiles ? ` under a roof ${headroom} tiles over its left bank` : '';
+      problems.push(`gap of ${width} tiles at ${at}${slope}${roof}, World 3 allows ${limit}`);
+    }
+  }
+  return problems;
+}
+
 /** GDD-WLD-15: a rail's stretches as lines on the screen: the px columns each covers (from x0 up to x1) and its y = c + k * x. */
 function railLines(rail: Rail): { x0: number; x1: number; k: number; c: number }[] {
   let across = 0;
@@ -116,6 +176,36 @@ function railProblems(rails: readonly Rail[], boss: boolean): string[] {
       if (b !== a && b.y === end.y && d < CART.width) problems.push(`rail at ${b.x},${b.y} starts ${d} px from the end of the rail at ${a.x},${a.y}, under ${CART.width}`);
     }
   }
+  return problems;
+}
+
+/** GDD-ENM-04: the middle of a Murciélago at each of the MURCIELAGO.periodSteps steps of its loop. */
+const loopOf = (def: Enemy): { x: number; y: number }[] => Array.from({ length: MURCIELAGO.periodSteps }, (_, n) => murcielagoAt(def, n));
+
+/**
+ * GDD-ENM-04, GDD-TEC-04: a Murciélago's loop is 0 to MURCIELAGO.maxRx px across and 0 to maxRy px up and down, its phase a whole step of the
+ * loop, and at every step of it its box touches no solid tile, no spike's tile and no crumbling tile. Boxes that only share an edge with a
+ * tile do not touch it.
+ */
+function murcielagoProblems(level: Level, def: Enemy): string[] {
+  const at = `murciélago at ${def.x},${def.y}`;
+  const problems: string[] = [];
+  const rx = def.rx ?? 0;
+  const ry = def.ry ?? 0;
+  const phase = def.phase ?? 0;
+  if (rx < 0 || rx > MURCIELAGO.maxRx) problems.push(`${at} has rx ${rx}, expected 0 to ${MURCIELAGO.maxRx}`);
+  if (ry < 0 || ry > MURCIELAGO.maxRy) problems.push(`${at} has ry ${ry}, expected 0 to ${MURCIELAGO.maxRy}`);
+  if (!Number.isInteger(phase) || phase < 0 || phase >= MURCIELAGO.periodSteps) problems.push(`${at} has phase ${phase}, expected a whole step from 0 to ${MURCIELAGO.periodSteps - 1}`);
+  const tiles = new Set([...level.spikes, ...level.crumbles].map((t) => `${t.col},${t.row}`));
+  const touches = (col: number, row: number): boolean => level.world.solidTile(col, row) || tiles.has(`${col},${row}`);
+  const hit = loopOf(def).some(({ x, y }) => {
+    const [x0, x1, y0, y1] = [x - MURCIELAGO.width / 2, x + MURCIELAGO.width / 2, y - MURCIELAGO.height / 2, y + MURCIELAGO.height / 2];
+    for (let row = Math.floor(y0 / TILE); row * TILE < y1; row++) {
+      for (let col = Math.floor(x0 / TILE); col * TILE < x1; col++) if (touches(col, row)) return true;
+    }
+    return false;
+  });
+  if (hit) problems.push(`${at} touches a tile on its loop`);
   return problems;
 }
 
@@ -198,26 +288,35 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
   // starting at another's end.
   problems.push(...railProblems(level.rails ?? [], isBossLevel(level)));
 
-  // GDD-WLD-03: gaps never exceed the world's limit.
+  // GDD-WLD-03: gaps never exceed the world's limit; World 3's depends on the drop and the roof.
   const limit = LEVEL_RULES.maxGapTiles[entry.world];
-  if (limit === undefined) problems.push(`no gap limit for World ${entry.world}`);
+  if (entry.world === 3) problems.push(...world3GapProblems(level));
+  else if (limit === undefined) problems.push(`no gap limit for World ${entry.world}`);
   else {
     for (const g of openGaps(level)) {
       if (g.width > limit) problems.push(`gap of ${g.width} tiles at columns ${g.col} to ${g.col + g.width - 1}, World ${entry.world} allows ${limit}`);
     }
   }
 
+  // GDD-WLD-05: crumbled ledges come back in World 3's levels (test levels too), and in no other world's.
+  if (level.crumblesReturn === true && entry.world !== 3) problems.push('crumbling tiles that come back, only World 3 has them');
+  if (entry.world === 3 && level.crumbles.length > 0 && level.crumblesReturn !== true) problems.push("crumbling tiles that do not come back, World 3's do");
+
   // GDD-WLD-03, GDD-TEC-04: the level's height and its raised bottoms, a test level's too.
   problems.push(...heightProblems(level), ...bottomProblems(level));
 
-  // GDD-ENM-01: no enemy starts within 3 tiles of a respawn.
+  // GDD-ENM-01: no enemy starts within 3 tiles of a respawn; GDD-ENM-04: a Murciélago comes no nearer anywhere on its loop.
   const respawns = [level.spawn, ...level.ofrendas];
   for (const e of level.enemies) {
+    const places = kindOf(e) === 'murcielago' ? loopOf(e) : [e];
     for (const r of respawns) {
-      const d = Math.hypot(e.x - r.x, e.y - r.y);
+      const d = Math.min(...places.map((p) => Math.hypot(p.x - r.x, p.y - r.y)));
       if (d < LEVEL_RULES.enemyClearance) problems.push(`${kindOf(e)} at ${e.x},${e.y} is ${Math.floor(d)} px from the respawn at ${r.x},${r.y}, under ${LEVEL_RULES.enemyClearance}`);
     }
   }
+
+  // GDD-ENM-04: each Murciélago's loop.
+  for (const e of level.enemies) if (kindOf(e) === 'murcielago') problems.push(...murcielagoProblems(level, e));
 
   // GDD-ENM-01, GDD-BOS-01: the boss starts at least 3 tiles from the spawn, his only respawn.
   if (level.boss) {

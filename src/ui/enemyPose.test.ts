@@ -283,3 +283,18 @@ describe('GDD-ENM-03 which frame World 2\'s enemies show', () => {
     }
   });
 });
+
+// World 3's Murciélago (GDD-ENM-04): its loop's middle at (300, 100); `steps` its own steps, its middle at (x, y).
+const MURCIELAGO: Enemy = { x: 300, y: 100, rx: 16, ry: 24, kind: 'murcielago' };
+const flyer = (steps: number, x = 300, y = 100, dir: 1 | -1 = 1): EnemyState => ({ x, dir, alive: true, loop: { steps, y } });
+
+describe('GDD-ENM-04 which frame the Murciélago shows', () => {
+  it('GDD-ENM-04 a Murciélago shows the next flap frame every 5 steps, is drawn at its box\'s middle and faces the way it moves', () => {
+    expect([0, 4, 5, 9, 10, 15, 19, 20, 25].map((n) => look(MURCIELAGO, flyer(n)))).toEqual(['flap0', 'flap0', 'flap1', 'flap1', 'flap2', 'flap3', 'flap3', 'flap0', 'flap1']);
+    expect([0, 5, 10, 15].map((n) => enemyPose(MURCIELAGO, flyer(n), FAR).frame)).toEqual([0, 1, 2, 3]);
+    // Drawn at its box's middle, where it is on its loop: here 13 px left of and 23 px under the loop's middle.
+    expect(enemyPose(MURCIELAGO, flyer(7, 287, 123), FAR)).toEqual({ look: 'flap1', frame: 1, x: 287, y: 123, flip: false });
+    expect(flip(MURCIELAGO, flyer(7, 287, 123, -1))).toBe(true);
+    expect(flip(MURCIELAGO, flyer(7, 287, 123, 1))).toBe(false);
+  });
+});

@@ -1,10 +1,10 @@
 // GDD-ART-06: each world's look: which art a level is drawn with and the numbers that put its backdrop together. Pure, no Phaser and
-// no image imports (those are in `files.ts`), so it is unit-tested. World 1 (and the tutorial, the test levels and any world not drawn
-// yet) is the desert; World 2 the Mercado.
-import { ART_SCALE, BACKDROP, BACKDROP_ART, BACKDROP_RISE, MERCADO, PLANTS } from '../../config/tuning';
+// no image imports (those are in `files.ts`), so it is unit-tested. World 1 (and the tutorial, the World 1 test levels and any world not
+// drawn yet) is the desert; World 2 the Mercado; World 3 the Sierra (its canyon).
+import { ART_SCALE, BACKDROP, BACKDROP_ART, BACKDROP_RISE, MERCADO, PLANTS, SIERRA } from '../../config/tuning';
 
 /** The art sets, by their folder under `assets/sprites/`. */
-export type ArtSet = 'desierto' | 'mercado';
+export type ArtSet = 'desierto' | 'mercado' | 'sierra';
 
 /** A world's backdrop and decor, in the units of `BACKDROP` and `BACKDROP_ART` (game px, art px where the name says so). */
 export interface Look {
@@ -63,10 +63,29 @@ export const LOOKS: Readonly<Record<ArtSet, Look>> = {
     midBandArt: MERCADO.midBandArt,
     decor: MERCADO.decor,
   },
+  sierra: {
+    cloudFactor: SIERRA.cloudFactor,
+    farFactor: SIERRA.farFactor,
+    midFactor: SIERRA.midFactor,
+    skyBands: SIERRA.skyBands,
+    skyEnds: SIERRA.skyEnds,
+    stripArt: SIERRA.stripArt,
+    sun: null,
+    clouds: SIERRA.clouds,
+    farTop: SIERRA.farTop,
+    farBandArt: SIERRA.farBandArt,
+    footColour: SIERRA.footColour,
+    midTop: SIERRA.midTop,
+    midBandArt: SIERRA.midBandArt,
+    decor: SIERRA.decor,
+  },
 };
 
-/** GDD-ART-06: the art a level of `world` is drawn with: the Mercado for World 2, the desert for every other world until it is drawn. */
-export const artSetFor = (world: number): ArtSet => (world === 2 ? 'mercado' : 'desierto');
+/**
+ * GDD-ART-06: the art a level of `world` is drawn with: the Mercado for World 2, the Sierra for World 3, the desert for every other world
+ * until it is drawn.
+ */
+export const artSetFor = (world: number): ArtSet => (world === 2 ? 'mercado' : world === 3 ? 'sierra' : 'desierto');
 
 /** GDD-ART-06: the mid band's image: in World 2's boss arena the plaza with the kiosco, else the world's mid layer. */
 export const midImage = (set: ArtSet, bossLevel: boolean): 'mid' | 'plaza' => (set === 'mercado' && bossLevel ? 'plaza' : 'mid');

@@ -2,30 +2,35 @@
 // fireball defeat it. The Zopilote (vulture) cruises, telegraphs and dives; the cactus buddy just stands there. Neither can be stomped. Touching either otherwise
 // is a hit (GDD-CMB-03). The Tlacuache (opossum) walks, telegraphs and charges, and plays dead after its first stomp.
 // GDD-ENM-03: World 2's Paloma (pigeon), Chapulín (grasshopper) and Trompo (spinning top, the first heavy enemy, GDD-CMB-02); their
-// steps are in `paloma.ts`, `chapulin.ts` and `trompo.ts`. Every rule that depends on the kind is a table or a switch over every kind,
-// so a kind left out fails the typecheck.
+// steps are in `paloma.ts`, `chapulin.ts` and `trompo.ts`. GDD-ENM-04: World 3's Murciélago (bat), in `murcielago.ts`. Every rule that
+// depends on the kind is a table or a switch over every kind, so a kind left out fails the typecheck.
 // Pure logic, no Phaser (GDD-TEC-02).
-import { CACTUS, CHAPULIN, ENEMY, PALOMA, STEP, STOMP, TLACUACHE, TROMPO, ZOPILOTE } from '../config/tuning';
+import { CACTUS, CHAPULIN, ENEMY, MURCIELAGO, PALOMA, STEP, STOMP, TLACUACHE, TROMPO, ZOPILOTE } from '../config/tuning';
 import { CROUCHING, stepChapulin, type Hop } from './chapulin';
 import { hurtbox } from './hazards';
 import type { PlayerState } from './movement';
+import { freshMurcielago, stepMurcielago, type Loop } from './murcielago';
 import { GROUNDED, stepPaloma, type Wing } from './paloma';
 import type { PlatformPos } from './platform';
 import type { TileGrid } from './tilemap';
 import { SPINNING, stepTrompo, stun, type Spin } from './trompo';
 import { turn, walk as walkOn } from './walker';
 
-export type EnemyKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo';
+export type EnemyKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo' | 'murcielago';
 
 /**
  * Where an enemy starts, heading right. An Alacrán (the default kind) gives the middle of it and the y of its feet, like
  * Poncho's own position, and so do a cactus buddy, a Tlacuache, a Paloma, a Chapulín and a Trompo; a Zopilote gives the middle of it
- * and the y of its cruise line.
+ * and the y of its cruise line; a Murciélago the middle of its loop (GDD-ENM-04).
  */
 export interface Enemy {
   readonly x: number;
   readonly y: number;
   readonly kind?: EnemyKind;
+  /** GDD-ENM-04: only a Murciélago reads these: its loop's half width (px), its half height (px) and its start phase (steps). Left out, 0. */
+  readonly rx?: number;
+  readonly ry?: number;
+  readonly phase?: number;
 }
 
 export const kindOf = (def: Enemy): EnemyKind => def.kind ?? 'alacran';
@@ -67,6 +72,8 @@ export interface EnemyState {
   readonly hop?: Hop;
   /** Only a Trompo has one (GDD-ENM-03). */
   readonly spin?: Spin;
+  /** Only a Murciélago has one (GDD-ENM-04). */
+  readonly loop?: Loop;
   /**
    * GDD-MOV-09: the y of a walker's feet once it has walked (it follows slopes), and a Chapulín's feet in the air too (GDD-ENM-03); a
    * flying Paloma keeps the y of the ground it rose from. Left out, it stands at its start's y.
@@ -104,12 +111,13 @@ const FRESH: Readonly<Record<EnemyKind, (e: Enemy) => EnemyState>> = {
   paloma: (e) => ({ x: e.x, dir: 1, alive: true, wing: GROUNDED }),
   chapulin: (e) => ({ x: e.x, dir: 1, alive: true, hop: CROUCHING }),
   trompo: (e) => ({ x: e.x, dir: 1, alive: true, spin: SPINNING }),
+  murcielago: freshMurcielago,
 };
 
 /** Every enemy alive at its start, as at the start of the level and after a life is lost. */
 export const freshEnemies = (enemies: readonly Enemy[]): readonly EnemyState[] => enemies.map((e) => FRESH[kindOf(e)](e));
 
-/** The size of each kind's box: one that stands on its feet, but for the Zopilote's, which flies (see `enemyBox`). */
+/** The size of each kind's box: one that stands on its feet, but for the Zopilote's and the Murciélago's, which fly (see `enemyBox`). */
 const SIZE: Readonly<Record<EnemyKind, { readonly width: number; readonly height: number }>> = {
   alacran: ENEMY,
   zopilote: ZOPILOTE,
@@ -118,6 +126,7 @@ const SIZE: Readonly<Record<EnemyKind, { readonly width: number; readonly height
   paloma: PALOMA,
   chapulin: CHAPULIN,
   trompo: TROMPO,
+  murcielago: MURCIELAGO,
 };
 
 export const sizeOf = (def: Enemy): { readonly width: number; readonly height: number } => SIZE[kindOf(def)];
@@ -215,13 +224,14 @@ const STEPS: Readonly<Record<EnemyKind, (def: Enemy, state: EnemyState, world: T
   paloma: (def, state, world, player, tops) => stepPaloma(def, state, world, player, tops.cordeles),
   chapulin: (def, state, world, _player, tops) => stepChapulin(def, state, world, tops.awnings),
   trompo: (def, state, world) => stepTrompo(def, state, world),
+  murcielago: (def, state) => stepMurcielago(def, state), // it ignores tiles, awnings, cordeles and Poncho (GDD-ENM-04)
 };
 
 /** GDD-ENM-02: the Tlacuache's first stomp makes it play dead instead of defeating it. */
 export const playDead = (state: EnemyState): EnemyState => ({ ...state, gait: { phase: 'dead', age: 0, playedDead: true } });
 
 /** Which kinds play dead at their first stomp (GDD-ENM-02): the Tlacuache. */
-const PLAYS_DEAD: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: false, tlacuache: true, paloma: false, chapulin: false, trompo: false };
+const PLAYS_DEAD: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: false, tlacuache: true, paloma: false, chapulin: false, trompo: false, murcielago: false };
 
 /** Does a stomp only make it play dead, rather than defeat it? True for a Tlacuache that has not played dead yet. */
 export const stompPlaysDead = (def: Enemy, state: EnemyState): boolean => PLAYS_DEAD[kindOf(def)] && !state.gait!.playedDead;
@@ -237,22 +247,24 @@ const inPlay = (state: EnemyState): boolean => state.alive && state.gait?.phase 
 
 /**
  * The enemy's box: its kind's size (`SIZE`) standing on its feet, where it walked or hopped to (GDD-MOV-09, GDD-ENM-03), a flying Paloma's
- * lifted by the height it has flown; but a Zopilote's, ZOPILOTE.width x ZOPILOTE.height, is centred on its flight y.
+ * lifted by the height it has flown; but a Zopilote's, ZOPILOTE.width x ZOPILOTE.height, is centred on its flight y, and a Murciélago's,
+ * MURCIELAGO.width x MURCIELAGO.height, on where it is on its loop (GDD-ENM-04).
  */
 export function enemyBox(def: Enemy, state: EnemyState): Box {
   const { width, height } = sizeOf(def);
-  if (state.flight) return { x0: state.x - width / 2, x1: state.x + width / 2, y0: state.flight.y - height / 2, y1: state.flight.y + height / 2 };
+  const mid = state.flight?.y ?? state.loop?.y;
+  if (mid !== undefined) return { x0: state.x - width / 2, x1: state.x + width / 2, y0: mid - height / 2, y1: mid + height / 2 };
   const feet = feetOf(def, state) - (state.wing?.lift ?? 0);
   return { x0: state.x - width / 2, x1: state.x + width / 2, y0: feet - height, y1: feet };
 }
 
 /** Can the claw, a fireball or a stomp defeat it? Not the cactus buddy, only avoided on foot (GDD-ENM-02). */
-const DEFEATABLE: Readonly<Record<EnemyKind, boolean>> = { alacran: true, zopilote: true, cactus: false, tlacuache: true, paloma: true, chapulin: true, trompo: true };
+const DEFEATABLE: Readonly<Record<EnemyKind, boolean>> = { alacran: true, zopilote: true, cactus: false, tlacuache: true, paloma: true, chapulin: true, trompo: true, murcielago: true };
 
 export const defeatable = (def: Enemy): boolean => DEFEATABLE[kindOf(def)];
 
 /** GDD-CMB-02: the heavy enemies, which the claw (and a fireball, GDD-ENM-03) stuns instead of defeating: the Trompo. */
-const HEAVY: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: false, tlacuache: false, paloma: false, chapulin: false, trompo: true };
+const HEAVY: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: false, tlacuache: false, paloma: false, chapulin: false, trompo: true, murcielago: false };
 
 /**
  * GDD-CMB-02, GDD-PWR-03: what a claw swipe or a fireball that hits a defeatable enemy does to it: it defeats a light one and stuns a
@@ -261,7 +273,7 @@ const HEAVY: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: 
 export const strike = (def: Enemy, state: EnemyState): EnemyState => (HEAVY[kindOf(def)] ? stun(state) : { ...state, alive: false });
 
 /** Which kinds are harmless when Poncho rises into them from beneath (GDD-ENM-02): the cactus buddy. */
-const HARMLESS_FROM_BELOW: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: true, tlacuache: false, paloma: false, chapulin: false, trompo: false };
+const HARMLESS_FROM_BELOW: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: true, tlacuache: false, paloma: false, chapulin: false, trompo: false, murcielago: false };
 
 /**
  * Is a contact harmless (GDD-ENM-02)? Only with a cactus buddy, and only while Poncho is rising into it from beneath: moving
@@ -303,7 +315,7 @@ export const touchedByPoncho = (player: PlayerState, def: Enemy, state: EnemySta
 
 /**
  * GDD-CMB-01: can it be stomped now? Not the Zopilote and the cactus buddy, nor a Tlacuache playing dead (it is out of play, GDD-ENM-02);
- * a Trompo only while it lies stunned (GDD-ENM-03).
+ * a Trompo only while it lies stunned (GDD-ENM-03). A Murciélago in any part of its loop (GDD-ENM-04).
  */
 const STOMPABLE: Readonly<Record<EnemyKind, (state: EnemyState) => boolean>> = {
   alacran: () => true,
@@ -313,6 +325,7 @@ const STOMPABLE: Readonly<Record<EnemyKind, (state: EnemyState) => boolean>> = {
   paloma: () => true,
   chapulin: () => true,
   trompo: isStunned,
+  murcielago: () => true,
 };
 
 /**
@@ -328,5 +341,8 @@ export function isStomp(before: PlayerState, after: PlayerState, def: Enemy, sta
 /** The speed a stomp throws Poncho up at: the jump velocity if jump is held or was pressed in the buffer window (GDD-MOV-03). */
 export const stompBounce = (jumpHeld: boolean, jumpBuffer: number): number => (jumpHeld || jumpBuffer > 0 ? STOMP.boostBounce : STOMP.bounce);
 
-/** The phase an enemy is in, for the debug hook: its flight's, gait's, wing's, hop's or spin's, or 'walk' (an Alacrán, a cactus buddy). */
-export const enemyPhase = (state: EnemyState): string => state.flight?.phase ?? state.gait?.phase ?? state.wing?.phase ?? state.hop?.phase ?? state.spin?.phase ?? 'walk';
+/**
+ * The phase an enemy is in, for the debug hook: its flight's, gait's, wing's, hop's or spin's, 'fly' for a Murciélago (GDD-ENM-04, its one
+ * state), or 'walk' (an Alacrán, a cactus buddy).
+ */
+export const enemyPhase = (state: EnemyState): string => state.flight?.phase ?? state.gait?.phase ?? state.wing?.phase ?? state.hop?.phase ?? state.spin?.phase ?? (state.loop ? 'fly' : 'walk');
