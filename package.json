@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:abilities": "vitest run -c vitest.abilities.config.ts",
     "test:glide": "vitest run -c vitest.glide.config.ts",
+    "test:sight": "vitest run -c vitest.sight.config.ts",
     "test:e2e": "playwright test --project=desktop --project=phone",
     "check": "node scripts/check.mjs",
     "shots": "playwright test --project=shots-desktop --project=shots-phone"
