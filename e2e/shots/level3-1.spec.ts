@@ -21,8 +21,8 @@ const L = LEVEL_3_1;
 const [L1, L2, , L3, L4] = LEVEL_3_1_LEDGES;
 /** The place in the level's list (L-015) of the enemy of kind `kind` that starts in column `col`. */
 const enemyAt = (kind: 'alacran' | 'murcielago', col: number): number => L.enemies.findIndex((e) => kindOf(e) === kind && Math.floor(e.x / TILE) === col);
-/** The enemies by kind and starting column (GDD-WLD-16): the first bat, the second chasm's, the lower pen's Alacrán, the last glide's two. */
-const BAT_1 = enemyAt('murcielago', 93);
+/** The enemies by kind and starting column (GDD-WLD-16): the first bat (the level's first), the second chasm's, the lower pen's Alacrán, the last glide's two. */
+const BAT_1 = L.enemies.findIndex((e) => kindOf(e) === 'murcielago');
 const CHASM_BAT = enemyAt('murcielago', 108);
 const LOWER_ALACRAN = enemyAt('alacran', 157);
 const LAST_BATS = [enemyAt('murcielago', 220), enemyAt('murcielago', 225)];

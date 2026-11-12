@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BASE_HEIGHT, CRUMBLE, LEVEL_RULES, MURCIELAGO, TILE } from '../config/tuning';
+import { BASE_HEIGHT, BASE_WIDTH, CAMERA, CRUMBLE, LEVEL_RULES, MURCIELAGO, TILE } from '../config/tuning';
 import { bottomRowAt } from '../sim/bottoms';
 import { standsOn } from '../sim/crumble';
 import { enemyBox, feetOf, kindOf, type Box } from '../sim/enemy';
@@ -43,6 +43,10 @@ const LOWER_ALACRAN = 3;
 const PATROL_BAT = 4;
 const LAST_BAT_1 = 5;
 const LAST_BAT_2 = 6;
+
+/** The first bat's column, and the two hilos over it (rows 8 and 7), as "col,row". */
+const FIRST_COL = Math.floor(LEVEL_3_1_ENEMIES[FIRST_BAT]!.x / TILE);
+const FIRST_HILOS = [`${FIRST_COL},8`, `${FIRST_COL},7`];
 
 /** The y of the ground's top in rows (`row * TILE`). */
 const Y = (row: number) => row * TILE;
@@ -321,7 +325,7 @@ describe('GDD-WLD-16 level 3-1 layout', () => {
     expect(L.enemies).toBe(LEVEL_3_1_ENEMIES);
     expect(L.enemies).toEqual([
       { x: mid(82), y: Y(15) },
-      { x: mid(93), y: 188, kind: 'murcielago', ry: 24 },
+      { x: mid(95), y: 188, kind: 'murcielago', ry: 24 },
       { x: mid(108), y: 320, kind: 'murcielago', ry: 24 },
       { x: mid(157), y: Y(38) },
       { x: mid(214), y: 672, kind: 'murcielago', rx: 16 },
@@ -331,7 +335,7 @@ describe('GDD-WLD-16 level 3-1 layout', () => {
     expect(L.enemies.map(kindOf).filter((k) => k === 'alacran')).toHaveLength(2);
     expect(L.enemies.map(kindOf).filter((k) => k === 'murcielago')).toHaveLength(5);
     // The five bats by column: the first, the second chasm's, the patrol bat and the last glide's two.
-    expect(L.enemies.filter((e) => kindOf(e) === 'murcielago').map((e) => Math.floor(e.x / TILE))).toEqual([93, 108, 214, 220, 225]);
+    expect(L.enemies.filter((e) => kindOf(e) === 'murcielago').map((e) => Math.floor(e.x / TILE))).toEqual([95, 108, 214, 220, 225]);
     // The two Alacranes by column: the first pen's and the lower pen's. None on F1 (columns 136 to 157, rows 25 and 26).
     expect(L.enemies.filter((e) => kindOf(e) === 'alacran').map((e) => Math.floor(e.x / TILE))).toEqual([82, 157]);
     // GDD-ENM-01: none starts within 3 tiles of a respawn, and no bat's loop comes within 80 px of one.
@@ -545,7 +549,8 @@ const STARTS_2 = Array.from({ length: 120 }, (_, i) => i * 2);
 const spaced = (a: number, b: number, by: number): number[] => Array.from({ length: Math.round((b - a) / by) + 1 }, (_, i) => Math.round((a + i * by) * 10) / 10);
 /**
  * GDD-WLD-16: the flights over the second chasm, take-offs `by` tiles apart: held jumps from 96.0 to 103.9 tiles along its near bank at the
- * 24 start times; the first bat's held-stomp bounces, jumps from 88.5 to 91.5 at every other step of its loop, run up from column 88; held
+ * 24 start times; the first bat's held-stomp bounces, jumps from 4.5 to 1.5 tiles before its column at every other step of its loop, run up
+ * from 5 tiles before it; held
  * jumps and walks off with jump pressed in the air from the pen's second rock (86.0 to 87.9) at the 24 start times; each held, and let go
  * 20, 40 and 60 steps after the take-off or the bounce for a second glide.
  */
@@ -553,7 +558,7 @@ function chasmFlights(by: number): { name: string; go: (level: Level) => RunStat
   const out: { name: string; go: (level: Level) => RunState[] }[] = [];
   for (const release of [null, 20, 40, 60]) {
     for (const t of spaced(96, 103.9, by)) for (const s of STARTS) out.push({ name: `bank ${t} start ${s} release ${release}`, go: (lv) => flight(lv, atWarm(lv, t * TILE, Y(15), 120, s), t * TILE, 'jump', release) });
-    for (const t of spaced(88.5, 91.5, by)) for (const s of STARTS_2) out.push({ name: `first bat ${t} start ${s} release ${release}`, go: (lv) => flight(lv, atWarm(lv, mid(88), Y(15), 120, s), t * TILE, 'jump', release) });
+    for (const t of spaced(FIRST_COL - 4.5, FIRST_COL - 1.5, by)) for (const s of STARTS_2) out.push({ name: `first bat ${t} start ${s} release ${release}`, go: (lv) => flight(lv, atWarm(lv, mid(FIRST_COL - 5), Y(15), 120, s), t * TILE, 'jump', release) });
     for (const t of spaced(86, 87.9, by)) {
       for (const s of STARTS) for (const way of ['jump', 'walk'] as const) out.push({ name: `rock ${way} ${t} start ${s} release ${release}`, go: (lv) => flight(lv, atWarm(lv, t * TILE, Y(14), 120, s), t * TILE, way, release) });
     }
@@ -566,11 +571,56 @@ const onFarBank = (states: readonly RunState[]): boolean => {
   return !lostAny(states, states[0]!) && end.phase === 'playing' && end.player.grounded && end.player.y === Y(19);
 };
 
+/**
+ * A flight right as `flight` makes it, but for what jump does once a stomp has bounced him (`bounce`): `'held'` held on, `'drop'` let go for good,
+ * `'again'` let go 20 steps after the bounce and pressed again 10 steps later. With `release`, jump is let go `release` steps after the
+ * take-off and pressed again 10 steps later, before any stomp. Once landed he stands still for `idleAfter` steps.
+ */
+function bounceFlight(level: Level, from: RunState, takeoff: number, way: 'jump' | 'walk', bounce: 'held' | 'drop' | 'again', release: number | null = null, idleAfter = 0): RunState[] {
+  let [air, stomp, landed] = [-1, -1, -1];
+  return play(level, from, 600, (r, i) => {
+    if (air < 0 && !r.player.grounded) air = i;
+    if (stomp < 0 && r.stomped) stomp = i;
+    if (landed < 0 && air >= 0 && i > air && r.player.grounded) landed = i;
+    if (landed >= 0) return idle;
+    if (air < 0) return { move: 1, jumpHeld: way === 'jump' && r.player.grounded && r.player.x >= takeoff };
+    if (stomp >= 0) return { move: 1, jumpHeld: bounce === 'held' || (bounce === 'again' && (i - stomp < 20 || i - stomp >= 30)) };
+    return { move: 1, jumpHeld: release === null || i - air < release || i - air >= release + 10 };
+  }, (r, i) => r.phase !== 'playing' || (landed >= 0 && i >= landed + idleAfter));
+}
+/**
+ * GDD-WLD-16: every held jump that comes down on the first bat, from the pen's second rock (86.0 tiles, a held jump and a walk off it with
+ * jump pressed in the air) to a tile before the bat's column, take-offs 0.2 tile apart (0.1 runs about 36 s), from a stand (1 px before
+ * the take-off) and at a run,
+ * at every 4th step of the bats' loop; with where each starts, worked out once for the tests that use them.
+ */
+const firstBatStomps = (() => {
+  let found: { name: string; from: RunState; takeoff: number; way: 'jump' | 'walk'; states: RunState[] }[] | undefined;
+  return () => {
+    if (found) return found;
+    found = [];
+    for (const t of spaced(86, FIRST_COL - 1, 0.2)) {
+      const row = t < 88 ? 14 : 15;
+      const starts: [string, number, number, 'jump' | 'walk'][] = [['stand', t * TILE - 1, 0, 'jump'], ['run', t * TILE, 120, 'jump']];
+      if (row === 14) starts.push(['walk off', t * TILE, 120, 'walk']);
+      for (const [kind, x, vx, way] of starts) {
+        for (let s = 0; s < MURCIELAGO.periodSteps; s += 4) {
+          const from = atWarm(L, x, Y(row), vx, s);
+          const states = bounceFlight(L, from, t * TILE, way, 'held');
+          expect(chasmBatTouched(states), `${kind} from ${t}, start ${s}`).toBe(false);
+          if (stompedBat(states, FIRST_BAT)) found.push({ name: `${kind} from ${t}, start ${s}`, from, takeoff: t * TILE, way, states });
+        }
+      }
+    }
+    return found;
+  };
+})();
+
 /** Whether he touched the second chasm's bat in these states (came down on it or into its side). */
 const chasmBatTouched = (states: readonly RunState[]): boolean =>
   states.some((r) => !r.enemies[CHASM_BAT]!.alive || gapBetween(bodyAt(r.player.x, r.player.y), enemyBox(L.enemies[CHASM_BAT]!, r.enemies[CHASM_BAT]!)) <= 0);
 
-describe('GDD-WLD-16 3-1 Sho: real pits, the bat alone, the bat in a glide way', () => {
+describe('GDD-WLD-16 3-1 Sho: real pits, the bat alone, the bat down in the chasm', () => {
   it('GDD-WLD-16 3-1 the first chasm cannot be crossed without the glide, and held from the lip he lands at column 75.7', () => {
     for (const states of plainJumps(64 * TILE, 13)) expect(states[states.length - 1]!.phase, `from ${states[0]!.player.x}`).toBe('respawning');
     const held = drive([leap(63.6, 999)], quiet, at(quiet, mid(58), Y(13), 120));
@@ -592,16 +642,16 @@ describe('GDD-WLD-16 3-1 Sho: real pits, the bat alone, the bat in a glide way',
 
   it('GDD-ENM-04 3-1 the first bat: walking under it without looking is a hit in 8 of 24 start times; waiting for the upper half of its loop never is', () => {
     const lv = only(FIRST_BAT);
-    const blind = STARTS.map((s) => play(lv, at(lv, mid(88), Y(15), 0, s), 120, () => ({ move: 1, jumpHeld: false })));
+    const blind = STARTS.map((s) => play(lv, at(lv, mid(FIRST_COL - 5), Y(15), 0, s), 120, () => ({ move: 1, jumpHeld: false })));
     expect(blind.filter((states) => states.some((r) => r.phase === 'respawning')).length).toBe(8);
     // Waiting where he landed until its upper half begins (step 120 of its loop), then walking under it.
     for (const s of STARTS) {
-      const p = drive([wait((r) => r.enemies[0]!.loop!.steps % MURCIELAGO.periodSteps === 120), run(1, (r) => r.player.x > mid(98))], lv, at(lv, mid(88), Y(15), 0, s));
+      const p = drive([wait((r) => r.enemies[0]!.loop!.steps % MURCIELAGO.periodSteps === 120), run(1, (r) => r.player.x > mid(FIRST_COL + 5))], lv, at(lv, mid(FIRST_COL - 5), Y(15), 0, s));
       expect(p.lost, `start ${s}`).toEqual([]);
     }
-    // On the real level (the pen's Alacrán 34 px behind him at the start, past its rock): the same 8 hits, and none for the wait.
-    expect(lostOnL((s) => play(L, at(L, mid(88), Y(15), 0, s), 120, () => ({ move: 1, jumpHeld: false })))).toEqual([0, 10, 20, 30, 40, 50, 220, 230]);
-    expect(lostOnL((s) => drive([wait((r) => r.enemies[FIRST_BAT]!.loop!.steps % MURCIELAGO.periodSteps === 120), run(1, (r) => r.player.x > mid(98))], L, at(L, mid(88), Y(15), 0, s)).states)).toEqual([]);
+    // On the real level: the same 8 hits, and none for the wait.
+    expect(lostOnL((s) => play(L, at(L, mid(FIRST_COL - 5), Y(15), 0, s), 120, () => ({ move: 1, jumpHeld: false })))).toEqual([0, 10, 20, 30, 40, 50, 220, 230]);
+    expect(lostOnL((s) => drive([wait((r) => r.enemies[FIRST_BAT]!.loop!.steps % MURCIELAGO.periodSteps === 120), run(1, (r) => r.player.x > mid(FIRST_COL + 5))], L, at(L, mid(FIRST_COL - 5), Y(15), 0, s)).states)).toEqual([]);
   });
 
   it('GDD-WLD-16 3-1 the second chasm: held from the lip he lands at column 119.0, over its bat, at every one of 24 start times with no life lost', () => {
@@ -646,47 +696,48 @@ describe('GDD-WLD-16 3-1 Sho: real pits, the bat alone, the bat in a glide way',
       if (onFarBank(states)) rescued++;
     }
     // Measured: the crossing flights, those a stomp on the bat saves (the next test), and the nearest any crossing flight comes to it.
-    expect([crossed, rescued, Math.round(near * 10) / 10]).toEqual([1498, 324, 11]);
+    expect([crossed, rescued, Math.round(near * 10) / 10]).toEqual([1552, 462, 11]);
   });
 
-  it('GDD-WLD-16 3-1 the held stomp on the first bat carries him over the second chasm with every life', { timeout: 120000 }, () => {
-    // Held jumps from 89, 90 and 91 tiles, run up from column 88, at every other step of the bats' loop: those that come down on the first bat
-    // (the rest pass it or are hit by it) bounce, held, over the chasm and land on its far bank, every life kept; none touches the chasm's bat.
-    const found: Record<number, { stomps: number; lands: number[] }> = {};
-    for (const off of [89, 90, 91]) {
-      const lands = new Set<number>();
-      let stomps = 0;
-      for (const s of STARTS_2) {
-        const p = drive([leap(off, 999), pause(30)], L, at(L, mid(88), Y(15), 120, s));
-        expect(chasmBatTouched(p.states), `from ${off}, start ${s}`).toBe(false);
-        if (!stompedBat(p.states, FIRST_BAT)) continue;
-        stomps++;
-        expect([p.lost, landsAt(p)!.y], `from ${off}, start ${s}`).toEqual([[], Y(19)]);
-        lands.add(landsAt(p)!.col);
+  it('GDD-WLD-16 3-1 the held stomp on the first bat carries him over the second chasm with every life', { timeout: 300000 }, () => {
+    // Every held jump that comes down on the first bat (column 95), from the pen's second rock to a tile before the bat, standing and running:
+    // the held bounce carries him over the chasm onto its far bank, every life kept, and no flight touches the chasm's bat. At the stomp
+    // he is past x 1440, so the chasm's lip (x 1664) is on screen: the camera keeps him 224 to 256 px from the screen's left edge, so its
+    // right edge is 224 px or more ahead of him.
+    const stomps = firstBatStomps();
+    for (const f of stomps) expect(onFarBank(f.states), f.name).toBe(true);
+    const lands = stomps.map((f) => landing(f.states)!.x / TILE);
+    const stompX = stomps.map((f) => f.states.find((r) => r.stomped)!.player.x);
+    expect(Math.min(...stompX)).toBeGreaterThan(104 * TILE - (BASE_WIDTH - CAMERA.deadZone) / 2);
+    // Measured: the stomps, where they land (columns 113.1 to 117.4), and where he is when he stomps (x 1515 to 1541).
+    expect([stomps.length, ...[Math.min(...lands), Math.max(...lands)].map((c) => Math.round(c * 10) / 10), Math.round(Math.min(...stompX)), Math.round(Math.max(...stompX))]).toEqual([842, 113.1, 117.4, 1515, 1541]);
+    // The two hilos over the first bat: the held stomp the hilo census plays (a jump 4 tiles before the bat, run up from 5 tiles before it,
+    // at every other start time), on the real level.
+    const census = STARTS_2.map((s) => drive([leap(FIRST_COL - 4, 999)], L, at(L, mid(FIRST_COL - 5), Y(15), 120, s))).filter((p) => stompedBat(p.states, FIRST_BAT));
+    expect([census.length, census.filter((p) => FIRST_HILOS.every((h) => takenHilos(p.run).includes(h))).length]).toEqual([47, 9]);
+  });
+
+  it('GDD-WLD-16 3-1 the held stomp on the first bat let go at the stomp he comes down on the flat or the bank, never in the chasm', { timeout: 300000 }, () => {
+    // The same stomps, jump let go at the stomp: he drops onto the flat before the chasm and stands there 60 steps with every life.
+    const drop = firstBatStomps().map((f) => bounceFlight(L, f.from, f.takeoff, f.way, 'drop', null, 60));
+    for (const states of drop) expect([lostAny(states, states[0]!), landing(states)?.y], `${states[0]!.player.x}`).toEqual([false, Y(15)]);
+    const lands = drop.map((states) => landing(states)!.x / TILE);
+    // Measured: he comes down at columns 97.3 to 99.4, short of the lip at 104.
+    expect([Math.min(...lands), Math.max(...lands)].map((c) => Math.round(c * 10) / 10)).toEqual([97.3, 99.4]);
+    // Jump let go 20 steps after the stomp and pressed again 10 later: measured, all come down on the flat (columns 100.1 to 104.4, the
+    // last on the lip's edge) with every life, none on the far bank. With take-offs 0.1 tile apart, 1 of 1657 falls into the chasm.
+    const again = firstBatStomps().map((f) => bounceFlight(L, f.from, f.takeoff, f.way, 'again'));
+    const ends = { flat: 0, bank: 0, lost: 0 };
+    const flat: number[] = [];
+    for (const states of again) {
+      if (lostAny(states, states[0]!)) ends.lost++;
+      else if (landing(states)!.y === Y(19)) ends.bank++;
+      else {
+        ends.flat++;
+        flat.push(landing(states)!.x / TILE);
       }
-      found[off] = { stomps, lands: [...lands] };
     }
-    // Measured: each take-off's stomps all land at one column, the higher bounces of later take-offs further on.
-    expect(found).toEqual({ 89: { stomps: 47, lands: [112.875] }, 90: { stomps: 32, lands: [113.875] }, 91: { stomps: 10, lands: [114.875] } });
-    // From the pen's second rock (86.0 to 87.9 tiles), a held jump and a walk off it with jump pressed in the air, at 24 start times: none
-    // touches the chasm's bat. Measured: those that land on its far bank, and the lives lost (to the first bat, or short of the bank).
-    const rock: Record<string, { bank: number; lost: number }> = {};
-    for (const way of ['jump', 'walk'] as const) {
-      const n = { bank: 0, lost: 0 };
-      for (const t of spaced(86, 87.9, 0.1)) {
-        for (const s of STARTS) {
-          const states = flight(L, atWarm(L, t * TILE, Y(14), 120, s), t * TILE, way);
-          expect(chasmBatTouched(states), `${way} from ${t}, start ${s}`).toBe(false);
-          if (onFarBank(states)) n.bank++;
-          if (lostAny(states, states[0]!)) n.lost++;
-        }
-      }
-      rock[way] = n;
-    }
-    expect(rock).toEqual({ jump: { bank: 76, lost: 349 }, walk: { bank: 123, lost: 222 } });
-    // The two hilos over the first bat: the held stomp the hilo census plays (a jump from 89 at every other start time), on the real level.
-    const census = STARTS_2.map((s) => drive([leap(89, 999)], L, at(L, mid(88), Y(15), 120, s))).filter((p) => stompedBat(p.states, FIRST_BAT));
-    expect([census.length, census.filter((p) => ['93,8', '93,7'].every((h) => takenHilos(p.run).includes(h))).length]).toEqual([47, 9]);
+    expect([ends, ...[Math.min(...flat), Math.max(...flat)].map((c) => Math.round(c * 10) / 10)]).toEqual([{ flat: 842, bank: 0, lost: 0 }, 100.1, 104.4]);
   });
 
   it('GDD-WLD-16 3-1 a glide that falls short of the second chasm can come down on its bat, and the bounce carries him out', () => {
@@ -703,6 +754,12 @@ describe('GDD-WLD-16 3-1 Sho: real pits, the bat alone, the bat in a glide way',
     }
     // Measured: 10 of 24 come down on it and all 10 get out; the other 14 fall into the chasm.
     expect({ stomps, out, lost }).toEqual({ stomps: 10, out: 10, lost: 14 });
+    // The same flights, with jump let go for good at the stomp, or held on through the bounce with no second press: of the 10 stomps, those
+    // that reach the bank.
+    const reach = (['drop', 'held'] as const).map((mode) =>
+      STARTS.map((s) => bounceFlight(L, atWarm(L, 100 * TILE, Y(15), 120, s), 100 * TILE, 'jump', mode, 40)).filter((states) => stompedBat(states, CHASM_BAT)).map(onFarBank),
+    );
+    expect(reach.map((r) => [r.length, r.filter(Boolean).length])).toEqual([[10, 0], [10, 10]]);
   });
 
   it('GDD-WLD-16 3-1 no jump without the glide crosses the second chasm', () => {
@@ -1223,7 +1280,7 @@ describe('GDD-WLD-16 3-1 played through', () => {
     const missed = (r: RunState) => names.filter((h) => !takenHilos(r).includes(h));
     const p = drive(route());
     // Measured at start time 0: the route bot's count and the hilos it misses.
-    expect([takenHilos(p.run).length, missed(p.run)]).toEqual([43, ['7,4', '9,5', '11,6', '93,8', '93,7', '215,42', '216,42']]);
+    expect([takenHilos(p.run).length, missed(p.run)]).toEqual([43, ['7,4', '9,5', '11,6', ...FIRST_HILOS, '215,42', '216,42']]);
     // The route with a held jump on the flat first, from the spawn (the arc).
     const arc = drive([leap(3.9, 999), ...route()]);
     // The careful bot gliding from the last lip (never on the pillar), played with a stop of 2 s at the rest before the cliff face, past
@@ -1233,8 +1290,8 @@ describe('GDD-WLD-16 3-1 played through', () => {
     expect([calm.run.phase, calm.lost, calm.states.some((r) => r.player.grounded && r.player.y === Y(47))]).toEqual(['clear', [], false]);
     // The held stomp on the first bat (the next test), on the real level: one that takes both hilos over it.
     const stomp = Array.from({ length: 120 }, (_, i) => i * 2)
-      .map((s) => drive([leap(89, 999)], L, at(L, mid(88), Y(15), 120, s)))
-      .find((q) => stompedBat(q.states, FIRST_BAT) && ['93,8', '93,7'].every((h) => takenHilos(q.run).includes(h)))!;
+      .map((s) => drive([leap(FIRST_COL - 4, 999)], L, at(L, mid(FIRST_COL - 5), Y(15), 120, s)))
+      .find((q) => stompedBat(q.states, FIRST_BAT) && FIRST_HILOS.every((h) => takenHilos(q.run).includes(h)))!;
     const none = names.filter((h) => [p, arc, calm, stomp].every((q) => !takenHilos(q.run).includes(h)));
     expect(none).toEqual([]);
   });
@@ -1242,19 +1299,19 @@ describe('GDD-WLD-16 3-1 played through', () => {
   it('GDD-CMB-01 3-1 a held stomp bounce on the first bat takes both hilos over it', { timeout: 60000 }, () => {
     const lv = only(FIRST_BAT);
     const stomps = Array.from({ length: 120 }, (_, i) => i * 2)
-      .map((s) => drive([leap(89, 999)], lv, at(lv, mid(88), Y(15), 120, s)))
+      .map((s) => drive([leap(FIRST_COL - 4, 999)], lv, at(lv, mid(FIRST_COL - 5), Y(15), 120, s)))
       .filter((p) => stompedBat(p.states, 0));
-    // Running jumps from column 89 past the pen, held, at every other step of the bat's loop: those that come down on it.
-    const both = stomps.filter((p) => ['93,8', '93,7'].every((h) => takenHilos(p.run).includes(h)));
+    // Running jumps 4 tiles before the bat's column, held, at every other step of its loop: those that come down on it.
+    const both = stomps.filter((p) => FIRST_HILOS.every((h) => takenHilos(p.run).includes(h)));
     expect(both.length).toBeGreaterThan(0);
     // Measured: 47 held stomps in 120 start times, 9 of which take both (those that come down on it furthest left; the later ones rise
-    // past column 93 before they reach the hilos' rows).
+    // past the bat's column before they reach the hilos' rows).
     expect([stomps.length, both.length]).toEqual([47, 9]);
-    // On the real level (the second chasm's bat touches the bounce's line further on): the same 47 and 9.
+    // On the real level: the same 47 and 9.
     const onL = Array.from({ length: 120 }, (_, i) => i * 2)
-      .map((s) => drive([leap(89, 999)], L, at(L, mid(88), Y(15), 120, s)))
+      .map((s) => drive([leap(FIRST_COL - 4, 999)], L, at(L, mid(FIRST_COL - 5), Y(15), 120, s)))
       .filter((p) => stompedBat(p.states, FIRST_BAT));
-    expect([onL.length, onL.filter((p) => ['93,8', '93,7'].every((h) => takenHilos(p.run).includes(h))).length]).toEqual([47, 9]);
+    expect([onL.length, onL.filter((p) => FIRST_HILOS.every((h) => takenHilos(p.run).includes(h))).length]).toEqual([47, 9]);
   });
 
   it('GDD-WLD-16 3-1 a careful bot that waits for the two bats that must be read reaches the exit with seven lives at every one of 24 start times', { timeout: 120000 }, () => {

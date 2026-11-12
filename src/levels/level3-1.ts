@@ -163,12 +163,13 @@ const PINATAS: readonly Pinata[] = [
 
 /**
  * GDD-ENM-02, GDD-ENM-04: where the enemies start, in this order: the Alacrán of the first pen; the first Murciélago alone over flat
- * ground; the bat down in the second chasm, under every flight that crosses it (F1, under the ledges of Ten, has no enemy); the Alacrán of the lower pen; the patrol
- * bat at the Ketsu ledge's far end, at body height; the two bats of the last glide, the second half a loop behind.
+ * ground, near enough the second chasm that a held stomp's bounce carries him over it; the bat down in the second chasm, under every
+ * flight that crosses it (F1, under the ledges of Ten, has no enemy); the Alacrán of the lower pen; the patrol bat at the Ketsu ledge's far
+ * end, at body height; the two bats of the last glide, the second half a loop behind.
  */
 export const LEVEL_3_1_ENEMIES: readonly Enemy[] = [
   { x: mid(82), y: 15 * TILE },
-  { x: mid(93), y: 188, kind: 'murcielago', ry: 24 },
+  { x: mid(95), y: 188, kind: 'murcielago', ry: 24 },
   { x: mid(108), y: 320, kind: 'murcielago', ry: 24 },
   { x: mid(LOWER_PEN.rock0 + 4), y: 38 * TILE },
   { x: mid(214), y: 672, kind: 'murcielago', rx: 16 },
@@ -180,7 +181,7 @@ export const LEVEL_3_1_ENEMIES: readonly Enemy[] = [
 const HILOS: readonly Hilo[] = [
   [7, 4], [9, 5], [11, 6], [13, 7], [19, 4], [21, 5], [23, 6], [45, 5], [47, 6], [49, 7],
   [51, 8], [53, 10], [65, 8], [67, 9], [69, 10], [71, 11], [79, 13], [81, 9], [83, 10], [85, 11],
-  [93, 8], [93, 7], [105, 10], [111, 13], [114, 15], [135, 17], [140, 20], [141, 20], [146, 21], [147, 21],
+  [95, 8], [95, 7], [105, 10], [111, 13], [114, 15], [135, 17], [140, 20], [141, 20], [146, 21], [147, 21],
   [150, 17], [156, 21], [159, 22], [148, 30], [141, 30], [156, 33], [159, 34], [170, 33], [173, 38], [176, 34],
   [179, 39], [184, 35], [197, 36], [200, 41], [204, 37], [215, 42], [216, 42], [230, 46], [231, 46], [233, 47],
 ].map(([col, row]) => ({ col: col!, row: row! }));
