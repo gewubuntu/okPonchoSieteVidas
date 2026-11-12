@@ -1,5 +1,6 @@
 // GDD-ENM-02, GDD-ENM-03, GDD-ENM-04, GDD-ART-05: which frame of its sheet each enemy shows, and where. Pure, no Phaser: the scene draws what this says.
-import { CACTUS, CHAPULIN, ENEMY_ART, PALOMA, TLACUACHE, TROMPO } from '../config/tuning';
+import { ARMADILLO, CACTUS, CHAPULIN, ENEMY_ART, PALOMA, TLACUACHE, TROMPO } from '../config/tuning';
+import { isRolling } from '../sim/armadillo';
 import { feetOf, kindOf, type Enemy, type EnemyState } from '../sim/enemy';
 import { lookFrame, type EnemyLook, type EnemySheet } from './enemyLooks';
 
@@ -132,6 +133,20 @@ function lookOf(kind: EnemySheet, def: Enemy, state: EnemyState, ctx: PoseContex
  */
 export function enemyPose(def: Enemy, state: EnemyState, ctx: PoseContext): EnemyPose {
   const kind = kindOf(def);
+  // placeholder until armadillo.png (run B2): the Armadillo has no sheet yet; the scene draws its box (`armadilloBox`).
+  if (kind === 'armadillo') throw new Error('the Armadillo has no sheet yet: draw armadilloBox');
   const { look, flip } = lookOf(kind, def, state, ctx);
   return { look, frame: lookFrame(kind, look), x: state.x, y: state.flight?.y ?? state.loop?.y ?? feetOf(def, state) - liftOf(state), flip };
+}
+
+// placeholder until armadillo.png (run B2)
+/** GDD-ENM-04, GDD-ART-06: the Armadillo's placeholder colour, World 3's timber lit. */
+export const ARMADILLO_PLACEHOLDER = 0xa89480;
+
+// placeholder until armadillo.png (run B2)
+/** GDD-ENM-04: the Armadillo's placeholder, a box standing on its feet: its own 16 x 12 px, and a 12 x 12 px one while it rolls. `x`, `y` its top left. */
+export function armadilloBox(def: Enemy, state: EnemyState): { x: number; y: number; w: number; h: number } {
+  const w = isRolling(state) ? 12 : ARMADILLO.width;
+  const h = isRolling(state) ? 12 : ARMADILLO.height;
+  return { x: state.x - w / 2, y: feetOf(def, state) - h, w, h };
 }

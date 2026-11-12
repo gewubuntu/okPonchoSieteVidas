@@ -1,13 +1,17 @@
 // GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have (GDD-MOV-09: its sand slopes
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
-import { AWNING, BASE_WIDTH, CART, COVER, ESTRELLA, LEVEL_RULES, MURCIELAGO, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
+import { ARMADILLO, AWNING, BASE_WIDTH, CART, COVER, ESTRELLA, LEVEL_RULES, MURCIELAGO, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
+import { rollPath } from '../sim/armadillo';
 import { bossStart } from '../sim/boss';
 import { bottomRowAt, type Bottom } from '../sim/bottoms';
 import { railGround, railLength, type Rail } from '../sim/cart';
 import { estrellaStart } from '../sim/estrella';
 import { isBossLevel } from '../sim/bossLevel';
-import { kindOf, type Enemy } from '../sim/enemy';
+import { freshCrumbles, withCrumbles } from '../sim/crumble';
+import { freshEnemies, kindOf, overlaps, stepEnemy, type Box, type Enemy } from '../sim/enemy';
+import { spawn } from '../sim/movement';
 import { murcielagoAt } from '../sim/murcielago';
+import { groundTop } from '../sim/slope';
 import type { Level } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
 import type { LevelEntry } from './index';
@@ -209,6 +213,55 @@ function murcielagoProblems(level: Level, def: Enemy): string[] {
   return problems;
 }
 
+/** GDD-ENM-04: the steps an Armadillo's walk is played for at most, out to one end and back to the other, and each roll's. */
+const WALK_STEPS = 20000;
+const ROLL_STEPS = 600;
+
+/** An Armadillo's box, its feet's middle at `p`. */
+const box = (p: { x: number; y: number }): Box => ({ x0: p.x - ARMADILLO.width / 2, x1: p.x + ARMADILLO.width / 2, y0: p.y - ARMADILLO.height, y1: p.y });
+
+/**
+ * GDD-ENM-04, GDD-TEC-04: an Armadillo starts on the ground, the middle of its feet on a level tile's top or a slope's surface (its crumbling
+ * tiles whole). Then its walk with no Poncho, out to one end and back to the other, and from every place on it a roll either way, played out
+ * on the level's tiles (`rollPath`) until a wall stops it, it falls out of the level or ROLL_STEPS run out, never has its box overlap a
+ * standing cart's start: the cart's box at its rail's start, on the rail's ground (GDD-WLD-15). Boxes that only share an edge do not touch.
+ */
+function armadilloProblems(level: Level, def: Enemy): string[] {
+  const at = `armadillo at column ${Math.floor(def.x / TILE)}`;
+  const world = withCrumbles(level.world, level.crumbles, freshCrumbles(level.crumbles));
+  const top = groundTop(world, def.x, def.y + 1);
+  if (top === null || Math.abs(top - def.y) > 1e-6) return [`${at} does not stand on the ground`];
+  const carts = (level.rails ?? []).map((r) => {
+    const x0 = Math.min(r.x, r.x + r.dir * CART.width);
+    const ground = railGround(r, CART.width / 2);
+    return { col: Math.floor(x0 / TILE), box: { x0, x1: x0 + CART.width, y0: ground - CART.height, y1: ground } };
+  });
+  const far = spawn(-1e9, -1e9);
+  let s = freshEnemies([def])[0]!;
+  const walk: { x: number; y: number }[] = [{ x: s.x, y: def.y }];
+  for (let i = 0, turns = 0; i < WALK_STEPS && turns < 2; i++) {
+    const next = stepEnemy(def, s, world, far);
+    if (next.dir !== s.dir) turns++;
+    s = next;
+    walk.push({ x: s.x, y: s.y ?? def.y });
+  }
+  const walks = carts.map((c) => walk.some((p) => overlaps(box(p), c.box)));
+  const rolls = carts.map(() => false);
+  // Each roll is played once and read against every cart its walk does not already reach.
+  if (walks.some((w) => !w)) {
+    for (const p of walk) {
+      for (const dir of [1, -1] as const) {
+        for (const q of rollPath(world, p.x, p.y, dir, ROLL_STEPS).at) {
+          carts.forEach((c, k) => {
+            if (!walks[k] && overlaps(box(q), c.box)) rolls[k] = true;
+          });
+        }
+      }
+    }
+  }
+  return carts.flatMap((c, k) => (walks[k] ? [`${at} walks into the start of the cart at column ${c.col}`] : rolls[k] ? [`${at} rolls into the start of the cart at column ${c.col}`] : []));
+}
+
 /** GDD-WLD-03: 17 to 51 rows tall; a boss level one screen tall, 17 rows (GDD-BOS-01). */
 function heightProblems(level: Level): string[] {
   const rows = level.world.height;
@@ -340,8 +393,10 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
     }
   }
 
-  // GDD-ENM-04: each Murciélago's loop.
+  // GDD-ENM-04: each Murciélago's loop; each Armadillo's ground, walk and rolls, and only World 3 has them.
   for (const e of level.enemies) if (kindOf(e) === 'murcielago') problems.push(...murcielagoProblems(level, e));
+  for (const e of level.enemies) if (kindOf(e) === 'armadillo') problems.push(...armadilloProblems(level, e));
+  for (const e of level.enemies) if (kindOf(e) === 'armadillo' && entry.world !== 3) problems.push(`armadillo at column ${Math.floor(e.x / TILE)} in World ${entry.world}, only World 3 has them`);
 
   // GDD-ENM-01, GDD-BOS-01: the boss starts at least 3 tiles from the spawn, his only respawn.
   if (level.boss) {

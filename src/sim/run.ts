@@ -7,7 +7,8 @@ import { estrellaCleared, estrellaStart, stepEstrella, type Estrella, type Estre
 import { freshCrumbles, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { boxTouchesTile, clawBox, IDLE_CLAW, stepClaw, type ClawState } from './claw';
 import { withFragiles, type Fragile } from './fragile';
-import { boxHitsEnemy, clawHitsEnemy, defeatable, freshEnemies, harmlessFromBelow, isStomp, overlaps, playDead, stepEnemy, stompBounce, stompPlaysDead, strike, touchedByPoncho, touchesEnemy, type Enemy, type EnemyState } from './enemy';
+import { isRolling, ringOff } from './armadillo';
+import { boxHitsEnemy, clawHitsEnemy, defeatable, enemyBox, freshEnemies, harmlessFromBelow, isStomp, overlaps, playDead, stepEnemy, stompBounce, stompPlaysDead, strike, touchedByPoncho, touchesEnemy, type Enemy, type EnemyState } from './enemy';
 import { fireballBox, spawnFireball, stepFireball, type Fireball } from './fireball';
 import { squareBlocked } from './item';
 import { freshFlags, touchesDoor, touchesKey, withDoors, type Door, type Key } from './door';
@@ -421,8 +422,10 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   const flown = level.boss && run.boss ? stepBoss(level.boss, run.boss, run.player) : null;
   let boss = flown?.boss ?? null;
   let fruit = [...run.fruit.flatMap((f) => stepFruit(f, solid, phaseOf(run.boss!)) ?? []), ...(flown?.drop ? [flown.drop] : [])];
+  // GDD-ENM-04: a rolling Armadillo outlives its stomp, so he bounces from its top: his feet are put there, clear of it.
+  const ballTops = stomped.some(Boolean) ? ranOver.flatMap((e, i) => (stomped[i] && isRolling(e) ? [enemyBox(level.enemies[i]!, e).y0] : [])) : [];
   const player = stomped.some(Boolean)
-    ? { ...sprung, vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0, gliding: false, clinging: false, glideLock: GLIDE.stompLockSteps }
+    ? { ...sprung, y: Math.min(sprung.y, ...ballTops), vy: -stompBounce(input.jumpHeld, sprung.jumpBuffer), grounded: false, coyote: 0, jumpBuffer: 0, gliding: false, clinging: false, glideLock: GLIDE.stompLockSteps }
     : bounce(awning.player, level.springs);
   const onAwning = !stomped.some(Boolean);
   const awningsGone = run.awningsGone.map((g, i) => g || (onAwning && i === awning.tore) || chewed.includes(i));
@@ -509,9 +512,13 @@ function stepPhase(run: RunState, input: PlayerInput, level: Level): RunState {
   const enemies = ranOver.map((e, i) => {
     const def = level.enemies[i]!;
     // GDD-PWR-04: with the Chile Fantasma every regular enemy he touches is defeated outright (never stunned, the cactus buddy too), one
-    // playing dead and a stunned Trompo included. A stomp in the same step still bounces him (`stomped`, read before).
-    if (fantasma > 0 && touchedByPoncho(player, def, e)) return { ...e, alive: false };
+    // playing dead and a stunned Trompo included. A stomp in the same step still bounces him (`stomped`, read before), and is a touch: a
+    // rolling Armadillo's has put his feet on its top (GDD-ENM-04).
+    if (fantasma > 0 && (stomped[i] || touchedByPoncho(player, def, e))) return { ...e, alive: false };
     if (!defeatable(def)) return e;
+    // GDD-ENM-04: a rolling Armadillo: the claw's swing rings off it (`ringOff`, for its look and sound), a fireball is used up on it (below)
+    // and does nothing, and a stomp only bounces him off it (above).
+    if (isRolling(e)) return box !== null && clawHitsEnemy(box, def, e) ? ringOff(e) : e;
     if ((box !== null && clawHitsEnemy(box, def, e)) || fireballs.some((f) => fireballHits(f, i))) return strike(def, e);
     if (!stomped[i]) return e;
     return stompPlaysDead(def, e) ? playDead(e) : { ...e, alive: false };

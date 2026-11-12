@@ -5,7 +5,11 @@ import { enemyBox, kindOf, type EnemyKind } from '../sim/enemy';
 import type { Level, RunState } from '../sim/run';
 import { lookFrame, POOF_LOOKS, type EnemyLook, type Sheet } from './enemyLooks';
 
-/** The kinds that go in a poof: every one that can be defeated, the cactus buddy too, by the Chile Fantasma (GDD-PWR-04) or a rolling cart (GDD-WLD-15) alone. */
+/**
+ * The kinds that go in a poof: every one that can be defeated, the cactus buddy too, by the Chile Fantasma (GDD-PWR-04) or a rolling cart
+ * (GDD-WLD-15) alone. Not the Armadillo yet (GDD-ENM-04): placeholder until armadillo.png (run B2), it has no squash or hit frame, and one
+ * that falls out of the level is gone with no poof.
+ */
 export type DefeatKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo' | 'murcielago';
 const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'cactus' || kind === 'tlacuache' || kind === 'paloma' || kind === 'chapulin' || kind === 'trompo' || kind === 'murcielago';
 

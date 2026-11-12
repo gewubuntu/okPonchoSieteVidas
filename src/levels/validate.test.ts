@@ -874,3 +874,61 @@ describe('GDD-TEC-04 and GDD-ENM-04 Murciélagos in the validator', () => {
     expect(fromOfrenda(0)).toEqual([]);
   });
 });
+
+/** GDD-ENM-04: an Armadillo, its feet at (x, y). */
+const armadillo = (x: number, y: number): Enemy => ({ x, y, kind: 'armadillo' });
+/** A wall 2 tiles tall standing on the floor (rows 12 and 13) in column `col`. */
+const wallAt = (col: number) => [[col, 12], [col, 13]] as const;
+/** A level rail on the floor (y = 224) from column `col`, 4 tiles, ending in a buffer: its cart stands at x col * 16 to col * 16 + 32. */
+const railAt = (col: number): Rail => ({ x: col * TILE, y: 224, dir: 1, segments: [{ kind: 'level', tiles: 4 }], end: 'buffer' });
+/** World 3, the ofrendas far right, with the tiles, rails and Armadillos given. */
+const mine = (solid: readonly (readonly [number, number])[], rails: readonly Rail[], enemies: readonly Enemy[], o: Options = {}) =>
+  validateLevel(entry({ world: 3, ofrendas: [60, 70, 80], solid, enemies, level: { rails }, ...o }));
+
+describe('GDD-TEC-04 and GDD-ENM-04 Armadillos in the validator', () => {
+  it('GDD-ENM-04 an Armadillo starts on the ground: on a tile top or a slope surface, not in the air', () => {
+    expect(mine([], [], [armadillo(408, 224)])).toEqual([]);
+    expect(mine([], [], [armadillo(408, 223)])).toEqual(['armadillo at column 25 does not stand on the ground']);
+    expect(mine([], [], [armadillo(408, 200)])).toEqual(['armadillo at column 25 does not stand on the ground']);
+    // Nor sunk 1 px into the floor.
+    expect(mine([], [], [armadillo(408, 225)])).toEqual(['armadillo at column 25 does not stand on the ground']);
+    // A 45 degree slope rising right in column 40 (x 640 to 656) on the floor: its surface y = 224 - (x - 640); at x = 648 it is 216.
+    const slope: Options = { slopes: [[40, 13, '/']] };
+    expect(mine([], [], [armadillo(648, 216)], slope)).toEqual([]);
+    expect(mine([], [], [armadillo(648, 215)], slope)).toEqual(['armadillo at column 40 does not stand on the ground']);
+    expect(mine([], [], [armadillo(648, 217)], slope)).toEqual(['armadillo at column 40 does not stand on the ground']);
+  });
+
+  it('GDD-ENM-04 an Armadillo is allowed in World 3 only', () => {
+    expect(validateLevel(entry({ world: 2, enemies: [armadillo(408, 224)] }))).toEqual(['armadillo at column 25 in World 2, only World 3 has them']);
+    expect(validateLevel(entry({ world: 1, enemies: [armadillo(408, 224)] }))).toEqual(['armadillo at column 25 in World 1, only World 3 has them']);
+    expect(validateLevel(entry({ world: 3, enemies: [armadillo(408, 224)] }))).toEqual([]);
+  });
+
+  it('GDD-ENM-04 an Armadillo walk range may not cross a standing cart start', { timeout: 30000 }, () => {
+    // A pen between walls in columns 20 and 40; a rail in it from column 35 (its cart at x 560 to 592), which its walk crosses.
+    const pen = [...wallAt(20), ...wallAt(40)];
+    expect(mine(pen, [railAt(35)], [armadillo(408, 224)])).toEqual(['armadillo at column 25 walks into the start of the cart at column 35']);
+    // The rail outside the pen, past its right wall: no problem.
+    expect(mine(pen, [railAt(42)], [armadillo(408, 224)])).toEqual([]);
+  });
+
+  it('GDD-ENM-04 an Armadillo roll may not reach a cart start, also after rolling off a ledge onto the cart floor', { timeout: 30000 }, () => {
+    // L-028: its walk stays on a block 3 tiles over the floor (columns 20 to 29, rows 11 to 13, its top y = 176), so the walk alone never
+    // reaches the cart standing on the floor at column 36 (x 576 to 608); a roll right falls off the block's end, lands on the floor about
+    // 33 px on and rolls into it. Walls in columns 14 and 44 close the stretch.
+    const block = [20, 21, 22, 23, 24, 25, 26, 27, 28, 29].flatMap((c) => [[c, 11], [c, 12], [c, 13]] as const);
+    const stretch = [...block, ...wallAt(14), ...wallAt(44)];
+    expect(mine(stretch, [railAt(36)], [armadillo(408, 176)])).toEqual(['armadillo at column 25 rolls into the start of the cart at column 36']);
+    // The same with a wall between the block and the cart (column 34, x 544 to 560): no problem.
+    expect(mine([...stretch, ...wallAt(34)], [railAt(36)], [armadillo(408, 176)])).toEqual([]);
+  });
+
+  it('GDD-ENM-04 an Armadillo roll that ends in a pit before the cart is no problem', { timeout: 30000 }, () => {
+    // On the floor between a wall in column 20 and a pit in columns 33 to 35 (open to the level's bottom); the cart beyond it at column 37.
+    // Its walk turns at the pit's edge; a roll right falls in and out of the level.
+    expect(mine([...wallAt(20), ...wallAt(44)], [railAt(37)], [armadillo(408, 224)], { pits: [33, 34, 35] })).toEqual([]);
+    // With the pit filled its walk reaches the cart.
+    expect(mine([...wallAt(20), ...wallAt(44)], [railAt(37)], [armadillo(408, 224)])).toEqual(['armadillo at column 25 walks into the start of the cart at column 37']);
+  });
+});

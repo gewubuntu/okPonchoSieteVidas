@@ -518,6 +518,29 @@ export const TROMPO = { width: 14, height: 14, speed: 70, stunSteps: Math.round(
 export const MURCIELAGO = { width: 16, height: 10, periodSteps: Math.round(4.0 * TICK_HZ), maxRx: 48, maxRy: 24 } as const;
 
 /**
+ * GDD-ENM-04: the Armadillo is `width` x `height` px, standing on the ground, walking or rolled up, and walks at `walkSpeed` px/s. When
+ * Poncho's hurtbox centre is within `sightX` px of its middle across, either side, and his feet within `sightY` px of its own, it tucks for
+ * `tuckSteps` (0.5 s, GDD-ENM-01), flashing red `flashOn` steps and plain `flashOff`, then rolls at `rollSpeed` px/s on the level,
+ * `rollDown` downhill and `rollUp` uphill, measured along the ground. A wall leaves it dazed for `dazedSteps` (1.0 s), kicking its feet
+ * in the last `kickSteps` (0.5 s, drawn only).
+ */
+export const ARMADILLO = {
+  width: 16,
+  height: 12,
+  walkSpeed: 20,
+  sightX: 80,
+  sightY: 24,
+  tuckSteps: Math.round(0.5 * TICK_HZ),
+  flashOn: 4,
+  flashOff: 4,
+  rollSpeed: 130,
+  rollDown: 160,
+  rollUp: 100,
+  dazedSteps: Math.round(1.0 * TICK_HZ),
+  kickSteps: Math.round(0.5 * TICK_HZ),
+} as const;
+
+/**
  * GDD-BOS-02: Don Zopilote, World 1's boss, a `width` x `height` px box (three times the Zopilote). He laps an ellipse `rx` px either
  * side and `ry` px above and below the middle the level gives in `lapSteps` (4.0 s), dropping a cactus fruit at the lap steps in `dropAt`,
  * then freezes for his telegraph, `telegraphSteps` (0.5 s, GDD-ENM-01). Phases 1 and 3 dive at `diveSpeed` and `fastDiveSpeed` px/s and

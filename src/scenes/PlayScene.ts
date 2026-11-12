@@ -8,7 +8,7 @@ import { isBossLevel, levelBoss } from '../sim/bossLevel';
 import { centre, enemyPhase, feetOf, kindOf, type EnemyKind } from '../sim/enemy';
 import { defeatLook, stepDefeats, type DefeatFx } from '../ui/defeatFx';
 import { frameLook, SHEETS, type EnemyLook, type Sheet } from '../ui/enemyLooks';
-import { enemyPose } from '../ui/enemyPose';
+import { ARMADILLO_PLACEHOLDER, armadilloBox, enemyPose } from '../ui/enemyPose';
 import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, unlockedAbilities, withUnlocks, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
 import ponchoPng from '../../assets/sprites/poncho.png';
@@ -703,6 +703,8 @@ export class PlayScene extends Phaser.Scene {
   private enemiesPainted: ReturnType<PonchoDebug['enemiesDrawn']> = [];
   /** GDD-ENM-02: World 1's enemies' sprites, and the defeat effects' (`defeatFx`), each a pool of images reused frame to frame. */
   private enemyImages: Phaser.GameObjects.Image[] = [];
+  /** GDD-ENM-04: the Armadillos' placeholder boxes. placeholder until armadillo.png (run B2) */
+  private armadilloGfx!: Phaser.GameObjects.Graphics;
   private defeatImages: Phaser.GameObjects.Image[] = [];
   private defeats: readonly DefeatFx[] = [];
   private defeatsPainted: ReturnType<PonchoDebug['defeatsDrawn']> = [];
@@ -1067,6 +1069,7 @@ export class PlayScene extends Phaser.Scene {
     this.glowCopies = glowOffsets().map(() => this.add.image(0, 0, 'poncho', ponchoFrame('idle')).setOrigin(0.5, 1).setScale(1 / ART_SCALE).setDepth(2.9).setTintMode(Phaser.TintModes.FILL).setVisible(false));
     this.glowSparks = Array.from({ length: GLOW_FX_MAX }, () => this.add.image(0, 0, 'poncho-glow', 0).setScale(1 / ART_SCALE).setDepth(3.4).setVisible(false));
     this.fireballGfx = this.add.graphics().setDepth(4);
+    this.armadilloGfx = this.add.graphics().setDepth(3); // placeholder until armadillo.png (run B2)
     this.bossSprite = this.add.image(0, 0, 'boss', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3).setVisible(false);
     this.crownSprite = this.add.image(0, 0, 'boss-crown', 0).setOrigin(0.5, 1).setScale(1 / ART_SCALE).setDepth(3).setVisible(false);
     // GDD-UI-01: below the HUD (depth 10): she passes behind the boss bar.
@@ -1784,10 +1787,17 @@ export class PlayScene extends Phaser.Scene {
     this.enemiesPainted = [];
     const ctx = { clock: this.run.clock, poncho: centre(this.run.player) };
     let sprites = 0;
+    this.armadilloGfx.clear();
     this.level.enemies.forEach((def, i) => {
       const e = this.run.enemies[i]!;
       if (!e.alive) return;
       const kind = kindOf(def);
+      // placeholder until armadillo.png (run B2): a box in timber lit (`armadilloBox`), not in the debug hook's list.
+      if (kind === 'armadillo') {
+        const b = armadilloBox(def, e);
+        this.armadilloGfx.fillStyle(ARMADILLO_PLACEHOLDER, 1).fillRect(b.x, b.y, b.w, b.h);
+        return;
+      }
       const pose = enemyPose(def, e, ctx);
       const image = this.poolImage(this.enemyImages, sprites++, kind, pose.frame, pose.flip).setPosition(pose.x, pose.y);
       // L-010: read back from the image: where it stands, its frame's look and its mirroring, not the pose.
