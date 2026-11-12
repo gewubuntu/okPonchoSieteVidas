@@ -5,7 +5,7 @@
 //   cannot glide into for good (a step at its near side lets him out); a stone lip over solid ground 5 tiles down, where height buys
 //   distance and a held jump lands 17 tiles on.
 // - Shō, columns 64 to 135: real pits. A 7-tile chasm only the glide crosses; a pen whose Alacrán a rock-to-rock glide passes over; the
-//   first Murciélago alone over flat ground, half its loop in his way; a 9-tile chasm with a bat bobbing under the glide's line.
+//   first Murciélago alone over flat ground, half its loop in his way; a 9-tile chasm with a bat down in it, under every flight across.
 // - Ten, columns 136 to 186: the ledges fall, and the path folds back down a cliff face. Two crumbling ledges over a floor (F1) that
 //   catches a miss, where a held glide overshoots and he learns to let go; a glide along F1 into a shaft; the middle gallery right to left
 //   over a crumbling floor that drops him into the lower gallery, the way on; a second pen there; then two crumbling ledges as the only
@@ -163,13 +163,13 @@ const PINATAS: readonly Pinata[] = [
 
 /**
  * GDD-ENM-02, GDD-ENM-04: where the enemies start, in this order: the Alacrán of the first pen; the first Murciélago alone over flat
- * ground; the bat under the second chasm's glide (F1, under the ledges of Ten, has no enemy); the Alacrán of the lower pen; the patrol
+ * ground; the bat down in the second chasm, under every flight that crosses it (F1, under the ledges of Ten, has no enemy); the Alacrán of the lower pen; the patrol
  * bat at the Ketsu ledge's far end, at body height; the two bats of the last glide, the second half a loop behind.
  */
 export const LEVEL_3_1_ENEMIES: readonly Enemy[] = [
   { x: mid(82), y: 15 * TILE },
   { x: mid(93), y: 188, kind: 'murcielago', ry: 24 },
-  { x: mid(108), y: 230, kind: 'murcielago', ry: 24 },
+  { x: mid(108), y: 320, kind: 'murcielago', ry: 24 },
   { x: mid(LOWER_PEN.rock0 + 4), y: 38 * TILE },
   { x: mid(214), y: 672, kind: 'murcielago', rx: 16 },
   { x: mid(220), y: 680, kind: 'murcielago', ry: 24 },

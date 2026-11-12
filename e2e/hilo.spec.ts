@@ -182,11 +182,13 @@ test('GDD-UI-01 the hilo counter is drawn with a dark outline, its digits where 
   expect(glyph.length).toBeGreaterThan(0);
   const left = Math.min(...glyph.map((p) => p.x));
   const top = Math.min(...glyph.map((p) => p.y));
-  // The digits sit where the hook says (measured: their rightmost pale column 1.1 and 1.4 game px inside its right edge on the desktop and
-  // the phone, the "0" narrower than its cell; their top 1.9 and 2.1 px under its top, the font's capitals under the line's top).
+  // The digits sit in the box the hook gives, whatever the monospace font: their rightmost pale column at most 2 game px inside its right
+  // edge, and their top at or under its top (the text object's top plus half its stroke) and within the 8 px line. The font's ascent moves
+  // the top: measured 1.9 game px under it on the desktop here and 2.1 on the phone, 0.75 on CI's runner (another font); the right edge 1.1
+  // and 1.4 here, 1.1 on CI.
   const fromRight = (px[0]!.length - 1 - Math.max(...glyph.map((p) => p.x))) / k;
   const fromTop = (top - edge) / k;
-  expect([fromRight >= 0 && fromRight <= 2, fromTop >= 1 && fromTop <= 3], `${fromRight}, ${fromTop}`).toEqual([true, true]);
+  expect([fromRight >= 0 && fromRight <= 2, fromTop >= 0.5 && fromTop <= 4], `${fromRight}, ${fromTop}`).toEqual([true, true]);
   // Dark pixels lie within 1 game px left of the leftmost pale column and above the topmost pale row, on the rows and columns of it.
   const leftOf = glyph.filter((p) => p.x === left).some((p) => Array.from({ length: edge }, (_, j) => px[p.y]![p.x - 1 - j]).some((c) => c !== undefined && dark(c)));
   const above = glyph.filter((p) => p.y === top).some((p) => Array.from({ length: edge }, (_, j) => px[p.y - 1 - j]?.[p.x]).some((c) => c !== undefined && dark(c)));
