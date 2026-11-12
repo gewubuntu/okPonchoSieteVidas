@@ -22,6 +22,7 @@ import { LAB_2M_LEVEL } from './lab2m';
 import { LAB_2E_ID, LAB_2E_LEVEL } from './lab2e';
 import { LAB_3C_ID, LAB_3C_LEVEL } from './lab3c';
 import { LAB_3T_ID, LAB_3T_LEVEL } from './lab3t';
+import { LAB_3M_ID, LAB_3M_LEVEL } from './lab3m';
 
 export interface LevelEntry {
   readonly id: string;
@@ -33,6 +34,11 @@ export interface LevelEntry {
   readonly tips?: readonly Tip[];
   /** GDD-UI-02: the id of the level the press that ends its level clear screen starts. Left out, that press brings back the title screen. */
   readonly next?: string;
+  /**
+   * GDD-ART-06: a World 3 level's place, which chooses its backdrop, ground sheet and decor sheet: the canyon (`barranca`) or the mine
+   * (`mina`). Left out, the canyon. Only World 3 levels choose one (the validator refuses it elsewhere).
+   */
+  readonly place?: 'barranca' | 'mina';
 }
 
 /** GDD-UI-02: the tutorial level's id. */
@@ -64,6 +70,8 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: LAB_3C_ID, world: 3, test: true, level: LAB_3C_LEVEL },
   // GDD-UI-04: the tall lab, a World 3 test level 40 rows tall, for the camera up and down.
   { id: LAB_3T_ID, world: 3, test: true, level: LAB_3T_LEVEL },
+  // GDD-ART-06: the mine lab, a World 3 test level drawn in the mine's look.
+  { id: LAB_3M_ID, world: 3, test: true, level: LAB_3M_LEVEL, place: 'mina' },
 ];
 
 /** GDD-PRG-02: the levels whose progress is saved (the real ones, not the test level), by id, with their hilo counts: what `readSave` needs to read their entries. */
@@ -80,7 +88,7 @@ export const worldLevels = (world: number): readonly LevelEntry[] => LEVELS.filt
 
 /**
  * GDD-LIFE-05, GDD-PRG-02: the worlds whose lives the save keeps: those of the seven worlds that have a real level (Worlds 1, 2 and 3; a
- * test level, such as the sandbox, the World 2 labs lab-2m and lab-2e or the World 3 labs lab-3c and lab-3t, adds no world).
+ * test level, such as the sandbox, the World 2 labs lab-2m and lab-2e or the World 3 labs lab-3c, lab-3t and lab-3m, adds no world).
  */
 export const SAVED_WORLDS: readonly number[] = [...new Set(LEVELS.filter((e) => e.world >= 1 && !e.test).map((e) => e.world))];
 

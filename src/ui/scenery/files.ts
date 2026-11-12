@@ -1,5 +1,5 @@
 // GDD-ART-06: the image files of each art set (`scripts/art/make-desert.mjs`, `scripts/art/make-mercado.mjs`, `scripts/art/make-sierra.mjs`),
-// as URLs Vite serves. Only the files of the level's world are loaded (GDD-TEC-03).
+// as URLs Vite serves. Only the files of the level's world, and in World 3 of its place, are loaded (GDD-TEC-03).
 import desiertoSkyStrips from '../../../assets/sprites/desierto/sky-strips.png';
 import desiertoSun from '../../../assets/sprites/desierto/sun.png';
 import desiertoCloud0 from '../../../assets/sprites/desierto/cloud-0.png';
@@ -27,7 +27,12 @@ import sierraFarBarranca from '../../../assets/sprites/sierra/far-barranca.png';
 import sierraMidBarranca from '../../../assets/sprites/sierra/mid-barranca.png';
 import sierraGround from '../../../assets/sprites/sierra/ground.png';
 import sierraDecor from '../../../assets/sprites/sierra/decor.png';
-import type { ArtSet } from './looks';
+import minaSkyStrip from '../../../assets/sprites/sierra/sky-mina.png';
+import minaFar from '../../../assets/sprites/sierra/far-mina.png';
+import minaMid from '../../../assets/sprites/sierra/mid-mina.png';
+import minaGround from '../../../assets/sprites/sierra/ground-mina.png';
+import minaDecor from '../../../assets/sprites/sierra/decor-mina.png';
+import type { ArtSet, Place } from './looks';
 
 export interface ArtFiles {
   /** The sky's dither strips, one frame per strip. */
@@ -75,3 +80,18 @@ export const FILES: Readonly<Record<ArtSet, ArtFiles>> = {
     decor: sierraDecor,
   },
 };
+
+/** GDD-ART-06: the mine's images (`scripts/art/sierra-mina.mjs`): the roof band's dither strip, no sun and no clouds. */
+const MINA_FILES: ArtFiles = {
+  skyStrips: minaSkyStrip,
+  sun: null,
+  clouds: [],
+  far: minaFar,
+  mid: minaMid,
+  plaza: null,
+  ground: minaGround,
+  decor: minaDecor,
+};
+
+/** GDD-ART-06, GDD-TEC-03: the files a level of art set `set` in `place` loads: the mine's in the mine, else its set's. */
+export const artFiles = (set: ArtSet, place: Place | null): ArtFiles => (place === 'mina' ? MINA_FILES : FILES[set]);

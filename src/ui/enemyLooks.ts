@@ -12,6 +12,17 @@ export const CHAPULIN_LOOKS = ['crouch0', 'crouch1', 'tele', 'teleRed', 'rise', 
 export const TROMPO_LOOKS = ['spin0', 'spin1', 'spin2', 'spin3', 'stun', 'stunWobble', 'squash'] as const;
 export const MURCIELAGO_LOOKS = ['flap0', 'flap1', 'flap2', 'flap3', 'squash', 'hit'] as const;
 export const POOF_LOOKS = ['poof0', 'poof1', 'poof2', 'poof3'] as const;
+/**
+ * GDD-ENM-04 (Proposed): the Armadillo's sheet (`scripts/art/enemies3/armadillo.mjs`), cells of 28 x 16 game px, and the box each look is
+ * drawn in within its cell, in game px: walking and dazed the whole cell, the tuck and the roll its 20 x 16 middle. Not in `SHEETS` yet: its
+ * rules come with 3-2.
+ */
+export const ARMADILLO_LOOKS = ['walk0', 'walk1', 'walk2', 'walk3', 'tuck', 'tuckRed', 'roll0', 'roll1', 'roll2', 'roll3', 'dazed', 'dazedKick'] as const;
+const WIDE = { x: 0, y: 0, w: 28, h: 16 } as const;
+const BALL = { x: 4, y: 0, w: 20, h: 16 } as const;
+export const ARMADILLO_LOOK_BOXES: Readonly<Record<(typeof ARMADILLO_LOOKS)[number], { readonly x: number; readonly y: number; readonly w: number; readonly h: number }>> = {
+  walk0: WIDE, walk1: WIDE, walk2: WIDE, walk3: WIDE, tuck: BALL, tuckRed: BALL, roll0: BALL, roll1: BALL, roll2: BALL, roll3: BALL, dazed: WIDE, dazedKick: WIDE,
+};
 
 /** The sheets: World 1's four kinds, World 2's three, World 3's Murciélago and the poof. */
 export const ENEMY_LOOKS = { alacran: ALACRAN_LOOKS, zopilote: ZOPILOTE_LOOKS, cactus: CACTUS_LOOKS, tlacuache: TLACUACHE_LOOKS, paloma: PALOMA_LOOKS, chapulin: CHAPULIN_LOOKS, trompo: TROMPO_LOOKS, murcielago: MURCIELAGO_LOOKS, poof: POOF_LOOKS } as const;

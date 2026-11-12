@@ -11,7 +11,7 @@ export const SLOPE_FRAME = 4;
 export const FOOT_FRAME = 16;
 
 /** The version of tile (tx, ty): (7 x column + 3 x row) mod 2, which alternates like a checkerboard. */
-const version = (tx: number, ty: number): number => (7 * tx + 3 * ty) % 2;
+export const version = (tx: number, ty: number): number => (7 * tx + 3 * ty) % 2;
 
 /** Whether the solid tile at (`tx`, `ty`) is a top tile: nothing solid directly above it, or it is in the level's top row. */
 export const isTopTile = (solid: (tx: number, ty: number) => boolean, tx: number, ty: number): boolean => ty === 0 || !solid(tx, ty - 1);

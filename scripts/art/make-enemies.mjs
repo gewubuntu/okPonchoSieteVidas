@@ -1,5 +1,5 @@
 // Writes the enemy sprites to assets/sprites/enemies/ (GDD-ENM-02, GDD-ENM-03, GDD-ENM-04, GDD-ART-05): World 1's alacran.png, zopilote.png,
-// cactus.png and tlacuache.png, World 2's paloma.png, chapulin.png and trompo.png, World 3's murcielago.png, and poof.png, each one row of
+// cactus.png and tlacuache.png, World 2's paloma.png, chapulin.png and trompo.png, World 3's murcielago.png and armadillo.png, and poof.png, each one row of
 // its frames in the order of its module's LOOKS, each frame FRAME.w x FRAME.h drawing px (2 x 2 art px each). The drawings are in
 // scripts/art/enemies1/, scripts/art/enemies2/ and scripts/art/enemies3/. The PNGs are committed, so only run this after changing a drawing
 // (scripts/art/enemies1.test.mjs, scripts/art/enemies2.test.mjs and scripts/art/enemies3.test.mjs check they match).
@@ -15,13 +15,14 @@ import * as zopilote from './enemies1/zopilote.mjs';
 import * as chapulin from './enemies2/chapulin.mjs';
 import * as paloma from './enemies2/paloma.mjs';
 import * as trompo from './enemies2/trompo.mjs';
+import * as armadillo from './enemies3/armadillo.mjs';
 import * as murcielago from './enemies3/murcielago.mjs';
 import { encodePng } from './png.mjs';
 
 const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'sprites', 'enemies');
 
 /** The drawing modules, by the name of their sheet. */
-export const KINDS = { alacran, zopilote, cactus, tlacuache, paloma, chapulin, trompo, murcielago, poof };
+export const KINDS = { alacran, zopilote, cactus, tlacuache, paloma, chapulin, trompo, murcielago, armadillo, poof };
 
 const png = (grid) => encodePng(grid.width, grid.height, grid.toRgba());
 

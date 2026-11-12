@@ -110,6 +110,21 @@ export const LEVEL_3_1_PIECES: readonly Piece[] = [
   { col0: 161, col1: 164, row0: 17, row1: 31 },
 ];
 
+/**
+ * GDD-WLD-17, GDD-WLD-16: the rock back walls behind the two galleries, so the fold reads as cut into the cliff, from under F1 down to the
+ * lower gallery's floor (nothing above F1, the open cliff face): (a) under F1 and over F2, from the cliff's face to the buttress, F2's own
+ * row too, where the shaft and the crumbling floor are; (b) under F2 down to the floor, as far right as the buttress, the gallery's roof,
+ * goes (it opens to the sky at column 165).
+ */
+const BACK_WALLS: Level['backWalls'] = (() => {
+  const [f1, , f2, , buttress] = LEVEL_3_1_PIECES;
+  const floor = groundRow(f1!.col0)!;
+  return [
+    { col0: f1!.col0, col1: buttress!.col0 - 1, row0: f1!.row1 + 1, row1: f2!.row0 },
+    { col0: f1!.col0, col1: buttress!.col1, row0: f2!.row0 + 1, row1: floor - 1 },
+  ];
+})();
+
 /** A crumbling ledge over columns `col0` to `col1`, one tile thick at `row`. */
 const ledge = (col0: number, col1: number, row: number): Stretch => ({ col0, col1, row });
 
@@ -237,4 +252,5 @@ export const LEVEL_3_1: Level = {
   // GDD-PRG-01: World 3's levels are never played without the glide.
   abilities: { glide: true },
   bottoms: LEVEL_3_1_BOTTOMS,
+  backWalls: BACK_WALLS,
 };

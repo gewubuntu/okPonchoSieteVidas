@@ -237,5 +237,5 @@ test("GDD-UI-02 2-4's clear offers Next level, which starts 3-1 with seven lives
   await page.waitForFunction(() => window.__PONCHO__!.level() === '3-1' && window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2);
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false);
-  expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'sierra', midKey: 'sierra:mid' });
+  expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'sierra', midKey: 'sierra:mid', place: 'barranca' });
 });

@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BACKDROP, BACKDROP_ART, PLANTS, TILE } from '../../config/tuning';
+import { BACKDROP, BACKDROP_ART, PLANTS, SIERRA_MINA, TILE } from '../../config/tuning';
 import { LEVELS } from '../../levels';
 import { cameraLimits } from '../camera';
-import { artSetFor, LOOKS, midImage, riseShift, textureKey, VERTICAL_FACTOR, type BackdropLayer } from './looks';
+import { artSetFor, imageKey, lookFor, LOOKS, midImage, placeFor, riseShift, textureKey, VERTICAL_FACTOR, type BackdropLayer } from './looks';
 
 /** A PNG's width and height in art px, read from its header. */
 const pngSize = (set: string, file: string): [number, number] => {
@@ -35,6 +35,7 @@ describe('GDD-ART-06 a look per world', () => {
       'lab-2e': 'mercado',
       'lab-3c': 'sierra',
       'lab-3t': 'sierra',
+      'lab-3m': 'sierra',
     });
   });
 
@@ -140,6 +141,57 @@ describe('GDD-ART-06 a look per world', () => {
     expect(pngSize('mercado', 'decor.png')).toEqual([7 * 16 * 4, 40 * 4]);
     expect(Math.max(...m.decor.map((d) => d.w))).toBe(16);
     expect(Math.max(...m.decor.map((d) => d.h))).toBe(40);
+  });
+});
+
+describe('GDD-ART-06 a World 3 level chooses its place', () => {
+  it('GDD-ART-06 place of every World 3 level: 3-1 and the canyon labs the barranca, lab-3m the mine, none outside World 3', () => {
+    const places = Object.fromEntries(LEVELS.map((e) => [e.id, placeFor(e.world, e.place)]));
+    expect(Object.fromEntries(Object.entries(places).filter(([, p]) => p !== null))).toEqual({ '3-1': 'barranca', 'lab-3c': 'barranca', 'lab-3t': 'barranca', 'lab-3m': 'mina' });
+    // Left out, a World 3 level's place is the barranca; outside World 3 there is none, whatever is asked.
+    expect([placeFor(3), placeFor(3, 'mina'), placeFor(2), placeFor(2, 'mina'), placeFor(1, 'barranca')]).toEqual(['barranca', 'mina', null, null, null]);
+  });
+
+  it('GDD-ART-06 the canyon look is the Sierra look, every other set keeps its own', () => {
+    expect(lookFor('sierra', 'barranca')).toBe(LOOKS.sierra);
+    expect(lookFor('mercado', null)).toBe(LOOKS.mercado);
+    expect(lookFor('desierto', null)).toBe(LOOKS.desierto);
+  });
+
+  it('GDD-ART-06 mine look: the roof band and the gallery wall, no sun and no cloud layer, the foot gallery deep, the mine decor', () => {
+    const m = lookFor('sierra', 'mina');
+    expect([m.cloudFactor, m.farFactor, m.midFactor]).toEqual([0.1, 0.3, 0.5]);
+    // Gallery deep from y 0 to 40 (160 art px), gallery base below it, the camera's background.
+    expect(m.skyBands).toEqual([0x221d2e, 0x3d3650]);
+    expect(m.skyEnds).toEqual([160]);
+    expect(m.stripArt).toBe(2);
+    expect(m.sun).toBeNull();
+    expect(m.clouds).toEqual([]);
+    expect(m.footColour).toBe(0x221d2e);
+    // The far band from y 40 to 200, the mid band from 100 to the floor's top at 224.
+    expect([m.farTop, m.farTop + m.farBandArt / 4]).toEqual([40, 200]);
+    expect([m.midTop, m.midTop + m.midBandArt / 4]).toEqual([100, 224]);
+    // Ore heap 14 x 8, timber stack 16 x 10, barrel 10 x 12, pick and shovel 12 x 16, ore bucket 10 x 10, lantern on a peg post 8 x 24, ore sacks 14 x 10.
+    expect(m.decor.map((d) => [d.w, d.h])).toEqual([[14, 8], [16, 10], [10, 12], [12, 16], [10, 10], [8, 24], [14, 10]]);
+    expect(m.decor).toBe(SIERRA_MINA.decor);
+  });
+
+  it('GDD-ART-06 the mine images have texture keys of their own, the canyon ones keep theirs', () => {
+    const images = ['sky-strips', 'far', 'mid', 'ground', 'decor'];
+    expect(images.map((i) => imageKey('sierra', 'barranca', i))).toEqual(['sierra:sky-strips', 'sierra:far', 'sierra:mid', 'sierra:ground', 'sierra:decor']);
+    expect(images.map((i) => imageKey('sierra', 'mina', i))).toEqual(['sierra:sky-strips-mina', 'sierra:far-mina', 'sierra:mid-mina', 'sierra:ground-mina', 'sierra:decor-mina']);
+    expect(imageKey('mercado', null, 'plaza')).toBe('mercado:plaza');
+  });
+
+  it('GDD-ART-06 mine files are the sizes the scene loads', () => {
+    const m = lookFor('sierra', 'mina');
+    expect(pngSize('sierra', 'sky-mina.png')).toEqual([1920, m.stripArt * m.skyEnds.length]);
+    expect(pngSize('sierra', 'far-mina.png')).toEqual([1920, m.farBandArt]);
+    expect(pngSize('sierra', 'mid-mina.png')).toEqual([1920, m.midBandArt]);
+    expect(pngSize('sierra', 'ground-mina.png')).toEqual([28 * 64, 64]);
+    expect(pngSize('sierra', 'decor-mina.png')).toEqual([7 * 16 * 4, 40 * 4]);
+    expect(Math.max(...m.decor.map((d) => d.w))).toBe(16);
+    expect(Math.max(...m.decor.map((d) => d.h))).toBe(24);
   });
 });
 

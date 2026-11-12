@@ -38,6 +38,11 @@ import fxPng from '../../assets/sprites/poncho/fx.png';
 import fantasmaPng from '../../assets/sprites/poncho/fantasma.png';
 import glowPng from '../../assets/sprites/poncho/glow.png';
 import ledgePng from '../../assets/sprites/sierra/ledge.png';
+import backwallPng from '../../assets/sprites/sierra/backwall.png';
+import railPng from '../../assets/sprites/sierra/rail.png';
+import bufferPng from '../../assets/sprites/sierra/buffer.png';
+import postPng from '../../assets/sprites/sierra/post.png';
+import vagonetaPng from '../../assets/sprites/sierra/vagoneta.png';
 import ofrendaOgg from '../../assets/audio/sfx/ofrenda.ogg';
 import ofrendaMp3 from '../../assets/audio/sfx/ofrenda.mp3';
 import jumpOgg from '../../assets/audio/sfx/jump.ogg';
@@ -69,8 +74,9 @@ import { estrellaStart } from '../sim/estrella';
 import { estrellaFrameInfo, estrellaPose, tejocoteBoxes } from '../ui/estrellaPose';
 import { flipPose } from '../sim/respawnFlip';
 import { blockAt } from '../sim/block';
-import { cartFloor, fallingBox, railGround, railLength, warningPost, type CartState } from '../sim/cart';
-import { cartPose, WHEEL_OFFSET } from '../ui/cartPose';
+import { cartFloor, fallingBox, railGround, type CartState } from '../sim/cart';
+import { cartPose } from '../ui/cartPose';
+import { BUFFER_SIZE, CART_LOOKS, CART_SIZE, cartLook, POST_SIZE, RAIL_ART, RAIL_FRAMES, railLook, type CartLook } from '../ui/railLook';
 import { platformAt } from '../sim/platform';
 import { buttonsDown, respawnPoint, restartRun, restarts, resumeRun, startRun, stepRun, type Level, type RunState } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
@@ -206,7 +212,8 @@ export interface PonchoDebug {
   /**
    * How far the backdrop's clouds, far band (`mountains`: World 1's mountains, World 2's hill town) and mid band (`desert`: the far desert
    * strip, World 2's rooftops or its arena's plaza) are shifted (GDD-ART-06), in game px, read back from what was drawn: the clouds from
-   * where the first cloud's image stands against its place at the start, the two bands from their layers' `tilePositionX / ART_SCALE`.
+   * where the first cloud's image stands against its place at the start (0 in the mine, which has no clouds), the two bands from their
+   * layers' `tilePositionX / ART_SCALE`.
    */
   backdrop(): { clouds: number; mountains: number; desert: number };
   /**
@@ -214,8 +221,11 @@ export interface PonchoDebug {
    * in a world without a sun), the top of the far band (`mountainsY`) and of its flat foot, the top of the mid band (`desertY`).
    */
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number };
-  /** The art set the scenery is drawn from (`desierto`, `mercado`) and the texture key of the drawn mid band (`mercado:plaza` in World 2's arena) (GDD-ART-06). */
-  scenery(): { set: string; midKey: string };
+  /**
+   * The art set the scenery is drawn from (`desierto`, `mercado`, `sierra`), the texture key of the drawn mid band (`mercado:plaza` in World
+   * 2's arena, `sierra:mid-mina` in the mine) and, in a World 3 level only, its place (`barranca` or `mina`) (GDD-ART-06).
+   */
+  scenery(): { set: string; midKey: string; place?: string };
   /** The frame of the ground sheet drawn at tile (tx, ty), or null where no ground image is (GDD-ART-06), whether the image is shown or not. Read from the drawn image. */
   groundFrame(tx: number, ty: number): number | null;
   /**
@@ -224,6 +234,15 @@ export interface PonchoDebug {
    * widened by 2 tiles on every side, are shown.
    */
   groundShown(): { shown: number; total: number };
+  /**
+   * GDD-WLD-17, GDD-TEC-03: the rock back wall as drawn: how many of its images are shown (`shown`, read from the images' visibility as last
+   * set, by the frame or the debug `step` that last drew; only those in the camera's view, the screen widened by 2 tiles on every side), how
+   * many there are (`total`, one per tile of the level's back walls that is not solid and holds no slope), and the depth they are drawn at
+   * (null in a level with none).
+   */
+  backWall(): { shown: number; total: number; depth: number | null };
+  /** GDD-WLD-17: the back wall's frame (its version, 0 or 1) drawn at tile (tx, ty), or null where no back wall image is, whether shown or not. Read from the drawn image. */
+  backWallFrame(tx: number, ty: number): number | null;
   /** The plants (World 2's decor) drawn in the level (GDD-ART-06): each one's kind (its frame in the sheet), where its foot is drawn (the middle of its tile, in game px) and its depth. Read from the drawn images. */
   plants(): { kind: number; x: number; y: number; depth: number }[];
   /**
@@ -381,9 +400,17 @@ export interface PonchoDebug {
    * or 'gone'). On its rail: its floor's left end and width (the cart's) and the floor's top under the cart's middle (8 px over the rail's
    * ground there; the floor follows the rail, so on a slope it is that much higher or lower under a Poncho standing off the middle). Falling
    * from a broken end: its box's left end, top, width and height (`h`). Gone: its phase only, no place. On its rail it also gives the `angle`
-   * in degrees it was last drawn at (`cartPose`; positive clockwise on the screen: -45 with its right side up, 0 on level rail).
+   * in degrees it was last drawn at (`cartPose`; positive clockwise on the screen: -45 with its right side up, 0 on level rail). GDD-ART-06:
+   * `look`, the look it was last drawn with, read back from its back and front images ('standing' with its chock, 'rolling0' or
+   * 'rolling1'; left out when it is not drawn, gone), and `layers`, the depths of its back and front images (Poncho is drawn at 3).
    */
-  carts(): { x?: number; y?: number; w?: number; h?: number; angle?: number; phase: string }[];
+  carts(): { x?: number; y?: number; w?: number; h?: number; angle?: number; phase: string; look?: CartLook; layers?: { back: number; front: number } }[];
+  /**
+   * GDD-WLD-15, GDD-ART-06: the railway as drawn, counted from its images (`railLook`): `tiles`, the rail tiles (a broken end counts as
+   * one); `trestleBents`, the bents' tops (a bent's legs are not counted again); `buffers`; `posts`, the warning posts; `brokenEnds`, the
+   * rail tiles drawn as a broken end. Made once at the level's start, so the same all through it.
+   */
+  rails(): { tiles: number; trestleBents: number; buffers: number; posts: number; brokenEnds: number };
   /**
    * The crumbling tiles and their state, read from the run (GDD-WLD-05), and how each was last drawn, read from what was drawn: `look`,
    * 'ledge' where it is World 3's rock ledge image (GDD-ART-06, in a Sierra level) or 'placeholder' for the sandy tile; `x`, the drawn
@@ -616,10 +643,15 @@ export class PlayScene extends Phaser.Scene {
   /** GDD-WLD-10, GDD-WLD-11: the awnings, cordeles and rollos, in a level that has any. */
   private market: MarketThings | null = null;
   private blockGfx!: Phaser.GameObjects.Graphics;
-  /** GDD-WLD-15: the rails and buffers (drawn once), each cart's back wall behind Poncho and its front wall in front of him, and the carts drawn on the step before. */
-  private railGfx!: Phaser.GameObjects.Graphics;
-  private cartBackGfx!: Phaser.GameObjects.Graphics;
-  private cartFrontGfx!: Phaser.GameObjects.Graphics;
+  /**
+   * GDD-WLD-15, GDD-ART-06: the railway's images (`railLook`, made once: rails do not move), each cart's back layer behind Poncho and its
+   * front layer in front of him, and the carts on the step before.
+   */
+  private railImages: Phaser.GameObjects.Image[] = [];
+  private cartBackImages: Phaser.GameObjects.Image[] = [];
+  private cartFrontImages: Phaser.GameObjects.Image[] = [];
+  /** GDD-ART-06: the look of each cart on its last rolling step, which it keeps while stopped or falling (`cartLook`). */
+  private cartLast: CartLook[] = [];
   private prevCarts: readonly CartState[] = [];
   /** GDD-WLD-15: the angle each cart on its rail was last drawn at, in degrees (`cartPose`), for the debug `carts()`. */
   private cartAngles: number[] = [];
@@ -887,7 +919,7 @@ export class PlayScene extends Phaser.Scene {
     this.world = entry.level.world;
     this.floorY = entry.level.spawn.y;
     this.cameraBounds = cameraLimits(entry.level.world.height * TILE);
-    this.scenery = sceneryFor(entry.world, isBossLevel(entry.level));
+    this.scenery = sceneryFor(entry.world, isBossLevel(entry.level), entry.place);
     // GDD-UI-02: started by a pick, it plays at once, with no title screen.
     this.holdAtStart = direct;
     if (direct) this.title = { ...TITLE, shown: false };
@@ -942,6 +974,16 @@ export class PlayScene extends Phaser.Scene {
     if (hasMarketThings(this.level)) loadMarketThings(this);
     // GDD-WLD-05, GDD-ART-06: World 3's rock ledge, its two frames a tile each, only in a Sierra level with crumbling tiles (GDD-TEC-03).
     if (this.drawsLedges()) this.load.spritesheet(textureKey('sierra', 'ledge'), ledgePng, { frameWidth: TILE * ART_SCALE, frameHeight: TILE * ART_SCALE });
+    // GDD-WLD-17: the rock back wall, its two versions a tile each, only in a level that has back walls (GDD-TEC-03).
+    if ((this.level.backWalls ?? []).length > 0) this.load.spritesheet(textureKey('sierra', 'backwall'), backwallPng, { frameWidth: TILE * ART_SCALE, frameHeight: TILE * ART_SCALE });
+    // GDD-WLD-15, GDD-ART-06: World 3's railway sheets, only in a level with rails (GDD-TEC-03).
+    if ((this.level.rails ?? []).length > 0) {
+      const sheet = (name: string, png: string, size: { w: number; h: number }) => this.load.spritesheet(textureKey('sierra', name), png, { frameWidth: size.w * ART_SCALE, frameHeight: size.h * ART_SCALE });
+      sheet('rail', railPng, RAIL_ART);
+      sheet('buffer', bufferPng, BUFFER_SIZE);
+      sheet('post', postPng, POST_SIZE);
+      sheet('vagoneta', vagonetaPng, CART_SIZE);
+    }
   }
 
   /** GDD-ART-06: a level drawn in the Sierra look dresses its crumbling tiles as the rock ledge; every other keeps the placeholder. */
@@ -1046,10 +1088,12 @@ export class PlayScene extends Phaser.Scene {
     this.platformGfx = this.add.graphics().setDepth(1);
     this.market = hasMarketThings(this.level) ? new MarketThings(this, this.level) : null;
     this.blockGfx = this.add.graphics().setDepth(1);
-    this.railGfx = this.add.graphics().setDepth(1);
     this.drawRails();
-    this.cartBackGfx = this.add.graphics().setDepth(2.5);
-    this.cartFrontGfx = this.add.graphics().setDepth(3.2);
+    // GDD-WLD-15: each cart's back layer behind Poncho (depth 3), its front layer in front of him.
+    const rails = this.level.rails ?? [];
+    this.cartBackImages = rails.map(() => this.add.image(0, 0, textureKey('sierra', 'vagoneta'), 0).setScale(1 / ART_SCALE).setDepth(2.5).setVisible(false));
+    this.cartFrontImages = rails.map(() => this.add.image(0, 0, textureKey('sierra', 'vagoneta'), CART_LOOKS.length).setScale(1 / ART_SCALE).setDepth(3.2).setVisible(false));
+    this.cartLast = rails.map(() => 'rolling0');
     this.crumbleGfx = this.add.graphics().setDepth(1);
     // GDD-ART-06: at the placeholder's depth.
     this.ledgeImages = this.drawsLedges() ? this.level.crumbles.map((c) => this.add.image(c.col * TILE, c.row * TILE, textureKey('sierra', 'ledge'), 0).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1)) : null;
@@ -1337,6 +1381,8 @@ export class PlayScene extends Phaser.Scene {
         scenery: () => this.scenery.drawn(),
         groundFrame: (tx, ty) => this.scenery.groundFrame(tx, ty),
         groundShown: () => this.scenery.groundShown(),
+        backWall: () => this.scenery.backWall(),
+        backWallFrame: (tx, ty) => this.scenery.backWallFrame(tx, ty),
         plants: () => this.scenery.plants(),
         tip: () => this.tipPainted,
         tipsDone: () => this.tipsDoneNow,
@@ -1452,8 +1498,14 @@ export class PlayScene extends Phaser.Scene {
             const c = this.run.carts[i]!;
             if (c.phase === 'gone') return { phase: c.phase };
             const fell = fallingBox(r, c);
-            return fell ? { ...fell, phase: c.phase } : { ...cartFloor(r, c), phase: c.phase, angle: this.cartAngles[i] ?? 0 };
+            const drawn = this.cartLooks(i);
+            return fell ? { ...fell, phase: c.phase, ...drawn } : { ...cartFloor(r, c), phase: c.phase, angle: this.cartAngles[i] ?? 0, ...drawn };
           }),
+        rails: () => {
+          const frames = (names: readonly string[]) => this.railImages.filter((im) => im.texture.key === textureKey('sierra', 'rail') && names.includes(RAIL_FRAMES[Number(im.frame.name)]!)).length;
+          const of = (sheet: string) => this.railImages.filter((im) => im.texture.key === textureKey('sierra', sheet)).length;
+          return { tiles: frames(['level', 'slopeUp', 'slopeDown', 'broken']), trestleBents: frames(['bentLevel', 'bentUp', 'bentDown']), buffers: of('buffer'), posts: of('post'), brokenEnds: frames(['broken']) };
+        },
         crumbles: () => this.level.crumbles.map((c, i) => ({ ...c, ...this.run.crumbles[i]!, ...this.crumblesDrawn[i]! })),
         market: () => ({
           ...(this.market?.drawn ?? { awnings: [], rollos: [] }),
@@ -1649,124 +1701,80 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * GDD-WLD-15, GDD-ART-06 (placeholders in World 3's colours): each rail as two 1 px rows, steel over iron dark, 4 px over its ground and
-   * following its segments, on timber sleepers 4 px wide and 2 px tall every 8 px with the backdrop between them, no outline, so it does not read as a
-   * floor; and at its end a buffer, an outlined timber block 8 x 12 px standing on the ground past the rail's last px, or, at a broken end,
-   * splayed pale tips and its warning post 6 tiles before it (`drawPost`). Drawn once: rails do not move.
+   * GDD-WLD-15, GDD-ART-06: the railway, an image for each thing `railLook` lists: every rail tile on its sleepers, the trestle's stringers
+   * and bents where a rail has no ground under it, the buffers and the broken ends' warning posts, behind Poncho and the carts, in front of
+   * the ground tiles. Made once: rails do not move.
    */
   private drawRails(): void {
-    const g = this.railGfx;
-    for (const r of this.level.rails ?? []) {
-      const length = railLength(r);
-      const broken = r.end === 'broken';
-      for (let d = 0; d < length; d++) {
-        const x = r.dir > 0 ? r.x + d : r.x - d - 1;
-        const ground = Math.round(railGround(r, d + 0.5));
-        // A broken end: over its last 6 px the two rows bend up and apart (the top one 1 px a px, the lower one 1 px every 2), their tips
-        // mist white, and its last sleeper hangs by one end.
-        const k = broken ? d - (length - 6) : -1;
-        if (k >= 0) {
-          g.fillStyle(k >= 4 ? 0xeef1ea : 0x93a0ae, 1).fillRect(x, ground - 5 - k, 1, 1);
-          g.fillStyle(k >= 4 ? 0xeef1ea : 0x353a48, 1).fillRect(x, ground - 3 - Math.floor(k / 2), 1, 1);
-          if (k === 0) g.fillStyle(0x75614f, 1).fillRect(x - r.dir * 2, ground - 2, 2, 4);
-          continue;
-        }
-        if (d % 8 < 4) g.fillStyle(0x75614f, 1).fillRect(x, ground - 2, 1, 2);
-        g.fillStyle(0x93a0ae, 1).fillRect(x, ground - 4, 1, 1);
-        g.fillStyle(0x353a48, 1).fillRect(x, ground - 3, 1, 1);
-      }
-      const post = warningPost(r);
-      if (post) this.drawPost(post.x, post.y);
-      if (broken) continue;
-      const end = r.x + r.dir * length;
-      const ground = railGround(r, length);
-      const bx = r.dir > 0 ? end : end - 8;
-      g.fillStyle(0x070509, 1).fillRect(bx, ground - 12, 8, 12);
-      g.fillStyle(0x75614f, 1).fillRect(bx + 1, ground - 11, 6, 10);
-      g.fillStyle(0xa89480, 1).fillRect(bx + 1, ground - 11, 6, 1);
-    }
+    const rails = this.level.rails ?? [];
+    if (rails.length === 0) return;
+    this.railImages = railLook(this.level.world, rails, this.level.world.height).map((im) => {
+      const sheet = im.part === 'buffer' || im.part === 'post' ? im.part : 'rail';
+      const frame = sheet === 'rail' ? (RAIL_FRAMES as readonly string[]).indexOf(im.frame) : 0;
+      const image = this.add.image(im.x, im.y, textureKey('sierra', sheet), frame).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1).setFlipX(im.flip);
+      // A bent's top or leg that reaches the ground is drawn only down to it.
+      if (im.height < RAIL_ART.h && sheet === 'rail') image.setCrop(0, 0, RAIL_ART.w * ART_SCALE, im.height * ART_SCALE);
+      return image;
+    });
   }
 
   /**
-   * GDD-WLD-15, GDD-ART-06 (placeholder): a broken end's warning post standing on the ground at (x, ground), 8 x 24 px: a timber pole 2 px
-   * wide, a diamond board 8 x 8 at its top (outlined, a mist white rim round lamp amber, a dark line with a gap across it), and under the
-   * board a lit lantern 4 x 5 (outlined, lamp amber inside, 2 x 3 px). Drawn with the rails, behind Poncho and the carts.
-   */
-  private drawPost(x: number, ground: number): void {
-    const g = this.railGfx;
-    g.fillStyle(0x75614f, 1).fillRect(x - 1, ground - 16, 2, 16);
-    const top = ground - 24;
-    for (let row = 0; row < 8; row++) {
-      const half = row < 4 ? row + 1 : 8 - row;
-      g.fillStyle(0x070509, 1).fillRect(x - half, top + row, half * 2, 1);
-      if (half > 1) g.fillStyle(0xeef1ea, 1).fillRect(x - half + 1, top + row, half * 2 - 2, 1);
-      if (half > 2) g.fillStyle(0xf0a23a, 1).fillRect(x - half + 2, top + row, half * 2 - 4, 1);
-    }
-    g.fillStyle(0x353a48, 1).fillRect(x - 2, top + 4, 1, 1).fillRect(x + 1, top + 4, 1, 1);
-    g.fillStyle(0x070509, 1).fillRect(x - 2, ground - 16, 4, 5);
-    g.fillStyle(0xf0a23a, 1).fillRect(x - 1, ground - 15, 2, 3);
-  }
-
-  /**
-   * GDD-WLD-15, GDD-ART-06, GDD-ART-05 (placeholders): each cart, a rust tub 32 px wide with the 1 px dark outline of touchable things, from
-   * 16 px over the rail's ground down to its wheels on the rail. It is drawn rigid, standing on its two wheels and tilted with the rail under
-   * them (`cartPose`): level on level rail, 45 degrees on a slope, turning as its wheels pass a join. Its back wall and the dark inside are drawn behind Poncho, and its front
-   * wall, from 12 px over the ground to 4 px over it, in front of him, so it hides his feet on the floor 8 px over the ground wherever he
-   * stands in it, and he reads as standing in it. Drawn between the last two steps, like Poncho, so he does not slide in it. A cart falling
-   * from a broken end is drawn level at its box; a gone one is not drawn.
+   * GDD-WLD-15, GDD-ART-06: each cart, two images of the vagoneta sheet: its back layer (the back wall's rim and the dark inside) behind
+   * Poncho, its front layer (the front wall and the wheels) in front of him, so its front hides his feet on the floor 8 px over the rail's
+   * ground and he reads as standing in it. On its rail both are turned together with the rail under its wheels (`cartPose`: level on level
+   * rail, 45 degrees on a slope, turning as its wheels pass a join) about the floor under its middle, mirrored for a cart rolling left; the
+   * look by its state (`cartLook`). Drawn between the last two steps, like Poncho, so he does not slide in it. A cart falling from a broken end
+   * is drawn level at its box, in its last rolling look; a gone one is not drawn.
    */
   private renderCarts(alpha: number): void {
-    const back = this.cartBackGfx.clear();
-    const front = this.cartFrontGfx.clear();
     this.cartAngles = [];
     (this.level.rails ?? []).forEach((r, i) => {
       const now = this.run.carts[i]!;
       const was = this.prevCarts[i] ?? now;
-      // Gone, it is not drawn. Falling from a broken end, it is drawn level, from where it was (on the rail on the step it left it) to where it is.
-      if (now.phase === 'gone') return;
+      const back = this.cartBackImages[i]!;
+      const front = this.cartFrontImages[i]!;
+      const look = cartLook(now, this.run.clock, this.cartLast[i]!);
+      // Gone, it is not drawn.
+      if (look === null) {
+        for (const image of [back, front]) image.setVisible(false);
+        return;
+      }
+      const frame = CART_LOOKS.indexOf(look);
+      back.setFrame(frame).setVisible(true).setFlipX(r.dir < 0);
+      front.setFrame(CART_LOOKS.length + frame).setVisible(true).setFlipX(r.dir < 0);
+      // Falling from a broken end, it is drawn level, from where it was (on the rail on the step it left it) to where it is.
       const fell = fallingBox(r, now);
       if (fell) {
         const from = fallingBox(r, was) ?? { x: r.x + r.dir * was.m - CART.width / 2, y: railGround(r, was.m) - CART.height };
-        this.drawTub(from.x + (fell.x - from.x) * alpha, from.y + (fell.y - from.y) * alpha + CART.height);
+        const [x, y] = [from.x + (fell.x - from.x) * alpha, from.y + (fell.y - from.y) * alpha];
+        for (const image of [back, front]) image.setOrigin(0.5).setRotation(0).setPosition(x + CART.width / 2, y + CART.height / 2);
         return;
       }
       // A cart back at its start is drawn there, not slid back along its rail.
       const start = was.m > now.m || was.phase === 'falling' || was.phase === 'gone' ? now : was;
       const pose = cartPose(r, { ...now, m: start.m + (now.m - start.m) * alpha });
-      const angle = pose.angle;
-      this.cartAngles[i] = (angle * 180) / Math.PI;
-      if (angle === 0) {
-        this.drawTub(pose.x - CART.width / 2, pose.y + pose.bottom);
-        return;
-      }
-      // Tilted with the rail: drawn level with its floor line's middle on its pose's point, then turned there, front and back together.
-      for (const g of [back, front]) g.save().translateCanvas(pose.x, pose.y).rotateCanvas(angle);
-      this.drawTub(-CART.width / 2, pose.bottom);
-      for (const g of [back, front]) g.restore();
+      this.cartAngles[i] = (pose.angle * 180) / Math.PI;
+      // Turned about its pose's point, on its floor line at its middle, its bottom `pose.bottom` under it in its own frame.
+      for (const image of [back, front]) image.setOrigin(0.5, (CART.height - pose.bottom) / CART.height).setRotation(pose.angle).setPosition(pose.x, pose.y);
     });
   }
 
-  /**
-   * GDD-WLD-15 (placeholder): a cart's tub, level, its left end at `x` and its wheels on the ground at `ground`: the back wall's rim and the
-   * dark inside, outlined, behind Poncho; the front wall, rust under a steel rim, outlined, and two iron wheels with steel hubs, in front.
-   */
-  private drawTub(x: number, ground: number): void {
-    const back = this.cartBackGfx;
-    const front = this.cartFrontGfx;
-    for (let c = 0; c < CART.width; c++) {
-      const edge = c === 0 || c === CART.width - 1;
-      back.fillStyle(0x070509, 1).fillRect(x + c, ground - CART.height, 1, 11);
-      if (!edge) back.fillStyle(0x93a0ae, 1).fillRect(x + c, ground - 15, 1, 1).fillStyle(0x5a3b28, 1).fillRect(x + c, ground - 14, 1, 8);
-      front.fillStyle(0x070509, 1).fillRect(x + c, ground - 12, 1, 8);
-      if (!edge) front.fillStyle(0x93a0ae, 1).fillRect(x + c, ground - 12, 1, 1).fillStyle(0xb0562e, 1).fillRect(x + c, ground - 11, 1, 6);
-    }
-    // Each wheel's middle WHEEL_OFFSET from the tub's middle.
-    for (const wx of [CART.width / 2 - WHEEL_OFFSET - 2, CART.width / 2 + WHEEL_OFFSET - 2]) {
-      front.fillStyle(0x353a48, 1).fillRect(x + wx, ground - 8, 4, 4);
-      front.fillStyle(0x93a0ae, 1).fillRect(x + wx + 1, ground - 7, 2, 2);
-    }
+  /** GDD-ART-06: cart `i`'s look as last drawn, read back from its images (L-010), and their depths; nothing when it is not drawn. */
+  private cartLooks(i: number): { look?: CartLook; layers?: { back: number; front: number } } {
+    const back = this.cartBackImages[i];
+    const front = this.cartFrontImages[i];
+    if (!back?.visible || !front) return {};
+    const look = CART_LOOKS[Number(back.frame.name)]!;
+    if (CART_LOOKS[Number(front.frame.name) - CART_LOOKS.length] !== look) throw new Error(`cart ${i}: its layers show two looks`);
+    return { look, layers: { back: back.depth, front: front.depth } };
   }
 
+  /** GDD-ART-06: after a step, each rolling cart's look, which it keeps once it stops or falls (`cartLook`). */
+  private noteCartLooks(): void {
+    this.run.carts.forEach((c, i) => {
+      if (c.phase === 'rolling') this.cartLast[i] = cartLook(c, this.run.clock, this.cartLast[i]!)!;
+    });
+  }
 
   /**
    * Draws every live enemy as an image of its kind's sheet, posed by `enemyPose` (GDD-ENM-02, GDD-ENM-03); a defeated one is not drawn but
@@ -2438,6 +2446,7 @@ export class PlayScene extends Phaser.Scene {
     // Do not smear the picture across a respawn: only interpolate while playing on both sides of the step.
     this.prevPlayer = before.phase === 'playing' && this.run.phase === 'playing' ? before.player : this.run.player;
     this.prevCarts = before.phase === 'playing' && this.run.phase === 'playing' ? before.carts : this.run.carts;
+    this.noteCartLooks();
     this.stepCamera(before);
     this.ticks++;
     if (this.run.phase !== before.phase) this.phaseSince = this.ticks;

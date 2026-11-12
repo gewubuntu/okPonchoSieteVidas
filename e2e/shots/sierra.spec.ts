@@ -22,7 +22,7 @@ const open = async (page: Page, isMobile: boolean, level: string, at?: { x: numb
     if (p) d.teleport(p.x, p.y - 1);
     d.step(20);
   }, at ?? null);
-  expect(await page.evaluate(() => window.__PONCHO__!.scenery())).toEqual({ set: 'sierra', midKey: 'sierra:mid' });
+  expect(await page.evaluate(() => window.__PONCHO__!.scenery())).toEqual({ set: 'sierra', midKey: 'sierra:mid', place: 'barranca' });
 };
 
 const view = (page: Page) => page.evaluate(() => ({ cam: window.__PONCHO__!.camera(), s: window.__PONCHO__!.state(), layout: window.__PONCHO__!.backdropLayout() }));

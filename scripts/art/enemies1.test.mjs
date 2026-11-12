@@ -13,7 +13,7 @@ const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 
 const W1_COLOURS = ['#E39A48', '#EDB15A', '#F4C66E', '#F9DA8E', '#FFF6D0', '#FFD25A', '#FFF4DC', '#E9B98A', '#8E6A96', '#A65B5B', '#4D5A9C', '#3A4580', '#9CC24E', '#6FA03A', '#4E7A2C', '#F4D29C', '#E8B87A', '#D19A5E', '#A0472F', '#7A3326', '#D8473A', '#F08A3C', '#6F9C8E', '#2F5A3A'];
 const PALE = [W1.cloudTop, W1.sunDisc];
 // World 1's kinds and the poof; World 2's three are checked by enemies2.test.mjs and World 3's Murciélago by enemies3.test.mjs.
-const KINDS = Object.fromEntries(Object.entries(ALL_KINDS).filter(([name]) => !['paloma', 'chapulin', 'trompo', 'murcielago'].includes(name)));
+const KINDS = Object.fromEntries(Object.entries(ALL_KINDS).filter(([name]) => !['paloma', 'chapulin', 'trompo', 'murcielago', 'armadillo'].includes(name)));
 // Drawing the frames takes a moment, so they are drawn once.
 const FRAMES = Object.fromEntries(Object.entries(KINDS).map(([name, m]) => [name, m.drawFrames()]));
 const frame = (kind, look) => FRAMES[kind].find((f) => f.look === look).grid;
@@ -39,7 +39,7 @@ const WALKERS = ['alacran', 'cactus', 'tlacuache'];
 describe('GDD-ENM-02 World 1\'s enemy sprites', { timeout: 60_000 }, () => {
   it('GDD-ENM-02 the committed PNGs are the ones the script makes', () => {
     const built = buildEnemies();
-    expect(Object.keys(built).sort()).toEqual(['alacran.png', 'cactus.png', 'chapulin.png', 'murcielago.png', 'paloma.png', 'poof.png', 'tlacuache.png', 'trompo.png', 'zopilote.png']);
+    expect(Object.keys(built).sort()).toEqual(['alacran.png', 'armadillo.png', 'cactus.png', 'chapulin.png', 'murcielago.png', 'paloma.png', 'poof.png', 'tlacuache.png', 'trompo.png', 'zopilote.png']);
     for (const [name, bytes] of Object.entries(built)) expect(bytes.equals(readFileSync(join(dir, name))), name).toBe(true);
   });
 

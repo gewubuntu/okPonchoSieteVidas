@@ -258,6 +258,25 @@ function bottomProblems(level: Level): string[] {
   return problems;
 }
 
+/** GDD-WLD-17: the back walls' problems: any outside World 3, and each one outside the level, with its corners out of order, or overlapping another. */
+function backWallProblems(level: Level, world: number): string[] {
+  const walls = level.backWalls ?? [];
+  if (walls.length === 0) return [];
+  if (world !== 3) return ['back walls, only World 3 has them'];
+  const problems: string[] = [];
+  const name = (w: (typeof walls)[number]) => `columns ${w.col0} to ${w.col1}, rows ${w.row0} to ${w.row1}`;
+  for (const w of walls) {
+    if (w.col0 > w.col1 || w.row0 > w.row1) problems.push(`back wall at ${name(w)} has its corners out of order`);
+    else if (w.col0 < 0 || w.row0 < 0 || w.col1 >= level.world.width || w.row1 >= level.world.height) problems.push(`back wall at ${name(w)} reaches outside the level`);
+  }
+  walls.forEach((a, i) => {
+    for (const b of walls.slice(i + 1)) {
+      if (Math.max(a.col0, b.col0) <= Math.min(a.col1, b.col1) && Math.max(a.row0, b.row0) <= Math.min(a.row1, b.row1)) problems.push(`back walls at ${name(a)} and ${name(b)} overlap`);
+    }
+  });
+  return problems;
+}
+
 /** Every problem with the level, as one sentence each; empty when it passes. */
 export function validateLevel(entry: LevelEntry): readonly string[] {
   const { level } = entry;
@@ -301,6 +320,12 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
   // GDD-WLD-05: crumbled ledges come back in World 3's levels (test levels too), and in no other world's.
   if (level.crumblesReturn === true && entry.world !== 3) problems.push('crumbling tiles that come back, only World 3 has them');
   if (entry.world === 3 && level.crumbles.length > 0 && level.crumblesReturn !== true) problems.push("crumbling tiles that do not come back, World 3's do");
+
+  // GDD-ART-06: a level chooses its place among World 3's, and only there.
+  if (entry.place !== undefined && entry.world !== 3) problems.push(`a place (${entry.place}), only a World 3 level chooses one`);
+
+  // GDD-WLD-17: the rock back walls, only in World 3, each inside the level with its corners in order, no two sharing a tile.
+  problems.push(...backWallProblems(level, entry.world));
 
   // GDD-WLD-03, GDD-TEC-04: the level's height and its raised bottoms, a test level's too.
   problems.push(...heightProblems(level), ...bottomProblems(level));

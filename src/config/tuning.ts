@@ -439,7 +439,7 @@ export const ZOPILOTE = {
  * `scripts/art/enemies1.levels.test.mjs`, and World 2's by `scripts/art/enemies2.levels.test.mjs`). World 2's own pose steps are the last six.
  */
 export const ENEMY_ART = {
-  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, murcielago: { w: 32, h: 24 }, poof: { w: 24, h: 24 } },
+  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, murcielago: { w: 32, h: 24 }, armadillo: { w: 28, h: 16 }, poof: { w: 24, h: 24 } },
   reach: {
     alacran: { behind: 4.5, front: 1.5, above: 3, below: 0 },
     zopilote: { behind: 6, front: 0.5, above: 6.5, below: 3.5 },
@@ -715,6 +715,9 @@ export const BACKDROP = { cloudFactor: 0.1, mountainFactor: 0.3, sunX: 104, sunY
  */
 export const BACKDROP_RISE = { far: 0.1, mid: 0.2 } as const;
 
+/** GDD-ART-06: the frame every decor sheet's items are drawn in, game px (World 1's plants' frame), each item bottom-aligned and centred. */
+export const DECOR_FRAME = { w: 16, h: 40 } as const;
+
 /** GDD-ART-06: World 1's plants in the order of their kind (nopal, cholla, biznaga, palm yucca, ocotillo, agave, flowers), their size in game px. */
 export const PLANTS = [
   { name: 'nopal', w: 16, h: 16 },
@@ -821,5 +824,37 @@ export const SIERRA = {
     { name: 'sotol', w: 10, h: 32 },
     { name: 'tocon', w: 14, h: 8 },
     { name: 'zacaton', w: 12, h: 8 },
+  ],
+} as const;
+
+/**
+ * GDD-ART-06: the mine's backdrop and decor (3-2 La Mina, underground), from `scripts/art/sierra-mina.mjs`, at the canyon's shares of the
+ * camera's scroll. The sky slot is the rock: the roof band in gallery deep (`skyBands[0]`) to `skyEnds` art px from the top (y 40) under a
+ * dither strip of `stripArt` px, gallery base below it (the camera's background). No sun and no clouds. The far band (the old workings) is
+ * `farBandArt` art px tall from game y `farTop`, with the flat foot in `footColour` (gallery deep: a pit is a black shaft) below it; the mid
+ * band (the timbering) is `midBandArt` art px tall from `midTop` (down to the floor's top at 224). `decor` is the mine's seven kinds (ore
+ * heap, timber stack, barrel, pick and shovel, ore bucket, lantern on a peg post, ore sacks), their size in game px, placed by World 1's
+ * plant rule.
+ */
+export const SIERRA_MINA = {
+  cloudFactor: 0.1,
+  farFactor: 0.3,
+  midFactor: 0.5,
+  skyBands: [0x221d2e, 0x3d3650],
+  skyEnds: [160],
+  stripArt: 2,
+  farTop: 40,
+  farBandArt: 640,
+  midTop: 100,
+  midBandArt: 496,
+  footColour: 0x221d2e,
+  decor: [
+    { name: 'mena', w: 14, h: 8 },
+    { name: 'vigas', w: 16, h: 10 },
+    { name: 'barril', w: 10, h: 12 },
+    { name: 'pico', w: 12, h: 16 },
+    { name: 'cubeta', w: 10, h: 10 },
+    { name: 'linterna', w: 8, h: 24 },
+    { name: 'costales', w: 14, h: 10 },
   ],
 } as const;

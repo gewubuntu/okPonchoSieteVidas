@@ -419,7 +419,7 @@ export const ROCK_STRATA = [5, 12];
  * tile's strata end on their rows at both edges, so tiles of either version meet without a seam; `version` 0 or 1 moves the details only,
  * inside the tile.
  */
-function drawTile(top, version) {
+export function drawTile(top, version) {
   const c = new Cells(16, 16);
   for (let i = 0; i < 256; i++) c.cells[i] = OCHRE;
   const strata = (row, specks) => {
@@ -489,8 +489,13 @@ function drawTile(top, version) {
  * tiles under them.
  */
 export function drawGround() {
-  const pairs = SLOPE_ORDER.flatMap(([, left, right]) => [0, 1].map((v) => cutSlope(drawTile(true, v), drawTile(false, v), left, right)));
-  const frames = [drawTile(true, 0), drawTile(true, 1), drawTile(false, 0), drawTile(false, 1), ...pairs.map((p) => p.slope), ...pairs.map((p) => p.foot)];
+  return groundSheet(drawTile);
+}
+
+/** A ground sheet in World 1's layout from `tile(top, version)`, which draws a top tile or a rock tile as 16 x 16 cells (the mine's too). */
+export function groundSheet(tile) {
+  const pairs = SLOPE_ORDER.flatMap(([, left, right]) => [0, 1].map((v) => cutSlope(tile(true, v), tile(false, v), left, right)));
+  const frames = [tile(true, 0), tile(true, 1), tile(false, 0), tile(false, 1), ...pairs.map((p) => p.slope), ...pairs.map((p) => p.foot)];
   const g = new Grid(frames.length * 64, 64);
   frames.forEach((tile, n) => {
     const px = tile.scaled();

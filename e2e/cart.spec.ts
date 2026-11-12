@@ -4,6 +4,8 @@ import { LAB_3C_BEAM, LAB_3C_ENEMIES, LAB_3C_OFRENDAS, LAB_3C_PIT, LAB_3C_RAILS 
 import { railLength, warningPost } from '../src/sim/cart';
 import type { EnemyKind } from '../src/sim/enemy';
 import { cartPose, WHEEL_OFFSET } from '../src/ui/cartPose';
+import { CART_LOOKS, RAIL_ART, railLook } from '../src/ui/railLook';
+import { LAB_3C_LEVEL } from '../src/levels/lab3c';
 import { boot, clearOfButtons, nearHex, pixelsAt, readSheet, spotsIn } from './helpers';
 
 // GDD-WLD-15: the vagonetas in lab-3c (`?level=lab-3c`). Where R1 is comes from `src/levels/lab3c.ts` (L-062): its cart stands at the rail's
@@ -140,6 +142,10 @@ test('GDD-WLD-15 the rolling cart runs an enemy down', async ({ page }) => {
 // its rust), 1 game px across: his paws are on his frame's last two rows.
 const SHEET = readSheet('poncho.png');
 const FUR = ['#F1A361', '#FBDAB7', '#CD9A86', '#ECE3D9', '#C58D62'];
+// GDD-ART-06: the cart's sheet, its back layers over its front layers (`CART_LOOKS` order), 32 x 16 game px each; a front layer's colour at
+// (x, y) game px from its top left, read from the PNG (null where it is clear).
+const CART_SHEET = readSheet('sierra/vagoneta.png');
+const frontColour = (look: string, x: number, y: number) => CART_SHEET.at(((CART_LOOKS as readonly string[]).indexOf(look) * CART.width + Math.floor(x)) * 4 + 2, (CART.height + Math.floor(y)) * 4 + 2);
 
 test('GDD-WLD-15 the cart\'s front wall is drawn over Poncho\'s feet', async ({ page }) => {
   await hopIn(page);
@@ -156,7 +162,7 @@ test('GDD-WLD-15 the cart\'s front wall is drawn over Poncho\'s feet', async ({ 
   const sprite = await page.evaluate(() => window.__PONCHO__!.ponchoSprite());
   const viewX = await page.evaluate(() => window.__PONCHO__!.camera().viewX);
   const scrollY = await page.evaluate(() => window.__PONCHO__!.cameraScrollY());
-  // The spots of his frame within 3 px over his feet, inside the front wall's rust (which runs from 3 px over the floor to 2 px under it).
+  // The spots of his frame within 3 px over his feet, inside the front wall (GDD-ART-06: from 5 px over the floor to 2 px under it).
   const feet = spotsIn(SHEET, 48, 48, sprite.frame, FUR, { size: 1 })
     .map((p) => ({ x: sprite.centerX + (sprite.flipX ? -p.dx : p.dx), y: sprite.bottom - 24 + p.dy }))
     .filter((p) => p.y > stopped.s.y - 3 && p.y < stopped.s.y && p.x > stopped.cart.x! + 2 && p.x < stopped.cart.x! + stopped.cart.w! - 2);
@@ -164,7 +170,13 @@ test('GDD-WLD-15 the cart\'s front wall is drawn over Poncho\'s feet', async ({ 
   const onScreen = await clearOfButtons(page, feet.map((p) => ({ x: p.x - viewX, y: p.y - scrollY })));
   expect(onScreen.length).toBeGreaterThan(0);
   const colours = await pixelsAt(page, onScreen);
-  for (const c of colours) expect(nearHex(c, '#B0562E', 12), JSON.stringify(c)).toBe(true); // the tub's rust, not his fur
+  // There the front layer's colour (the stopped cart is drawn level, its top 8 px over its floor): the tub's, not his fur.
+  const top = stopped.cart.y! - CART.height + CART.floorPx;
+  onScreen.forEach((p, i) => {
+    const want = frontColour(stopped.cart.look!, p.x + viewX - stopped.cart.x!, p.y + scrollY - top);
+    expect(want).not.toBeNull();
+    expect(nearHex(colours[i]!, want!, 12), `${JSON.stringify(colours[i])} ${want}`).toBe(true);
+  });
 });
 
 // GDD-WLD-15: R5, its broken end over a pit, the hanging beam over it; positions from `src/levels/lab3c.ts` (L-062).
@@ -231,14 +243,15 @@ test('GDD-WLD-15 Poncho jumps out before the broken end and the cart falls', asy
     },
     { o: LAB_3C_OFRENDAS[2]!, beam: LAB_3C_BEAM.col * TILE, end: R5_END },
   );
-  // The falling cart is drawn at the hook's box: the rust of its front wall in its middle, 8 px down from its top (GDD-ART-06).
+  // The falling cart is drawn at the hook's box: the rust of its front wall 2.5 px right of its middle (clear of the rivets of either rolling
+  // look, GDD-ART-06), 8.5 px down from its top.
   expect(await page.evaluate((y) => window.cartBot!.run(y), R5.y - CART.height + 4)).toBe(true);
   await frames(page);
   const box = await page.evaluate(() => window.__PONCHO__!.carts()[4]!);
   expect(box.phase).toBe('falling');
   const viewX = await page.evaluate(() => window.__PONCHO__!.camera().viewX);
   const scrollY = await page.evaluate(() => window.__PONCHO__!.cameraScrollY());
-  const spot = await clearOfButtons(page, [{ x: box.x! + CART.width / 2 - viewX, y: box.y! + 8 - scrollY }]);
+  const spot = await clearOfButtons(page, [{ x: box.x! + CART.width / 2 + 2.5 - viewX, y: box.y! + 8.5 - scrollY }]);
   expect(spot).toHaveLength(1);
   const [rust] = await pixelsAt(page, spot);
   expect(nearHex(rust!, '#B0562E', 12), JSON.stringify(rust)).toBe(true);
@@ -321,12 +334,13 @@ test('GDD-WLD-15 the cart is drawn tilted on the climb', async ({ page }) => {
   expect(seen.climbing.phase).toBe('rolling');
   expect(seen.onClimb).toBe(true);
   expect(seen.climbing.angle!).toBeCloseTo(-45, 6); // its front (right) side up
-  // Drawn turned: the rust of its front wall 14 px ahead of its middle in the tub's own frame, 8 px over its bottom (the middle of the rust's
-  // rows), is where the tilted tub puts it, and not where a level tub at the same place would (`cartPose`).
+  // Drawn turned: the rust of its front wall 3.5 px ahead of its middle in the tub's own frame, 7.5 px over its bottom (between the wheels
+  // and clear of the rivets in either rolling look, GDD-ART-06), is where the tilted tub puts it, and not where a level tub at the same
+  // place would (`cartPose`; the tilted tub shows nothing there).
   const pose = cartPose(r2, { phase: 'rolling', m: seen.climbing.x! + 16 - r2.x });
-  const [lx, ly] = [14, pose.bottom - 8];
+  const [lx, ly] = [3.5, pose.bottom - 7.5];
   const tilted = { x: pose.x + lx * Math.cos(pose.angle) - ly * Math.sin(pose.angle), y: pose.y + lx * Math.sin(pose.angle) + ly * Math.cos(pose.angle) };
-  const level = { x: pose.x + lx, y: pose.y + CART.floorPx - 8 };
+  const level = { x: pose.x + lx, y: pose.y + CART.floorPx - 7.5 };
   await frames(page);
   const viewX = await page.evaluate(() => window.__PONCHO__!.camera().viewX);
   const scrollY = await page.evaluate(() => window.__PONCHO__!.cameraScrollY());
@@ -335,5 +349,128 @@ test('GDD-WLD-15 the cart is drawn tilted on the climb', async ({ page }) => {
   const [atTilted, atLevel] = await pixelsAt(page, spots);
   expect(nearHex(atTilted!, '#B0562E', 12), JSON.stringify(atTilted)).toBe(true);
   expect(nearHex(atLevel!, '#B0562E', 24), JSON.stringify(atLevel)).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('GDD-ART-06 the standing cart shows its chock and the rolling cart does not', async ({ page }) => {
+  const errors = await boot(page, '/?level=lab-3c');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  await frames(page);
+  // Waiting at its start, it is drawn standing, with its chock.
+  expect(await page.evaluate(() => window.__PONCHO__!.carts()[0]!.look)).toBe('standing');
+  await hopIn(page);
+  // By steps: rolling, it shows rolling0 and rolling1 by turns, a new one every 4 steps, never the chock.
+  const stepped = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    const out: string[] = [];
+    for (let n = 0; n < 24; n++) {
+      d.step(1);
+      out.push(`${d.carts()[0]!.phase} ${d.carts()[0]!.look}`);
+    }
+    return out;
+  });
+  expect(stepped.every((l) => l === 'rolling rolling0' || l === 'rolling rolling1'), stepped.join()).toBe(true);
+  expect(stepped.filter((l, i) => i > 0 && l !== stepped[i - 1]).length).toBeGreaterThanOrEqual(5); // 24 steps, a change every 4
+  // Paused, it holds its look however long the page runs (30 frames): it changes with steps, not with wall time.
+  const held = await page.evaluate(async () => {
+    const d = window.__PONCHO__!;
+    const before = d.carts()[0]!.look;
+    for (let i = 0; i < 30; i++) await new Promise((r) => requestAnimationFrame(() => r(null)));
+    const after = d.carts()[0]!.look;
+    d.step(4);
+    return { before, after, stepped: d.carts()[0]!.look };
+  });
+  expect(held.after).toBe(held.before);
+  expect(held.stepped).not.toBe(held.before);
+  // Unpaused, over the game's own frames (L-021): both rolling looks show while it rolls, never the chock, until it stops.
+  await page.evaluate(() => window.__PONCHO__!.pause(false));
+  const looks = await page.evaluate(
+    () =>
+      new Promise<string[]>((resolve) => {
+        const d = window.__PONCHO__!;
+        const out: string[] = [];
+        const tick = () => {
+          const c = d.carts()[0]!;
+          if (c.phase === 'rolling') out.push(c.look!);
+          if (c.phase === 'stopped' || out.length > 3000) resolve(out);
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+  expect(new Set(looks)).toEqual(new Set(['rolling0', 'rolling1']));
+  expect(errors).toEqual([]);
+});
+
+// GDD-ART-04: Poncho's poncho, its blues and reds (`scripts/art/poncho-pixels.mjs`).
+const PONCHO = ['#3F66B1', '#2C3F7A', '#D23F42', '#823241'];
+
+test('GDD-ART-06 Poncho stands in the cart behind its front wall', async ({ page }) => {
+  await hopIn(page);
+  // Rolled on along R1 until it shows rolling0 (its front wall's rust from 2 px over the floor down), then drawn by the game's own frames.
+  const at = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    d.step(10);
+    for (let n = 0; n < 8 && d.carts()[0]!.look !== 'rolling0'; n++) d.step(1);
+    return { cart: d.carts()[0]!, s: d.state() };
+  });
+  expect([at.cart.phase, at.cart.look, at.cart.angle]).toEqual(['rolling', 'rolling0', 0]);
+  expect([at.s.grounded, at.s.y]).toEqual([true, at.cart.y]);
+  await frames(page);
+  const sprite = await page.evaluate(() => window.__PONCHO__!.ponchoSprite());
+  const viewX = await page.evaluate(() => window.__PONCHO__!.camera().viewX);
+  const scrollY = await page.evaluate(() => window.__PONCHO__!.cameraScrollY());
+  const place = (p: { dx: number; dy: number }) => ({ x: sprite.centerX + (sprite.flipX ? -p.dx : p.dx) - viewX, y: sprite.bottom - 24 + p.dy - scrollY });
+  // His shins: spots of his frame in his fur within 2 px over his feet. There the cart's front layer shows, not him: its rust or steel, or
+  // the iron of a wheel at his frame's edge (its colour read from the sheet at that spot, the cart drawn level, its top 8 px over his feet).
+  const shins = await clearOfButtons(page, spotsIn(SHEET, 48, 48, sprite.frame, FUR, { size: 1 }).map(place).filter((p) => p.y + scrollY > at.s.y - 2 && p.y + scrollY < at.s.y));
+  expect(shins.length).toBeGreaterThan(0);
+  const colours = await pixelsAt(page, shins);
+  shins.forEach((p, i) => {
+    const want = frontColour('rolling0', p.x + viewX - at.cart.x!, p.y + scrollY - (at.s.y - CART.height + CART.floorPx));
+    expect(['#B0562E', '#93A0AE', '#353A48']).toContain(want);
+    expect(nearHex(colours[i]!, want!, 12), `${JSON.stringify(colours[i])} ${want}`).toBe(true);
+  });
+  expect(colours.some((c) => nearHex(c, '#B0562E', 12) || nearHex(c, '#93A0AE', 12))).toBe(true);
+  // His chest, over the cart's rim (more than 12 px over his feet), 2 px spots (L-017): his poncho's colours, drawn over the cart's back.
+  const chest = await clearOfButtons(page, spotsIn(SHEET, 48, 48, sprite.frame, PONCHO).map(place).filter((p) => p.y + scrollY < at.s.y - 12));
+  expect(chest.length).toBeGreaterThan(0);
+  for (const c of await pixelsAt(page, chest)) expect(PONCHO.some((h) => nearHex(c, h, 12)), JSON.stringify(c)).toBe(true);
+  // So its back layer is drawn behind him (depth 3) and its front layer in front, as the hook says.
+  expect(at.cart.layers!.back).toBeLessThan(3);
+  expect(at.cart.layers!.front).toBeGreaterThan(3);
+});
+
+test('GDD-ART-06 a rail over a pit stands on a trestle', async ({ page }) => {
+  const errors = await boot(page, '/?level=lab-3c');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
+  // The railway as drawn, counted from its images, against what `railLook` lists for lab-3c (`src/levels/lab3c.ts`, L-062): R1's three
+  // notches, R2's climb and R3's descent over air stand on trestles (the lab has no rail over a pit).
+  const listed = railLook(LAB_3C_LEVEL.world, LAB_3C_RAILS, LAB_3C_LEVEL.world.height);
+  const count = (part: string) => listed.filter((im) => im.part === part).length;
+  const drawn = await page.evaluate(() => window.__PONCHO__!.rails());
+  expect(drawn).toEqual({ tiles: count('rail'), trestleBents: count('bent'), buffers: count('buffer'), posts: count('post'), brokenEnds: listed.filter((im) => im.frame === 'broken').length });
+  expect(drawn.trestleBents).toBeGreaterThan(0);
+  // R3's first bent, over the air under its descent (column 43): its first leg's left post, 2 px wide at columns 2 and 3 of its frame, is
+  // timber dark (#43362F) on the screen; the air between its posts (column 7) is not. Poncho is put down on the floor 9 tiles on, clear of it.
+  const leg = listed.find((im) => im.rail === 2 && im.part === 'leg')!;
+  await page.evaluate(
+    (p) => {
+      const d = window.__PONCHO__!;
+      d.pause(true);
+      d.teleport(p.x, p.y - 1);
+      d.step(60);
+    },
+    { x: leg.x + 9 * TILE, y: LAB_3C_RAILS[3]!.y },
+  );
+  await frames(page);
+  const viewX = await page.evaluate(() => window.__PONCHO__!.camera().viewX);
+  const scrollY = await page.evaluate(() => window.__PONCHO__!.cameraScrollY());
+  const y = leg.y + RAIL_ART.h / 2 - scrollY;
+  const spots = await clearOfButtons(page, [{ x: leg.x + 3 - viewX, y }, { x: leg.x + 7.5 - viewX, y }]);
+  expect(spots).toHaveLength(2);
+  const [post, air] = await pixelsAt(page, spots);
+  expect(nearHex(post!, '#43362F', 12), JSON.stringify(post)).toBe(true);
+  expect(nearHex(air!, '#43362F', 24), JSON.stringify(air)).toBe(false);
   expect(errors).toEqual([]);
 });

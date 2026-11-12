@@ -95,6 +95,11 @@ export interface Level {
   readonly rails?: readonly Rail[];
   /** GDD-WLD-03: raised bottoms, spans of columns whose bottom row is above the level's last (only Poncho is lost there). Left out means none. */
   readonly bottoms?: readonly Bottom[];
+  /**
+   * GDD-WLD-17, GDD-WLD-16: rectangles of tiles (every bound included) where the rock back wall stands behind a gallery cut into a cliff,
+   * drawn in each of their tiles that is not solid and holds no slope. Scenery only. Left out means none.
+   */
+  readonly backWalls?: readonly { readonly col0: number; readonly col1: number; readonly row0: number; readonly row1: number }[];
 }
 
 export interface RunState {

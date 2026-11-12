@@ -189,6 +189,48 @@ describe('GDD-TEC-04 and GDD-WLD-03 gaps', () => {
   });
 });
 
+describe('GDD-ART-06 a level place in the validator', () => {
+  it('GDD-ART-06 a World 3 level may choose its place, a level of any other world may not', () => {
+    for (const place of ['barranca', 'mina'] as const) {
+      expect(validateLevel({ ...entry({ world: 3 }), place }), place).toEqual([]);
+      for (const world of [0, 1, 2]) expect(validateLevel({ ...entry({ world }), place }), `World ${world} ${place}`).toEqual([`a place (${place}), only a World 3 level chooses one`]);
+    }
+    // A test level too.
+    expect(validateLevel({ ...entry({ world: 2, test: true, exit: null }), place: 'mina' })).toEqual(['a place (mina), only a World 3 level chooses one']);
+  });
+});
+
+/** GDD-WLD-17: a back wall over columns `col0` to `col1` and rows `row0` to `row1`. */
+const wall = (col0: number, col1: number, row0: number, row1: number) => ({ col0, col1, row0, row1 });
+
+/** A level of `world` (World 3 unless said) with the back walls `walls`. */
+const walled = (walls: ReturnType<typeof wall>[], world = 3) => entry({ world, level: { backWalls: walls } });
+
+describe('GDD-WLD-17 back walls in the validator', () => {
+  it('GDD-WLD-17 a World 3 level may have back walls inside it, apart, each its corners in order', () => {
+    // The level is 90 x 17: columns 0 to 89, rows 0 to 16. Two walls that touch but share no tile pass, and so does one tile.
+    expect(validateLevel(walled([wall(0, 89, 0, 16)]))).toEqual([]);
+    expect(validateLevel(walled([wall(10, 20, 5, 9), wall(21, 30, 5, 9), wall(10, 20, 10, 12), wall(40, 40, 3, 3)]))).toEqual([]);
+  });
+
+  it('GDD-WLD-17 a back wall outside the level, with its corners out of order, or overlapping another is refused', () => {
+    expect(validateLevel(walled([wall(-1, 5, 0, 3)]))).toEqual(['back wall at columns -1 to 5, rows 0 to 3 reaches outside the level']);
+    expect(validateLevel(walled([wall(80, 90, 0, 3)]))).toEqual(['back wall at columns 80 to 90, rows 0 to 3 reaches outside the level']);
+    expect(validateLevel(walled([wall(5, 8, -1, 3)]))).toEqual(['back wall at columns 5 to 8, rows -1 to 3 reaches outside the level']);
+    expect(validateLevel(walled([wall(5, 8, 10, 17)]))).toEqual(['back wall at columns 5 to 8, rows 10 to 17 reaches outside the level']);
+    expect(validateLevel(walled([wall(8, 5, 0, 3)]))).toEqual(['back wall at columns 8 to 5, rows 0 to 3 has its corners out of order']);
+    expect(validateLevel(walled([wall(5, 8, 3, 0)]))).toEqual(['back wall at columns 5 to 8, rows 3 to 0 has its corners out of order']);
+    // Sharing a single tile is an overlap.
+    expect(validateLevel(walled([wall(10, 20, 5, 9), wall(20, 30, 9, 12)]))).toEqual(['back walls at columns 10 to 20, rows 5 to 9 and columns 20 to 30, rows 9 to 12 overlap']);
+  });
+
+  it('GDD-WLD-17 only a World 3 level has back walls', () => {
+    for (const world of [0, 1, 2]) expect(validateLevel(walled([wall(10, 20, 5, 9)], world)), `World ${world}`).toEqual(['back walls, only World 3 has them']);
+    // An empty list is none.
+    expect(validateLevel(walled([], 2))).toEqual([]);
+  });
+});
+
 /**
  * GDD-WLD-03: a World 3 level with a pit at columns 10 to 9 + `width` (the floor's top row 14). A positive `drop` raises the left bank
  * (column 9) by that many tiles, a negative one raises the right bank (the column after the pit) by as many: a rise.

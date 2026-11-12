@@ -2,50 +2,65 @@
 // tiles and the ground tiles. The scene asks `sceneryFor` for its level's world and calls `preload`, `create` and, as the camera moves,
 // `follow`; everything else about the look is data (`looks.ts`, `files.ts`).
 import type Phaser from 'phaser';
-import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, TILE } from '../../config/tuning';
+import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, DECOR_FRAME, TILE } from '../../config/tuning';
 import type { Level } from '../../sim/run';
 import { parallaxOffset } from '../backdrop';
 import { groundFrame } from '../groundTiles';
 import { plantSpots } from '../plants';
-import { FILES, type ArtFiles } from './files';
-import { artSetFor, LOOKS, midImage, riseShift, textureKey, type ArtSet, type BackdropLayer, type Look } from './looks';
+import { BACK_WALL_DEPTH, backWallTiles } from './backWall';
+import { artFiles, type ArtFiles } from './files';
+import { artSetFor, imageKey, lookFor, midImage, placeFor, riseShift, textureKey, type ArtSet, type BackdropLayer, type Look, type Place } from './looks';
 import { decorInView, tileInView, tilesInView, type TileView } from './view';
 
 /** What the debug hooks read of the drawn scenery (`PonchoDebug.backdrop`, `backdropLayout`, `groundFrame`, `plants`, `scenery`). */
 export interface Scenery {
-  /** Loads the images of this world only, under keys of their own. */
+  /** Loads the images of this world (in World 3, of this place) only, under keys of their own. */
   preload(load: Phaser.Loader.LoaderPlugin): void;
-  /** Draws the backdrop, the decor and the ground tiles of `level`, under everything else in the level. */
+  /**
+   * Draws the backdrop, the decor and the ground tiles of `level`, under everything else in the level, and its rock back walls (GDD-WLD-17,
+   * `assets/sprites/sierra/backwall.png`, loaded by the scene as `sierra:backwall` when the level has any) between the backdrop and the
+   * level.
+   */
   create(scene: Phaser.Scene, level: Level): void;
   /**
    * Moves the far layers by their shares of the camera's scroll (game px); draws the far strip, its foot and the mid strip their shares of
    * the camera's rise above its lowest y lower (`cameraY` and `lowestY`, GDD-UI-04, GDD-ART-06: 0 in a one-screen level); and draws the
    * whole backdrop `offsetY` game px lower (negative: higher), the offset the camera draws the world at, so that a screen shake moves the
-   * backdrop with the level (GDD-BOS-01). Shows only the ground and decor images in the view at the scroll (`scrollX`, `scrollY`, the y
+   * backdrop with the level (GDD-BOS-01). Shows only the ground, back wall and decor images in the view at the scroll (`scrollX`, `scrollY`, the y
    * scroll the camera draws at, shake included; GDD-TEC-03).
    */
   follow(scrollX: number, scrollY: number, cameraY: number, lowestY: number, offsetY: number): void;
   /** How far each object of the backdrop is drawn from where it rests, in game px: its share of the camera's rise plus `follow`'s `offsetY`. */
   backdropShifts(): number[];
-  /** How far the clouds, the far band and the mid band are shifted, in game px, read back from what was drawn. */
+  /** How far the clouds, the far band and the mid band are shifted, in game px, read back from what was drawn; the clouds 0 where there are none (the mine). */
   backdrop(): { clouds: number; mountains: number; desert: number };
   /**
    * Where the fixed parts are drawn, in game px, without the shake: the sun's centre (null without a sun), the far band's top, its foot's top,
    * the mid band's top (each with its share of the camera's rise in a tall level).
    */
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number };
-  /** The art set chosen and the texture key of the drawn mid band (`mercado:plaza` in World 2's arena). */
-  drawn(): { set: ArtSet; midKey: string };
+  /**
+   * The art set chosen, the texture key of the drawn mid band (`mercado:plaza` in World 2's arena, `sierra:mid-mina` in the mine) and, in
+   * World 3 only, the level's place (`barranca` or `mina`).
+   */
+  drawn(): { set: ArtSet; midKey: string; place?: Place };
   /** The ground sheet's frame drawn at tile (tx, ty), or null where no ground image is, whether the image is shown or not. */
   groundFrame(tx: number, ty: number): number | null;
   /** How many ground images are shown (in the view, GDD-TEC-03) and how many there are. */
   groundShown(): { shown: number; total: number };
+  /** How many back wall images are shown (in the view, GDD-TEC-03), how many there are, and their depth (null with none). */
+  backWall(): { shown: number; total: number; depth: number | null };
+  /** The back wall's frame (its version) drawn at tile (tx, ty), or null where no back wall image is, whether the image is shown or not. */
+  backWallFrame(tx: number, ty: number): number | null;
   /** The decor drawn: each item's kind (its frame), its foot (game px) and its depth. */
   plants(): { kind: number; x: number; y: number; depth: number }[];
 }
 
-/** GDD-ART-06: the scenery of a level of `world`; in a boss level (`bossLevel`) World 2's mid band is the plaza. */
-export const sceneryFor = (world: number, bossLevel: boolean): Scenery => new BandScenery(artSetFor(world), bossLevel);
+/**
+ * GDD-ART-06: the scenery of a level of `world`; in a boss level (`bossLevel`) World 2's mid band is the plaza; in World 3 the level's
+ * `place` (the canyon when it names none) chooses the backdrop, the ground sheet and the decor sheet.
+ */
+export const sceneryFor = (world: number, bossLevel: boolean, place?: Place): Scenery => new BandScenery(artSetFor(world), placeFor(world, place), bossLevel);
 
 /**
  * A world's scenery drawn from its look, so that little of the screen is textured: the sky's bands as flat colours with the dither
@@ -54,11 +69,12 @@ export const sceneryFor = (world: number, bossLevel: boolean): Scenery => new Ba
  * clouds, the far band and the mid band each move by their share of the camera's scroll, and in a tall level the far band, its foot and
  * the mid band sink by their shares of the camera's rise, in `follow`. The decor is one image per spot of
  * `plantSpots`, rooted 1 game px into its top tile, behind the ground (depth 1) and in front of the backdrop; the ground one image of the
- * ground sheet per solid or slope tile (GDD-MOV-09). Only the ground and decor images in the camera's view are shown (GDD-TEC-03): each
+ * ground sheet per solid or slope tile (GDD-MOV-09). Only the ground, back wall and decor images in the camera's view are shown (GDD-TEC-03): each
  * frame the view moves, the images it leaves are hidden and those it reaches shown, and no other image is touched.
  */
 class BandScenery implements Scenery {
   private readonly set: ArtSet;
+  private readonly place: Place | null;
   private readonly look: Look;
   private readonly files: ArtFiles;
   private readonly mid: 'mid' | 'plaza';
@@ -75,20 +91,23 @@ class BandScenery implements Scenery {
   private decorPlaces: { col: number; footY: number; height: number }[] = [];
   /** The ground images by tile, `ty * columns + tx`, null where none is. */
   private groundImages: (Phaser.GameObjects.Image | null)[] = [];
+  /** The back wall images by tile, as the ground's (GDD-WLD-17). */
+  private backWallImages: (Phaser.GameObjects.Image | null)[] = [];
   private columns = 0;
   private rows = 0;
   /** The view whose images are shown, null before the first `follow`. */
   private view: TileView | null = null;
 
-  constructor(set: ArtSet, bossLevel: boolean) {
+  constructor(set: ArtSet, place: Place | null, bossLevel: boolean) {
     this.set = set;
-    this.look = LOOKS[set];
-    this.files = FILES[set];
+    this.place = place;
+    this.look = lookFor(set, place);
+    this.files = artFiles(set, place);
     this.mid = midImage(set, bossLevel);
   }
 
   private key(image: string): string {
-    return textureKey(this.set, image);
+    return imageKey(this.set, this.place, image);
   }
 
   preload(load: Phaser.Loader.LoaderPlugin): void {
@@ -99,16 +118,16 @@ class BandScenery implements Scenery {
     this.files.clouds.forEach((png, i) => load.image(this.key(`cloud-${i}`), png));
     load.image(this.key('far'), this.files.far);
     load.spritesheet(this.key('ground'), this.files.ground, { frameWidth: TILE * ART_SCALE, frameHeight: TILE * ART_SCALE });
-    // The mid band (the plaza in its place in World 2's arena) and the decor sheet, one frame per kind, each as large as the largest item.
+    // The mid band (the plaza in its place in World 2's arena) and the decor sheet, one frame per kind, each World 1's plants' frame.
     load.image(this.key(this.mid), this.mid === 'plaza' ? this.files.plaza! : this.files.mid);
-    const { decor } = this.look;
-    load.spritesheet(this.key('decor'), this.files.decor, { frameWidth: Math.max(...decor.map((p) => p.w)) * ART_SCALE, frameHeight: Math.max(...decor.map((p) => p.h)) * ART_SCALE });
+    load.spritesheet(this.key('decor'), this.files.decor, { frameWidth: DECOR_FRAME.w * ART_SCALE, frameHeight: DECOR_FRAME.h * ART_SCALE });
   }
 
   create(scene: Phaser.Scene, level: Level): void {
     this.drawBackdrop(scene);
     this.drawDecor(scene, level);
     this.drawTiles(scene, level);
+    this.drawBackWalls(scene, level);
   }
 
   private drawBackdrop(scene: Phaser.Scene): void {
@@ -166,6 +185,18 @@ class BandScenery implements Scenery {
     }
   }
 
+  /**
+   * GDD-WLD-17: the rock back wall, one image per tile of `backWallTiles` in its version, moving with the level, in front of the backdrop
+   * and behind everything in the level (`BACK_WALL_DEPTH`).
+   */
+  private drawBackWalls(scene: Phaser.Scene, level: Level): void {
+    this.backWallImages = Array.from({ length: this.columns * this.rows }, () => null);
+    for (const { tx, ty, frame } of backWallTiles(level)) {
+      // Hidden until the first `follow` shows those in the view (GDD-TEC-03).
+      this.backWallImages[ty * this.columns + tx] = scene.add.image(tx * TILE, ty * TILE, textureKey('sierra', 'backwall'), frame).setOrigin(0).setScale(1 / ART_SCALE).setDepth(BACK_WALL_DEPTH).setVisible(false);
+    }
+  }
+
   /** The ground image at tile (tx, ty), or null outside the level and where none is. */
   private groundAt(tx: number, ty: number): Phaser.GameObjects.Image | null {
     if (tx < 0 || ty < 0 || tx >= this.columns || ty >= this.rows) return null;
@@ -173,7 +204,7 @@ class BandScenery implements Scenery {
   }
 
   /**
-   * GDD-TEC-03: shows the ground and decor images in the view at the scroll and hides those that left it. Only when the view's tiles change,
+   * GDD-TEC-03: shows the ground, back wall and decor images in the view at the scroll and hides those that left it. Only when the view's tiles change,
    * and then only the images whose visibility changes: the tiles of the old view not in the new are hidden, those of the new not in the old
    * shown.
    */
@@ -191,13 +222,12 @@ class BandScenery implements Scenery {
     });
   }
 
-  /** Sets the ground images of the tiles in `view` but not in `except` to `shown`. */
+  /** Sets the ground and back wall images of the tiles in `view` but not in `except` to `shown`. */
   private setTiles(view: TileView, except: TileView | null, shown: boolean): void {
     for (let ty = Math.max(0, view.row0); ty <= Math.min(this.rows - 1, view.row1); ty++) {
       for (let tx = Math.max(0, view.col0); tx <= Math.min(this.columns - 1, view.col1); tx++) {
         if (except !== null && tileInView(except, tx, ty)) continue;
-        const image = this.groundAt(tx, ty);
-        if (image !== null && image.visible !== shown) image.setVisible(shown);
+        for (const image of [this.groundAt(tx, ty), this.backWallImages[ty * this.columns + tx] ?? null]) if (image !== null && image.visible !== shown) image.setVisible(shown);
       }
     }
   }
@@ -221,8 +251,9 @@ class BandScenery implements Scenery {
   }
 
   backdrop(): { clouds: number; mountains: number; desert: number } {
-    const first = this.look.clouds[0]!.x;
-    return { clouds: (((first - this.cloudImages[0]![0]!.x) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH, mountains: this.far.tilePositionX / ART_SCALE, desert: this.midBand.tilePositionX / ART_SCALE };
+    const first = this.look.clouds[0]?.x;
+    const clouds = first === undefined ? 0 : (((first - this.cloudImages[0]![0]!.x) % BASE_WIDTH) + BASE_WIDTH) % BASE_WIDTH;
+    return { clouds, mountains: this.far.tilePositionX / ART_SCALE, desert: this.midBand.tilePositionX / ART_SCALE };
   }
 
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number } {
@@ -230,8 +261,8 @@ class BandScenery implements Scenery {
     return { sunX: this.sun === null ? null : this.sun.x + half, sunY: this.sun === null ? null : this.sun.y - this.offsetY + half, mountainsY: this.far.y - this.offsetY, footY: this.foot.y - this.offsetY, desertY: this.midBand.y - this.offsetY };
   }
 
-  drawn(): { set: ArtSet; midKey: string } {
-    return { set: this.set, midKey: this.midBand.texture.key };
+  drawn(): { set: ArtSet; midKey: string; place?: Place } {
+    return { set: this.set, midKey: this.midBand.texture.key, ...(this.place === null ? {} : { place: this.place }) };
   }
 
   groundFrame(tx: number, ty: number): number | null {
@@ -242,6 +273,17 @@ class BandScenery implements Scenery {
   groundShown(): { shown: number; total: number } {
     const images = this.groundImages.filter((image) => image !== null);
     return { shown: images.filter((image) => image.visible).length, total: images.length };
+  }
+
+  backWall(): { shown: number; total: number; depth: number | null } {
+    const images = this.backWallImages.filter((image) => image !== null);
+    return { shown: images.filter((image) => image.visible).length, total: images.length, depth: images[0]?.depth ?? null };
+  }
+
+  backWallFrame(tx: number, ty: number): number | null {
+    if (tx < 0 || ty < 0 || tx >= this.columns || ty >= this.rows) return null;
+    const image = this.backWallImages[ty * this.columns + tx]!;
+    return image === null ? null : Number(image.frame.name);
   }
 
   plants(): { kind: number; x: number; y: number; depth: number }[] {
