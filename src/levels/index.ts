@@ -16,6 +16,7 @@ import { LEVEL_2_2 } from './level2-2';
 import { LEVEL_2_3 } from './level2-3';
 import { LEVEL_2_4 } from './level2-4';
 import { LEVEL_3_1, TIPS_3_1 } from './level3-1';
+import { LEVEL_3_2 } from './level3-2';
 import { SANDBOX_LEVEL } from './sandbox';
 import { SLOPES_LEVEL } from './slopes';
 import { LAB_2M_LEVEL } from './lab2m';
@@ -59,8 +60,10 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: '2-2', world: 2, test: false, level: LEVEL_2_2, next: '2-3' },
   { id: '2-3', world: 2, test: false, level: LEVEL_2_3, next: '2-4' },
   { id: '2-4', world: 2, test: false, level: LEVEL_2_4, next: '3-1' },
-  // GDD-WLD-01: World 3, the Sierra: 3-1 (GDD-WLD-16), with its tip (GDD-UI-05); the last level built, it names no next.
-  { id: '3-1', world: 3, test: false, level: LEVEL_3_1, tips: TIPS_3_1 },
+  // GDD-WLD-01: World 3, the Sierra: 3-1 (GDD-WLD-16), with its tip (GDD-UI-05), and 3-2 (GDD-WLD-17); 3-2, the last level built, names no
+  // next.
+  { id: '3-1', world: 3, test: false, level: LEVEL_3_1, tips: TIPS_3_1, next: '3-2' },
+  { id: '3-2', world: 3, test: false, level: LEVEL_3_2, place: 'mina' },
   SANDBOX,
   { id: 'slopes', world: 1, test: true, level: SLOPES_LEVEL },
   // GDD-WLD-10, GDD-WLD-11: the Mercado lab, a World 2 test level.

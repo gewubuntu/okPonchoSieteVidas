@@ -5,7 +5,7 @@ import { ARMADILLO, BASE_HEIGHT, BASE_WIDTH, CART, HITBOX, HURTBOX, PALOMA, RUN,
 import { bottomRowAt } from '../sim/bottoms';
 import { cartFloor, floorUnder, rollCarts, type CartState } from '../sim/cart';
 import { standsOnPlatform } from '../sim/platform';
-import { enemyBox, harmlessFromBelow, kindOf, touchesEnemy, type Box, type EnemyKind, type EnemyState } from '../sim/enemy';
+import { enemyBox, enemyPhase, harmlessFromBelow, kindOf, touchesEnemy, type Box, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { touchesSpike } from '../sim/hazards';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { isInPit, startRun, stepRun, type Level, type Point, type RunState } from '../sim/run';
@@ -81,8 +81,9 @@ export const SIGHT_INPUTS: readonly SightInput[] = ['walk', 'held', 'tap', 'agai
 /** GDD-WLD-15: the jumps flown out of a ride. */
 export const RIDE_JUMPS: readonly SightInput[] = ['held', 'tap', 'again'];
 
-/** GDD-ENM-04: the start times, 6 phases of the enemies' 240-step clock (the Murciélago's loop). */
-export const SIGHT_STARTS: readonly number[] = [0, 40, 80, 120, 160, 200];
+/** How many start times a level's sweep flies (`sightStarts`), and the longest idle period it looks for (steps). */
+export const SIGHT_START_COUNT = 6;
+export const SIGHT_PERIOD_CAP = 3000;
 
 /**
  * The flights' limits: `walk` and `walk-glide` walk at most `walkSteps`; a flight ends `idleSteps` after he stands, or after `maxSteps`.
@@ -153,7 +154,10 @@ export interface Loss {
    */
   readonly takeoffStep: number;
   readonly lossStep: number;
-  /** How many steps before the loss it first came on screen, from the take-off on (0: only at the loss; null: never). */
+  /**
+   * How many steps before the loss it first came on screen, from the take-off on (0: only at the loss; null: never); staying in a ride, from
+   * its boarding on, the jumps that landed back in its cart (`RideFlight.via`) included.
+   */
   readonly seenBefore: number | null;
   /** Whether it was off screen at the take-off. */
   readonly blind: boolean;
@@ -199,6 +203,37 @@ function warmRun(level: Level, steps: number): RunState {
   if (!runs) warmRuns.set(level, (runs = [startRun(level)]));
   while (runs.length <= steps) runs.push(stepRun(runs[runs.length - 1]!, { move: 0, jumpHeld: false }, level));
   return runs[steps]!;
+}
+
+/**
+ * An enemy's idle state as far as a flight can tell: its box (`enemyBox`), its phase (`enemyPhase`: walk, flight, loop ...) and its heading.
+ * Its step counters (a loop's steps, a walk's age) are left out: they count on for ever, and the box and phase are what they drive.
+ */
+const idleState = (level: Level, r: RunState, i: number) => ({ box: enemyBox(level.enemies[i]!, r.enemies[i]!), phase: enemyPhase(r.enemies[i]!), dir: r.enemies[i]!.dir, alive: r.enemies[i]!.alive });
+const sameIdle = (a: ReturnType<typeof idleState>, b: ReturnType<typeof idleState>): boolean =>
+  a.phase === b.phase && a.dir === b.dir && a.alive === b.alive && (['x0', 'x1', 'y0', 'y1'] as const).every((k) => Math.abs(a.box[k] - b.box[k]) < 1e-6);
+
+/**
+ * GDD-ENM-01 to GDD-ENM-04: each enemy's idle period, from the idle run from the level's start the sweep keeps (Poncho waiting at the
+ * spawn): the first step at which its state (`idleState`: its box, phase and heading) is again what it was at the start, up to
+ * SIGHT_PERIOD_CAP steps; an enemy whose state does not come round by then (one that fell out of the level, say) counts the cap.
+ */
+export function idlePeriods(level: Level): number[] {
+  const first = level.enemies.map((_, i) => idleState(level, warmRun(level, 0), i));
+  return level.enemies.map((_, i) => {
+    for (let t = 1; t <= SIGHT_PERIOD_CAP; t++) if (sameIdle(idleState(level, warmRun(level, t), i), first[i]!)) return t;
+    return SIGHT_PERIOD_CAP;
+  });
+}
+
+/**
+ * GDD-WLD-03: a level's start times: SIGHT_START_COUNT steps evenly spread (rounded down) over the longest idle period of its enemies
+ * (`idlePeriods`), so every enemy's whole walk is sampled; a level with no enemy flies the first only.
+ */
+export function sightStarts(level: Level): number[] {
+  const period = Math.max(0, ...idlePeriods(level));
+  if (period === 0) return [0];
+  return Array.from({ length: SIGHT_START_COUNT }, (_, i) => Math.floor((i * period) / SIGHT_START_COUNT));
 }
 
 /** The run a take-off starts from: the level's enemies `start` steps into their walks and loops, Poncho standing at the take-off (as the level tests' `at`). */
@@ -393,7 +428,9 @@ function lossOf(level: Level, t: Takeoff, from: RunState, states: readonly RunSt
   const boxAt = (k: number): Box =>
     found.enemy !== undefined ? enemyBox(level.enemies[found.enemy]!, states[k]!.enemies[found.enemy]!) : found.spike ? tileBox(found.spike.col, found.spike.row) : (pit?.where ?? bodyOf(states[k]!.player));
   const views = camerasAlong(level, camera, from, states).map(viewOf);
-  const first = views.findIndex((v, k) => k >= takeoffStep && onScreen(boxAt(k), v));
+  // Staying in a ride, what takes the life is judged from the boarding on (GDD-WLD-15: 0.2 s or more after it shows), also on a ride that
+  // goes on from a landing back in its cart: the jump that landed there is part of the same ride.
+  const first = views.findIndex((v, k) => k >= (t.input === 'ride' ? 0 : takeoffStep) && onScreen(boxAt(k), v));
   return {
     takeoff: t,
     cause: pit?.cause ?? found.cause,
@@ -463,7 +500,8 @@ export function rideSaves(level: Level, l: Loss): string[] {
   const t = l.takeoff;
   const ride = t.ride!;
   const stay = flyTakeoff(level, t);
-  const from = l.lossStep - l.seenBefore + REACT_STEPS;
+  // A reaction is a jump from the cart: not before he is back in it after the jumps `via` (a press in the air there is no jump out).
+  const from = Math.max(l.lossStep - l.seenBefore + REACT_STEPS, (ride.via?.at(-1)?.landed ?? -1) + 1);
   return RIDER_REACTIONS.filter((rx) => {
     for (let k = from; k < l.lossStep; k++) {
       const jump: Takeoff = { ...t, input: rx.input, ride: { ...ride, move: rx.move(t.dir), step: k } };
@@ -605,7 +643,8 @@ const reacting = (level: Level, r: RunState): boolean => level.enemies.some((d, 
 
 /**
  * GDD-WLD-03: the sight sweep of a level. From the spawn and each ofrenda, and then from every place reached, flies every take-off: the
- * tile's eighths 1, 3, 5 and 7, both ways, from a standstill and at run speed, with each of `SIGHT_INPUTS`, at each of `starts`. A place
+ * tile's eighths 1, 3, 5 and 7, both ways, from a standstill and at run speed, with each of `SIGHT_INPUTS`, at each of `starts` (by
+ * default the level's own, `sightStarts`). A place
  * is reached when he stands on it in a flight before any life is lost. Each loss is checked against the camera stepped along its flight.
  *
  * GDD-WLD-15: a flight that comes down into a rolling cart (boarding a waiting one) ends there and starts a ride on that rail, once per
@@ -626,7 +665,7 @@ const reacting = (level: Level, r: RunState): boolean => level.enemies.some((d, 
  * state at its start time (one he set off or defeated in an earlier flight is not carried on), and so does a ride, whatever the boarding
  * flight did to them. A ride longer than a flight's `maxSteps` is not cut: the sweep throws.
  */
-export function sightSweep(level: Level, starts: readonly number[] = SIGHT_STARTS): SightReport {
+export function sightSweep(level: Level, starts: readonly number[] = sightStarts(level)): SightReport {
   const F = SIGHT_FLIGHT;
   const calm: Level = { ...level, enemies: [] };
   const swept = sweptBoxes(level, starts, F.maxSteps + 1);
