@@ -924,6 +924,16 @@ describe('GDD-TEC-04 and GDD-ENM-04 Armadillos in the validator', () => {
     expect(mine([...stretch, ...wallAt(34)], [railAt(36)], [armadillo(408, 176)])).toEqual([]);
   });
 
+  it('GDD-ENM-04 an Armadillo roll to the left may not reach a cart start either', { timeout: 30000 }, () => {
+    // The mirror of the fixture above: its walk stays on a block (columns 30 to 39, top y = 176); the cart stands on the floor to its left
+    // at column 22 (x 352 to 384). A roll left falls off the block's left end (x = 480), lands on the floor and rolls into it.
+    const block = [30, 31, 32, 33, 34, 35, 36, 37, 38, 39].flatMap((c) => [[c, 11], [c, 12], [c, 13]] as const);
+    const stretch = [...block, ...wallAt(14), ...wallAt(44)];
+    expect(mine(stretch, [railAt(22)], [armadillo(568, 176)])).toEqual(['armadillo at column 35 rolls into the start of the cart at column 22']);
+    // The same with a wall between the cart and where it lands (column 25, x 400 to 416): no problem.
+    expect(mine([...stretch, ...wallAt(25)], [railAt(22)], [armadillo(568, 176)])).toEqual([]);
+  });
+
   it('GDD-ENM-04 an Armadillo roll that ends in a pit before the cart is no problem', { timeout: 30000 }, () => {
     // On the floor between a wall in column 20 and a pit in columns 33 to 35 (open to the level's bottom); the cart beyond it at column 37.
     // Its walk turns at the pit's edge; a roll right falls in and out of the level.

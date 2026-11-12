@@ -38,7 +38,7 @@ export const SIGHT_ACCEPTED: readonly Accepted[] = [
     from: 99,
     to: 100,
     input: 'held',
-    why: "GDD-WLD-16 (The sight sweep, family 3): the first pen's Alacrán by a held jump to the left at a run, back over the flat and the pen he has just crossed; in view from 0.3 s after the take-off and 1.9 s or more before the hit (117 to 137 steps)",
+    why: "GDD-WLD-16 (The sight sweep, family 3): the first pen's Alacrán by a held jump to the left, at a run or from a standstill, back over the flat and the pen he has just crossed; in view from 0.3 s after the take-off and 1.9 s or more before the hit (117 to 137 steps)",
   },
   {
     level: '3-1',

@@ -664,3 +664,32 @@ describe('GDD-ENM-04 the Armadillo in a pen', () => {
     expect(lost.glide).toEqual(['236@0']);
   });
 });
+
+describe('GDD-ENM-04 the Armadillo, as built where the design does not say', () => {
+  it('GDD-ENM-04 the Armadillo is stopped by the upright face at a slope\'s high end, a rise of more than 4 px in a step', () => {
+    // A slope rising right alone on the floor in column 10 (x 160 to 176, its high end 16 px over the floor at x = 176), open floor to its
+    // right. Rolling left along the floor (y = 160) from x = 300 it meets that upright face: a wall, though no level tile is in its way.
+    const face = grid(40, 12, (c, r) => (r >= 10 ? '#' : r === 9 && c === 10 ? '/' : '.'));
+    const rolled = steps(armadillo(300, 160), at(300, 160, -1, { phase: 'roll' }), face, 200);
+    const stop = rolled.findIndex((s) => s.shell!.phase === 'dazed');
+    expect(stop).toBeGreaterThan(0);
+    // The ground is read under the middle of its feet, so it stops with its middle within one rolling step (130 / 60 px) of the face, its
+    // box 8 px into the slope's tile, on the floor.
+    expect(rolled[stop]!.x).toBeGreaterThanOrEqual(176);
+    expect(rolled[stop]!.x).toBeLessThan(176 + 130 / 60);
+    expect(rolled[stop]!.y).toBe(160);
+    expect(rolled.slice(0, stop).every((s) => s.shell!.phase === 'roll' && s.y === 160)).toBe(true);
+  });
+
+  it('GDD-ENM-04 the Armadillo keeps its facing when it is startled by a Poncho exactly at its middle', () => {
+    for (const dir of [1, -1] as const) {
+      // Where its walking step takes it, then Poncho standing exactly there: it tucks facing as it walked.
+      const walked = stepEnemy(DEF, at(100, 160, dir), pen, away);
+      const here = stepEnemy(DEF, at(100, 160, dir), pen, standing(walked.x));
+      expect([here.shell!.phase, here.dir], `heading ${dir}`).toEqual(['tuck', dir]);
+      // A hair to either side it turns to face him, whichever way it walked.
+      expect(stepEnemy(DEF, at(100, 160, dir), pen, standing(walked.x - 0.01)).dir, `heading ${dir}, he is left`).toBe(-1);
+      expect(stepEnemy(DEF, at(100, 160, dir), pen, standing(walked.x + 0.01)).dir, `heading ${dir}, he is right`).toBe(1);
+    }
+  });
+});
