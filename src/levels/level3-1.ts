@@ -163,15 +163,13 @@ const PINATAS: readonly Pinata[] = [
 
 /**
  * GDD-ENM-02, GDD-ENM-04: where the enemies start, in this order: the Alacrán of the first pen; the first Murciélago alone over flat
- * ground; the bat under the second chasm's glide; the Alacrán on F1 and the bat over it; the Alacrán of the lower pen; the patrol bat at
- * the Ketsu ledge's far end, at body height; the two bats of the last glide, the second half a loop behind.
+ * ground; the bat under the second chasm's glide (F1, under the ledges of Ten, has no enemy); the Alacrán of the lower pen; the patrol
+ * bat at the Ketsu ledge's far end, at body height; the two bats of the last glide, the second half a loop behind.
  */
 export const LEVEL_3_1_ENEMIES: readonly Enemy[] = [
   { x: mid(82), y: 15 * TILE },
   { x: mid(93), y: 188, kind: 'murcielago', ry: 24 },
   { x: mid(108), y: 230, kind: 'murcielago', ry: 24 },
-  { x: mid(153), y: 25 * TILE },
-  { x: mid(153), y: 351, kind: 'murcielago', ry: 24 },
   { x: mid(LOWER_PEN.rock0 + 4), y: 38 * TILE },
   { x: mid(214), y: 672, kind: 'murcielago', rx: 16 },
   { x: mid(220), y: 680, kind: 'murcielago', ry: 24 },

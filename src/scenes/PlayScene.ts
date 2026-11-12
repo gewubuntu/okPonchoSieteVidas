@@ -95,7 +95,7 @@ import { crumbleLook } from '../ui/crumbleLook';
 import { effectiveHeld, InputLatch } from '../ui/inputLatch';
 import { crackFrame, crackLine, updateCracks, type Crack } from '../ui/lifeCrack';
 import { lastLifePulse, updatePulseStart } from '../ui/lastLife';
-import { HILO_COLOURS, HILO_HUD, hiloColour, hiloCounterRight, hiloCounterText } from '../ui/hiloCounter';
+import { HILO_COLOURS, HILO_HUD, hiloColour, hiloCounterRight, hiloCounterText, hiloStroke, hiloTextPlace } from '../ui/hiloCounter';
 import { drawnLife, layoutLives, LIVES_HUD, type TrianglePoints } from '../ui/livesLayout';
 import { gamePoint } from '../ui/gamePoint';
 import { ITEM_FRAMES } from '../ui/ponchoFrames';
@@ -409,8 +409,12 @@ export interface PonchoDebug {
   hilos(): { taken: number; total: number; drawn: number; faded: number };
   /** GDD-PRG-02: the progress the scene holds for the levels, as saved at each level clear (and read when the scene was made). */
   progress(): Record<string, LevelProgress>;
-  /** GDD-UI-01: the hilo counter as drawn: its text, the right edge and top of the text, and the middle x of the skein icon. */
-  hudHilos(): { text: string; right: number; top: number; iconX: number };
+  /**
+   * GDD-UI-01: the hilo counter as drawn: its text, the right edge and top of the text's glyphs, the middle x of the skein icon, and the
+   * dark outline round the glyphs (its colour, and how far it lies outside them: half the text's stroke). Read from the text object as
+   * drawn, its box less the stroke's padding.
+   */
+  hudHilos(): { text: string; right: number; top: number; iconX: number; outline: { colour: number; px: number } };
   /** Whether the taco in Poncho's hand and the power-up icon on the HUD are drawn. Read from what was drawn. */
   heldTacoVisible(): boolean;
   /**
@@ -1134,7 +1138,11 @@ export class PlayScene extends Phaser.Scene {
 
     // GDD-UI-01: the hilo counter in the top right, left of the touch pause button where there is one.
     this.hiloIcon = this.add.graphics().setScrollFactor(0).setDepth(10);
-    this.hiloText = this.add.text(0, HILO_HUD.top, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff3dc' }).setOrigin(1, 0).setScrollFactor(0).setDepth(10);
+    this.hiloText = this.add
+      .text(0, HILO_HUD.top, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff3dc', stroke: `#${HILO_HUD.outline.colour.toString(16).padStart(6, '0')}`, strokeThickness: hiloStroke(HILO_HUD.outline.px) })
+      .setOrigin(1, 0)
+      .setScrollFactor(0)
+      .setDepth(10);
     this.drawHiloCounter();
 
     // GDD-UI-02: the pause screen, over the level and the Siete vidas gastadas screen, under the HUD and the touch buttons
@@ -1459,7 +1467,11 @@ export class PlayScene extends Phaser.Scene {
         tacosDrawn: () => this.tacosPainted,
         hilos: () => ({ taken: hilosCollected(this.run.hilosTaken), total: this.level.hilos?.length ?? 0, drawn: this.hilosPainted, faded: this.hilosFaded }),
         progress: () => this.progress,
-        hudHilos: () => ({ text: this.hiloText.text, right: this.hiloText.x, top: this.hiloText.y, iconX: this.hiloIconX }),
+        hudHilos: () => {
+          const stroke = this.hiloText.style.strokeThickness;
+          const outline = { colour: typeof this.hiloText.style.stroke === 'string' ? parseInt(this.hiloText.style.stroke.slice(1), 16) : -1, px: stroke / 2 };
+          return { text: this.hiloText.text, right: this.hiloText.x - stroke / 2, top: this.hiloText.y + stroke / 2, iconX: this.hiloIconX, outline };
+        },
         heldTacoVisible: () => this.heldImage.visible,
         heldDrawn: () => (this.heldImage.visible ? { look: ITEM_LOOKS.held[Number(this.heldImage.frame.name)]!, x: this.heldImage.x, y: this.heldImage.y, alpha: this.heldImage.alpha } : null),
         fxDrawn: () => (this.fxImage.visible ? [{ look: ITEM_LOOKS.fx[Number(this.fxImage.frame.name)]!, x: this.fxImage.x, y: this.fxImage.y }] : []),
@@ -1974,8 +1986,17 @@ export class PlayScene extends Phaser.Scene {
     return `${this.run.hilosTaken.join()}|${this.run.hilosSaved.join()}`;
   }
 
-  /** Placeholder skein (GDD-WLD-04): a round coil of thread, two dark wraps across it and a short loose end. The middle stays plain colour. */
-  private paintHilo(g: Phaser.GameObjects.Graphics, cx: number, cy: number, colour: number): void {
+  /**
+   * Placeholder skein (GDD-WLD-04): a round coil of thread, two dark wraps across it and a short loose end. The middle stays plain colour.
+   * With an `edge` (the HUD's icon, GDD-UI-01), a dark disc `edge.px` wider than the coil and the loose end drawn `edge.px` to each side
+   * go under it first.
+   */
+  private paintHilo(g: Phaser.GameObjects.Graphics, cx: number, cy: number, colour: number, edge?: { colour: number; px: number }): void {
+    if (edge) {
+      g.fillStyle(edge.colour, 1).fillCircle(cx, cy, HILO.size / 2 + edge.px);
+      g.lineStyle(1, edge.colour, 1);
+      for (const [dx, dy] of [[-edge.px, 0], [edge.px, 0], [0, -edge.px], [0, edge.px]] as const) g.beginPath().moveTo(cx + 3 + dx, cy + 3 + dy).lineTo(cx + 6 + dx, cy + 5 + dy).strokePath();
+    }
     g.fillStyle(colour, 1).fillCircle(cx, cy, HILO.size / 2);
     g.lineStyle(1, 0x382e47, 0.6);
     for (const dy of [-2, 2]) g.beginPath().moveTo(cx - 3, cy + dy).lineTo(cx + 3, cy + dy).strokePath();
@@ -1992,10 +2013,13 @@ export class PlayScene extends Phaser.Scene {
     const right = hiloCounterRight(pause);
     if (`${text}|${right}` === this.hiloHudKey) return;
     this.hiloHudKey = `${text}|${right}`;
-    this.hiloText.setText(text).setPosition(right, HILO_HUD.top);
-    this.hiloIconX = right - this.hiloText.width - HILO_HUD.iconGap - HILO_HUD.iconSize / 2;
+    // GDD-UI-01: the text's box is padded by its stroke, so it is placed and measured so that the glyphs keep their place.
+    const stroke = this.hiloText.style.strokeThickness;
+    const place = hiloTextPlace(right, stroke);
+    this.hiloText.setText(text).setPosition(place.x, place.y);
+    this.hiloIconX = right - (this.hiloText.width - stroke) - HILO_HUD.iconGap - HILO_HUD.iconSize / 2;
     this.hiloIcon.clear();
-    this.paintHilo(this.hiloIcon, this.hiloIconX, HILO_HUD.top + this.hiloText.height / 2, HILO_COLOURS[1]);
+    this.paintHilo(this.hiloIcon, this.hiloIconX, HILO_HUD.top + (this.hiloText.height - stroke) / 2, HILO_COLOURS[1], HILO_HUD.outline);
   }
 
   /**

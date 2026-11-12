@@ -5,6 +5,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { TILE } from '../../src/config/tuning';
 import { LEVEL_3_1, LEVEL_3_1_GROUND, LEVEL_3_1_LEDGES, LEVEL_3_1_PIECES, LEVEL_3_1_PITS } from '../../src/levels/level3-1';
+import { kindOf } from '../../src/sim/enemy';
 import { start } from '../helpers';
 
 const shot = async (page: Page, info: TestInfo, name: string) => {
@@ -18,11 +19,13 @@ const mid = (col: number) => col * TILE + TILE / 2;
 const groundRow = (col: number): number => LEVEL_3_1_GROUND.find((s) => col >= s.col0 && col <= s.col1)!.row;
 const L = LEVEL_3_1;
 const [L1, L2, , L3, L4] = LEVEL_3_1_LEDGES;
-/** The enemies by their place in the level's list (L-015): the first bat, the second chasm's, the lower pen's Alacrán, the last glide's two. */
-const BAT_1 = 1;
-const CHASM_BAT = 2;
-const LOWER_ALACRAN = 5;
-const LAST_BATS = [7, 8];
+/** The place in the level's list (L-015) of the enemy of kind `kind` that starts in column `col`. */
+const enemyAt = (kind: 'alacran' | 'murcielago', col: number): number => L.enemies.findIndex((e) => kindOf(e) === kind && Math.floor(e.x / TILE) === col);
+/** The enemies by kind and starting column (GDD-WLD-16): the first bat, the second chasm's, the lower pen's Alacrán, the last glide's two. */
+const BAT_1 = enemyAt('murcielago', 93);
+const CHASM_BAT = enemyAt('murcielago', 108);
+const LOWER_ALACRAN = enemyAt('alacran', 157);
+const LAST_BATS = [enemyAt('murcielago', 220), enemyAt('murcielago', 225)];
 
 /** Starts 3-1 the device's way (L-045) and pauses it, Poncho standing at the spawn. */
 async function open(page: Page, isMobile: boolean): Promise<void> {
