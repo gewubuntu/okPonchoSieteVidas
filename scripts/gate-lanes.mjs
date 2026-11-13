@@ -13,9 +13,10 @@
  * @param {(name: string) => Promise<{ status: number | null; output: string }>} run runs one slot to the end
  * @param {(line: string) => void} [log] progress lines ("started", "finished in Ns"), written as they happen
  * @param {() => number} [now] a clock in milliseconds
+ * @param {(result: { name: string; ok: boolean; output: string; seconds: number }) => void} [onDone] called the moment a slot ends, so a failure can be shown at once
  * @returns {Promise<{ name: string; ok: boolean; output: string; seconds: number }[]>} one result per slot, in lane order, lane by lane
  */
-export async function runLanes(lanes, run, log = () => {}, now = Date.now) {
+export async function runLanes(lanes, run, log = () => {}, now = Date.now, onDone = () => {}) {
   const done = new Map();
   await Promise.all(
     lanes.map(async (lane) => {
@@ -30,7 +31,9 @@ export async function runLanes(lanes, run, log = () => {}, now = Date.now) {
         }
         const seconds = Math.round((now() - t0) / 1000);
         log(`  finished ${name} in ${seconds}s (${r.status === 0 ? 'ok' : 'FAILED'})`);
-        done.set(name, { name, ok: r.status === 0, output: r.output, seconds });
+        const result = { name, ok: r.status === 0, output: r.output, seconds };
+        done.set(name, result);
+        onDone(result);
       }
     }),
   );

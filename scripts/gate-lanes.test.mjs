@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { lanesFor, runLanes } from './gate-lanes.mjs';
 
-const tick = (ms) => new Promise((r) => setTimeout(r, ms)); // L-042: fake slots take real milliseconds so the test sees which ones overlap
+const tick = (ms) => new Promise((r) => setTimeout(r, ms)); // L-042: only a slot's own length; no test orders two timers against each other
 
 /** A runner whose slots take the given milliseconds and end with the given status; it records the order of starts and ends. */
 function fake(spec) {
@@ -17,12 +17,20 @@ function fake(spec) {
 
 describe('runLanes (L-080)', () => {
   it('runs the lanes side by side and the slots of one lane one after another', async () => {
-    const { run, events } = fake({ a: { ms: 40 }, b: { ms: 10 }, c: { ms: 10 } });
-    await runLanes([['a'], ['b', 'c']], run);
-    // a is still running when b and c both finish: the lanes overlap. c starts only after b ends: a lane is serial.
-    expect(events.indexOf('start b')).toBeLessThan(events.indexOf('end a'));
-    expect(events.indexOf('end b')).toBeLessThan(events.indexOf('start c'));
-    expect(events.indexOf('end c')).toBeLessThan(events.indexOf('end a'));
+    // Deferred slots: each ends only when the test says so, so no clock decides the order.
+    const started = [];
+    const ends = {};
+    const run = (name) => new Promise((resolve) => { started.push(name); ends[name] = () => resolve({ status: 0, output: '' }); });
+    const flush = () => new Promise((r) => setImmediate(r));
+    const all = runLanes([['a'], ['b', 'c']], run);
+    await flush();
+    expect(started).toEqual(['a', 'b']); // both lanes started; c waits behind b
+    ends['b']();
+    await flush();
+    expect(started).toEqual(['a', 'b', 'c']); // c starts once b ended, while a still runs
+    ends['c']();
+    ends['a']();
+    await all;
   });
 
   it('returns every slot in lane order, whichever finishes first, each with its own output', async () => {
@@ -46,6 +54,12 @@ describe('runLanes (L-080)', () => {
     });
     expect(r.map((x) => x.ok)).toEqual([false, false]);
     expect(r[0].output).toContain('spawn npm ENOENT');
+  });
+
+  it('hands each slot to onDone the moment it ends', async () => {
+    const seen = [];
+    await runLanes([['a', 'b']], async (n) => ({ status: n === 'a' ? 1 : 0, output: n }), () => {}, Date.now, (r) => seen.push([r.name, r.ok, r.output]));
+    expect(seen).toEqual([['a', false, 'a'], ['b', true, 'b']]);
   });
 
   it('times each slot and logs its start and end', async () => {

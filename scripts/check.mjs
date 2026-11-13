@@ -425,7 +425,9 @@ async function checkToolchain() {
   if (!exists('package.json')) return [];
   const defined = Object.keys(JSON.parse(read('package.json')).scripts ?? {});
   const lanes = lanesFor(TOOLCHAIN_LANES, defined, process.argv.includes('--serial'));
-  const results = await runLanes(lanes, runNpmScript, console.log);
+  // A failed slot's output is shown the moment it ends (a lint error need not wait for the sight sweep), and again in slot order below.
+  const early = (r) => { if (!r.ok) process.stdout.write(`\n  ---- npm run ${r.name} FAILED after ${r.seconds}s (output again below, in order) ----\n${r.output}`); };
+  const results = await runLanes(lanes, runNpmScript, console.log, Date.now, early);
   const errors = [];
   for (const r of results) {
     console.log(`\n  ---- npm run ${r.name} (${r.seconds}s) ----`);
