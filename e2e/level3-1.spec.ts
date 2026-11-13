@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { CAMERA, TILE } from '../src/config/tuning';
 import { LEVEL_3_1, LEVEL_3_1_BOTTOMS, LEVEL_3_1_GROUND, LEVEL_3_1_LEDGES, LEVEL_3_1_PITS, TIPS_3_1 } from '../src/levels/level3-1';
+import { LEVEL_3_2 } from '../src/levels/level3-2';
 import { clearOfButtons, nearHex, openGame, pixelsAt, readSheet, resultsRowCentre, spotsIn, stepUntil, tapAt, waitForResults } from './helpers';
 
 // Level 3-1 "La Barranca" (GDD-WLD-16) in the real game, opened by its address (GDD-UI-02). Where things are is read from
@@ -616,31 +617,37 @@ test('GDD-LIFE-03 3-1 the veladora on the pillar is taken by dropping from the l
   expect(await api(page, () => window.__PONCHO__!.veladoraDrawn())).toBe(false);
 });
 
-test('GDD-WLD-16 3-1 the exit clears the level; its results menu greys Next level, as the last level built', async ({ page, isMobile }) => {
+test("GDD-LIFE-05 3-1's results menu offers Next level, which starts 3-2 with 3-1's lives carried", async ({ page, isMobile }) => {
   await play(page, isMobile);
+  // Two lives taken first by the debug hook (the count only): 5 left. On the way to the exit the veladora on the pillar gives one back (GDD-LIFE-03;
+  // the last lip he is put on is 8 columns past the third ofrenda, which he never touches): 6 at the clear, short of a new world's seven.
+  for (let i = 0; i < 2; i++) {
+    await api(page, () => window.__PONCHO__!.loseLife());
+    expect(await stepUntil(page, { phase: 'playing' }, 300)).toBeLessThan(300);
+  }
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
   await dropToPillar(page);
   expect(await glideToFloor(page)).toMatchObject({ phase: 'playing' });
   // Right to the exit's arch.
   expect(await stepUntil(page, { phase: 'clear' }, 200, { move: 1, jumpHeld: false })).toBeLessThan(200);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(6);
   await api(page, () => window.__PONCHO__!.step(61));
   await waitForResults(page);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
-  // World 3's run ends there: a new one at 3-1.
-  expect(await storedProgress(page)).toMatchObject({ worldAt: { '3': '3-1' } });
+  // 3-1 names 3-2 (GDD-WLD-17): Next level is offered and chosen.
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'next', colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'] });
+  // World 3's run goes on at 3-2 with the lives at the clear.
+  expect(await storedProgress(page)).toMatchObject({ worldLives: { '3': 6 }, worldAt: { '3': '3-2' } });
   await api(page, () => window.__PONCHO__!.pause(false));
-  // Up from Retry stays there, and a tap or click on the greyed row does nothing.
-  await page.keyboard.press('ArrowUp');
-  const t0 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 10, t0);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
-  const row = await resultsRowCentre(page, 'next');
-  if (isMobile) await page.touchscreen.tap(row.x, row.y);
-  else await page.mouse.click(row.x, row.y);
-  const t1 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 20, t1);
-  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
-  expect(await api(page, () => window.__PONCHO__!.level())).toBe('3-1');
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
+  if (isMobile) {
+    const row = await resultsRowCentre(page, 'next');
+    await page.touchscreen.tap(row.x, row.y);
+  } else await page.keyboard.press('Enter', { delay: 30 });
+  // 3-2, a level of the same world, starts at once with them, at its spawn, in the mine.
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '3-2' && window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(6);
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false);
+  expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'sierra', midKey: 'sierra:mid-mina', place: 'mina' });
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: LEVEL_3_2.spawn.x });
 });
 
 // GDD-WLD-17: the rock back wall's ochre shade, and the colours of the canyon's backdrop (its sky, peaks, pines and mist) and of the
