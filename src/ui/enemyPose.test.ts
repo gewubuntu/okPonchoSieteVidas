@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Hop } from '../sim/chapulin';
+import type { Shell } from '../sim/armadillo';
 import { kindOf, type Enemy, type EnemyState, type Flight, type Gait } from '../sim/enemy';
 import type { Wing } from '../sim/paloma';
+import { surfaceY } from '../sim/slope';
+import { parseTiles } from '../sim/tilemap';
 import type { Spin } from '../sim/trompo';
-import { ENEMY_LOOKS } from './enemyLooks';
-import { enemyPose, type PoseContext } from './enemyPose';
+import { ARMADILLO_BOTTOMS, ENEMY_LOOKS } from './enemyLooks';
+import { enemyPose, stepRang, type PoseContext } from './enemyPose';
 
 const ALACRAN: Enemy = { x: 100, y: 160 };
 const ZOPILOTE: Enemy = { x: 200, y: 50, kind: 'zopilote' };
@@ -296,5 +299,151 @@ describe('GDD-ENM-04 which frame the Murciélago shows', () => {
     expect(enemyPose(MURCIELAGO, flyer(7, 287, 123), FAR)).toEqual({ look: 'flap1', frame: 1, x: 287, y: 123, flip: false });
     expect(flip(MURCIELAGO, flyer(7, 287, 123, -1))).toBe(true);
     expect(flip(MURCIELAGO, flyer(7, 287, 123, 1))).toBe(false);
+  });
+});
+
+// World 3's Armadillo (GDD-ENM-04): its start at (300, 208); `shelled` its state at x, its feet at y = 208 unless given, facing `dir`.
+const ARMADILLO: Enemy = { x: 300, y: 208, kind: 'armadillo' };
+const shelled = (o: Partial<Shell>, x = 300, dir: 1 | -1 = 1, y = 208): EnemyState => ({ x, y, dir, alive: true, shell: { phase: 'walk', age: 0, vy: 0, vx: 0, ...o } });
+const aLook = (o: Partial<Shell>, x = 300, dir: 1 | -1 = 1) => look(ARMADILLO, shelled(o, x, dir));
+
+describe('GDD-ENM-04 which frame the Armadillo shows', () => {
+  it('GDD-ENM-04 the Armadillo walk shows the next trot frame every 2 px walked, not by time, facing its way', () => {
+    expect([0, 2, 4, 6, 8].map((x) => aLook({}, x))).toEqual(['walk0', 'walk1', 'walk2', 'walk3', 'walk0']);
+    expect([1.9, 3.9, 5.9, 7.9].map((x) => aLook({}, x))).toEqual(['walk0', 'walk1', 'walk2', 'walk3']);
+    // From its x alone: standing still (a paused step, any age) it keeps its frame.
+    expect([0, 1, 7, 30, 59].map((age) => aLook({ age }, 2))).toEqual(['walk1', 'walk1', 'walk1', 'walk1', 'walk1']);
+    expect([0, 2].map((x) => enemyPose(ARMADILLO, shelled({}, x), FAR).frame)).toEqual([0, 1]);
+    expect(enemyPose(ARMADILLO, shelled({}, 4), FAR)).toEqual({ look: 'walk2', frame: 2, x: 4, y: 208, flip: false });
+    expect(flip(ARMADILLO, shelled({}, 304, -1))).toBe(true);
+    expect(enemyPose(ARMADILLO, shelled({}, 304, 1, 200), FAR).y).toBe(200); // where it walked up a ramp to
+  });
+
+  it('GDD-ENM-01 the Armadillo tuck flashes red on its first 4 steps, plain 4, red 4, facing Poncho', () => {
+    // Its tuck's age 0 is its first step (30 left): red at ages 0 to 3, 8 to 11, 16 to 19, 24 to 27, plain between and at 28 and 29.
+    const red = Array.from({ length: 30 }, (_, age) => aLook({ phase: 'tuck', age }) === 'tuckRed');
+    expect(red).toEqual(Array.from({ length: 30 }, (_, age) => Math.floor(age / 4) % 2 === 0));
+    expect(Array.from({ length: 30 }, (_, age) => aLook({ phase: 'tuck', age })).every((l) => l === 'tuck' || l === 'tuckRed')).toBe(true);
+    expect(enemyPose(ARMADILLO, shelled({ phase: 'tuck', age: 0 }), FAR).frame).toBe(5);
+    expect(enemyPose(ARMADILLO, shelled({ phase: 'tuck', age: 4 }), FAR).frame).toBe(4);
+    expect(flip(ARMADILLO, shelled({ phase: 'tuck' }, 300, -1))).toBe(true);
+    expect(flip(ARMADILLO, shelled({ phase: 'tuck' }, 300, 1))).toBe(false);
+  });
+
+  it('GDD-ENM-04 the rolling Armadillo shows the next roll frame every 6 px it rolls, either way, mirrored rolling left', () => {
+    // Rolling right the frames go roll0 to roll3 as x grows; rolling left, mirrored, they go roll0 to roll3 as x falls, so the mirrored
+    // bands and ear go round the other way (anticlockwise), as a ball rolling left turns.
+    expect([0, 5.9, 6, 12, 18, 24].map((x) => aLook({ phase: 'roll', vx: 130 }, x, 1))).toEqual(['roll0', 'roll0', 'roll1', 'roll2', 'roll3', 'roll0']);
+    expect([24, 18, 12, 6, 0].map((x) => aLook({ phase: 'roll', vx: 130 }, x, -1))).toEqual(['roll0', 'roll1', 'roll2', 'roll3', 'roll0']);
+    expect(flip(ARMADILLO, shelled({ phase: 'roll' }, 300, -1))).toBe(true);
+    expect(flip(ARMADILLO, shelled({ phase: 'roll' }, 300, 1))).toBe(false);
+    // In the air too, while it falls, the frames follow its x.
+    expect([0, 6].map((x) => aLook({ phase: 'roll', vx: 130, vy: 200 }, x, 1))).toEqual(['roll0', 'roll1']);
+    expect([6, 12, 18, 24].map((x) => enemyPose(ARMADILLO, shelled({ phase: 'roll' }, x), FAR).frame)).toEqual([7, 8, 9, 6]);
+  });
+
+  it('GDD-ENM-04 the tucked and rolling ball is drawn standing on its feet, at its middle', () => {
+    for (const o of [{ phase: 'tuck' }, { phase: 'roll', vx: 130 }, { phase: 'roll', vx: 130, vy: 100 }] as const) {
+      expect(enemyPose(ARMADILLO, shelled(o, 312, 1, 190), FAR), o.phase).toMatchObject({ x: 312, y: 190 });
+      expect(enemyPose(ARMADILLO, shelled(o, 312, -1, 190), FAR), o.phase).toMatchObject({ x: 312, y: 190 });
+    }
+  });
+
+  it('GDD-ENM-04 the dazed Armadillo lies on its back, kicking on every other 4 steps of its last 30 only', () => {
+    // Dazed 60 steps, kicking in the last 30 (ages 30 to 59), on the blocks of 4 steps whose number is even, as the Tlacuache twitches.
+    const looks = Array.from({ length: 60 }, (_, age) => aLook({ phase: 'dazed', age }));
+    expect(looks.slice(0, 30).every((l) => l === 'dazed')).toBe(true);
+    expect(looks.slice(30).map((l, k) => [30 + k, l]).filter(([, l]) => l === 'dazedKick').map(([age]) => age)).toEqual([32, 33, 34, 35, 40, 41, 42, 43, 48, 49, 50, 51, 56, 57, 58, 59]);
+    expect([0, 32].map((age) => enemyPose(ARMADILLO, shelled({ phase: 'dazed', age }), FAR).frame)).toEqual([10, 11]);
+  });
+
+  it('GDD-ENM-04 the dazed Armadillo is drawn back from the wall it faces by its front reach, at its feet', () => {
+    // It lies facing the wall that stopped it; its drawing reaches 5 px past its box's front (scripts/art/enemies3.test.mjs), so it is drawn
+    // that far back, off the wall's face: its front on its box's front.
+    expect(enemyPose(ARMADILLO, shelled({ phase: 'dazed', age: 3 }, 296, 1), FAR)).toEqual({ look: 'dazed', frame: 10, x: 291, y: 208, flip: false });
+    expect(enemyPose(ARMADILLO, shelled({ phase: 'dazed', age: 3 }, 296, -1), FAR)).toEqual({ look: 'dazed', frame: 10, x: 301, y: 208, flip: true });
+    expect(enemyPose(ARMADILLO, shelled({ phase: 'dazed', age: 40 }, 296, -1), FAR)).toMatchObject({ look: 'dazedKick', x: 301 });
+  });
+});
+
+/** A rolling Armadillo, the claw ringing off it this step or not; and a run's enemies after a step, in play or respawning. */
+const ringing = (rang: boolean): EnemyState => ({ ...shelled({ phase: 'roll', vx: 130, ...(rang ? { rang: true } : {}) }) });
+const run = (enemies: readonly EnemyState[], phase: 'playing' | 'respawning' = 'playing') => ({ enemies, phase });
+
+describe('GDD-ENM-04 the claw ringing off the ball', () => {
+
+  it('GDD-ENM-04 the claw ringing off the rolling ball flashes it white for 2 steps', () => {
+    // The flag lasts the step it rang; the flash, counted in steps left, shows on that step and the next.
+    let left = stepRang([0], run([ringing(true)]));
+    expect(left).toEqual([2]);
+    left = stepRang(left, run([ringing(false)]));
+    expect(left).toEqual([1]);
+    left = stepRang(left, run([ringing(false)]));
+    expect(left).toEqual([0]);
+    expect(stepRang(left, run([ringing(false)]))).toEqual([0]);
+    // A ring on a step it is still flashing starts the 2 steps again; other enemies are left alone.
+    expect(stepRang([1, 0], run([ringing(true), walker(10)]))).toEqual([2, 0]);
+  });
+
+  it('GDD-ENM-04 a lost life clears the rang flash', () => {
+    expect(stepRang([2], run([ringing(false)], 'respawning'))).toEqual([0]);
+    expect(stepRang([2], run([{ ...ringing(false), alive: false }]))).toEqual([0]);
+  });
+});
+
+// GDD-ENM-04, L-059: the Armadillo's drawing kept out of walls and the ground. `walled`: a floor at row 10 (y = 160) across 30 columns, a
+// wall 2 tiles tall in column 2 (x 32 to 48) and one in column 10 (x 160 to 176). `ramp`: the same floor, a gentle ramp rising right
+// ('r' then 'R', 8 px each) in columns 12 and 13 up to a step at row 9 (y = 144) from column 14 on.
+const walled = parseTiles(Array.from({ length: 12 }, (_r, r) => Array.from({ length: 30 }, (_c, c) => (r >= 10 || ((c === 2 || c === 10) && r >= 8) ? '#' : '.')).join('')));
+const ramp = parseTiles(
+  Array.from({ length: 12 }, (_r, r) => Array.from({ length: 30 }, (_c, c) => (r >= 10 || (r === 9 && c >= 14) ? '#' : r === 9 && c === 12 ? 'r' : r === 9 && c === 13 ? 'R' : '.')).join('')),
+);
+const at160 = (x: number, dir: 1 | -1, o: Partial<Shell> = {}, y = 160) => enemyPose(ARMADILLO, shelled(o, x, dir, y), { ...FAR, world: walled });
+
+describe('GDD-ENM-04 the Armadillo drawn out of walls and the ground', () => {
+  it('GDD-ENM-04 a walking Armadillo against a wall is drawn shifted off it by its reach on that side', () => {
+    // Its walk frames reach 4.5 px past its box in front (the snout) and 5 px behind (the tail) (scripts/art/enemies3.test.mjs).
+    expect(at160(152, 1)).toMatchObject({ x: 147.5, y: 160, flip: false }); // flush against the wall at x = 160, heading into it: the snout
+    expect(at160(152, -1)).toMatchObject({ x: 147, y: 160, flip: true }); // flush, heading away from it: the tail
+    expect(at160(150, 1).x).toBe(147.5); // 2 px of room: shifted 2.5 px
+    expect(at160(147, 1).x).toBe(147); // 5 px of room: not shifted
+    expect(at160(56, -1).x).toBe(60.5); // flush against the wall at x = 48 on its left, heading into it
+    expect(at160(56, 1).x).toBe(61); // the same, heading away: the tail
+    expect(at160(100, 1).x).toBe(100);
+    // Without the level's tiles (a pose with no world) it is not shifted.
+    expect(enemyPose(ARMADILLO, shelled({}, 152, 1, 160), FAR).x).toBe(152);
+  });
+
+  it('GDD-ENM-04 on a slope the walk frame and the dust are drawn raised so no drawn pixel lies in the sand, and not on the level', () => {
+    const ground = (x: number, y: number): boolean => {
+      const tx = Math.floor(x / 16);
+      const ty = Math.floor(y / 16);
+      if (ramp.solidTile(tx, ty)) return true;
+      const sl = ramp.slopeAt(tx, ty);
+      return sl !== null && y > surfaceY(tx, ty, sl, x);
+    };
+    let raised = 0;
+    for (const o of [{}, { phase: 'roll', vx: 130 }] as const) {
+      for (const dir of [1, -1] as const) {
+        // The middle of its feet on the ramp's surface (y = 160 - (x - 192) / 2) at every px across it.
+        for (let x = 193; x < 224; x++) {
+          const feet = 160 - (x - 192) / 2;
+          const pose = enemyPose(ARMADILLO, shelled(o, x, dir, feet), { ...FAR, world: ramp });
+          expect(pose.y, `${x}`).toBeLessThanOrEqual(feet);
+          if (pose.y < feet) raised++;
+          const cols = ARMADILLO_BOTTOMS[pose.look]!;
+          for (let i = 0; i < cols.length; i++) {
+            if (cols[i] === '.') continue;
+            const dx = ((i + 0.5 - 28) / 2) * (pose.flip ? -1 : 1);
+            const h = parseInt(cols[i]!, 36) / 2;
+            expect(ground(pose.x + dx, pose.y - h - 0.25), `${pose.look} at ${x}, column ${i}`).toBe(false);
+          }
+        }
+      }
+    }
+    expect(raised).toBeGreaterThan(50);
+    // On the level, away from the ramp, nothing is raised.
+    expect(enemyPose(ARMADILLO, shelled({}, 100, 1, 160), { ...FAR, world: ramp }).y).toBe(160);
+    expect(enemyPose(ARMADILLO, shelled({ phase: 'roll', vx: 130 }, 100, -1, 160), { ...FAR, world: ramp }).y).toBe(160);
   });
 });

@@ -1,7 +1,7 @@
 // GDD-ART-06: each world's look: which art a level is drawn with and the numbers that put its backdrop together. Pure, no Phaser and
 // no image imports (those are in `files.ts`), so it is unit-tested. World 1 (and the tutorial, the World 1 test levels and any world not
-// drawn yet) is the desert; World 2 the Mercado; World 3 the Sierra (its canyon).
-import { ART_SCALE, BACKDROP, BACKDROP_ART, BACKDROP_RISE, MERCADO, PLANTS, SIERRA } from '../../config/tuning';
+// drawn yet) is the desert; World 2 the Mercado; World 3 the Sierra, in the place its level chooses (the canyon or the mine).
+import { ART_SCALE, BACKDROP, BACKDROP_ART, BACKDROP_RISE, MERCADO, PLANTS, SIERRA, SIERRA_MINA } from '../../config/tuning';
 
 /** The art sets, by their folder under `assets/sprites/`. */
 export type ArtSet = 'desierto' | 'mercado' | 'sierra';
@@ -86,6 +86,39 @@ export const LOOKS: Readonly<Record<ArtSet, Look>> = {
  * until it is drawn.
  */
 export const artSetFor = (world: number): ArtSet => (world === 2 ? 'mercado' : world === 3 ? 'sierra' : 'desierto');
+
+/** GDD-ART-06: World 3's places, each with its own backdrop, ground sheet and decor sheet: the canyon and the mine. */
+export type Place = 'barranca' | 'mina';
+
+/** GDD-ART-06: a level's place: in World 3 the one it chooses, the canyon when it chooses none; no place in any other world. */
+export const placeFor = (world: number, place?: Place): Place | null => (world === 3 ? (place ?? 'barranca') : null);
+
+/** GDD-ART-06: the mine's look (3-2 La Mina, underground): the sky slot is the rock, no sun and no clouds, the foot gallery deep. */
+const MINA_LOOK: Look = {
+  cloudFactor: SIERRA_MINA.cloudFactor,
+  farFactor: SIERRA_MINA.farFactor,
+  midFactor: SIERRA_MINA.midFactor,
+  skyBands: SIERRA_MINA.skyBands,
+  skyEnds: SIERRA_MINA.skyEnds,
+  stripArt: SIERRA_MINA.stripArt,
+  sun: null,
+  clouds: [],
+  farTop: SIERRA_MINA.farTop,
+  farBandArt: SIERRA_MINA.farBandArt,
+  footColour: SIERRA_MINA.footColour,
+  midTop: SIERRA_MINA.midTop,
+  midBandArt: SIERRA_MINA.midBandArt,
+  decor: SIERRA_MINA.decor,
+};
+
+/** GDD-ART-06: the look a level is drawn with: its set's, or in the mine the mine's. */
+export const lookFor = (set: ArtSet, place: Place | null): Look => (place === 'mina' ? MINA_LOOK : LOOKS[set]);
+
+/**
+ * GDD-ART-06: the texture key of an image of a set in a place: the mine's images have keys of their own (`sierra:far-mina`), since the
+ * canyon's are `sierra:far` and Phaser's texture cache outlives a level.
+ */
+export const imageKey = (set: ArtSet, place: Place | null, image: string): string => textureKey(set, place === 'mina' ? `${image}-mina` : image);
 
 /** GDD-ART-06: the mid band's image: in World 2's boss arena the plaza with the kiosco, else the world's mid layer. */
 export const midImage = (set: ArtSet, bossLevel: boolean): 'mid' | 'plaza' => (set === 'mercado' && bossLevel ? 'plaza' : 'mid');

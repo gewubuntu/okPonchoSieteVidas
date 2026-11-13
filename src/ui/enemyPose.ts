@@ -1,12 +1,20 @@
 // GDD-ENM-02, GDD-ENM-03, GDD-ENM-04, GDD-ART-05: which frame of its sheet each enemy shows, and where. Pure, no Phaser: the scene draws what this says.
-import { CACTUS, CHAPULIN, ENEMY_ART, PALOMA, TLACUACHE, TROMPO } from '../config/tuning';
+import { ARMADILLO, CACTUS, CHAPULIN, ENEMY_ART, PALOMA, TILE, TLACUACHE, TROMPO } from '../config/tuning';
+import { kick, tuckLeft, tuckRed } from '../sim/armadillo';
 import { feetOf, kindOf, type Enemy, type EnemyState } from '../sim/enemy';
-import { lookFrame, type EnemyLook, type EnemySheet } from './enemyLooks';
+import type { World } from '../sim/movement';
+import type { RunState } from '../sim/run';
+import { surfaceY } from '../sim/slope';
+import { ARMADILLO_BOTTOMS, lookFrame, type EnemyLook, type EnemySheet } from './enemyLooks';
 
-/** What a pose is picked from: the run's clock (the cactus buddy's breathing and shiver) and the middle of Poncho's hurtbox (`centre`). */
+/**
+ * What a pose is picked from: the run's clock (the cactus buddy's breathing and shiver) and the middle of Poncho's hurtbox (`centre`); and
+ * the level's tiles, which an Armadillo's drawing is kept out of (GDD-ENM-04). Left out, nothing is kept out.
+ */
 export interface PoseContext {
   readonly clock: number;
   readonly poncho: { readonly x: number; readonly y: number };
+  readonly world?: World;
 }
 
 export interface EnemyPose {
@@ -34,6 +42,7 @@ const DOZE = ['doze0', 'doze1'] as const;
 const ALARM = ['alarm0', 'alarm1'] as const;
 const CROUCH = ['crouch0', 'crouch1'] as const;
 const SPIN = ['spin0', 'spin1', 'spin2', 'spin3'] as const;
+const ROLL = ['roll0', 'roll1', 'roll2', 'roll3'] as const;
 
 /** The telegraph's red flash (GDD-ENM-01): red for flashSteps, plain for as many. */
 const flash = (age: number): EnemyLook => (Math.floor(age / ENEMY_ART.flashSteps) % 2 === 0 ? 'teleRed' : 'tele');
@@ -109,6 +118,15 @@ function lookOf(kind: EnemySheet, def: Enemy, state: EnemyState, ctx: PoseContex
     }
     case 'murcielago':
       return { look: FLAP[cycle(state.loop!.steps, ENEMY_ART.batFlapSteps, 4)]!, flip: left };
+    case 'armadillo': {
+      const s = state.shell!;
+      if (s.phase === 'tuck') return { look: tuckRed(tuckLeft(s)) ? 'tuckRed' : 'tuck', flip: left };
+      // Rolling, the frames advance with the px it rolls its own way (x times its facing), and it is mirrored rolling left: the drawn
+      // bands and ear turn clockwise rolling right, so mirrored and in the same order they turn anticlockwise.
+      if (s.phase === 'roll') return { look: ROLL[cycle(state.x * state.dir, ENEMY_ART.rollPx, 4)]!, flip: left };
+      if (s.phase === 'dazed') return { look: kick(s) && Math.floor(s.age / ENEMY_ART.kickFlipSteps) % 2 === 0 ? 'dazedKick' : 'dazed', flip: left };
+      return { look: WALK[cycle(state.x, ENEMY_ART.walkPx, 4)]!, flip: left };
+    }
     default:
       return kind satisfies never;
   }
@@ -128,10 +146,83 @@ function lookOf(kind: EnemySheet, def: Enemy, state: EnemyState, ctx: PoseContex
  * and rocks (stunWobble) on every other rockSteps block of the last TROMPO.wobbleSteps. Each stands on its feet, facing the way it goes.
  *
  * World 3's (GDD-ENM-04, Proposed): a Murciélago shows the next flap frame every batFlapSteps of its own steps, drawn at its box's middle,
- * facing the way it moves across.
+ * facing the way it moves across. An Armadillo walks like the Alacrán; tucked it flashes red (`tuckRed`, its sheet's own red frame); rolling
+ * it shows the next roll frame every rollPx px it rolls, its way, in the air too; dazed it lies on its back, kicking (dazedKick) on every other
+ * kickFlipSteps block while `kick` says, drawn ENEMY_ART.dazedBack px back from the wall it faces. It stands on its feet, facing its way.
  */
 export function enemyPose(def: Enemy, state: EnemyState, ctx: PoseContext): EnemyPose {
   const kind = kindOf(def);
   const { look, flip } = lookOf(kind, def, state, ctx);
-  return { look, frame: lookFrame(kind, look), x: state.x, y: state.flight?.y ?? state.loop?.y ?? feetOf(def, state) - liftOf(state), flip };
+  const y = state.flight?.y ?? state.loop?.y ?? feetOf(def, state) - liftOf(state);
+  if (kind === 'armadillo' && state.shell!.phase === 'dazed') return { look, frame: lookFrame(kind, look), x: state.x - state.dir * ENEMY_ART.dazedBack, y, flip };
+  if (kind === 'armadillo' && ctx.world) {
+    const at = keptOut(ctx.world, ARMADILLO_BOTTOMS[look]!, state.x, y, flip);
+    return { look, frame: lookFrame(kind, look), x: at.x, y: at.y, flip };
+  }
+  return { look, frame: lookFrame(kind, look), x: state.x, y, flip };
+}
+
+/** An Armadillo look's bottom (`ARMADILLO_BOTTOMS`): each drawn column's middle across from the frame's middle and its bottom's height over the feet, in game px, mirrored when `flip`. */
+function bottomOf(cols: string, flip: boolean): { dx: number; h: number }[] {
+  const out: { dx: number; h: number }[] = [];
+  for (let i = 0; i < cols.length; i++) {
+    if (cols[i] === '.') continue;
+    const dx = (i + 0.5 - cols.length / 2) / 2;
+    out.push({ dx: flip ? -dx : dx, h: parseInt(cols[i]!, 36) / 2 });
+  }
+  return out;
+}
+
+/** A wall to an Armadillo's drawing: a level tile in column `tx` in the row just over its box, its feet at `feet`. */
+const wallAt = (world: World, tx: number, feet: number): boolean => world.solidTile(tx, Math.floor((feet - ARMADILLO.height - 1) / TILE));
+
+/**
+ * GDD-ENM-04, L-059: where an Armadillo look, its bottom `cols`, is drawn so that nothing of it lies in a wall or in the ground, the middle of its feet at (x,
+ * feet). Beside a wall (`wallAt`) it is shifted off the wall by as much as its drawing reaches past its box on that side beyond the room
+ * there (walking flush against a wall: by its whole reach, the snout's 4.5 px or the tail's 5); then, where its bottom would lie in a
+ * slope's sand or a step's tile, it is raised until no drawn pixel's middle does (the frame's lowest point at the ground under its uphill
+ * side; its downhill feet hover). No turn.
+ */
+function keptOut(world: World, cols: string, x: number, feet: number, flip: boolean): { x: number; y: number } {
+  const bottom = bottomOf(cols, flip);
+  const half = ARMADILLO.width / 2;
+  const right = Math.max(...bottom.map((b) => b.dx + 0.25)) - half;
+  const left = -half - Math.min(...bottom.map((b) => b.dx - 0.25));
+  let shift = 0;
+  for (let tx = Math.floor((x + half) / TILE); tx * TILE < x + half + right; tx++) {
+    if (wallAt(world, tx, feet) && tx * TILE >= x + half - 1e-6) {
+      shift -= Math.max(0, right - (tx * TILE - (x + half)));
+      break;
+    }
+  }
+  for (let tx = Math.floor((x - half) / TILE) - (Number.isInteger((x - half) / TILE) ? 1 : 0); (tx + 1) * TILE > x - half - left; tx--) {
+    if (wallAt(world, tx, feet) && (tx + 1) * TILE <= x - half + 1e-6) {
+      shift += Math.max(0, left - (x - half - (tx + 1) * TILE));
+      break;
+    }
+  }
+  const x1 = x + shift;
+  let lift = 0;
+  for (const b of bottom) {
+    const px = x1 + b.dx;
+    const py = feet - b.h - 0.25; // the middle of its lowest pixel
+    const tx = Math.floor(px / TILE);
+    const ty = Math.floor(py / TILE);
+    if (wallAt(world, tx, feet)) continue;
+    const slope = world.slopeAt?.(tx, ty) ?? null;
+    if (slope !== null) lift = Math.max(lift, py - surfaceY(tx, ty, slope, px));
+    else if (world.solidTile(tx, ty)) {
+      const on = world.slopeAt?.(tx, ty - 1) ?? null;
+      lift = Math.max(lift, py - (on === null ? ty * TILE : surfaceY(tx, ty - 1, on, px)) + 0.25);
+    }
+  }
+  return { x: x1, y: feet - lift };
+}
+
+/**
+ * GDD-ENM-04: the steps left of each enemy's white flash after a step: ENEMY_ART.rangSteps on the step the claw rang off its ball (`rang`),
+ * one fewer on each step after, to 0. A lost life (the run respawning) or a defeat clears it. Shown while above 0.
+ */
+export function stepRang(left: readonly number[], after: Pick<RunState, 'enemies' | 'phase'>): number[] {
+  return after.enemies.map((e, i) => (after.phase === 'respawning' || !e.alive ? 0 : e.shell?.rang ? ENEMY_ART.rangSteps : Math.max(0, (left[i] ?? 0) - 1)));
 }

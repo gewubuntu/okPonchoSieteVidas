@@ -16,12 +16,15 @@ import { LEVEL_2_2 } from './level2-2';
 import { LEVEL_2_3 } from './level2-3';
 import { LEVEL_2_4 } from './level2-4';
 import { LEVEL_3_1, TIPS_3_1 } from './level3-1';
+import { LEVEL_3_2 } from './level3-2';
 import { SANDBOX_LEVEL } from './sandbox';
 import { SLOPES_LEVEL } from './slopes';
 import { LAB_2M_LEVEL } from './lab2m';
 import { LAB_2E_ID, LAB_2E_LEVEL } from './lab2e';
 import { LAB_3C_ID, LAB_3C_LEVEL } from './lab3c';
 import { LAB_3T_ID, LAB_3T_LEVEL } from './lab3t';
+import { LAB_3M_ID, LAB_3M_LEVEL } from './lab3m';
+import { LAB_3A_ID, LAB_3A_LEVEL } from './lab3a';
 
 export interface LevelEntry {
   readonly id: string;
@@ -33,6 +36,11 @@ export interface LevelEntry {
   readonly tips?: readonly Tip[];
   /** GDD-UI-02: the id of the level the press that ends its level clear screen starts. Left out, that press brings back the title screen. */
   readonly next?: string;
+  /**
+   * GDD-ART-06: a World 3 level's place, which chooses its backdrop, ground sheet and decor sheet: the canyon (`barranca`) or the mine
+   * (`mina`). Left out, the canyon. Only World 3 levels choose one (the validator refuses it elsewhere).
+   */
+  readonly place?: 'barranca' | 'mina';
 }
 
 /** GDD-UI-02: the tutorial level's id. */
@@ -53,8 +61,10 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: '2-2', world: 2, test: false, level: LEVEL_2_2, next: '2-3' },
   { id: '2-3', world: 2, test: false, level: LEVEL_2_3, next: '2-4' },
   { id: '2-4', world: 2, test: false, level: LEVEL_2_4, next: '3-1' },
-  // GDD-WLD-01: World 3, the Sierra: 3-1 (GDD-WLD-16), with its tip (GDD-UI-05); the last level built, it names no next.
-  { id: '3-1', world: 3, test: false, level: LEVEL_3_1, tips: TIPS_3_1 },
+  // GDD-WLD-01: World 3, the Sierra: 3-1 (GDD-WLD-16), with its tip (GDD-UI-05), and 3-2 (GDD-WLD-17); 3-2, the last level built, names no
+  // next.
+  { id: '3-1', world: 3, test: false, level: LEVEL_3_1, tips: TIPS_3_1, next: '3-2' },
+  { id: '3-2', world: 3, test: false, level: LEVEL_3_2, place: 'mina' },
   SANDBOX,
   { id: 'slopes', world: 1, test: true, level: SLOPES_LEVEL },
   // GDD-WLD-10, GDD-WLD-11: the Mercado lab, a World 2 test level.
@@ -64,6 +74,10 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: LAB_3C_ID, world: 3, test: true, level: LAB_3C_LEVEL },
   // GDD-UI-04: the tall lab, a World 3 test level 40 rows tall, for the camera up and down.
   { id: LAB_3T_ID, world: 3, test: true, level: LAB_3T_LEVEL },
+  // GDD-ART-06: the mine lab, a World 3 test level drawn in the mine's look.
+  { id: LAB_3M_ID, world: 3, test: true, level: LAB_3M_LEVEL, place: 'mina' },
+  // GDD-ENM-04: the Armadillo's lab, a World 3 test level in the mine's look.
+  { id: LAB_3A_ID, world: 3, test: true, level: LAB_3A_LEVEL, place: 'mina' },
 ];
 
 /** GDD-PRG-02: the levels whose progress is saved (the real ones, not the test level), by id, with their hilo counts: what `readSave` needs to read their entries. */
@@ -80,7 +94,7 @@ export const worldLevels = (world: number): readonly LevelEntry[] => LEVELS.filt
 
 /**
  * GDD-LIFE-05, GDD-PRG-02: the worlds whose lives the save keeps: those of the seven worlds that have a real level (Worlds 1, 2 and 3; a
- * test level, such as the sandbox, the World 2 labs lab-2m and lab-2e or the World 3 labs lab-3c and lab-3t, adds no world).
+ * test level, such as the sandbox, the World 2 labs lab-2m and lab-2e or the World 3 labs lab-3c, lab-3t, lab-3m and lab-3a, adds no world).
  */
 export const SAVED_WORLDS: readonly number[] = [...new Set(LEVELS.filter((e) => e.world >= 1 && !e.test).map((e) => e.world))];
 

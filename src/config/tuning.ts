@@ -439,7 +439,7 @@ export const ZOPILOTE = {
  * `scripts/art/enemies1.levels.test.mjs`, and World 2's by `scripts/art/enemies2.levels.test.mjs`). World 2's own pose steps are the last six.
  */
 export const ENEMY_ART = {
-  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, murcielago: { w: 32, h: 24 }, poof: { w: 24, h: 24 } },
+  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, murcielago: { w: 32, h: 24 }, armadillo: { w: 28, h: 16 }, poof: { w: 24, h: 24 } },
   reach: {
     alacran: { behind: 4.5, front: 1.5, above: 3, below: 0 },
     zopilote: { behind: 6, front: 0.5, above: 6.5, below: 3.5 },
@@ -476,6 +476,17 @@ export const ENEMY_ART = {
   rockSteps: 4,
   /** GDD-ENM-04 (Proposed): the Murciélago shows the next flap frame every `batFlapSteps` of its own steps. */
   batFlapSteps: 5,
+  /** GDD-ENM-04 (Proposed): the rolling Armadillo shows the next roll frame every `rollPx` px it rolls, its way. */
+  rollPx: 6,
+  /** GDD-ENM-04 (Proposed): kicking (`ARMADILLO.kickSteps`), the dazed Armadillo shows dazedKick on every other block of `kickFlipSteps` steps. */
+  kickFlipSteps: 4,
+  /**
+   * GDD-ENM-04 (Proposed): the dazed Armadillo lies facing the wall that stopped it, and is drawn `dazedBack` px back from it: its dazed
+   * frames reach that far past its box's front (pinned by `scripts/art/enemies3.test.mjs`), so their front is on its box's front.
+   */
+  dazedBack: 5,
+  /** GDD-ENM-04 (Proposed): the claw rang off the rolling ball: it is drawn white for `rangSteps` steps, the step it rang and the next. */
+  rangSteps: 2,
 } as const;
 
 /**
@@ -516,6 +527,29 @@ export const TROMPO = { width: 14, height: 14, speed: 70, stunSteps: Math.round(
  * across (0 to `maxRx`) and `ry` px up and down (0 to `maxRy`), once every `periodSteps` (4.0 s).
  */
 export const MURCIELAGO = { width: 16, height: 10, periodSteps: Math.round(4.0 * TICK_HZ), maxRx: 48, maxRy: 24 } as const;
+
+/**
+ * GDD-ENM-04: the Armadillo is `width` x `height` px, standing on the ground, walking or rolled up, and walks at `walkSpeed` px/s. When
+ * Poncho's hurtbox centre is within `sightX` px of its middle across, either side, and his feet within `sightY` px of its own, it tucks for
+ * `tuckSteps` (0.5 s, GDD-ENM-01), flashing red `flashOn` steps and plain `flashOff`, then rolls at `rollSpeed` px/s on the level,
+ * `rollDown` downhill and `rollUp` uphill, measured along the ground. A wall leaves it dazed for `dazedSteps` (1.0 s), kicking its feet
+ * in the last `kickSteps` (0.5 s, drawn only).
+ */
+export const ARMADILLO = {
+  width: 16,
+  height: 12,
+  walkSpeed: 20,
+  sightX: 80,
+  sightY: 24,
+  tuckSteps: Math.round(0.5 * TICK_HZ),
+  flashOn: 4,
+  flashOff: 4,
+  rollSpeed: 130,
+  rollDown: 160,
+  rollUp: 100,
+  dazedSteps: Math.round(1.0 * TICK_HZ),
+  kickSteps: Math.round(0.5 * TICK_HZ),
+} as const;
 
 /**
  * GDD-BOS-02: Don Zopilote, World 1's boss, a `width` x `height` px box (three times the Zopilote). He laps an ellipse `rx` px either
@@ -715,6 +749,9 @@ export const BACKDROP = { cloudFactor: 0.1, mountainFactor: 0.3, sunX: 104, sunY
  */
 export const BACKDROP_RISE = { far: 0.1, mid: 0.2 } as const;
 
+/** GDD-ART-06: the frame every decor sheet's items are drawn in, game px (World 1's plants' frame), each item bottom-aligned and centred. */
+export const DECOR_FRAME = { w: 16, h: 40 } as const;
+
 /** GDD-ART-06: World 1's plants in the order of their kind (nopal, cholla, biznaga, palm yucca, ocotillo, agave, flowers), their size in game px. */
 export const PLANTS = [
   { name: 'nopal', w: 16, h: 16 },
@@ -821,5 +858,37 @@ export const SIERRA = {
     { name: 'sotol', w: 10, h: 32 },
     { name: 'tocon', w: 14, h: 8 },
     { name: 'zacaton', w: 12, h: 8 },
+  ],
+} as const;
+
+/**
+ * GDD-ART-06: the mine's backdrop and decor (3-2 La Mina, underground), from `scripts/art/sierra-mina.mjs`, at the canyon's shares of the
+ * camera's scroll. The sky slot is the rock: the roof band in gallery deep (`skyBands[0]`) to `skyEnds` art px from the top (y 40) under a
+ * dither strip of `stripArt` px, gallery base below it (the camera's background). No sun and no clouds. The far band (the old workings) is
+ * `farBandArt` art px tall from game y `farTop`, with the flat foot in `footColour` (gallery deep: a pit is a black shaft) below it; the mid
+ * band (the timbering) is `midBandArt` art px tall from `midTop` (down to the floor's top at 224). `decor` is the mine's seven kinds (ore
+ * heap, timber stack, barrel, pick and shovel, ore bucket, lantern on a peg post, ore sacks), their size in game px, placed by World 1's
+ * plant rule.
+ */
+export const SIERRA_MINA = {
+  cloudFactor: 0.1,
+  farFactor: 0.3,
+  midFactor: 0.5,
+  skyBands: [0x221d2e, 0x3d3650],
+  skyEnds: [160],
+  stripArt: 2,
+  farTop: 40,
+  farBandArt: 640,
+  midTop: 100,
+  midBandArt: 496,
+  footColour: 0x221d2e,
+  decor: [
+    { name: 'mena', w: 14, h: 8 },
+    { name: 'vigas', w: 16, h: 10 },
+    { name: 'barril', w: 10, h: 12 },
+    { name: 'pico', w: 12, h: 16 },
+    { name: 'cubeta', w: 10, h: 10 },
+    { name: 'linterna', w: 8, h: 24 },
+    { name: 'costales', w: 14, h: 10 },
   ],
 } as const;

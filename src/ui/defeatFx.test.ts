@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { freshEnemies, type Enemy, type EnemyState } from '../sim/enemy';
+import { parseTiles } from '../sim/tilemap';
 import { defeatLook, stepDefeats, type DefeatFx } from './defeatFx';
 
+/** An open world 40 tiles wide and 17 rows tall (its last row's bottom at y = 272): only an Armadillo's fall out of it reads it. */
+const WORLD = parseTiles(Array.from({ length: 17 }, () => '.'.repeat(40)));
+
 // One of each kind. The Alacran's box is 14 x 10 px on its feet, the Zopilote's 16 x 10 px on its flight y, the Tlacuache's 16 x 10 px.
-const LEVEL: { enemies: readonly Enemy[] } = {
+const LEVEL: { enemies: readonly Enemy[]; world: typeof WORLD } = {
+  world: WORLD,
   enemies: [
     { x: 100, y: 160 },
     { x: 200, y: 80, kind: 'zopilote' },
@@ -15,6 +20,8 @@ const LEVEL: { enemies: readonly Enemy[] } = {
   ],
 };
 const ALIVE = freshEnemies(LEVEL.enemies);
+/** A rolling Armadillo falling, its feet at y. */
+const falling = (y: number): EnemyState => ({ x: 340, y, dir: 1, alive: true, shell: { phase: 'roll', age: 40, vy: 360, vx: 130 } });
 type After = { enemies: readonly EnemyState[]; stomped: boolean; phase: 'playing' | 'respawning' };
 /** The enemies with those at `defeated` defeated, the Alacrán (0) facing left. */
 const without = (from: readonly EnemyState[], ...defeated: number[]): readonly EnemyState[] => from.map((e, i) => ({ ...e, dir: i === 0 ? -1 : e.dir, alive: e.alive && !defeated.includes(i) }));
@@ -135,7 +142,7 @@ describe('GDD-ENM-02 the defeat poof', () => {
   it('GDD-ENM-04 a stomped Murciélago shows its squash frame where it flew, a clawed one its hit frame, then the poof', () => {
     // A bat whose loop's middle is (300, 100), defeated a quarter loop on, at its lowest: its box's middle (300, 124), its bottom 129. The
     // sheet's squash and hit frames are 4 and 5.
-    const level = { enemies: [{ x: 300, y: 100, ry: 24, kind: 'murcielago' } as const] };
+    const level = { enemies: [{ x: 300, y: 100, ry: 24, kind: 'murcielago' } as const], world: WORLD };
     const flying: EnemyState = { x: 300, dir: -1, alive: true, loop: { steps: 60, y: 124 } };
     const gone = [{ ...flying, alive: false }];
     const stomped = stepDefeats([], { enemies: [flying] }, after(gone, true), level)[0]!;
@@ -146,6 +153,47 @@ describe('GDD-ENM-02 the defeat poof', () => {
     expect(defeatLook(clawed)).toEqual({ sheet: 'murcielago', look: 'hit', frame: 5, x: 300, y: 124, flip: true });
     expect([0, 4, 7].map((a) => defeatLook({ ...clawed, age: a }).y)).toEqual([124, 121, 124 - 5.25]); // rising 6 px from where it flew
     for (const e of [stomped, clawed]) expect(defeatLook({ ...e, age: 8 })).toEqual({ sheet: 'poof', look: 'poof0', frame: 0, x: 300, y: 124, flip: false });
+  });
+
+  it('GDD-ENM-04 a stomped Armadillo shows its squashed frame, one the claw, a fireball or a cart defeats its dazed frame rising, then the poof', () => {
+    // Its box is 16 x 12 on its feet at y = 208; its sheet's dazed frame is 10, its squash frame 12. It has no hit frame: knocked over, it
+    // shows the dazed frame, on its back.
+    const level = { enemies: [{ x: 300, y: 208, kind: 'armadillo' } as const], world: WORLD };
+    const walking: EnemyState = { x: 304, y: 208, dir: -1, alive: true, shell: { phase: 'walk', age: 3, vy: 0, vx: 0 } };
+    const gone = [{ ...walking, alive: false }];
+    const stomped = stepDefeats([], { enemies: [walking] }, after(gone, true), level)[0]!;
+    expect(stomped).toEqual({ kind: 'armadillo', x: 304, y: 202, feet: 208, flip: true, stomped: true, age: 0 });
+    expect(defeatLook(stomped)).toEqual({ sheet: 'armadillo', look: 'squash', frame: 12, x: 304, y: 208, flip: true });
+    expect(defeatLook({ ...stomped, age: 7 })).toMatchObject({ look: 'squash', y: 208 });
+    const knocked = stepDefeats([], { enemies: [walking] }, after(gone), level)[0]!;
+    expect(defeatLook(knocked)).toEqual({ sheet: 'armadillo', look: 'dazed', frame: 10, x: 304, y: 208, flip: true });
+    expect([0, 4, 7].map((a) => defeatLook({ ...knocked, age: a }).y)).toEqual([208, 205, 208 - 5.25]);
+    for (const e of [stomped, knocked]) expect(defeatLook({ ...e, age: 8 })).toEqual({ sheet: 'poof', look: 'poof0', frame: 0, x: 304, y: 202, flip: false });
+  });
+
+  it('GDD-ENM-04 an Armadillo defeated while it lay dazed is drawn where its dazed frame was, off the wall, and its poof on its box', () => {
+    // Dazed facing left against a wall whose face is x = 80, its middle at 88: its dazed frame is drawn 5 px back (right), at 93, and so
+    // are its squash and knocked-over frames; the poof is on its box's middle.
+    const level = { enemies: [{ x: 120, y: 208, kind: 'armadillo' } as const], world: WORLD };
+    const dazed: EnemyState = { x: 88, y: 208, dir: -1, alive: true, shell: { phase: 'dazed', age: 12, vy: 0, vx: 0 } };
+    const gone = [{ ...dazed, alive: false }];
+    for (const stomp of [true, false]) {
+      const fx = stepDefeats([], { enemies: [dazed] }, after(gone, stomp), level)[0]!;
+      expect(fx).toMatchObject({ x: 88, back: -5 });
+      expect(defeatLook(fx)).toMatchObject({ look: stomp ? 'squash' : 'dazed', x: 93, y: 208, flip: true });
+      expect(defeatLook({ ...fx, age: 8 })).toMatchObject({ look: 'poof0', x: 88 });
+    }
+    // Facing right, against a wall on its right: drawn 5 px left.
+    const right = { ...dazed, dir: 1 as const };
+    expect(defeatLook(stepDefeats([], { enemies: [right] }, after([{ ...right, alive: false }], true), level)[0]!).x).toBe(83);
+  });
+
+  it('GDD-ENM-04 an Armadillo that fell out of the level goes in no poof', () => {
+    // The level's last row ends at y = 272: once its whole box (12 px tall) is below that, it is gone, with no effect. A ball defeated in the
+    // air inside the level (a cart, a fireball on a falling walker) still goes in one.
+    const level = { enemies: [{ x: 300, y: 208, kind: 'armadillo' } as const], world: WORLD };
+    expect(stepDefeats([], { enemies: [falling(280)] }, after([{ ...falling(290), alive: false }]), level)).toEqual([]);
+    expect(stepDefeats([], { enemies: [falling(270)] }, after([{ ...falling(280), alive: false }]), level)).toHaveLength(1);
   });
 
   it('GDD-LIFE-02 a life lost empties the list', () => {

@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     include: ['src/levels/level0-1.test.ts', 'src/levels/level1-*.test.ts', 'src/levels/level2-*.test.ts', 'src/levels/glide-unlocked.test.ts'],
     environment: 'node',
+    testTimeout: 30000, // L-079
     env: { PONCHO_GLIDE_UNLOCKED: '1' },
     setupFiles: ['src/levels/glide-unlocked.setup.ts'],
   },

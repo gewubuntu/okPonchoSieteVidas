@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { CAMERA, TILE } from '../src/config/tuning';
 import { LEVEL_3_1, LEVEL_3_1_BOTTOMS, LEVEL_3_1_GROUND, LEVEL_3_1_LEDGES, LEVEL_3_1_PITS, TIPS_3_1 } from '../src/levels/level3-1';
+import { LEVEL_3_2 } from '../src/levels/level3-2';
 import { clearOfButtons, nearHex, openGame, pixelsAt, readSheet, resultsRowCentre, spotsIn, stepUntil, tapAt, waitForResults } from './helpers';
 
 // Level 3-1 "La Barranca" (GDD-WLD-16) in the real game, opened by its address (GDD-UI-02). Where things are is read from
@@ -163,7 +164,7 @@ test('GDD-WLD-16 3-1 opens in the Sierra look with the glide on, on a fresh save
   expect(await api(page, () => localStorage.getItem('poncho-siete-vidas'))).toBeNull();
   expect(await api(page, () => window.__PONCHO__!.level())).toBe('3-1');
   expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(true);
-  expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'sierra', midKey: 'sierra:mid' });
+  expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'sierra', midKey: 'sierra:mid', place: 'barranca' });
   if (isMobile) await tapAt(page, 240, 60, true);
   else await page.keyboard.press('Enter');
   await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 2);
@@ -616,29 +617,96 @@ test('GDD-LIFE-03 3-1 the veladora on the pillar is taken by dropping from the l
   expect(await api(page, () => window.__PONCHO__!.veladoraDrawn())).toBe(false);
 });
 
-test('GDD-WLD-16 3-1 the exit clears the level; its results menu greys Next level, as the last level built', async ({ page, isMobile }) => {
+test("GDD-LIFE-05 3-1's results menu offers Next level, which starts 3-2 with 3-1's lives carried", async ({ page, isMobile }) => {
   await play(page, isMobile);
+  // Two lives taken first by the debug hook (the count only): 5 left. On the way to the exit the veladora on the pillar gives one back (GDD-LIFE-03;
+  // the last lip he is put on is 8 columns past the third ofrenda, which he never touches): 6 at the clear, short of a new world's seven.
+  for (let i = 0; i < 2; i++) {
+    await api(page, () => window.__PONCHO__!.loseLife());
+    expect(await stepUntil(page, { phase: 'playing' }, 300)).toBeLessThan(300);
+  }
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
   await dropToPillar(page);
   expect(await glideToFloor(page)).toMatchObject({ phase: 'playing' });
   // Right to the exit's arch.
   expect(await stepUntil(page, { phase: 'clear' }, 200, { move: 1, jumpHeld: false })).toBeLessThan(200);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(6);
   await api(page, () => window.__PONCHO__!.step(61));
   await waitForResults(page);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
-  // World 3's run ends there: a new one at 3-1.
-  expect(await storedProgress(page)).toMatchObject({ worldAt: { '3': '3-1' } });
+  // 3-1 names 3-2 (GDD-WLD-17): Next level is offered and chosen.
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'next', colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'] });
+  // World 3's run goes on at 3-2 with the lives at the clear.
+  expect(await storedProgress(page)).toMatchObject({ worldLives: { '3': 6 }, worldAt: { '3': '3-2' } });
   await api(page, () => window.__PONCHO__!.pause(false));
-  // Up from Retry stays there, and a tap or click on the greyed row does nothing.
-  await page.keyboard.press('ArrowUp');
-  const t0 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 10, t0);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
-  const row = await resultsRowCentre(page, 'next');
-  if (isMobile) await page.touchscreen.tap(row.x, row.y);
-  else await page.mouse.click(row.x, row.y);
-  const t1 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 20, t1);
-  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
-  expect(await api(page, () => window.__PONCHO__!.level())).toBe('3-1');
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
+  if (isMobile) {
+    const row = await resultsRowCentre(page, 'next');
+    await page.touchscreen.tap(row.x, row.y);
+  } else await page.keyboard.press('Enter', { delay: 30 });
+  // 3-2, a level of the same world, starts at once with them, at its spawn, in the mine.
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '3-2' && window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(6);
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false);
+  expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'sierra', midKey: 'sierra:mid-mina', place: 'mina' });
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: LEVEL_3_2.spawn.x });
+});
+
+// GDD-WLD-17: the rock back wall's ochre shade, and the colours of the canyon's backdrop (its sky, peaks, pines and mist) and of the
+// mine's gallery, which a pixel behind the galleries must not be.
+const BACK_WALL = '#9A6A2C';
+const BACKDROP_COLOURS = ['#527391', '#8AA5B8', '#BFCDD2', '#EEF1EA', '#A9B8AC', '#7F9488', '#5B7067', '#24403A', '#3F6350', '#221D2E', '#3D3650', '#5C5269'];
+
+test('GDD-WLD-16 3-1 the galleries have a rock back wall behind them and the cliff face above F1 has none', async ({ page, isMobile }) => {
+  await open(page, isMobile);
+  await api(page, () => window.__PONCHO__!.pause(true));
+  // At the spawn, far from the galleries, none of its images is shown (GDD-TEC-03); it is drawn between the backdrop (the mid band at -0.5)
+  // and the level (0 and up).
+  const atSpawn = await api(page, () => window.__PONCHO__!.backWall());
+  expect(atSpawn.shown).toBe(0);
+  expect(atSpawn.total).toBe(279);
+  expect(atSpawn.depth!).toBeGreaterThan(-0.5);
+  expect(atSpawn.depth!).toBeLessThan(0);
+  // Standing in the middle gallery on F2 (row 31) at column 142, under F1: the tile 2 over his head (row 27) is the back wall's, read in
+  // its lower right corner, plain ochre shade in both versions (`scripts/art/sierra-mina.test.mjs`).
+  /** Puts Poncho down on the ground at (x, y), lets him stand and draws a frame; returns his state and the back wall as drawn, and the camera. */
+  const standAt = async (x: number, y: number) => {
+    const seen = await page.evaluate(
+      ([px, py]) => {
+        const d = window.__PONCHO__!;
+        d.teleport(px!, py! - 1);
+        for (let i = 0; i < 30 && !d.state().grounded; i++) d.step(1);
+        d.step(10);
+        return { s: d.state(), wall: d.backWall(), wallAt: d.backWallFrame(142, 27), overL1: d.backWallFrame(140, 18) };
+      },
+      [x, y],
+    );
+    // Drawn: the camera where the frame put it.
+    await frames(page);
+    return { ...seen, cam: await api(page, () => window.__PONCHO__!.camera()) };
+  };
+  /** Screen px of level point (x, y) under the camera `cam`, checked on screen and clear of the touch buttons. */
+  const onScreen = async (cam: { viewX: number; scrollY: number }, x: number, y: number) => {
+    const p = { x: x - cam.viewX, y: y - cam.scrollY };
+    expect(p.y > 2 && p.y < 268 && p.x > 2 && p.x < 478, `${p.x},${p.y} on screen`).toBe(true);
+    expect(await clearOfButtons(page, [p])).toHaveLength(1);
+    return p;
+  };
+  const f2 = 31;
+  const inGallery = await standAt(mid(142), f2 * TILE);
+  expect(inGallery.s).toMatchObject({ grounded: true, y: f2 * TILE });
+  expect(inGallery.wallAt).not.toBeNull();
+  expect(inGallery.overL1).toBeNull();
+  // Only the images in the view are shown, fewer than the view's tiles (the screen widened by 2 tiles on every side).
+  const { cam } = inGallery;
+  const viewTiles = (Math.ceil((cam.viewX + 480) / TILE) - Math.floor(cam.viewX / TILE) + 4) * (Math.ceil((cam.scrollY + 270) / TILE) - Math.floor(cam.scrollY / TILE) + 4);
+  expect(inGallery.wall.shown).toBeGreaterThan(0);
+  expect(inGallery.wall.shown).toBeLessThan(viewTiles);
+  const [wall] = await pixelsAt(page, [await onScreen(cam, 142 * TILE + 15, 27 * TILE + 15)]);
+  expect(nearHex(wall!, BACK_WALL, 12), `back wall ${JSON.stringify(wall)}`).toBe(true);
+  expect(BACKDROP_COLOURS.some((c) => nearHex(wall!, c, 12))).toBe(false);
+  // Standing on F1 (row 25) at column 154, the air over L1 (column 140, row 18, its middle), on the open cliff face, is the backdrop.
+  const onF1 = await standAt(mid(154), 25 * TILE);
+  expect(onF1.s).toMatchObject({ grounded: true, y: 25 * TILE });
+  const [air] = await pixelsAt(page, [await onScreen(onF1.cam, mid(140), 18 * TILE + TILE / 2)]);
+  expect(BACKDROP_COLOURS.some((c) => nearHex(air!, c, 12)), `air over L1 ${JSON.stringify(air)}`).toBe(true);
+  expect(nearHex(air!, BACK_WALL, 12)).toBe(false);
 });

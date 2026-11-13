@@ -1,13 +1,17 @@
 // GDD-ENM-02, GDD-ENM-03, GDD-ENM-04, GDD-ART-05: a defeated enemy's last frames: squashed by a stomp or knocked by the claw or a fireball, then a poof.
 // Cosmetic only: nothing in the run reads it. Pure, no Phaser: the scene draws what this says.
 import { ENEMY_ART } from '../config/tuning';
+import { fellOut } from '../sim/armadillo';
 import { enemyBox, kindOf, type EnemyKind } from '../sim/enemy';
 import type { Level, RunState } from '../sim/run';
 import { lookFrame, POOF_LOOKS, type EnemyLook, type Sheet } from './enemyLooks';
 
-/** The kinds that go in a poof: every one that can be defeated, the cactus buddy too, by the Chile Fantasma (GDD-PWR-04) or a rolling cart (GDD-WLD-15) alone. */
-export type DefeatKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo' | 'murcielago';
-const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'cactus' || kind === 'tlacuache' || kind === 'paloma' || kind === 'chapulin' || kind === 'trompo' || kind === 'murcielago';
+/**
+ * The kinds that go in a poof: every one that can be defeated, the cactus buddy too, by the Chile Fantasma (GDD-PWR-04) or a rolling cart
+ * (GDD-WLD-15) alone, and the Armadillo (GDD-ENM-04), but for one that fell out of the level: it is gone, with no poof.
+ */
+export type DefeatKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo' | 'murcielago' | 'armadillo';
+const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'cactus' || kind === 'tlacuache' || kind === 'paloma' || kind === 'chapulin' || kind === 'trompo' || kind === 'murcielago' || kind === 'armadillo';
 
 export interface DefeatFx {
   readonly kind: DefeatKind;
@@ -21,6 +25,11 @@ export interface DefeatFx {
   readonly stomped: boolean;
   /** Steps since it was defeated (a cactus buddy's starts at ENEMY_ART.defeatSteps: it has no squash or hit frame). */
   readonly age: number;
+  /**
+   * GDD-ENM-04: how far its squash or hit frame is drawn back across from `x` (along its facing): an Armadillo defeated while it lay dazed is
+   * drawn where its dazed frame was, ENEMY_ART.dazedBack px back from the wall it faced. Left out, 0.
+   */
+  readonly back?: number;
 }
 
 /** How long an effect lasts: its squash or hit frame, then the poof's four frames (0.4 s). */
@@ -28,20 +37,22 @@ export const DEFEAT_FX_STEPS = ENEMY_ART.defeatSteps + 4 * ENEMY_ART.poofSteps;
 
 /**
  * The effects after one step from `before` to `after`. Each one ages a step and is dropped after DEFEAT_FX_STEPS; each enemy that was alive
- * and is not now, of a kind that goes in a poof, adds one. A stomp squashes it, but a Zopilote is never stomped (GDD-CMB-01): one that falls
+ * and is not now, of a kind that goes in a poof, adds one, but an Armadillo that fell out of the level. A stomp squashes it, but a Zopilote is never stomped (GDD-CMB-01): one that falls
  * in the step of a stomp was knocked. A life lost (the run respawning, or the enemies back to life) clears them all.
  */
-export function stepDefeats(fx: readonly DefeatFx[], before: Pick<RunState, 'enemies'>, after: Pick<RunState, 'enemies' | 'stomped' | 'phase'>, level: Pick<Level, 'enemies'>): readonly DefeatFx[] {
+export function stepDefeats(fx: readonly DefeatFx[], before: Pick<RunState, 'enemies'>, after: Pick<RunState, 'enemies' | 'stomped' | 'phase'>, level: Pick<Level, 'enemies' | 'world'>): readonly DefeatFx[] {
   const revived = after.enemies !== before.enemies && after.enemies.some((e, i) => e.alive && !before.enemies[i]!.alive);
   if (after.phase === 'respawning' || revived) return [];
   const aged = fx.map((e) => ({ ...e, age: e.age + 1 })).filter((e) => e.age < DEFEAT_FX_STEPS);
   const fresh = after.enemies.flatMap((e, i): DefeatFx[] => {
     const def = level.enemies[i]!;
     const kind = kindOf(def);
-    if (!before.enemies[i]!.alive || e.alive || !poofs(kind)) return [];
+    if (!before.enemies[i]!.alive || e.alive || !poofs(kind) || fellOut(level.world, e)) return [];
     const box = enemyBox(def, e);
+    const was = before.enemies[i]!;
+    const back = was.shell?.phase === 'dazed' ? was.dir * ENEMY_ART.dazedBack : 0;
     // GDD-PWR-04: the cactus buddy has no squash or hit frame, so its effect starts past that stage, at the poof (its frames are 16 steps).
-    return [{ kind, x: (box.x0 + box.x1) / 2, y: (box.y0 + box.y1) / 2, feet: box.y1, flip: e.dir < 0, stomped: after.stomped && kind !== 'zopilote', age: kind === 'cactus' ? ENEMY_ART.defeatSteps : 0 }];
+    return [{ kind, x: (box.x0 + box.x1) / 2, y: (box.y0 + box.y1) / 2, feet: box.y1, flip: e.dir < 0, stomped: after.stomped && kind !== 'zopilote', age: kind === 'cactus' ? ENEMY_ART.defeatSteps : 0, ...(back !== 0 ? { back } : {}) }];
   });
   return [...aged, ...fresh];
 }
@@ -58,8 +69,8 @@ export interface DefeatLook {
 }
 
 /**
- * The frame an effect shows: for ENEMY_ART.defeatSteps the kind's squash frame (stomped) or hit frame (knocked) where it stood, a walker's at
- * its feet and a Zopilote's or a Murciélago's at its box's middle (where it flew, GDD-ENM-04), the hit frame rising ENEMY_ART.hitRise px over them; then the poof, a frame every
+ * The frame an effect shows: for ENEMY_ART.defeatSteps the kind's squash frame (stomped) or hit frame (knocked; an Armadillo's dazed frame) where it stood, a walker's at
+ * its feet (an Armadillo's `back` px back, GDD-ENM-04) and a Zopilote's or a Murciélago's at its box's middle (where it flew, GDD-ENM-04), the hit frame rising ENEMY_ART.hitRise px over them; then the poof, a frame every
  * poofSteps, on its box's middle.
  */
 export function defeatLook(e: DefeatFx): DefeatLook {
@@ -70,7 +81,8 @@ export function defeatLook(e: DefeatFx): DefeatLook {
   // A Trompo has no hit frame (GDD-ENM-03: the claw and a fireball only stun it), so it shows its squash whatever `stomped` says: after a
   // stomp, and when a rolling cart runs it down (GDD-WLD-15).
   const squashed = e.stomped || e.kind === 'trompo';
-  const look: EnemyLook = squashed ? 'squash' : 'hit';
+  // GDD-ENM-04: the Armadillo has no hit frame either: knocked over, it shows its dazed frame, on its back.
+  const look: EnemyLook = squashed ? 'squash' : e.kind === 'armadillo' ? 'dazed' : 'hit';
   const rise = squashed ? 0 : (ENEMY_ART.hitRise * e.age) / ENEMY_ART.defeatSteps;
-  return { sheet: e.kind, look, frame: lookFrame(e.kind, look), x: e.x, y: (e.kind === 'zopilote' || e.kind === 'murcielago' ? e.y : e.feet) - rise, flip: e.flip };
+  return { sheet: e.kind, look, frame: lookFrame(e.kind, look), x: e.x - (e.back ?? 0), y: (e.kind === 'zopilote' || e.kind === 'murcielago' ? e.y : e.feet) - rise, flip: e.flip };
 }

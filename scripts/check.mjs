@@ -407,8 +407,8 @@ function checkToolchain() {
   const scripts = JSON.parse(read('package.json')).scripts ?? {};
   const errors = [];
   // test:abilities reruns the simulation tests with every progression ability on (L-024); test:glide reruns the level tests of Worlds 0
-  // to 2 with the glide unlocked (GDD-PRG-01).
-  for (const name of ['lint', 'typecheck', 'test', 'test:abilities', 'test:glide']) {
+  // to 2 with the glide unlocked (GDD-PRG-01); test:sight flies GDD-WLD-03's sight sweep over World 3's levels (L-014).
+  for (const name of ['lint', 'typecheck', 'test', 'test:abilities', 'test:glide', 'test:sight']) {
     if (!scripts[name]) continue;
     console.log(`  running npm run ${name} ...`);
     const r = spawnSync('npm', ['run', name, '--silent'], { cwd: ROOT, stdio: 'inherit' });
