@@ -56,9 +56,18 @@ describe('runLanes (L-080)', () => {
     expect(r[0].output).toContain('spawn npm ENOENT');
   });
 
-  it('hands each slot to onDone the moment it ends', async () => {
+  it('hands each slot to onDone the moment it ends, not when the others have', async () => {
+    const ends = {};
+    const run = (name) => new Promise((resolve) => { ends[name] = (status) => resolve({ status, output: name }); });
+    const flush = () => new Promise((r) => setImmediate(r));
     const seen = [];
-    await runLanes([['a', 'b']], async (n) => ({ status: n === 'a' ? 1 : 0, output: n }), () => {}, Date.now, (r) => seen.push([r.name, r.ok, r.output]));
+    const all = runLanes([['a'], ['b']], run, () => {}, Date.now, (r) => seen.push([r.name, r.ok, r.output]));
+    await flush();
+    ends['a'](1);
+    await flush();
+    expect(seen).toEqual([['a', false, 'a']]); // b is still running
+    ends['b'](0);
+    await all;
     expect(seen).toEqual([['a', false, 'a'], ['b', true, 'b']]);
   });
 
