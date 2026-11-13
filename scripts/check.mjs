@@ -8,7 +8,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { lanesFor, runLanes } from './gate-lanes.mjs';
 import { gddVersionErrors } from './gdd-version.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 
@@ -402,17 +403,34 @@ function checkNoModelIds() {
 }
 
 // Toolchain slots: run the project's own lint/typecheck/test once package.json defines them.
-function checkToolchain() {
+// L-080: the slots run in concurrent lanes (`scripts/gate-lanes.mjs`), each with its output kept whole and printed in slot order. The
+// sight sweep (one core, minutes) is in a lane of its own, so it runs while the suites that fill the other cores run; the suites that
+// each fill every core stay in one lane, one after another. `--serial` runs every slot in one lane, as the gate once did.
+// test:abilities reruns the simulation tests with every progression ability on (L-024); test:glide reruns the level tests of Worlds 0
+// to 2 with the glide unlocked (GDD-PRG-01); test:sight flies GDD-WLD-03's sight sweep over World 3's levels (L-014).
+const TOOLCHAIN_LANES = [['test:sight'], ['lint', 'typecheck', 'test', 'test:abilities', 'test:glide']];
+
+function runNpmScript(name) {
+  return new Promise((resolve) => {
+    let output = '';
+    const child = spawn('npm', ['run', name, '--silent'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    child.stdout.on('data', (d) => { output += d; });
+    child.stderr.on('data', (d) => { output += d; });
+    child.on('error', (e) => resolve({ status: null, output: `${output}could not run: ${e.message}\n` }));
+    child.on('close', (status) => resolve({ status, output }));
+  });
+}
+
+async function checkToolchain() {
   if (!exists('package.json')) return [];
-  const scripts = JSON.parse(read('package.json')).scripts ?? {};
+  const defined = Object.keys(JSON.parse(read('package.json')).scripts ?? {});
+  const lanes = lanesFor(TOOLCHAIN_LANES, defined, process.argv.includes('--serial'));
+  const results = await runLanes(lanes, runNpmScript, console.log);
   const errors = [];
-  // test:abilities reruns the simulation tests with every progression ability on (L-024); test:glide reruns the level tests of Worlds 0
-  // to 2 with the glide unlocked (GDD-PRG-01); test:sight flies GDD-WLD-03's sight sweep over World 3's levels (L-014).
-  for (const name of ['lint', 'typecheck', 'test', 'test:abilities', 'test:glide', 'test:sight']) {
-    if (!scripts[name]) continue;
-    console.log(`  running npm run ${name} ...`);
-    const r = spawnSync('npm', ['run', name, '--silent'], { cwd: ROOT, stdio: 'inherit' });
-    if (r.status !== 0) errors.push(`npm run ${name} failed`);
+  for (const r of results) {
+    console.log(`\n  ---- npm run ${r.name} (${r.seconds}s) ----`);
+    process.stdout.write(r.output);
+    if (!r.ok) errors.push(`npm run ${r.name} failed`);
   }
   return errors;
 }
@@ -554,7 +572,7 @@ if (process.argv.includes('--backlog-stub')) {
 
 let failed = 0;
 for (const [name, fn] of checks) {
-  const errors = fn();
+  const errors = await fn();
   if (errors.length === 0) {
     console.log(`ok    ${name}`);
   } else {

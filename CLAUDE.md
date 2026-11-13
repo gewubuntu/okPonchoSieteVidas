@@ -42,7 +42,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 
 | Command | Purpose |
 | --- | --- |
-| `node scripts/check.mjs` | The gate: the harness checks listed in `docs/HARNESS.md`, then `npm run lint`, `typecheck`, `test`, `test:abilities`, `test:glide` and `test:sight`. Must pass before every commit. |
+| `node scripts/check.mjs` | The gate: the harness checks listed in `docs/HARNESS.md`, then `npm run lint`, `typecheck`, `test`, `test:abilities`, `test:glide` and `test:sight`, in two concurrent lanes (L-080; `--serial` for one at a time). Must pass before every commit. |
 | `npm install` | Install dependencies (needed once; CI runs `npm ci`). |
 | `npm run dev` | Dev server on port 5173. |
 | `npm run build` | Typecheck and production build into `dist/`. |
