@@ -905,3 +905,13 @@ Retired IDs: L-046
 - **Rule:** The unit test runs set `testTimeout` to 30 s (`vite.config.ts`, `vitest.abilities.config.ts`, `vitest.glide.config.ts`); a test that needs more gives its own. A timeout under load is re-run alone before it is called a failure.
 - **Recurrence:** 1
 - **Promoted:** vite.config.ts, vitest.abilities.config.ts, vitest.glide.config.ts (`testTimeout: 30000`)
+
+## L-080 The gate ran six suites one after another while three of four cores sat idle
+
+- **Date:** 2026-11-13
+- **Area:** harness
+- **What went wrong:** The gate's toolchain slots ran in a serial loop: about 10 minutes on 4 cores, of which `test:sight` was 5.7 minutes on ONE core (user time equal to real time) while `test` used 3.6 cores for 4 minutes; for the sight sweep's whole run, three cores idled and the next commit waited on it.
+- **Root cause:** The loop was written when the gate had two cheap slots, and each slot added since (abilities, glide, sight) was appended to it without anyone measuring where the time went; the one number known (the test run's 244 s) hid that one slot was a single-core chain.
+- **Rule:** Measure before speeding up the gate: per-file durations (`vitest run --reporter=json`) and real against user time for each slot. A single-core slot runs beside the multi-core suites, never after them; suites that each fill every core stay in one lane, one after another. Speed comes from scheduling or from cheaper work, never from skipped, narrowed or relaxed tests: compare each suite's test and file counts before and after a change to the gate. The lanes live in `scripts/gate-lanes.mjs` (`TOOLCHAIN_LANES` in `scripts/check.mjs`); `--serial` runs one slot at a time to tell a failure from load (L-079).
+- **Recurrence:** 1
+- **Promoted:** `scripts/gate-lanes.mjs` (the lanes, with `scripts/gate-lanes.test.mjs`) and docs/HARNESS.md (item 14)
