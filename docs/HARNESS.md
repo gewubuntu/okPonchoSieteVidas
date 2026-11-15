@@ -103,7 +103,7 @@ There is no automatic review in CI. It used to run on every PR through `.github/
 Anything the player can see needs the user's eyes before it merges.
 
 1. `npm run shots` produces desktop and phone screenshots from `e2e/shots/`.
-2. Claude looks at them, shows them to the user in the session with `SendUserFile`, and asks for approval. New or redrawn sprite sheets first go beside their neighbours at one scale (`node scripts/art-lineup.mjs`, L-066), and that lineup is sent with the shots.
+2. Claude looks at them, shows them to the user in the session with `SendUserFile`, and asks for approval. New or redrawn sprite sheets first go beside the approved sheets they must match and the user's references (`node scripts/art-lineup.mjs`, L-066), and that lineup is sent with the shots.
 3. After approval, the images go under `docs/screenshots/<slug>/` with an `overview.png` sheet of them (`node scripts/overview.mjs`, L-031), and only that overview is embedded in the PR description (L-009).
 4. CI warns when visible files change and no screenshot was added (`scripts/pr-screenshots.mjs`), and the `pr-reviewer` subagent treats missing screenshots or missing approval as blocking, except on a draft that says its screenshots await approval.
 
