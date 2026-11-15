@@ -1,7 +1,7 @@
 // L-066: the art lineup puts new art beside its neighbours and the user's references on one page.
 import { describe, expect, it } from 'vitest';
 import { join } from 'node:path';
-import { ASSETS, imagesOf, lineupHtml, parseArgs, REF_HEIGHT } from './art-lineup.mjs';
+import { imagesOf, isWithin, lineupHtml, parseArgs, REF_HEIGHT, REPO } from './art-lineup.mjs';
 
 const image = (file) => ({ file, data: Buffer.from(file) });
 const names = (html) => [...html.matchAll(/<div class="name">([^<]+)<\/div>/g)].map((m) => m[1]);
@@ -55,7 +55,12 @@ describe('L-066 the lineup command line', () => {
     expect(parseArgs(['/tmp/l.png', '/tmp/l.png'])).toHaveProperty('error');
     expect(parseArgs(['/tmp/sheets/lineup.png', '/tmp/sheets'])).toHaveProperty('error');
     expect(parseArgs(['/tmp/sheets-lineup.png', '/tmp/sheets'])).not.toHaveProperty('error');
-    expect(parseArgs([join(ASSETS, 'lineup.png'), '/tmp/sheets'])).toHaveProperty('error');
+    expect(parseArgs([join(REPO, 'assets', 'lineup.png'), '/tmp/sheets'])).toHaveProperty('error');
+    expect(parseArgs([join(REPO, 'docs', 'screenshots', 'level-3-1', 'overview.png'), '/tmp/sheets'])).toHaveProperty('error');
+  });
+
+  it('takes a .png output in any case', () => {
+    expect(parseArgs(['/tmp/L.PNG', 'a'])).toEqual({ out: '/tmp/L.PNG', paths: ['a'], zoom: 1 });
   });
 
   it('refuses an output that is not a .png, no input, and a zoom that is not a positive number', () => {
@@ -73,5 +78,24 @@ describe('L-066 a lineup reads subfolders', () => {
 
   it('takes a subfolder\'s images in its place in name order', () => {
     expect(imagesOf(['refs'], fs)).toEqual(['refs/front/a.png', 'refs/front/b.jpg', 'refs/sprite-pixel.jpg']);
+  });
+});
+
+describe('L-066 what lies within a folder', () => {
+  it('is the folder itself, a file in it, or a file deeper in it', () => {
+    expect(isWithin('/tmp/sheets', '/tmp/sheets')).toBe(true);
+    expect(isWithin('/tmp/sheets', '/tmp/sheets/l.png')).toBe(true);
+    expect(isWithin('/tmp/sheets', '/tmp/sheets/a/b/l.png')).toBe(true);
+  });
+
+  it('counts a name that only starts with dots as inside', () => {
+    expect(isWithin('/tmp/sheets', '/tmp/sheets/..l.png')).toBe(true);
+    expect(isWithin('/tmp/sheets', '/tmp/sheets/.l.png')).toBe(true);
+  });
+
+  it('is not the folder\'s parent, a sibling, or a name that only begins like it', () => {
+    expect(isWithin('/tmp/sheets', '/tmp')).toBe(false);
+    expect(isWithin('/tmp/sheets', '/tmp/other/l.png')).toBe(false);
+    expect(isWithin('/tmp/sheets', '/tmp/sheets-lineup.png')).toBe(false);
   });
 });

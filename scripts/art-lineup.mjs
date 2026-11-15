@@ -2,23 +2,29 @@
 // The art lineup (L-066): new art on one image beside the approved art it must match and the user's references, so it is judged against its
 // neighbours (silhouette, profile, proportions, shading depth, pattern, outline, face) before the user sees it.
 //   node scripts/art-lineup.mjs <out.png> <folder or file>... [--zoom N]
-// Each folder adds its .png sheets and its .jpg/.jpeg references, its subfolders' too; a file adds itself. The output must be a new .png that is
-// none of the inputs, lies in none of the input folders and not under assets/, so a lineup never overwrites a sheet or a reference. Sheets are drawn at their own size times the zoom, pixels
-// unsmoothed (the game's scale); references, drawn by hand or photographed at any size, are scaled to REF_HEIGHT px times the zoom.
+// Each folder adds its .png sheets and its .jpg/.jpeg references, its subfolders' too; a file adds itself. The output is a .png outside the
+// repository (a scratch folder) and outside every input folder, so a lineup never overwrites a sheet, a reference or a committed screenshot.
+// Sheets are drawn at their own size times the zoom, pixels unsmoothed (the game's scale); references, drawn by hand or photographed at any size, are scaled to REF_HEIGHT px times the zoom.
 // e.g. node scripts/art-lineup.mjs "$SCRATCH/lineup.png" assets/sprites/enemies
 //      node scripts/art-lineup.mjs "$SCRATCH/lineup.png" assets/sprites/poncho.png assets/sprites/poncho assets/characters/poncho
 // Writes the PNG where it is told (a scratch folder, not the repository); look at it, then send it with the art.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, dirname, extname, join, relative, resolve } from 'node:path';
+import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 /** The height every reference is drawn at, in px before the zoom: about a sprite sheet row's, so the two read side by side. */
 export const REF_HEIGHT = 160;
 
-/** The repository's art folder: every sheet and reference lives under it, so a lineup is never written there. */
-export const ASSETS = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'assets');
+/** The repository: its sheets, references and committed screenshots live in it, so a lineup is never written there. */
+export const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Whether `path` is `dir` itself or lies anywhere under it (a name that only starts with dots, such as `..l.png`, is under it). */
+export function isWithin(dir, path) {
+  const r = relative(resolve(dir), resolve(path));
+  return !(r === '..' || r.startsWith(`..${sep}`));
+}
 
 const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' };
 
@@ -32,8 +38,9 @@ export function imagesOf(paths, fs = DISK) {
 
 /**
  * The command line: `<out.png> <folder or file>... [--zoom N]`. Returns `{ out, paths, zoom }`, or `{ error }` when the output is missing, is
- * not a .png, is one of the inputs, lies in an input folder or under `assets/` (it would overwrite a sheet or a reference: a sheet named
- * first, with the output left out, becomes the output), when no input is named, or when the zoom is not a positive number.
+ * not a .png (in any case), lies in the repository (it would overwrite a sheet, a reference or a committed screenshot: a sheet named first,
+ * with the output left out, becomes the output) or in an input folder or is an input, when no input is named, or when the zoom is not a
+ * positive number.
  */
 export function parseArgs(args) {
   const zi = args.indexOf('--zoom');
@@ -42,10 +49,8 @@ export function parseArgs(args) {
   const [out, ...paths] = zi >= 0 ? args.filter((_, i) => i !== zi && i !== zi + 1) : args;
   if (!out || paths.length === 0) return { error: 'name the output .png first, then at least one folder or file' };
   if (!out.toLowerCase().endsWith('.png')) return { error: `the output ${out} is not a .png` };
-  // Inside a folder, or the very path ('' relative to it).
-  const within = (dir) => { const r = relative(resolve(dir), resolve(out)); return !r.startsWith('..') && !r.startsWith('/'); };
-  if (within(ASSETS)) return { error: `the output ${out} is under assets/, where the sheets and references live; write it to a scratch folder` };
-  const inside = paths.find(within);
+  if (isWithin(REPO, out)) return { error: `the output ${out} is in the repository, where the art and screenshots live; write it to a scratch folder` };
+  const inside = paths.find((p) => isWithin(p, out));
   if (inside !== undefined) return { error: `the output ${out} would overwrite ${inside} or a file in it; name the output first` };
   return { out, paths, zoom };
 }
