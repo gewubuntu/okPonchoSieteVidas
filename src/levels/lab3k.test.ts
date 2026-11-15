@@ -5,7 +5,7 @@ import type { Enemy } from '../sim/enemy';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { startRun, stepRun, type RunState } from '../sim/run';
 import type { LevelEntry } from './index';
-import { LAB_3K_ENEMIES, LAB_3K_FLOOR_ROW, LAB_3K_ID, LAB_3K_LEVEL, LAB_3K_PERCH, LAB_3K_RAILS, LAB_3K_SHELF } from './lab3k';
+import { LAB_3K_CLOSET, LAB_3K_ENEMIES, LAB_3K_FLOOR_ROW, LAB_3K_ID, LAB_3K_LEVEL, LAB_3K_PERCH, LAB_3K_RAILS, LAB_3K_SHELF } from './lab3k';
 import { validateLevel } from './validate';
 
 // GDD-ENM-04, GDD-TEC-04: lab-3k, the Cacomixtle's lab, over the real level data (L-014): each claim played in the simulation with a bot's
@@ -172,10 +172,31 @@ describe('GDD-ENM-04 lab-3k', () => {
   it('GDD-ENM-04 lab-3k Ka is a named exception too: its perch is a platform in its sight, 32 px over its floor', () => {
     // Ka's floor is y = 200 and the perch's top y = 168: 32 px, in (8, 120], over columns 20 and 21 of its stretch (x 328 to 528): one problem.
     const kaDef = LAB_3K_ENEMIES[0]!;
-    expect(kaDef.sightException).toBe('GDD-WLD-18: the perch, K1 s lesson, stands in its sight');
+    expect(kaDef.sightException).toBe('GDD-WLD-18: the perch, the lesson of K1, stands in its sight');
     const bare: Enemy = { x: kaDef.x, y: kaDef.y, kind: 'cacomixtle', rail: 0 };
     const without = validateLevel(entry({ ...level, enemies: [bare, LAB_3K_ENEMIES[1]!] }));
     expect(without).toEqual(["cacomixtle at 528,200 has a platform at 320,168, 32 px from its cart's floor in its sight stretch, expected within 8 or over 120"]);
     expect(validateLevel(entry())).toEqual([]);
+  });
+
+  it('GDD-ENM-04 lab-3k an Alacrán walks the closet at the right end and never leaves it: it reaches neither rail nor any route', () => {
+    // The scene's pooled enemy images are reused by it after a ringtail goes (L-069), so the lab has one: columns 61 to 65 (x 976 to 1056) behind
+    // a 2-tile wall at column 60, past Kb's start, 3 tiles from every respawn.
+    const alacran = LAB_3K_ENEMIES[2]!;
+    expect(alacran).toEqual({ x: 1016, y: FLOOR_Y });
+    expect(LAB_3K_CLOSET).toEqual({ wall: 60, row: 11, col0: 61, col1: 65 });
+    expect(level.world.solidTile(60, 11) && level.world.solidTile(60, 12) && !level.world.solidTile(60, 10)).toBe(true);
+    let r = run(standing(LAB_3K_LEVEL.spawn.x, FLOOR_Y));
+    let [lo, hi] = [Infinity, -Infinity];
+    for (let i = 0; i < 3000; i++) {
+      r = stepRun(r, idle, level);
+      lo = Math.min(lo, r.enemies[2]!.x);
+      hi = Math.max(hi, r.enemies[2]!.x);
+    }
+    // Its box is 14 wide: it turns flush against the wall (face at x = 976) and the level's edge (x = 1056); it is still alive and he is untouched.
+    expect(lo).toBeCloseTo(976 + 7, 0);
+    expect(hi).toBeCloseTo(1056 - 7, 0);
+    expect(r.enemies[2]!.alive).toBe(true);
+    expect(r.lives.lives).toBe(7);
   });
 });

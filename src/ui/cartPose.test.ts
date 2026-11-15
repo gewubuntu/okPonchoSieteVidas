@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { floorUnder, railGround, railLength, type CartState, type Rail, type RailSegment } from '../sim/cart';
-import { cartPose, WHEEL_OFFSET } from './cartPose';
+import { cacomixtleOnCart, cartPose, WHEEL_OFFSET } from './cartPose';
 
 // GDD-WLD-15, GDD-ART-06: the cart is drawn as a rigid tub on its two wheels, whose middles are 9 px behind and ahead of its middle (slice
 // A's wheels: 4 px wide, 5 px in from each end of the 32 px tub). The expected angles come from the rail's shape.
@@ -99,5 +99,29 @@ describe('GDD-WLD-15, GDD-ART-06 the cart\'s pose', () => {
     expect(worst([{ kind: 'level', tiles: 4 }, { kind: 'climb', tiles: 4 }, { kind: 'level', tiles: 4 }])).toBeCloseTo(5.625, 3);
     expect(worst([{ kind: 'level', tiles: 2 }, { kind: 'climb', tiles: 4 }, { kind: 'descent', tiles: 4 }, { kind: 'level', tiles: 2 }])).toBeCloseTo(9, 6);
     expect(worst([{ kind: 'level', tiles: 2 }, { kind: 'descent', tiles: 4 }, { kind: 'climb', tiles: 4 }, { kind: 'level', tiles: 2 }])).toBeCloseTo(9, 6);
+  });
+});
+
+describe('GDD-ENM-04 a Cacomixtle is drawn on its cart', () => {
+  it('GDD-ENM-04 on level rail it stands on the floor line at the cart\'s middle, upright', () => {
+    // The cart's middle 40 px along the rail from x = 400, its floor 8 px over the rail's ground (y = 200), not on the ground itself.
+    expect(cacomixtleOnCart(cartPose(rail([{ kind: 'level', tiles: 10 }]), at(40)))).toEqual({ x: 440, y: 192, rotation: 0 });
+    const left = cacomixtleOnCart(cartPose(rail([{ kind: 'level', tiles: 10 }], -1), { phase: 'waiting', m: 16 }));
+    expect([left.x, left.y]).toEqual([384, 192]);
+    expect(left.rotation).toBeCloseTo(0, 12);
+  });
+
+  it('GDD-ENM-04 on a climb it stands on the floor under the cart\'s middle and turns with the cart', () => {
+    // Rolling right up a climb: 40 px along it the ground is 40 px up (y = 160), the floor 8 px over it (152), the cart turned -45 degrees.
+    const up = cacomixtleOnCart(cartPose(rail([{ kind: 'climb', tiles: 10 }]), at(40)));
+    expect([up.x, up.y]).toEqual([440, 200 - 40 - 8]);
+    expect(up.rotation).toBeCloseTo(-Math.PI / 4, 12);
+    // Rolling left up the same climb: mirrored, the cart's own turn (+45 degrees: its left, front, side up).
+    const left = cacomixtleOnCart(cartPose(rail([{ kind: 'climb', tiles: 10 }], -1), at(40)));
+    expect([left.x, left.y]).toEqual([360, 200 - 40 - 8]);
+    expect(left.rotation).toBeCloseTo(Math.PI / 4, 12);
+    // At a join the turn is the cart's half turn (front wheel on the slope, back wheel on the level): tan = -0.5.
+    const join = cacomixtleOnCart(cartPose(rail([{ kind: 'level', tiles: 4 }, { kind: 'climb', tiles: 6 }]), at(64)));
+    expect(Math.tan(join.rotation)).toBeCloseTo(-0.5, 12);
   });
 });

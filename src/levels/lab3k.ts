@@ -1,15 +1,17 @@
 // GDD-ENM-04: lab-3k, a World 3 test level in the mine (its place, `mina`, GDD-ART-06) to meet the Cacomixtle. Like the other labs it has three
-// ofrendas and no exit (GDD-TEC-04). 60 x 17 tiles, the roof's rock over rows 0 to 4, the floor's top at row 13 (y = 208), and the glide on.
-// Not registered in `src/levels/index.ts`: it becomes playable with the Cacomixtle's drawing (a later PR). Two pieces, left to right:
+// ofrendas and no exit (GDD-TEC-04). 66 x 17 tiles, the roof's rock over rows 0 to 4, the floor's top at row 13 (y = 208), and the glide on.
+// Two pieces, left to right, and a closet for an Alacrán at the right end:
 // - Ka: a level rail rolling left on the floor from column 34 (the cart's back edge on its start, 17 tiles to a buffer at column 17), its
-//   Cacomixtle waiting in the cart at the right end, so it sees him from x = 328 (200 px ahead of its middle, x = 528). The sight stretch is all
-//   flat floor at the rail's ground. The perch is GDD-WLD-18's K1's, here on the flat: a still one-way platform of columns 20 and 21 whose top is
+//   Cacomixtle waiting in the cart at the right end, so it sees him from x = 328 (200 px ahead of its middle, x = 528). The sight stretch is
+//   flat floor at the rail's ground but for the perch, its named exception (`sightException`, 32 px over the cart's floor). The perch is GDD-WLD-18's K1's, here on the flat: a still one-way platform of columns 20 and 21 whose top is
 //   40 px over the floor (y = 168), on the wake line (x = 328, the middle of column 20) as K1's is, with the buffer 3 tiles behind it so the parked
 //   cart stops on flat floor. A hop onto it puts him 18 px over the ringtail's head as the cart passes under, and it parks behind him.
 // - Kb: K1's shape (GDD-WLD-18): a rail rolling left from column 59, level on the lower terrace (columns 55 to 59, the floor's row 13), a climb of
 //   two tiles over two slope tiles (columns 53 and 54), then level on the shelf (columns 36 to 52, row 11, y = 176) to a buffer at column 42. Its
 //   start floor (y = 200) is 24 px under the shelf's ground, so the sight stretch's ground rule fails there: the named exception (GDD-ENM-04).
-// A step 2 tiles high leads from the floor up to the shelf.
+// A step 2 tiles high leads from the floor up to the shelf. The closet is columns 61 to 65 behind a 2-tile wall at column 60, past Kb's start:
+// an Alacrán walks there between the wall and the level's edge and reaches neither rail nor any route; it is the other enemy the scene draws
+// beside a ringtail (its pooled images, L-069, GDD-ENM-04).
 import { TILE } from '../config/tuning';
 import type { Rail } from '../sim/cart';
 import type { Enemy } from '../sim/enemy';
@@ -20,7 +22,7 @@ import { parseTiles } from '../sim/tilemap';
 /** GDD-UI-02: its id, which its address names. */
 export const LAB_3K_ID = 'lab-3k';
 
-const WIDTH = 60;
+const WIDTH = 66;
 const HEIGHT = 17;
 /** The roof's rock: rows 0 to 4 over every column. */
 const ROOF_ROWS = 5;
@@ -30,6 +32,9 @@ export const LAB_3K_FLOOR_ROW = 13;
 
 /** Kb's shelf: columns 36 to 52, its top at row 11 (y = 176); the slope (columns 53 and 54, descending right) leads down to the terrace. */
 export const LAB_3K_SHELF = { col0: 36, col1: 52, row: 11, slope0: 53, slope1: 54 } as const;
+
+/** The Alacrán's closet: a 2-tile wall at column 60 (rows 11 and 12 over the floor), the closet's floor behind it to the level's last column 65. */
+export const LAB_3K_CLOSET = { wall: 60, row: LAB_3K_FLOOR_ROW - 2, col0: 61, col1: 65 } as const;
 
 /** The row the ground of column `col` starts at (it is solid from there to the level's bottom). */
 function groundRow(col: number): number {
@@ -41,7 +46,7 @@ function groundRow(col: number): number {
 
 export const LAB_3K_ROWS: readonly string[] = Array.from({ length: HEIGHT }, (_, row) =>
   Array.from({ length: WIDTH }, (_tile, col) => {
-    if (row < ROOF_ROWS || row >= groundRow(col)) return '#';
+    if (row < ROOF_ROWS || row >= groundRow(col) || (col === LAB_3K_CLOSET.wall && row >= LAB_3K_CLOSET.row)) return '#';
     // GDD-MOV-09: a slope tile over the ground's first tile in each of the two slope columns, its surface descending to the right.
     if ((col === LAB_3K_SHELF.slope0 || col === LAB_3K_SHELF.slope1) && row === groundRow(col) - 1) return '\\';
     return '.';
@@ -76,13 +81,15 @@ export const LAB_3K_OFRENDAS: readonly Ofrenda[] = [
 ];
 
 /**
- * GDD-ENM-04: the two Cacomixtles, each at its cart's start: the middle of the cart (16 px across from its rail's start) and its floor, 8 px over
+ * GDD-ENM-04: the two Cacomixtles and an Alacrán, each at its cart's start: the middle of the cart (16 px across from its rail's start) and its floor, 8 px over
  * the rail's ground there (y = 200). Both name the exception to the sight stretch's ground rule (`sightException`, GDD-TEC-04): Ka's, its perch
- * (a platform 32 px over its floor, in its sight); Kb's, the shelf.
+ * (a platform 32 px over its floor, in its sight); Kb's, the shelf. The Alacrán walks its closet, from the wall at column 60 to the
+ * level's edge.
  */
 export const LAB_3K_ENEMIES: readonly Enemy[] = [
-  { x: 34 * TILE - TILE, y: LAB_3K_FLOOR_ROW * TILE - 8, kind: 'cacomixtle', rail: 0, sightException: 'GDD-WLD-18: the perch, K1 s lesson, stands in its sight' },
+  { x: 34 * TILE - TILE, y: LAB_3K_FLOOR_ROW * TILE - 8, kind: 'cacomixtle', rail: 0, sightException: 'GDD-WLD-18: the perch, the lesson of K1, stands in its sight' },
   { x: 59 * TILE - TILE, y: LAB_3K_FLOOR_ROW * TILE - 8, kind: 'cacomixtle', rail: 1, sightException: 'GDD-WLD-18: K1 meets him uphill, 40 px inside its sight' },
+  { ...at(63) },
 ];
 
 export const LAB_3K_LEVEL: Level = {

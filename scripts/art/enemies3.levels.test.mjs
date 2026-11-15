@@ -8,14 +8,18 @@ import { describe, expect, it } from 'vitest';
 import { CART, TILE } from '../../src/config/tuning';
 import { LAB_3A_ENEMIES, LAB_3A_LEDGE, LAB_3A_LEVEL, LAB_3A_PEN, LAB_3A_RAILS } from '../../src/levels/lab3a';
 import { cartFloor } from '../../src/sim/cart';
-import { centre, enemyBox } from '../../src/sim/enemy';
+import { centre, enemyBox, kindOf } from '../../src/sim/enemy';
 import { hurtbox } from '../../src/sim/hazards';
 import { spawn } from '../../src/sim/movement';
 import { startRun, stepRun } from '../../src/sim/run';
 import { surfaceY } from '../../src/sim/slope';
 import { defeatLook, stepDefeats } from '../../src/ui/defeatFx';
 import { enemyPose } from '../../src/ui/enemyPose';
+import { LAB_3K_LEVEL, LAB_3K_PERCH, LAB_3K_FLOOR_ROW, LAB_3K_SHELF } from '../../src/levels/lab3k';
+import { cartFloor as floorOf } from '../../src/sim/cart';
+import { cacomixtleOnCart, cartPose } from '../../src/ui/cartPose';
 import * as armadillo from './enemies3/armadillo.mjs';
+import * as cacomixtle from './enemies3/cacomixtle.mjs';
 
 const level = LAB_3A_LEVEL;
 const RAIL = LAB_3A_RAILS[0];
@@ -199,5 +203,117 @@ describe('GDD-ENM-04 the Armadillo frames fit lab-3a (L-059)', () => {
 
   it('GDD-ENM-04 lab-3a: the runs pose every look of the sheet, the defeat\'s squash and knocked-over frames, and the poof', () => {
     expect([...POSED].sort()).toEqual([...armadillo.LOOKS, 'poof0', 'poof1', 'poof2', 'poof3'].sort());
+  });
+});
+
+// GDD-ENM-04, GDD-ART-05 (L-059): every frame the Cacomixtle shows fits the room it has in lab-3k. Each run is played with a bot's inputs and
+// Poncho unhurtable (`invulnerable`, so the ride goes on past a hit), and every live ringtail is posed as the scene poses it (`enemyPose`) and
+// placed as the scene places it: on its cart's drawn pose (`cartPose`, `cacomixtleOnCart`), at the end of each step and half way between two,
+// turned with the cart, mirrored for the rails that roll left. Every painted pixel of its frame is placed in the level, half a game px a pixel:
+// none lies in a solid tile or in a slope's sand, and its feet line is on the cart's floor. The runs: waiting and the walk into Ka's sight,
+// the telegraph, the ride to its buffer and the parked state; Kb's telegraph and its climb; a stomp and the claw (the defeat frames, as the
+// scene draws them, upright where it stood, `stepDefeats`, `defeatLook`).
+describe('GDD-ENM-04 the Cacomixtle frames fit lab-3k (L-059)', () => {
+  const lab = LAB_3K_LEVEL;
+  const rails = lab.rails;
+  const FLOOR = LAB_3K_FLOOR_ROW * TILE;
+  const cPixels = Object.fromEntries(
+    cacomixtle.drawFrames().map((f) => {
+      const pts = [];
+      for (let y = 0; y < f.grid.height; y++) for (let x = 0; x < f.grid.width; x++) if (f.grid.get(x, y)) pts.push([x + 0.5 - cacomixtle.FRAME.w / 2, y + 0.5 - cacomixtle.FRAME.h]);
+      return [f.look, pts];
+    }),
+  );
+  const solid = (x, y) => {
+    const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+    if (lab.world.solidTile(tx, ty)) return true;
+    const slope = lab.world.slopeAt?.(tx, ty) ?? null;
+    return slope !== null && y > surfaceY(tx, ty, slope, x);
+  };
+  const OWN = [];
+  const POSED_C = new Set();
+  const TURNED = new Set();
+  /** Places `look`'s pixels with their feet middle at (x, y), turned `rot` radians clockwise, mirrored when `flip`; the labels of those in ground. */
+  function placed(look, x, y, rot, flip) {
+    POSED_C.add(look);
+    const bad = [];
+    const [c, s] = [Math.cos(rot), Math.sin(rot)];
+    for (const [dx0, dy0] of cPixels[look]) {
+      const dx = (flip ? -dx0 : dx0) / 2;
+      const dy = dy0 / 2;
+      if (solid(x + dx * c - dy * s, y + dx * s + dy * c)) bad.push(`${look} at ${x.toFixed(1)},${y.toFixed(1)}`);
+    }
+    return bad;
+  }
+
+  /** Steps `run` for `steps` steps with `bot`; every step and half step poses every live Cacomixtle on its cart, and every defeat. */
+  function drive(label, run, bot, steps) {
+    let fx = [];
+    for (let n = 0; n < steps; n++) {
+      const before = run;
+      run = stepRun(run, bot(run, n), lab);
+      fx = stepDefeats(fx, before, run, lab);
+      if (run.phase !== 'playing') continue;
+      const ctx = { clock: run.clock, poncho: centre(run.player), world: lab.world, rails };
+      lab.enemies.forEach((def, i) => {
+        const e = run.enemies[i];
+        if (kindOf(def) !== 'cacomixtle' || !e.alive) return;
+        const rail = rails[def.rail];
+        const pose = enemyPose(def, e, ctx);
+        const now = run.carts[def.rail];
+        const was = before.carts[def.rail];
+        for (const alpha of [0.5, 1]) {
+          // The scene's interpolation (`renderCarts`): from where the cart was a step ago, unless it was put back at its start.
+          const from = was.m > now.m || was.phase === 'falling' || was.phase === 'gone' ? now : was;
+          const drawn = cartPose(rail, { ...now, m: from.m + (now.m - from.m) * alpha });
+          const on = cacomixtleOnCart(drawn);
+          if (alpha === 1) {
+            // Its feet are on the cart's floor, at the cart's middle: where the simulation has it.
+            const floor = floorOf(rail, now);
+            OWN.push({ label, n, kind: 'floor', ok: Math.abs(on.y - floor.y) < 1e-9 && Math.abs(on.x - e.x) < 1e-9 && Math.abs(e.y - floor.y) < 1e-9 });
+          }
+          if (Math.abs(on.rotation) > 1e-6) TURNED.add(Math.round((on.rotation * 180) / Math.PI));
+          OWN.push(...placed(pose.look, on.x, on.y, on.rotation, pose.flip).map((what) => ({ label, n, kind: 'ground', what })));
+        }
+      });
+      for (const e of fx) {
+        const d = defeatLook(e);
+        if (d.sheet === 'poof') POSED_C.add(d.look);
+        else if (d.sheet === 'cacomixtle') OWN.push(...placed(d.look, d.x, d.y, 0, d.flip).map((what) => ({ label: `${label} defeat`, n, kind: 'ground', what })));
+      }
+    }
+    return run;
+  }
+  const invulnerable = (r) => ({ ...r, invulnerable: 1e9 });
+  const standing = (x, y) => invulnerable({ ...startRun(lab), player: spawn(x, y) });
+  const KA = lab.enemies[0];
+  const idle = { move: 0, jumpHeld: false };
+  const RUNS = [
+    // The walk into Ka's sight from the spawn, then standing where he woke it: the doze, the telegraph's two looks, the ride and the buffer.
+    ['Ka, walking into its sight', standing(lab.spawn.x, FLOOR), (r) => (r.enemies[0].ride.phase === 'waiting' ? { move: 1, jumpHeld: false } : idle), 400],
+    // The perch: he stands on it, in its sight from the first step; the cart passes under him.
+    ['Ka, from the perch', standing(LAB_3K_PERCH.x0 + 24, LAB_3K_PERCH.y0), () => idle, 400],
+    // Kb: from the shelf, in its sight 178 px ahead: its telegraph on the lower terrace, the climb's turn and the shelf's level to its buffer.
+    ['Kb, from the shelf', standing(750, LAB_3K_SHELF.row * TILE), () => idle, 500],
+    // The stomp: dropped on Ka waiting, from 24 px over its head; the claw: beside it, swinging once at its box.
+    ['Ka, stomped', standing(KA.x, KA.y - 14 - 40), () => idle, 60],
+    ['Ka, clawed', standing(KA.x - 22, FLOOR), (r, n) => ({ move: 0, jumpHeld: false, claw: n === 2 }), 60],
+  ];
+
+  for (const [label, run, bot, steps] of RUNS) {
+    it(`GDD-ENM-04 lab-3k ${label}: no pixel of its frame lies in a solid tile or in a slope's sand, and its feet are on its cart's floor`, { timeout: 120000 }, () => {
+      drive(label, run, bot, steps);
+      expect(OWN.filter((o) => o.label.startsWith(label) && o.kind === 'ground').slice(0, 5)).toEqual([]);
+      const floors = OWN.filter((o) => o.label === label && o.kind === 'floor');
+      expect(floors.length).toBeGreaterThan(0);
+      expect(floors.filter((o) => !o.ok).slice(0, 5)).toEqual([]);
+    });
+  }
+
+  // Runs after the runs above (vitest runs a file's tests in order), over every look they posed.
+  it('GDD-ENM-04 lab-3k: the runs pose every look of the sheet, the defeat\'s squash and knocked-over frames and the poof, and turn it on the climb', () => {
+    expect([...POSED_C].sort()).toEqual([...cacomixtle.LOOKS, 'poof0', 'poof1', 'poof2', 'poof3'].sort());
+    // Turned with the cart on Kb's climb: a 45 degree turn, mirrored for a rail rolling left (clockwise, positive).
+    expect([...TURNED]).toContain(45);
   });
 });

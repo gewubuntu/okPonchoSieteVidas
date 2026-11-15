@@ -439,7 +439,7 @@ export const ZOPILOTE = {
  * `scripts/art/enemies1.levels.test.mjs`, and World 2's by `scripts/art/enemies2.levels.test.mjs`). World 2's own pose steps are the last six.
  */
 export const ENEMY_ART = {
-  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, murcielago: { w: 32, h: 24 }, armadillo: { w: 28, h: 16 }, poof: { w: 24, h: 24 } },
+  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, murcielago: { w: 32, h: 24 }, armadillo: { w: 28, h: 16 }, cacomixtle: { w: 24, h: 28 }, poof: { w: 24, h: 24 } },
   reach: {
     alacran: { behind: 4.5, front: 1.5, above: 3, below: 0 },
     zopilote: { behind: 6, front: 0.5, above: 6.5, below: 3.5 },
@@ -487,6 +487,8 @@ export const ENEMY_ART = {
   dazedBack: 5,
   /** GDD-ENM-04 (Proposed): the claw rang off the rolling ball: it is drawn white for `rangSteps` steps, the step it rang and the next. */
   rangSteps: 2,
+  /** GDD-ENM-04 (Proposed): a riding Cacomixtle shows the next of its two ride frames every `cacomixtleRideSteps` steps of the run's clock. */
+  cacomixtleRideSteps: 4,
 } as const;
 
 /**

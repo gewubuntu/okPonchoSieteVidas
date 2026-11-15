@@ -910,3 +910,23 @@ Retired IDs: L-046
 - **Rule:** The unit test runs set `testTimeout` to 30 s (`vite.config.ts`, `vitest.abilities.config.ts`, `vitest.glide.config.ts`); a test that needs more gives its own. A timeout under load is re-run alone before it is called a failure.
 - **Recurrence:** 1
 - **Promoted:** vite.config.ts, vitest.abilities.config.ts, vitest.glide.config.ts (`testTimeout: 30000`)
+
+## L-080 A plan narrowed the GDD's "every ground" to tile tops, and the lab's perch broke the rule unseen
+
+- **Date:** 2026-11-15
+- **Area:** process, level
+- **What went wrong:** GDD-ENM-04's sight stretch rule covers "every ground in that stretch". The Cacomixtle's plan (PR #100) defined that ground as solid and crumbling tile tops only. The validator was built to the plan, so lab-3k's perch, a one-way platform 32 px over Ka's cart floor and inside its stretch, passed with nothing reported. The pr-reviewer found it.
+- **Root cause:** When the plan turned the GDD's word into a definition, it listed the ground kinds from memory instead of from the code's list of everything Poncho stands on (tiles, crumbling tiles, platforms, carts, blocks, awnings, cordeles).
+- **Rule:** When a plan defines a GDD word that names a family ("ground", "every enemy", "a floor"), list its members from the code that builds the family (for ground, everything `stepRun` lands him on) and name each member it leaves out, with the reason. The validator test then has one fixture per member.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-081 Two planned mutants could not be caught as the plan wrote them
+
+- **Date:** 2026-11-15
+- **Area:** process, tests
+- **What went wrong:** The Cacomixtle's phase B plan (PR #100) listed a mutant that set the ringtail's depth to 3, but 3 is the image pool's default and already lies between the cart's layers (2.5 and 3.2). It also listed a mutant that placed the ringtail at the sim's x/y, but at the end of a step that point equals the cart's drawn pose, so a test that reads only there cannot see it. The implementer found both, changed the value to 3.5 and sampled between steps.
+- **Root cause:** The plan named each mutant's value and the test that catches it without checking the value against the code's defaults and the state the test reads.
+- **Rule:** For each planned mutant, the plan says the value the code has without the mutation (its default, the pool's, the pose's at the sampled moment) and the different value the mutant leaves for the named test to read. A mutant whose value equals that state at the sampled moment is changed before the plan goes out.
+- **Recurrence:** 1
+- **Promoted:** no

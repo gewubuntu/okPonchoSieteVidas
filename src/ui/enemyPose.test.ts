@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Hop } from '../sim/chapulin';
 import type { Shell } from '../sim/armadillo';
-import type { Enemy, EnemyState, Flight, Gait } from '../sim/enemy';
+import type { Rail } from '../sim/cart';
+import type { Enemy, EnemyState, Flight, Gait, Ride } from '../sim/enemy';
 import type { Wing } from '../sim/paloma';
 import { surfaceY } from '../sim/slope';
 import { parseTiles } from '../sim/tilemap';
@@ -291,12 +292,48 @@ describe('GDD-ENM-03 which frame World 2\'s enemies show', () => {
 const MURCIELAGO: Enemy = { x: 300, y: 100, rx: 16, ry: 24, kind: 'murcielago' };
 const flyer = (steps: number, x = 300, y = 100, dir: 1 | -1 = 1): EnemyState => ({ x, dir, alive: true, loop: { steps, y } });
 
-describe('GDD-ENM-04 a Cacomixtle is not drawn yet', () => {
-  it('GDD-ENM-04 sheetOf names the sheet of a kind and throws for a Cacomixtle, drawn in a later phase', () => {
+// World 3's Cacomixtle (GDD-ENM-04): it names the rail it rides (`rail`, here the level's second, rolling left) and the pose reads the rail's way.
+const RAILS: Rail[] = [
+  { x: 400, y: 200, dir: 1, segments: [{ kind: 'level', tiles: 10 }], end: 'buffer' },
+  { x: 900, y: 200, dir: -1, segments: [{ kind: 'level', tiles: 10 }], end: 'buffer' },
+];
+const CACOMIXTLE: Enemy = { x: 884, y: 192, kind: 'cacomixtle', rail: 1 };
+const RIDER: PoseContext = { ...FAR, rails: RAILS };
+const riding = (phase: Ride['phase'], t = 0): EnemyState => ({ x: 884, dir: 1, alive: true, ride: { phase, t } });
+const ridden = (phase: Ride['phase'], t = 0, clock = 0) => enemyPose(CACOMIXTLE, riding(phase, t), { ...RIDER, clock });
+
+describe('GDD-ENM-04 which frame the Cacomixtle shows', () => {
+  it('GDD-ENM-04 sheetOf names the sheet of every kind: its own', () => {
     expect(sheetOf({ x: 0, y: 0 })).toBe('alacran');
     expect(sheetOf({ x: 0, y: 0, kind: 'armadillo' })).toBe('armadillo');
-    expect(() => sheetOf({ x: 0, y: 0, kind: 'cacomixtle', rail: 0 })).toThrow('cacomixtle: drawn in phase B (GDD-ENM-04)');
-    expect(() => enemyPose({ x: 0, y: 0, kind: 'cacomixtle', rail: 0 }, { x: 0, dir: 1, alive: true }, FAR)).toThrow('drawn in phase B');
+    expect(sheetOf(CACOMIXTLE)).toBe('cacomixtle');
+  });
+
+  it('GDD-ENM-04 a Cacomixtle dozes while it waits, peeks parked and stands while it telegraphs', () => {
+    expect(ridden('waiting').look).toBe('doze');
+    expect(ridden('parked').look).toBe('parked');
+    // Telegraphing: the flash is red on its steps 1 to 4, 9 to 12 and so on, plain on 5 to 8 (4 on, 4 off, GDD-ENM-01).
+    expect([1, 4, 5, 8, 9, 12, 13, 28, 29].map((t) => ridden('telegraph', t).look)).toEqual(['standRed', 'standRed', 'stand', 'stand', 'standRed', 'standRed', 'stand', 'standRed', 'stand']);
+  });
+
+  it('GDD-ENM-04 a riding Cacomixtle shows the next of its two ride frames every 4 steps of the run\'s clock', () => {
+    expect([0, 3, 4, 7, 8, 11, 12].map((clock) => ridden('riding', 0, clock).look)).toEqual(['ride0', 'ride0', 'ride1', 'ride1', 'ride0', 'ride0', 'ride1']);
+  });
+
+  it('GDD-ENM-04 a Cacomixtle is mirrored when its rail rolls left and not when it rolls right', () => {
+    expect(ridden('waiting').flip).toBe(true);
+    const right: Enemy = { ...CACOMIXTLE, rail: 0 };
+    expect(enemyPose(right, riding('waiting'), RIDER).flip).toBe(false);
+    // Its state's own dir is 1 either way: only the rail says.
+    expect(riding('waiting').dir).toBe(1);
+  });
+
+  it('GDD-ENM-04 a Cacomixtle\'s pose names the frame of its look in its sheet and gives the simulation\'s place', () => {
+    for (const [phase, t] of [['waiting', 0], ['telegraph', 1], ['telegraph', 5], ['riding', 0], ['parked', 0]] as const) {
+      const pose = ridden(phase, t);
+      expect((ENEMY_LOOKS.cacomixtle as readonly string[]).indexOf(pose.look), `${phase} ${t}`).toBe(pose.frame);
+      expect([pose.x, pose.y]).toEqual([884, 192]);
+    }
   });
 });
 

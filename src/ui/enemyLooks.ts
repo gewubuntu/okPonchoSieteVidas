@@ -46,25 +46,29 @@ export const ARMADILLO_BOTTOMS: Readonly<Partial<Record<EnemyLook, string>>> = {
   squash: '..433322222111222111000000000000000011122211111111124...',
 };
 
-/** The sheets: World 1's four kinds, World 2's three, World 3's Murciélago and Armadillo, and the poof. */
-export const ENEMY_LOOKS = { alacran: ALACRAN_LOOKS, zopilote: ZOPILOTE_LOOKS, cactus: CACTUS_LOOKS, tlacuache: TLACUACHE_LOOKS, paloma: PALOMA_LOOKS, chapulin: CHAPULIN_LOOKS, trompo: TROMPO_LOOKS, murcielago: MURCIELAGO_LOOKS, armadillo: ARMADILLO_LOOKS, poof: POOF_LOOKS } as const;
+/**
+ * GDD-ENM-04 (Proposed): the Cacomixtle's sheet (`scripts/art/enemies3/cacomixtle.mjs`), cells of 24 x 28 game px, its feet on the cell's bottom
+ * row, the cart's floor line. Waiting it dozes, telegraphing it stands (`standRed` on the flash), riding it shows `ride0` and `ride1` in turn,
+ * parked it peeks over the rim; defeated, `squash` after a stomp and `hit` after the claw or a fireball.
+ */
+export const CACOMIXTLE_LOOKS = ['doze', 'stand', 'standRed', 'ride0', 'ride1', 'parked', 'squash', 'hit'] as const;
+
+/** The sheets: World 1's four kinds, World 2's three, World 3's Murciélago, Armadillo and Cacomixtle, and the poof. */
+export const ENEMY_LOOKS = { alacran: ALACRAN_LOOKS, zopilote: ZOPILOTE_LOOKS, cactus: CACTUS_LOOKS, tlacuache: TLACUACHE_LOOKS, paloma: PALOMA_LOOKS, chapulin: CHAPULIN_LOOKS, trompo: TROMPO_LOOKS, murcielago: MURCIELAGO_LOOKS, armadillo: ARMADILLO_LOOKS, cacomixtle: CACOMIXTLE_LOOKS, poof: POOF_LOOKS } as const;
 export type Sheet = keyof typeof ENEMY_LOOKS;
-/** The sheets every level loads: they are small. Not the Armadillo's (`sheetsFor`). */
+/** The sheets every level loads: they are small. Not the Armadillo's or the Cacomixtle's (`sheetsFor`). */
 export const SHEETS: readonly Sheet[] = ['alacran', 'zopilote', 'cactus', 'tlacuache', 'paloma', 'chapulin', 'trompo', 'murcielago', 'poof'];
 
-/** GDD-ENM-04, GDD-TEC-03: the sheets a level loads: `SHEETS`, and the Armadillo's only in a level that has one. */
-export const sheetsFor = (level: { readonly enemies: readonly Enemy[] }): readonly Sheet[] => (level.enemies.some((e) => kindOf(e) === 'armadillo') ? [...SHEETS, 'armadillo'] : SHEETS);
+/** GDD-ENM-04, GDD-TEC-03: the sheets a level loads: `SHEETS`, and the Armadillo's and the Cacomixtle's only in a level that has one. */
+export const sheetsFor = (level: { readonly enemies: readonly Enemy[] }): readonly Sheet[] => {
+  const kinds = new Set(level.enemies.map(kindOf));
+  const extra: Sheet[] = [...(kinds.has('armadillo') ? (['armadillo'] as const) : []), ...(kinds.has('cacomixtle') ? (['cacomixtle'] as const) : [])];
+  return extra.length === 0 ? SHEETS : [...SHEETS, ...extra];
+};
 /** The kinds of enemy, which each have a sheet of their own. */
 export type EnemySheet = Exclude<Sheet, 'poof'>;
-/**
- * The sheet of an enemy's kind. A Cacomixtle has none yet: it is drawn in phase B (GDD-ENM-04), and nothing in the game can reach it
- * until its lab is registered, so asking for it throws.
- */
-export function sheetOf(def: Enemy): EnemySheet {
-  const kind = kindOf(def);
-  if (kind === 'cacomixtle') throw new Error('cacomixtle: drawn in phase B (GDD-ENM-04)');
-  return kind;
-}
+/** The sheet of an enemy's kind: its own name. */
+export const sheetOf = (def: Enemy): EnemySheet => kindOf(def);
 /** World 1's kinds. */
 export const isWorld1 = (kind: EnemyKind): kind is 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' => kind === 'alacran' || kind === 'zopilote' || kind === 'cactus' || kind === 'tlacuache';
 /** World 2's kinds (GDD-ENM-03). */

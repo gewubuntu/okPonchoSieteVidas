@@ -1,4 +1,4 @@
-// Review sheet for World 3's Murciélago (not committed output): `node scripts/art/enemies3/preview.mjs <out.png>`.
+// Review sheet for World 3's Murciélago and Cacomixtle (not committed output): `node scripts/art/enemies3/preview.mjs <out.png>`.
 // Every frame of the bat next to the approved Zopilote's flap frames and the Paloma's (L-066), each band twice: at game size (a game px
 // one screen px, the drawing averaged down) and at 4x (a game px 4 x 4 screen px), on three of World 3's grounds: the sky's middle band,
 // the canyon's far wall (peak shade) and the mine's gallery wall (GDD-ART-06).
@@ -8,6 +8,7 @@ import { encodePng } from '../png.mjs';
 import * as zopilote from '../enemies1/zopilote.mjs';
 import * as paloma from '../enemies2/paloma.mjs';
 import { paste, scaled } from '../enemies2/kit.mjs';
+import * as cacomixtle from './cacomixtle.mjs';
 import * as murcielago from './murcielago.mjs';
 
 const [out] = process.argv.slice(2);
@@ -27,6 +28,7 @@ function gameSize(src) {
 
 const bands = [
   ['murciélago', murcielago.drawFrames()],
+  ['cacomixtle', cacomixtle.drawFrames()],
   ['zopilote', zopilote.drawFrames().filter((f) => f.look.startsWith('flap'))],
   ['paloma', paloma.drawFrames().filter((f) => f.look.startsWith('flap'))],
 ];
@@ -34,7 +36,7 @@ const grounds = ['#8AA5B8', '#5B7067', '#3D3650'];
 const pad = 8;
 // Each band: the frames at game size in one row, then at 4x in the next, each cell as big as the largest frame at that scale.
 const cellW = (k) => 32 * k + pad;
-const cellH = (k) => 24 * k + pad;
+const cellH = (k) => 28 * k + pad;
 const rowsH = bands.length * (cellH(1) + cellH(4));
 const width = Math.max(...bands.map(([, fs]) => fs.length)) * cellW(4) + pad;
 const g = new Grid(width * grounds.length, rowsH + pad);
@@ -45,9 +47,9 @@ grounds.forEach((bg, gi) => {
   for (const [, frames] of bands) {
     frames.forEach((f, i) => {
       const small = gameSize(f.grid);
-      paste(g, small, ox + pad + i * cellW(1) + (32 - small.width) / 2, oy + (24 - small.height) / 2);
+      paste(g, small, ox + pad + i * cellW(1) + (32 - small.width) / 2, oy + (28 - small.height) / 2);
       const big = scaled(f.grid, 2);
-      paste(g, big, ox + pad + i * cellW(4) + (128 - big.width) / 2, oy + cellH(1) + (96 - big.height) / 2);
+      paste(g, big, ox + pad + i * cellW(4) + (128 - big.width) / 2, oy + cellH(1) + (112 - big.height) / 2);
     });
     oy += cellH(1) + cellH(4);
   }

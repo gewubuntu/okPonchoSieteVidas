@@ -35,3 +35,12 @@ export function cartPose(rail: Rail, cart: CartState): CartPose {
   const angle = Math.atan2(rail.dir * (front - back), 2 * WHEEL_OFFSET);
   return { x: rail.x + rail.dir * cart.m, y: ground(cart.m) - CART.floorPx, angle, bottom: CART.floorPx * Math.cos(angle) };
 }
+
+/**
+ * GDD-ENM-04: where a Cacomixtle is drawn on its cart's drawn `pose`: standing on the floor line at the cart's middle (the point the cart's
+ * images are turned about) and turned with the cart, so it stays in it on a slope and between steps, as the cart's own images do (the sim's
+ * place is the pose's only at the end of a step). Its image's origin is its bottom middle, so `rotation` is the image's.
+ */
+export function cacomixtleOnCart(pose: CartPose): { x: number; y: number; rotation: number } {
+  return { x: pose.x, y: pose.y, rotation: pose.angle };
+}
