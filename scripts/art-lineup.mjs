@@ -2,24 +2,52 @@
 // The art lineup (L-066): new art on one image beside the approved art it must match and the user's references, so it is judged against its
 // neighbours (silhouette, profile, proportions, shading depth, pattern, outline, face) before the user sees it.
 //   node scripts/art-lineup.mjs <out.png> <folder or file>... [--zoom N]
-// Each folder adds its .png sheets and its .jpg/.jpeg references; a file adds itself. Sheets are drawn at their own size times the zoom, pixels
+// Each folder adds its .png sheets and its .jpg/.jpeg references, its subfolders' too; a file adds itself. The output must be a new .png that is
+// none of the inputs, lies in none of the input folders and not under assets/, so a lineup never overwrites a sheet or a reference. Sheets are drawn at their own size times the zoom, pixels
 // unsmoothed (the game's scale); references, drawn by hand or photographed at any size, are scaled to REF_HEIGHT px times the zoom.
 // e.g. node scripts/art-lineup.mjs "$SCRATCH/lineup.png" assets/sprites/enemies
 //      node scripts/art-lineup.mjs "$SCRATCH/lineup.png" assets/sprites/poncho.png assets/sprites/poncho assets/characters/poncho
 // Writes the PNG where it is told (a scratch folder, not the repository); look at it, then send it with the art.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, extname, join } from 'node:path';
+import { basename, dirname, extname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 /** The height every reference is drawn at, in px before the zoom: about a sprite sheet row's, so the two read side by side. */
 export const REF_HEIGHT = 160;
 
+/** The repository's art folder: every sheet and reference lives under it, so a lineup is never written there. */
+export const ASSETS = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'assets');
+
 const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' };
 
-/** Each image a path names: a file itself, or a folder's .png, .jpg and .jpeg files in name order. Anything else is skipped. */
-export function imagesOf(paths, fs = { isDir: (p) => statSync(p).isDirectory(), list: (p) => readdirSync(p) }) {
-  return paths.flatMap((p) => (fs.isDir(p) ? fs.list(p).sort().map((f) => join(p, f)) : [p])).filter((f) => extname(f).toLowerCase() in MIME);
+const DISK = { isDir: (p) => statSync(p).isDirectory(), list: (p) => readdirSync(p) };
+
+/** Each image a path names: a file itself, or a folder's .png, .jpg and .jpeg files in name order, each subfolder's in its place. Anything else is skipped. */
+export function imagesOf(paths, fs = DISK) {
+  const walk = (p) => (fs.isDir(p) ? [...fs.list(p)].sort().flatMap((f) => walk(join(p, f))) : [p]);
+  return paths.flatMap(walk).filter((f) => extname(f).toLowerCase() in MIME);
+}
+
+/**
+ * The command line: `<out.png> <folder or file>... [--zoom N]`. Returns `{ out, paths, zoom }`, or `{ error }` when the output is missing, is
+ * not a .png, is one of the inputs, lies in an input folder or under `assets/` (it would overwrite a sheet or a reference: a sheet named
+ * first, with the output left out, becomes the output), when no input is named, or when the zoom is not a positive number.
+ */
+export function parseArgs(args) {
+  const zi = args.indexOf('--zoom');
+  const zoom = zi >= 0 ? Number(args[zi + 1]) : 1;
+  if (!(zoom > 0)) return { error: '--zoom takes a positive number' };
+  const [out, ...paths] = zi >= 0 ? args.filter((_, i) => i !== zi && i !== zi + 1) : args;
+  if (!out || paths.length === 0) return { error: 'name the output .png first, then at least one folder or file' };
+  if (!out.toLowerCase().endsWith('.png')) return { error: `the output ${out} is not a .png` };
+  // Inside a folder, or the very path ('' relative to it).
+  const within = (dir) => { const r = relative(resolve(dir), resolve(out)); return !r.startsWith('..') && !r.startsWith('/'); };
+  if (within(ASSETS)) return { error: `the output ${out} is under assets/, where the sheets and references live; write it to a scratch folder` };
+  const inside = paths.find(within);
+  if (inside !== undefined) return { error: `the output ${out} would overwrite ${inside} or a file in it; name the output first` };
+  return { out, paths, zoom };
 }
 
 /**
@@ -40,14 +68,12 @@ export function lineupHtml(images, zoom = 1) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const zi = args.indexOf('--zoom');
-  const zoom = zi >= 0 ? Number(args[zi + 1]) : 1;
-  const [out, ...paths] = zi >= 0 ? args.filter((_, i) => i !== zi && i !== zi + 1) : args;
-  if (!out || paths.length === 0 || !out.endsWith('.png')) {
-    console.error('usage: node scripts/art-lineup.mjs <out.png> <folder or file>... [--zoom N]');
+  const parsed = parseArgs(process.argv.slice(2));
+  if ('error' in parsed) {
+    console.error(`${parsed.error}\nusage: node scripts/art-lineup.mjs <out.png> <folder or file>... [--zoom N]`);
     process.exit(2);
   }
+  const { out, paths, zoom } = parsed;
   const files = imagesOf(paths);
   if (files.length === 0) {
     console.error(`no .png, .jpg or .jpeg images in ${paths.join(', ')}`);

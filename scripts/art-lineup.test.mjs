@@ -1,6 +1,7 @@
 // L-066: the art lineup puts new art beside its neighbours and the user's references on one page.
 import { describe, expect, it } from 'vitest';
-import { imagesOf, lineupHtml, REF_HEIGHT } from './art-lineup.mjs';
+import { join } from 'node:path';
+import { ASSETS, imagesOf, lineupHtml, parseArgs, REF_HEIGHT } from './art-lineup.mjs';
 
 const image = (file) => ({ file, data: Buffer.from(file) });
 const names = (html) => [...html.matchAll(/<div class="name">([^<]+)<\/div>/g)].map((m) => m[1]);
@@ -39,5 +40,38 @@ describe('L-066 the images a lineup takes', () => {
 
   it('skips a named file that is no image', () => {
     expect(imagesOf(['notes.md', 'a.png'], fs)).toEqual(['a.png']);
+  });
+});
+
+describe('L-066 the lineup command line', () => {
+  it('takes the output first, then the inputs, and the zoom anywhere', () => {
+    expect(parseArgs(['/tmp/l.png', 'assets/sprites/enemies'])).toEqual({ out: '/tmp/l.png', paths: ['assets/sprites/enemies'], zoom: 1 });
+    expect(parseArgs(['--zoom', '2', '/tmp/l.png', 'a', 'b'])).toEqual({ out: '/tmp/l.png', paths: ['a', 'b'], zoom: 2 });
+    expect(parseArgs(['/tmp/l.png', 'a', '--zoom', '3'])).toEqual({ out: '/tmp/l.png', paths: ['a'], zoom: 3 });
+  });
+
+  it('never writes over an input: a sheet named first, or an output inside an input folder', () => {
+    expect(parseArgs(['assets/sprites/poncho.png', 'assets/sprites/poncho', 'assets/characters/poncho'])).toHaveProperty('error');
+    expect(parseArgs(['/tmp/l.png', '/tmp/l.png'])).toHaveProperty('error');
+    expect(parseArgs(['/tmp/sheets/lineup.png', '/tmp/sheets'])).toHaveProperty('error');
+    expect(parseArgs(['/tmp/sheets-lineup.png', '/tmp/sheets'])).not.toHaveProperty('error');
+    expect(parseArgs([join(ASSETS, 'lineup.png'), '/tmp/sheets'])).toHaveProperty('error');
+  });
+
+  it('refuses an output that is not a .png, no input, and a zoom that is not a positive number', () => {
+    expect(parseArgs(['/tmp/l.jpg', 'a'])).toHaveProperty('error');
+    expect(parseArgs(['/tmp/l.png'])).toHaveProperty('error');
+    expect(parseArgs([])).toHaveProperty('error');
+    expect(parseArgs(['/tmp/l.png', 'a', '--zoom', 'x'])).toHaveProperty('error');
+    expect(parseArgs(['/tmp/l.png', 'a', '--zoom', '0'])).toHaveProperty('error');
+  });
+});
+
+describe('L-066 a lineup reads subfolders', () => {
+  const tree = { refs: ['sprite-pixel.jpg', 'front', 'notes.md'], 'refs/front': ['b.jpg', 'a.png'] };
+  const fs = { isDir: (p) => p in tree, list: (p) => tree[p] };
+
+  it('takes a subfolder\'s images in its place in name order', () => {
+    expect(imagesOf(['refs'], fs)).toEqual(['refs/front/a.png', 'refs/front/b.jpg', 'refs/sprite-pixel.jpg']);
   });
 });
