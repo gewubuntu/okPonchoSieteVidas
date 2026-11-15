@@ -774,8 +774,9 @@ Retired IDs: L-046
 - **What went wrong:** For Poncho's front-view victory pose, the main session sent the artist's previews to the user after checking only the numbers it had asked for (rows, widths). The user answered "now your slacking ... do consistent work": next to the side drawing the front view was flat, its poncho a plain box, its ears cut-outs. Three more rounds followed, two of them failing the main session's own later side-by-side review (a noisy poncho, a pompom crown, round "innocent" eyes against the references' determined ones).
 - **Root cause:** The main session reviewed the artist's measurements, not the picture: it did not set the new art beside the approved sprite and the user's references at the same scale before showing it, so craft gaps a glance would catch reached the user.
 - **Rule:** Before showing art to the user, the main session builds one sheet with the new art, the approved art it must match and the user's references, at the same height and at game size, and reviews it against a written list (silhouette, shading depth, pattern, face, proportions); it sends the art only when every item passes, and says in the message what it checked.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-15, PR #100, the Cacomixtle, found by the user and the re-review):** the main session sent the ringtail's first drawing to the user after reading only the builder's numbers and the in-game shots, where it is small. The user then asked whether its style was coherent with the bestiario. Set beside the other enemies, it faced the viewer while every other enemy is in profile, and it had a hamster's round body and flat shading. It was redrawn. Nothing made the comparison a step: the rule above was prose in a lesson, which no skill named.
+- **Recurrence:** 2
+- **Promoted:** scripts/art-lineup.mjs (builds the lineup of every sheet in a folder at one scale, with a unit test), and .claude/skills/harness-feature step 8 (run it and review against the list before showing new art)
 
 ## L-067 A plan too big for one implementer run stopped at the turn limit
 
