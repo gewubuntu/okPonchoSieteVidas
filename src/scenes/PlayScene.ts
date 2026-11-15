@@ -124,9 +124,9 @@ import { hasMarketThings, loadMarketThings, MarketThings, type MarketDrawn } fro
 const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, paloma: palomaPng, chapulin: chapulinPng, trompo: trompoPng, murcielago: murcielagoPng, armadillo: armadilloPng, cacomixtle: cacomixtlePng, poof: poofPng };
 /** GDD-ART-04, GDD-PWR-04: the taco, chile and Chile Fantasma pickups, what Poncho holds, the claw swipe, the effects at his mouth and his glow's, one sheet each (`ITEM_LOOKS`). */
 const ITEM_PNGS: Readonly<Record<ItemSheet, string>> = { taco: tacoPng, chile: chilePng, held: heldPng, swipe: swipePng, fx: fxPng, fantasma: fantasmaPng, glow: glowPng };
-/** A sheet's frames stand on their bottom middle (a walker's feet), or the Zopilote's, the Murciélago's and the poof's on their middle. */
 /** GDD-ENM-04: an image's place, turn and depth, read back (a cart's layer, for the debug `enemiesDrawn`). */
 const layerOf = (im: Phaser.GameObjects.Image) => ({ x: im.x, y: im.y, rotation: im.rotation, depth: im.depth });
+/** A sheet's frames stand on their bottom middle (a walker's feet), or the Zopilote's, the Murciélago's and the poof's on their middle. */
 const centred = (sheet: Sheet): boolean => sheet === 'zopilote' || sheet === 'murcielago' || sheet === 'poof';
 
 /** GDD-AUD-02: the cache keys of every sound effect. */
@@ -988,7 +988,7 @@ export class PlayScene extends Phaser.Scene {
       this.load.image('estrella-cable', estrellaCablePng);
     }
     // GDD-ENM-02: the enemies and the defeat poof, one row of frames each (`ENEMY_LOOKS`). Every level loads them, they are small, but the
-    // Armadillo's, only in a level that has one (GDD-ENM-04, GDD-TEC-03; `sheetsFor`).
+    // Armadillo's and the Cacomixtle's, each only in a level that has one (GDD-ENM-04, GDD-TEC-03; `sheetsFor`).
     for (const sheet of sheetsFor(this.level)) this.load.spritesheet(`enemy-${sheet}`, ENEMY_PNGS[sheet], { frameWidth: ENEMY_ART.frames[sheet].w * ART_SCALE, frameHeight: ENEMY_ART.frames[sheet].h * ART_SCALE });
     // GDD-AUD-02: Ogg where it plays, MP3 elsewhere. Phaser picks the first format the browser supports.
     this.load.audio('sfx-ofrenda', [ofrendaOgg, ofrendaMp3]);
@@ -1571,7 +1571,7 @@ export class PlayScene extends Phaser.Scene {
         fireballsDrawn: () => this.fireballsPainted,
         enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? e.loop?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: enemyPhase(e), ...(e.ride ? { ride: { phase: e.ride.phase, t: e.ride.t } } : {}) })),
         enemiesDrawn: () => this.enemiesPainted,
-        enemySheetsLoaded: () => [...sheetsFor(this.level)].filter((sheet) => this.textures.exists(`enemy-${sheet}`)),
+        enemySheetsLoaded: () => Object.keys(ENEMY_PNGS).filter((sheet): sheet is Sheet => this.textures.exists(`enemy-${sheet}`)),
         defeatsDrawn: () => this.defeatsPainted,
         boss: () => {
           const b = this.run.boss;
