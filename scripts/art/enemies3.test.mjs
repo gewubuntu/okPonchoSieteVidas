@@ -411,7 +411,7 @@ describe('GDD-ENM-04 the Cacomixtle sprite', { timeout: 60_000 }, () => {
       if (look !== 'standRed') for (const c of new Set(grid.cells.filter((c) => c !== null))) expect(C_FUR, `${look} ${c}`).toContain(c);
       expect(new Set(grid.cells), look).not.toContain(LAMP_AMBER);
     }
-    // Ochre light fur, and a tail ringed iron dark and mist white, in the looks that show the tail up: a white ring round each dark eye.
+    // Ochre light fur, and a tail ringed iron dark and mist white, in the looks that show the tail up: a white ring round its dark eye.
     for (const look of ['doze', 'stand', 'ride0', 'ride1', 'parked', 'squash', 'hit']) for (const c of ['#EDCB86', '#353A48', '#EEF1EA']) expect(new Set(cFrame(look).cells), `${look} ${c}`).toContain(c);
     for (const look of ['stand', 'ride0', 'ride1', 'parked']) expect(new Set(cFrame(look).cells), look).toContain('#B0562E'); // the ears' insides
   });
@@ -457,9 +457,9 @@ describe('GDD-ENM-04 the Cacomixtle sprite', { timeout: 60_000 }, () => {
       for (let y = 0; y < cacomixtle.RIM_ROW; y++) for (let x = 0; x < g.width; x++) if (keep(g.get(x, y))) n++;
       return n;
     };
-    // Measured (L-072): the least drawn above the rim is the squash's 365 px; the others 608 and more (doze 608, parked 716).
-    for (const { look } of C_FRAMES) expect(above(look, (c) => c !== null), look).toBeGreaterThanOrEqual(365);
-    // Dozing and parked: the head (its ochre light fur and a white ring round each eye) and the ringed tail (iron dark) show over the rim.
+    // Measured (L-072): the least drawn above the rim is the squash's 343 px; the others 491 and more (hit 491, doze 628, parked 716).
+    for (const { look } of C_FRAMES) expect(above(look, (c) => c !== null), look).toBeGreaterThanOrEqual(343);
+    // Dozing and parked: the head (its ochre light fur and the white ring round its eye) and the ringed tail (iron dark) show over the rim.
     for (const look of ['doze', 'parked']) {
       expect(above(look, (c) => c === '#353A48'), `${look} tail`).toBeGreaterThanOrEqual(100);
       expect(above(look, (c) => c === '#EEF1EA'), `${look} eyes and rings`).toBeGreaterThanOrEqual(100);
@@ -479,14 +479,14 @@ describe('GDD-ENM-04 the Cacomixtle sprite', { timeout: 60_000 }, () => {
       return { behind: (BOX.x0 - b.x0) / 2, front: (b.x1 + 1 - BOX.x1) / 2, above: (BOX.y0 - b.y0) / 2, below: (b.y1 + 1 - BOX.y1) / 2 };
     };
     expect(Object.fromEntries(cacomixtle.LOOKS.map((look) => [look, reach(look)]))).toEqual({
-      doze: { behind: 4.5, front: 2, above: -0.5, below: 0 },
-      stand: { behind: 3.5, front: 0, above: 13, below: 0 },
-      standRed: { behind: 3.5, front: 0, above: 13, below: 0 },
-      ride0: { behind: 4.5, front: 3.5, above: 7.5, below: 0 },
-      ride1: { behind: 4, front: 3.5, above: 6, below: 0 },
-      parked: { behind: 4, front: -0.5, above: 5, below: 0 },
-      squash: { behind: 4.5, front: 2, above: -1, below: 0 },
-      hit: { behind: 3.5, front: 4, above: 7.5, below: 0 },
+      doze: { behind: 4.5, front: 2.5, above: 1, below: 0 },
+      stand: { behind: 3, front: 0, above: 13, below: 0 },
+      standRed: { behind: 3, front: 0, above: 13, below: 0 },
+      ride0: { behind: 4.5, front: 3, above: 8, below: 0 },
+      ride1: { behind: 4.5, front: 3, above: 8, below: 0 },
+      parked: { behind: 4.5, front: 0.5, above: 8, below: 0 },
+      squash: { behind: 4.5, front: 3.5, above: -1.5, below: 0 },
+      hit: { behind: 4.5, front: 4.5, above: -0.5, below: 0 },
     });
   });
 
