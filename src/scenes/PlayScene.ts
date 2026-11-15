@@ -5,9 +5,9 @@ import Phaser from 'phaser';
 import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, BOSS_ART, BOSS_BAR, CART, ENEMY_ART, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
 import { bossCrown, bossStart } from '../sim/boss';
 import { isBossLevel, levelBoss } from '../sim/bossLevel';
-import { centre, enemyPhase, feetOf, kindOf, type EnemyKind } from '../sim/enemy';
+import { centre, enemyPhase, feetOf, type EnemyKind } from '../sim/enemy';
 import { defeatLook, stepDefeats, type DefeatFx } from '../ui/defeatFx';
-import { frameLook, SHEETS, sheetsFor, type EnemyLook, type Sheet } from '../ui/enemyLooks';
+import { frameLook, sheetOf, sheetsFor, type EnemyLook, type Sheet } from '../ui/enemyLooks';
 import { enemyPose, stepRang } from '../ui/enemyPose';
 import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, unlockedAbilities, withUnlocks, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
@@ -30,6 +30,7 @@ import chapulinPng from '../../assets/sprites/enemies/chapulin.png';
 import trompoPng from '../../assets/sprites/enemies/trompo.png';
 import murcielagoPng from '../../assets/sprites/enemies/murcielago.png';
 import armadilloPng from '../../assets/sprites/enemies/armadillo.png';
+import cacomixtlePng from '../../assets/sprites/enemies/cacomixtle.png';
 import poofPng from '../../assets/sprites/enemies/poof.png';
 import tacoPng from '../../assets/sprites/poncho/taco.png';
 import chilePng from '../../assets/sprites/poncho/chile.png';
@@ -76,7 +77,7 @@ import { estrellaFrameInfo, estrellaPose, tejocoteBoxes } from '../ui/estrellaPo
 import { flipPose } from '../sim/respawnFlip';
 import { blockAt } from '../sim/block';
 import { cartFloor, fallingBox, railGround, type CartState } from '../sim/cart';
-import { cartPose } from '../ui/cartPose';
+import { cacomixtleOnCart, cartPose, type CartPose } from '../ui/cartPose';
 import { BUFFER_SIZE, CART_LOOKS, CART_SIZE, cartLook, POST_SIZE, RAIL_ART, RAIL_FRAMES, railLook, type CartLook } from '../ui/railLook';
 import { platformAt } from '../sim/platform';
 import { buttonsDown, respawnPoint, restartRun, restarts, resumeRun, startRun, stepRun, type Level, type RunState } from '../sim/run';
@@ -120,9 +121,11 @@ import { TouchControls, type TouchDebug } from '../ui/TouchControls';
 import { hasMarketThings, loadMarketThings, MarketThings, type MarketDrawn } from '../ui/MarketThings';
 
 /** GDD-ENM-02, GDD-ENM-03, GDD-ENM-04: the enemy sheets and the defeat poof's. */
-const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, paloma: palomaPng, chapulin: chapulinPng, trompo: trompoPng, murcielago: murcielagoPng, armadillo: armadilloPng, poof: poofPng };
+const ENEMY_PNGS: Readonly<Record<Sheet, string>> = { alacran: alacranPng, zopilote: zopilotePng, cactus: cactusPng, tlacuache: tlacuachePng, paloma: palomaPng, chapulin: chapulinPng, trompo: trompoPng, murcielago: murcielagoPng, armadillo: armadilloPng, cacomixtle: cacomixtlePng, poof: poofPng };
 /** GDD-ART-04, GDD-PWR-04: the taco, chile and Chile Fantasma pickups, what Poncho holds, the claw swipe, the effects at his mouth and his glow's, one sheet each (`ITEM_LOOKS`). */
 const ITEM_PNGS: Readonly<Record<ItemSheet, string>> = { taco: tacoPng, chile: chilePng, held: heldPng, swipe: swipePng, fx: fxPng, fantasma: fantasmaPng, glow: glowPng };
+/** GDD-ENM-04: an image's place, turn and depth, read back (a cart's layer, for the debug `enemiesDrawn`). */
+const layerOf = (im: Phaser.GameObjects.Image) => ({ x: im.x, y: im.y, rotation: im.rotation, depth: im.depth });
 /** A sheet's frames stand on their bottom middle (a walker's feet), or the Zopilote's, the Murciélago's and the poof's on their middle. */
 const centred = (sheet: Sheet): boolean => sheet === 'zopilote' || sheet === 'murcielago' || sheet === 'poof';
 
@@ -485,18 +488,34 @@ export interface PonchoDebug {
   /**
    * The enemies in the simulation, and where the scene painted the live ones (GDD-ENM-02). `y` is a Zopilote's flight y, a Murciélago's middle on its
    * loop (GDD-ENM-04), else the feet of a walker where it walked to (GDD-MOV-09: it follows slopes), which is its start's y until it moves.
-   * `phase` is `enemyPhase`'s.
+   * `phase` is `enemyPhase`'s. GDD-ENM-04: a Cacomixtle also has its `ride` (its phase, 'waiting', 'telegraph', 'riding' or 'parked', and `t`, the
+   * telegraph's step, 1 to 30, else 0), and its `x` and `y` are its cart's middle and floor (the simulation's, not where it was drawn).
    */
-  enemies(): { x: number; y: number; alive: boolean; dir: number; phase: string }[];
+  enemies(): { x: number; y: number; alive: boolean; dir: number; phase: string; ride?: { phase: string; t: number } }[];
   /**
    * Where the scene drew the live enemies, read back from what was drawn (L-010): each sprite's x and, for a walker, its bottom (its feet; a
    * flying Paloma's, lifted by its flight and bobbing), for a Zopilote its middle (its flight y) and a Murciélago's (GDD-ENM-04), with the look of the frame it shows and
    * whether it is mirrored (GDD-ENM-02, GDD-ENM-03). `red`: the frame is a telegraph's red one (`teleRed`, the Armadillo's `tuckRed`: the
    * flash is on in this frame). `white`: the sprite is filled plain white, the Armadillo's flash for the claw ringing off its ball, on the step
    * it rang and the next (GDD-ENM-04). An Armadillo's `x` and `y` are its sprite's: ENEMY_ART.dazedBack px back from its middle while it lies dazed, and shifted off a wall
-   * and raised off a slope as `enemyPose` keeps its drawing out of them.
+   * and raised off a slope as `enemyPose` keeps its drawing out of them. `rotation` and `depth` are the image's, read back (L-069; a turn in
+   * radians, 0 for all but a Cacomixtle on a slope). GDD-ENM-04: a Cacomixtle's `x` and `y` are its image's on its cart's drawn pose
+   * (`cacomixtleOnCart`; `red` is its `standRed`), and its entry also has its `rail` (the place in `Level.rails`) and, read back from the cart's two
+   * images the same frame, their place, turn and depth: its own depth lies between theirs.
    */
-  enemiesDrawn(): { x: number; y: number; kind: EnemyKind; look: EnemyLook; flip: boolean; red: boolean; white: boolean }[];
+  enemiesDrawn(): {
+    x: number;
+    y: number;
+    kind: EnemyKind;
+    look: EnemyLook;
+    flip: boolean;
+    red: boolean;
+    white: boolean;
+    rotation: number;
+    depth: number;
+    rail?: number;
+    cart?: { back: { x: number; y: number; rotation: number; depth: number }; front: { x: number; y: number; rotation: number; depth: number } };
+  }[];
   /**
    * GDD-ENM-04, GDD-TEC-03: the enemy sheets the scene has as textures, read from its texture manager (each `enemy-<sheet>` key it holds):
    * every level's sheets, and the Armadillo's only in a level that has one.
@@ -664,6 +683,8 @@ export class PlayScene extends Phaser.Scene {
   private prevCarts: readonly CartState[] = [];
   /** GDD-WLD-15: the angle each cart on its rail was last drawn at, in degrees (`cartPose`), for the debug `carts()`. */
   private cartAngles: number[] = [];
+  /** GDD-ENM-04: the pose each cart was last drawn at (`cartPose`, between steps as drawn), which a Cacomixtle riding it is drawn on. */
+  private cartPoses: (CartPose | undefined)[] = [];
   private crumbleGfx!: Phaser.GameObjects.Graphics;
   private crumblesKey = '';
   /** GDD-WLD-05, GDD-ART-06: in a Sierra level the rock ledge's image for each crumbling tile, else null (the placeholder is drawn). */
@@ -967,7 +988,7 @@ export class PlayScene extends Phaser.Scene {
       this.load.image('estrella-cable', estrellaCablePng);
     }
     // GDD-ENM-02: the enemies and the defeat poof, one row of frames each (`ENEMY_LOOKS`). Every level loads them, they are small, but the
-    // Armadillo's, only in a level that has one (GDD-ENM-04, GDD-TEC-03; `sheetsFor`).
+    // Armadillo's and the Cacomixtle's, each only in a level that has one (GDD-ENM-04, GDD-TEC-03; `sheetsFor`).
     for (const sheet of sheetsFor(this.level)) this.load.spritesheet(`enemy-${sheet}`, ENEMY_PNGS[sheet], { frameWidth: ENEMY_ART.frames[sheet].w * ART_SCALE, frameHeight: ENEMY_ART.frames[sheet].h * ART_SCALE });
     // GDD-AUD-02: Ogg where it plays, MP3 elsewhere. Phaser picks the first format the browser supports.
     this.load.audio('sfx-ofrenda', [ofrendaOgg, ofrendaMp3]);
@@ -1477,6 +1498,7 @@ export class PlayScene extends Phaser.Scene {
           this.renderPlatforms(alpha);
           this.renderBlocks(alpha);
           this.renderCarts(alpha);
+          this.drawEnemies();
           this.renderBody(alpha);
           this.followBody(alpha);
         },
@@ -1495,6 +1517,7 @@ export class PlayScene extends Phaser.Scene {
           this.market?.draw(this.run);
           this.renderBlocks(1);
           this.renderCarts(1);
+          this.drawEnemies();
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
           this.followBody(1);
           this.drawVeladora();
@@ -1546,9 +1569,9 @@ export class PlayScene extends Phaser.Scene {
         spits: () => this.spits,
         fireballAt: () => this.run.fireballs.map((f) => ({ x: f.x, y: f.y })),
         fireballsDrawn: () => this.fireballsPainted,
-        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? e.loop?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: enemyPhase(e) })),
+        enemies: () => this.run.enemies.map((e, i) => ({ x: e.x, y: e.flight?.y ?? e.loop?.y ?? feetOf(this.level.enemies[i]!, e), alive: e.alive, dir: e.dir, phase: enemyPhase(e), ...(e.ride ? { ride: { phase: e.ride.phase, t: e.ride.t } } : {}) })),
         enemiesDrawn: () => this.enemiesPainted,
-        enemySheetsLoaded: () => [...SHEETS, 'armadillo' as const].filter((sheet) => this.textures.exists(`enemy-${sheet}`)),
+        enemySheetsLoaded: () => Object.keys(ENEMY_PNGS).filter((sheet): sheet is Sheet => this.textures.exists(`enemy-${sheet}`)),
         defeatsDrawn: () => this.defeatsPainted,
         boss: () => {
           const b = this.run.boss;
@@ -1741,6 +1764,7 @@ export class PlayScene extends Phaser.Scene {
    */
   private renderCarts(alpha: number): void {
     this.cartAngles = [];
+    this.cartPoses = [];
     (this.level.rails ?? []).forEach((r, i) => {
       const now = this.run.carts[i]!;
       const was = this.prevCarts[i] ?? now;
@@ -1767,6 +1791,7 @@ export class PlayScene extends Phaser.Scene {
       const start = was.m > now.m || was.phase === 'falling' || was.phase === 'gone' ? now : was;
       const pose = cartPose(r, { ...now, m: start.m + (now.m - start.m) * alpha });
       this.cartAngles[i] = (pose.angle * 180) / Math.PI;
+      this.cartPoses[i] = pose;
       // Turned about its pose's point, on its floor line at its middle, its bottom `pose.bottom` under it in its own frame.
       for (const image of [back, front]) image.setOrigin(0.5, (CART.height - pose.bottom) / CART.height).setRotation(pose.angle).setPosition(pose.x, pose.y);
     });
@@ -1795,21 +1820,31 @@ export class PlayScene extends Phaser.Scene {
    */
   private drawEnemies(): void {
     this.enemiesPainted = [];
-    const ctx = { clock: this.run.clock, poncho: centre(this.run.player), world: this.level.world };
+    const ctx = { clock: this.run.clock, poncho: centre(this.run.player), world: this.level.world, rails: this.level.rails ?? [] };
     let sprites = 0;
     this.level.enemies.forEach((def, i) => {
       const e = this.run.enemies[i]!;
       if (!e.alive) return;
-      const kind = kindOf(def);
+      const kind = sheetOf(def);
       const pose = enemyPose(def, e, ctx);
       const image = this.poolImage(this.enemyImages, sprites++, kind, pose.frame, pose.flip).setPosition(pose.x, pose.y);
+      // GDD-ENM-04: a Cacomixtle stands on its cart's drawn pose, turned with it, between the cart's back and front layers (the validator
+      // gives its rail a buffer, so its cart is never falling or gone: it always has a pose).
+      const rail = kind === 'cacomixtle' ? def.rail! : -1;
+      if (kind === 'cacomixtle') {
+        const on = cacomixtleOnCart(this.cartPoses[rail]!);
+        image.setPosition(on.x, on.y).setRotation(on.rotation).setDepth((this.cartBackImages[rail]!.depth + this.cartFrontImages[rail]!.depth) / 2);
+      }
       // GDD-ENM-04: the claw rang off its ball: drawn plain white (`stepRang`).
       if ((this.rangLeft[i] ?? 0) > 0) image.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
       // L-010: read back from the image: where it stands, its frame's look and its mirroring, not the pose; red, a telegraph's red frame; white,
       // filled white.
       const look = frameLook(kind, Number(image.frame.name));
       const white = image.tintMode === Phaser.TintModes.FILL && image.tintTopLeft === 0xffffff;
-      this.enemiesPainted.push({ x: image.x, y: image.y, kind, look, flip: image.flipX, red: look === 'teleRed' || look === 'tuckRed', white });
+      this.enemiesPainted.push({
+        x: image.x, y: image.y, kind, look, flip: image.flipX, red: look === 'teleRed' || look === 'tuckRed' || look === 'standRed', white, rotation: image.rotation, depth: image.depth,
+        ...(kind === 'cacomixtle' ? { rail, cart: { back: layerOf(this.cartBackImages[rail]!), front: layerOf(this.cartFrontImages[rail]!) } } : {}),
+      });
     });
     this.enemyImages.forEach((image, i) => image.setVisible(i < sprites));
   }
@@ -1817,11 +1852,12 @@ export class PlayScene extends Phaser.Scene {
   /**
    * The `index`th image of `pool`, made if the pool is that short, showing `frame` of `sheet`'s sheet, mirrored when `flip`, at depth 3 and
    * at the scale of the art (GDD-ART-01), standing on its bottom middle or centred as the sheet's frames are (`centred`). Visible, with no
-   * tint (L-069: an image drawn white for the Armadillo's rang flash last frame may show another enemy now).
+   * tint, depth 3 and no turn (L-069: an image drawn white for the Armadillo's rang flash, or turned and set between a cart's layers for a
+   * Cacomixtle, last frame may show another enemy now).
    */
   private poolImage(pool: Phaser.GameObjects.Image[], index: number, sheet: Sheet, frame: number, flip: boolean): Phaser.GameObjects.Image {
     while (pool.length <= index) pool.push(this.add.image(0, 0, `enemy-${sheet}`, 0).setScale(1 / ART_SCALE).setDepth(3));
-    const image = pool[index]!.setTexture(`enemy-${sheet}`, frame).setFlipX(flip).setVisible(true).clearTint();
+    const image = pool[index]!.setTexture(`enemy-${sheet}`, frame).setFlipX(flip).setVisible(true).clearTint().setDepth(3).setRotation(0);
     return centred(sheet) ? image.setOrigin(0.5) : image.setOrigin(0.5, 1);
   }
 
@@ -2720,6 +2756,8 @@ export class PlayScene extends Phaser.Scene {
     if (this.run.fragilesBroken.join() !== this.fragilesKey) this.drawFragiles();
     this.drawItems();
     this.drawFireballs();
+    // The carts first: a Cacomixtle is drawn on the pose its cart was just drawn at (GDD-ENM-04).
+    this.renderCarts(alpha);
     this.drawEnemies();
     this.drawDefeats();
     this.drawBoss();
@@ -2737,7 +2775,6 @@ export class PlayScene extends Phaser.Scene {
     this.renderPlatforms(alpha);
     this.market?.draw(this.run);
     this.renderBlocks(alpha);
-    this.renderCarts(alpha);
     if (this.level.veladora && veladoraUsed(this.run.lives, this.level.veladora) !== this.veladoraUsedDrawn) this.drawVeladora();
     this.renderBody(alpha);
     this.followBody(alpha);

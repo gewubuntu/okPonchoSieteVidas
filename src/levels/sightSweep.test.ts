@@ -175,6 +175,44 @@ describe('GDD-WLD-03 GDD-ENM-04 the sight sweep with enemies that react to him',
   });
 });
 
+/**
+ * A flat at row 14, 30 columns, with the glide; a rail on it rolling left from x = 416 (column 26), 8 tiles to a buffer at x = 288, its
+ * Cacomixtle at its cart's start (x 400, its floor at y = 216). He starts at column 3.
+ */
+const ringtail = (): Level =>
+  fixture((_c, r) => r >= 14, [{ x: 400, y: 216, kind: 'cacomixtle', rail: 0 }], 17, undefined, {
+    width: 30,
+    rails: [{ x: 26 * TILE, y: Y(14), dir: -1, segments: [{ kind: 'level', tiles: 8 }], end: 'buffer' }],
+  });
+/** A standing take-off to the left from x on the flat, tapped. */
+const left = (x: number): Takeoff => ({ place: { col: Math.floor(x / TILE), y: Y(14) }, x, dir: -1, speed: 'stand', input: 'tap', start: 0 });
+
+describe('GDD-WLD-03 GDD-ENM-04 the sight sweep with a Cacomixtle', () => {
+  it('GDD-WLD-03 sight sweep counts a cacomixtle as reacting: a flight that wakes it goes on until it is parked, and its reach is its sight', { timeout: 120000 }, () => {
+    // He taps a jump to the right from x = 164 (36 px short of its sight's 200 px, measured) and is on the flat again in state 21, slides on into
+    // its sight and wakes it in state 24 (its telegraph is states 24 to 53, its ride to the buffer long after that). A flight waits 30 steps
+    // after he stands, which would end it in state 52, in the middle of the telegraph: it goes on, through the ride, until the ringtail is
+    // parked, and that ends with no loss.
+    const f = flySight(ringtail(), { place: { col: 10, y: Y(14) }, x: 164, dir: 1, speed: 'stand', input: 'tap', start: 0 });
+    expect(f.from.enemies[0]!.ride).toEqual({ phase: 'waiting', t: 0 });
+    const landed = f.states.findIndex((r, i) => i > 0 && r.player.grounded);
+    const woke = f.states.findIndex((r) => r.enemies[0]!.ride!.phase !== 'waiting');
+    expect([landed, woke]).toEqual([21, 24]);
+    expect(f.states[landed + 31]!.enemies[0]!.ride!.phase).toBe('telegraph');
+    expect(f.states.length).toBeGreaterThan(landed + 60);
+    expect(f.states[f.states.length - 1]!.enemies[0]!.ride).toEqual({ phase: 'parked', t: 0 });
+    // Parked it is idle again: the flight ends there, not 600 steps on.
+    const parked = f.states.findIndex((r) => r.enemies[0]!.ride!.phase === 'parked');
+    expect(f.states.length - parked).toBeLessThanOrEqual(2);
+    expect(f.loss).toBe(null);
+    // Its reach: his body (12 px wide) is within 198 px of its box (x 393 to 407) across, its sight 200 less his hurtbox's 5 px and its 7: from
+    // x = 195 on. A take-off at x = 190 (body to 196) flies it again with the enemies, one at x = 186 (body to 192, 3 px short) does not.
+    const sweep = sightSweep(ringtail(), [0]);
+    expect(sweep.reflown.some((t) => sameTakeoff(t, left(190)))).toBe(true);
+    expect(sweep.reflown.some((t) => sameTakeoff(t, left(186)))).toBe(false);
+  });
+});
+
 /** A level rail on the ground at row `row` from column `col`, `tiles` long, rolling right. */
 const rail = (col: number, row: number, tiles: number, end: Rail['end']): Rail => ({ x: col * TILE, y: Y(row), dir: 1, segments: [{ kind: 'level', tiles }], end });
 /** The losses as lines (`describeLoss`). */

@@ -25,6 +25,7 @@ import { LAB_3C_ID, LAB_3C_LEVEL } from './lab3c';
 import { LAB_3T_ID, LAB_3T_LEVEL } from './lab3t';
 import { LAB_3M_ID, LAB_3M_LEVEL } from './lab3m';
 import { LAB_3A_ID, LAB_3A_LEVEL } from './lab3a';
+import { LAB_3K_ID, LAB_3K_LEVEL } from './lab3k';
 
 export interface LevelEntry {
   readonly id: string;
@@ -78,6 +79,8 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: LAB_3M_ID, world: 3, test: true, level: LAB_3M_LEVEL, place: 'mina' },
   // GDD-ENM-04: the Armadillo's lab, a World 3 test level in the mine's look.
   { id: LAB_3A_ID, world: 3, test: true, level: LAB_3A_LEVEL, place: 'mina' },
+  // GDD-ENM-04: the Cacomixtle's lab, a World 3 test level in the mine's look.
+  { id: LAB_3K_ID, world: 3, test: true, level: LAB_3K_LEVEL, place: 'mina' },
 ];
 
 /** GDD-PRG-02: the levels whose progress is saved (the real ones, not the test level), by id, with their hilo counts: what `readSave` needs to read their entries. */

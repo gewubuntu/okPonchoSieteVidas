@@ -3,10 +3,10 @@
 // is a hit (GDD-CMB-03). The Tlacuache (opossum) walks, telegraphs and charges, and plays dead after its first stomp.
 // GDD-ENM-03: World 2's Paloma (pigeon), Chapulín (grasshopper) and Trompo (spinning top, the first heavy enemy, GDD-CMB-02); their
 // steps are in `paloma.ts`, `chapulin.ts` and `trompo.ts`. GDD-ENM-04: World 3's Murciélago (bat), in `murcielago.ts`, and its Armadillo,
-// in `armadillo.ts`. Every rule that
+// in `armadillo.ts`, and its Cacomixtle (ringtail on a cart), in `cacomixtle.ts`. Every rule that
 // depends on the kind is a table or a switch over every kind, so a kind left out fails the typecheck.
 // Pure logic, no Phaser (GDD-TEC-02).
-import { ARMADILLO, CACTUS, CHAPULIN, ENEMY, MURCIELAGO, PALOMA, STEP, STOMP, TLACUACHE, TROMPO, ZOPILOTE } from '../config/tuning';
+import { ARMADILLO, CACOMIXTLE, CACTUS, CHAPULIN, ENEMY, MURCIELAGO, PALOMA, STEP, STOMP, TLACUACHE, TROMPO, ZOPILOTE } from '../config/tuning';
 import { isDazed, stepArmadillo, WALKING, type Shell } from './armadillo';
 import { CROUCHING, stepChapulin, type Hop } from './chapulin';
 import { hurtbox } from './hazards';
@@ -18,12 +18,13 @@ import type { TileGrid } from './tilemap';
 import { SPINNING, stepTrompo, stun, type Spin } from './trompo';
 import { turn, walk as walkOn } from './walker';
 
-export type EnemyKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo' | 'murcielago' | 'armadillo';
+export type EnemyKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo' | 'murcielago' | 'armadillo' | 'cacomixtle';
 
 /**
  * Where an enemy starts, heading right. An Alacrán (the default kind) gives the middle of it and the y of its feet, like
- * Poncho's own position, and so do a cactus buddy, a Tlacuache, a Paloma, a Chapulín, a Trompo and an Armadillo; a Zopilote gives the middle of it
- * and the y of its cruise line; a Murciélago the middle of its loop (GDD-ENM-04).
+ * Poncho's own position, and so do a cactus buddy, a Tlacuache, a Paloma, a Chapulín, a Trompo, an Armadillo and a Cacomixtle (its place at its
+ * cart's start: the middle of the cart and the y of its floor there); a Zopilote gives the middle of it and the y of its cruise line; a Murciélago
+ * the middle of its loop (GDD-ENM-04).
  */
 export interface Enemy {
   readonly x: number;
@@ -33,6 +34,13 @@ export interface Enemy {
   readonly rx?: number;
   readonly ry?: number;
   readonly phase?: number;
+  /** GDD-ENM-04: only a Cacomixtle reads this: the index into `Level.rails` of the rail whose cart it rides. */
+  readonly rail?: number;
+  /**
+   * GDD-ENM-04, GDD-TEC-04: only a Cacomixtle reads this: the GDD sentence that names the exception to the sight stretch's ground rule, so the
+   * validator skips that one rule for it. Left out, none; given, never empty.
+   */
+  readonly sightException?: string;
 }
 
 export const kindOf = (def: Enemy): EnemyKind => def.kind ?? 'alacran';
@@ -59,6 +67,15 @@ export interface Gait {
   readonly playedDead: boolean;
 }
 
+/**
+ * A Cacomixtle's ride (GDD-ENM-04): waiting at its cart's start, telegraphing (`t` counts the steps, 1 to CACOMIXTLE.telegraphSteps, 0
+ * otherwise), riding its rolling cart, or parked at the buffer once the cart has stopped.
+ */
+export interface Ride {
+  readonly phase: 'waiting' | 'telegraph' | 'riding' | 'parked';
+  readonly t: number;
+}
+
 export interface EnemyState {
   readonly x: number;
   readonly dir: 1 | -1;
@@ -78,6 +95,8 @@ export interface EnemyState {
   readonly loop?: Loop;
   /** Only an Armadillo has one (GDD-ENM-04). */
   readonly shell?: Shell;
+  /** Only a Cacomixtle has one (GDD-ENM-04). */
+  readonly ride?: Ride;
   /**
    * GDD-MOV-09: the y of a walker's feet once it has walked (it follows slopes), and a Chapulín's and an Armadillo's feet in the air too (GDD-ENM-03, GDD-ENM-04); a
    * flying Paloma keeps the y of the ground it rose from. Left out, it stands at its start's y.
@@ -117,6 +136,7 @@ const FRESH: Readonly<Record<EnemyKind, (e: Enemy) => EnemyState>> = {
   trompo: (e) => ({ x: e.x, dir: 1, alive: true, spin: SPINNING }),
   murcielago: freshMurcielago,
   armadillo: (e) => ({ x: e.x, dir: 1, alive: true, shell: WALKING }),
+  cacomixtle: (e) => ({ x: e.x, dir: 1, alive: true, ride: { phase: 'waiting', t: 0 } }),
 };
 
 /** Every enemy alive at its start, as at the start of the level and after a life is lost. */
@@ -133,6 +153,7 @@ const SIZE: Readonly<Record<EnemyKind, { readonly width: number; readonly height
   trompo: TROMPO,
   murcielago: MURCIELAGO,
   armadillo: ARMADILLO,
+  cacomixtle: CACOMIXTLE,
 };
 
 export const sizeOf = (def: Enemy): { readonly width: number; readonly height: number } => SIZE[kindOf(def)];
@@ -232,13 +253,14 @@ const STEPS: Readonly<Record<EnemyKind, (def: Enemy, state: EnemyState, world: T
   trompo: (def, state, world) => stepTrompo(def, state, world),
   murcielago: (def, state) => stepMurcielago(def, state), // it ignores tiles, awnings, cordeles and Poncho (GDD-ENM-04)
   armadillo: (def, state, world, player) => stepArmadillo(def, state, world, player),
+  cacomixtle: (_def, state) => state, // it follows its cart and reads him in `stepCacomixtles`, which sees the rails (GDD-ENM-04)
 };
 
 /** GDD-ENM-02: the Tlacuache's first stomp makes it play dead instead of defeating it. */
 export const playDead = (state: EnemyState): EnemyState => ({ ...state, gait: { phase: 'dead', age: 0, playedDead: true } });
 
 /** Which kinds play dead at their first stomp (GDD-ENM-02): the Tlacuache. */
-const PLAYS_DEAD: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: false, tlacuache: true, paloma: false, chapulin: false, trompo: false, murcielago: false, armadillo: false };
+const PLAYS_DEAD: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: false, tlacuache: true, paloma: false, chapulin: false, trompo: false, murcielago: false, armadillo: false, cacomixtle: false };
 
 /** Does a stomp only make it play dead, rather than defeat it? True for a Tlacuache that has not played dead yet. */
 export const stompPlaysDead = (def: Enemy, state: EnemyState): boolean => PLAYS_DEAD[kindOf(def)] && !state.gait!.playedDead;
@@ -266,12 +288,12 @@ export function enemyBox(def: Enemy, state: EnemyState): Box {
 }
 
 /** Can the claw, a fireball or a stomp defeat it? Not the cactus buddy, only avoided on foot (GDD-ENM-02). */
-const DEFEATABLE: Readonly<Record<EnemyKind, boolean>> = { alacran: true, zopilote: true, cactus: false, tlacuache: true, paloma: true, chapulin: true, trompo: true, murcielago: true, armadillo: true };
+const DEFEATABLE: Readonly<Record<EnemyKind, boolean>> = { alacran: true, zopilote: true, cactus: false, tlacuache: true, paloma: true, chapulin: true, trompo: true, murcielago: true, armadillo: true, cacomixtle: true };
 
 export const defeatable = (def: Enemy): boolean => DEFEATABLE[kindOf(def)];
 
 /** GDD-CMB-02: the heavy enemies, which the claw (and a fireball, GDD-ENM-03) stuns instead of defeating: the Trompo. */
-const HEAVY: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: false, tlacuache: false, paloma: false, chapulin: false, trompo: true, murcielago: false, armadillo: false };
+const HEAVY: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: false, tlacuache: false, paloma: false, chapulin: false, trompo: true, murcielago: false, armadillo: false, cacomixtle: false };
 
 /**
  * GDD-CMB-02, GDD-PWR-03: what a claw swipe or a fireball that hits a defeatable enemy does to it: it defeats a light one and stuns a
@@ -280,7 +302,7 @@ const HEAVY: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: 
 export const strike = (def: Enemy, state: EnemyState): EnemyState => (HEAVY[kindOf(def)] ? stun(state) : { ...state, alive: false });
 
 /** Which kinds are harmless when Poncho rises into them from beneath (GDD-ENM-02): the cactus buddy. */
-const HARMLESS_FROM_BELOW: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: true, tlacuache: false, paloma: false, chapulin: false, trompo: false, murcielago: false, armadillo: false };
+const HARMLESS_FROM_BELOW: Readonly<Record<EnemyKind, boolean>> = { alacran: false, zopilote: false, cactus: true, tlacuache: false, paloma: false, chapulin: false, trompo: false, murcielago: false, armadillo: false, cacomixtle: false };
 
 /**
  * Is a contact harmless (GDD-ENM-02)? Only with a cactus buddy, and only while Poncho is rising into it from beneath: moving
@@ -326,7 +348,7 @@ export const touchedByPoncho = (player: PlayerState, def: Enemy, state: EnemySta
 /**
  * GDD-CMB-01: can it be stomped now? Not the Zopilote and the cactus buddy, nor a Tlacuache playing dead (it is out of play, GDD-ENM-02);
  * a Trompo only while it lies stunned (GDD-ENM-03). A Murciélago in any part of its loop, and an Armadillo in every phase, a rolling ball
- * too, which only bounces him (GDD-ENM-04).
+ * too, which only bounces him, and a Cacomixtle in every state of its ride (GDD-ENM-04).
  */
 const STOMPABLE: Readonly<Record<EnemyKind, (state: EnemyState) => boolean>> = {
   alacran: () => true,
@@ -338,6 +360,7 @@ const STOMPABLE: Readonly<Record<EnemyKind, (state: EnemyState) => boolean>> = {
   trompo: isStunned,
   murcielago: () => true,
   armadillo: () => true,
+  cacomixtle: () => true,
 };
 
 /**

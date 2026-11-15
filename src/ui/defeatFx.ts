@@ -8,10 +8,10 @@ import { lookFrame, POOF_LOOKS, type EnemyLook, type Sheet } from './enemyLooks'
 
 /**
  * The kinds that go in a poof: every one that can be defeated, the cactus buddy too, by the Chile Fantasma (GDD-PWR-04) or a rolling cart
- * (GDD-WLD-15) alone, and the Armadillo (GDD-ENM-04), but for one that fell out of the level: it is gone, with no poof.
+ * (GDD-WLD-15) alone, the Armadillo and the Cacomixtle (GDD-ENM-04), but for an Armadillo that fell out of the level: it is gone, with no poof.
  */
-export type DefeatKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo' | 'murcielago' | 'armadillo';
-const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'cactus' || kind === 'tlacuache' || kind === 'paloma' || kind === 'chapulin' || kind === 'trompo' || kind === 'murcielago' || kind === 'armadillo';
+export type DefeatKind = 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' | 'paloma' | 'chapulin' | 'trompo' | 'murcielago' | 'armadillo' | 'cacomixtle';
+const poofs = (kind: EnemyKind): kind is DefeatKind => kind === 'alacran' || kind === 'zopilote' || kind === 'cactus' || kind === 'tlacuache' || kind === 'paloma' || kind === 'chapulin' || kind === 'trompo' || kind === 'murcielago' || kind === 'armadillo' || kind === 'cacomixtle';
 
 export interface DefeatFx {
   readonly kind: DefeatKind;
@@ -40,7 +40,7 @@ export const DEFEAT_FX_STEPS = ENEMY_ART.defeatSteps + 4 * ENEMY_ART.poofSteps;
  * and is not now, of a kind that goes in a poof, adds one, but an Armadillo that fell out of the level. A stomp squashes it, but a Zopilote is never stomped (GDD-CMB-01): one that falls
  * in the step of a stomp was knocked. A life lost (the run respawning, or the enemies back to life) clears them all.
  */
-export function stepDefeats(fx: readonly DefeatFx[], before: Pick<RunState, 'enemies'>, after: Pick<RunState, 'enemies' | 'stomped' | 'phase'>, level: Pick<Level, 'enemies' | 'world'>): readonly DefeatFx[] {
+export function stepDefeats(fx: readonly DefeatFx[], before: Pick<RunState, 'enemies'>, after: Pick<RunState, 'enemies' | 'stomped' | 'phase'>, level: Pick<Level, 'enemies' | 'world' | 'rails'>): readonly DefeatFx[] {
   const revived = after.enemies !== before.enemies && after.enemies.some((e, i) => e.alive && !before.enemies[i]!.alive);
   if (after.phase === 'respawning' || revived) return [];
   const aged = fx.map((e) => ({ ...e, age: e.age + 1 })).filter((e) => e.age < DEFEAT_FX_STEPS);
@@ -52,7 +52,7 @@ export function stepDefeats(fx: readonly DefeatFx[], before: Pick<RunState, 'ene
     const was = before.enemies[i]!;
     const back = was.shell?.phase === 'dazed' ? was.dir * ENEMY_ART.dazedBack : 0;
     // GDD-PWR-04: the cactus buddy has no squash or hit frame, so its effect starts past that stage, at the poof (its frames are 16 steps).
-    return [{ kind, x: (box.x0 + box.x1) / 2, y: (box.y0 + box.y1) / 2, feet: box.y1, flip: e.dir < 0, stomped: after.stomped && kind !== 'zopilote', age: kind === 'cactus' ? ENEMY_ART.defeatSteps : 0, ...(back !== 0 ? { back } : {}) }];
+    return [{ kind, x: (box.x0 + box.x1) / 2, y: (box.y0 + box.y1) / 2, feet: box.y1, flip: kind === 'cacomixtle' ? level.rails![def.rail!]!.dir < 0 : e.dir < 0, stomped: after.stomped && kind !== 'zopilote', age: kind === 'cactus' ? ENEMY_ART.defeatSteps : 0, ...(back !== 0 ? { back } : {}) }];
   });
   return [...aged, ...fresh];
 }

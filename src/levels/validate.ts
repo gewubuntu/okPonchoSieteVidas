@@ -1,10 +1,10 @@
 // GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have (GDD-MOV-09: its sand slopes
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
-import { ARMADILLO, AWNING, BASE_WIDTH, CART, COVER, ESTRELLA, LEVEL_RULES, MURCIELAGO, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
+import { ARMADILLO, AWNING, BASE_WIDTH, CACOMIXTLE, CART, COVER, ESTRELLA, LEVEL_RULES, MURCIELAGO, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
 import { rollPath } from '../sim/armadillo';
 import { bossStart } from '../sim/boss';
 import { bottomRowAt, type Bottom } from '../sim/bottoms';
-import { railGround, railLength, type Rail } from '../sim/cart';
+import { cartFloor, railGround, railLength, type Rail } from '../sim/cart';
 import { estrellaStart } from '../sim/estrella';
 import { isBossLevel } from '../sim/bossLevel';
 import { freshCrumbles, withCrumbles } from '../sim/crumble';
@@ -262,6 +262,78 @@ function armadilloProblems(level: Level, def: Enemy): string[] {
   return carts.flatMap((c, k) => (walks[k] ? [`${at} walks into the start of the cart at column ${c.col}`] : rolls[k] ? [`${at} rolls into the start of the cart at column ${c.col}`] : []));
 }
 
+/**
+ * GDD-ENM-04, GDD-TEC-04: a Cacomixtle's rail and its sight stretch. (a) `rail` is a whole number that is a place in `level.rails`;
+ * (b) that rail ends at a buffer, so its cart never falls; (c) no two Cacomixtles ride one rail; (d) `x` and `y` are its place at its cart's
+ * start: the cart's middle and the cart's floor under it. The sight stretch is the rail from the cart's middle at its start, ahead along its
+ * way, for CACOMIXTLE.sightX px across or to the buffer's middle-stop (the rail's length less half the cart), whichever is nearer: (e) no
+ * descent segment overlaps it (a segment that only starts where it ends does not); (f) every standable top whose column it overlaps (a
+ * solid tile with a non-solid tile over it, or a crumbling tile) is within sightY less a full jump (jumpPx) of the cart's floor at its start,
+ * or more than sightY plus a jump from it, so a jump cannot hide him nor wake it early, and so is every one-way platform over those columns (a
+ * moving one by the range of its distance over its path); `Enemy.sightException`, the GDD sentence that names
+ * the exception, skips (f) alone and is never empty. Not checked here: the cart clear of the phone's buttons when first seen (needs the
+ * camera of GDD-UI-04, built later).
+ */
+function cacomixtleProblems(level: Level): string[] {
+  const problems: string[] = [];
+  const rails = level.rails ?? [];
+  const taken = new Set<number>();
+  const hides = CACOMIXTLE.sightY - CACOMIXTLE.jumpPx;
+  const wakes = CACOMIXTLE.sightY + CACOMIXTLE.jumpPx;
+  for (const def of level.enemies) {
+    if (kindOf(def) !== 'cacomixtle') continue;
+    const at = `cacomixtle at ${def.x},${def.y}`;
+    // A place that is no whole number, is under 0 or past the list's end finds no rail: that one lookup is check (a).
+    const index = def.rail ?? -1;
+    const rail = rails[index];
+    if (!rail) {
+      problems.push(`${at} has rail ${def.rail}, expected a whole number from 0 to ${rails.length - 1}`);
+      continue;
+    }
+    if (rail.end !== 'buffer') problems.push(`${at} rides a rail that ends ${rail.end}, expected a buffer`);
+    if (taken.has(index)) problems.push(`${at} rides rail ${index}, which another cacomixtle rides`);
+    taken.add(index);
+    const middle = CART.width / 2;
+    const floor = cartFloor(rail, { phase: 'waiting', m: middle });
+    const [x, y] = [rail.x + rail.dir * middle, floor.y];
+    if (def.x !== x || def.y !== y) problems.push(`${at} is not at its cart's start, expected ${x},${y}`);
+    const end = Math.min(middle + CACOMIXTLE.sightX, railLength(rail) - middle);
+    let from = 0;
+    for (const s of rail.segments) {
+      const to = from + s.tiles * TILE;
+      if (s.kind === 'descent' && from < end && to > middle) problems.push(`${at} has a descent in its sight stretch, ${from} to ${to} px across`);
+      from = to;
+    }
+    if (def.sightException === '') problems.push(`${at} has an empty sight exception, expected the GDD sentence that names it`);
+    if (def.sightException) continue;
+    // The stretch's columns. One past the level's edge reads as a wall (`solidTile`), which has no top, so no clamp to the level is needed (L-025).
+    const [lo, hi] = [Math.min(x, rail.x + rail.dir * end), Math.max(x, rail.x + rail.dir * end)];
+    const [first, last] = [Math.floor(lo / TILE), Math.ceil(hi / TILE)];
+    const tops = new Map<string, { col: number; row: number }>();
+    for (let col = first; col < last; col++) {
+      for (let row = 0; row < level.world.height; row++) if (level.world.solidTile(col, row) && !level.world.solidTile(col, row - 1)) tops.set(`${col},${row}`, { col, row });
+      for (const c of level.crumbles) if (c.col === col) tops.set(`${col},${c.row}`, { col, row: c.row });
+    }
+    for (const { col, row } of tops.values()) {
+      const d = Math.abs(row * TILE - floor.y);
+      if (d > hides && d <= wakes) problems.push(`${at} has ground at column ${col}, row ${row}, ${d} px from its cart's floor in its sight stretch, expected within ${hides} or over ${wakes}`);
+    }
+    // A one-way platform is ground too (GDD-WLD-05): one whose x span (the whole path's, for a moving one) overlaps those columns, and whose
+    // distances from the cart's floor over its path's y interval (`near` to `far`) meet the band, for a still one the one distance.
+    for (const p of level.platforms) {
+      if (Math.min(p.x0, p.x1) >= last * TILE || Math.max(p.x0, p.x1) + p.w <= first * TILE) continue;
+      const [top, bottom] = [Math.min(p.y0, p.y1), Math.max(p.y0, p.y1)];
+      const near = top <= floor.y && floor.y <= bottom ? 0 : Math.min(Math.abs(top - floor.y), Math.abs(bottom - floor.y));
+      const far = Math.max(Math.abs(top - floor.y), Math.abs(bottom - floor.y));
+      if (far > hides && near <= wakes) {
+        const where = p.x0 === p.x1 && p.y0 === p.y1 ? `at ${p.x0},${p.y0}, ${far} px` : `moving from ${p.x0},${p.y0} to ${p.x1},${p.y1}, ${near} to ${far} px`;
+        problems.push(`${at} has a platform ${where} from its cart's floor in its sight stretch, expected within ${hides} or over ${wakes}`);
+      }
+    }
+  }
+  return problems;
+}
+
 /** GDD-WLD-03: 17 to 51 rows tall; a boss level one screen tall, 17 rows (GDD-BOS-01). */
 function heightProblems(level: Level): string[] {
   const rows = level.world.height;
@@ -397,6 +469,9 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
   for (const e of level.enemies) if (kindOf(e) === 'murcielago') problems.push(...murcielagoProblems(level, e));
   for (const e of level.enemies) if (kindOf(e) === 'armadillo') problems.push(...armadilloProblems(level, e));
   for (const e of level.enemies) if (kindOf(e) === 'armadillo' && entry.world !== 3) problems.push(`armadillo at column ${Math.floor(e.x / TILE)} in World ${entry.world}, only World 3 has them`);
+  // GDD-ENM-04: each Cacomixtle's rail, place and sight stretch, and only World 3 has them.
+  problems.push(...cacomixtleProblems(level));
+  for (const e of level.enemies) if (kindOf(e) === 'cacomixtle' && entry.world !== 3) problems.push(`cacomixtle at ${e.x},${e.y} in World ${entry.world}, only World 3 has them`);
 
   // GDD-ENM-01, GDD-BOS-01: the boss starts at least 3 tiles from the spawn, his only respawn.
   if (level.boss) {

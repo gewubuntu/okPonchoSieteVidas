@@ -6,7 +6,7 @@
 // jump from a rolling cart keeps the cart's speed across (the carry rule, `movement.ts`). Where it is depends only on the steps since he
 // landed in it. Pure logic, no Phaser (GDD-TEC-02).
 import { CART, GRAVITY, HITBOX, SPIKE, STEP, TILE } from '../config/tuning';
-import { boxTouchesEnemy, type Enemy, type EnemyState } from './enemy';
+import { boxTouchesEnemy, kindOf, type Enemy, type EnemyState } from './enemy';
 import type { Spike } from './hazards';
 import { carryOn, landOn, standsOnPlatform, type PlatformPos } from './platform';
 import { blocked, type PlayerState, type World } from './movement';
@@ -119,14 +119,18 @@ export function rollingBox(rail: Rail, cart: CartState): { x: number; y: number;
 /**
  * GDD-WLD-15: a rolling cart defeats every live enemy its box (`rollingBox`, after this step's roll) overlaps, with the usual defeat: every
  * kind, a heavy one too (defeated, not stunned), one playing dead or stunned included (`boxTouchesEnemy`). A cart that is waiting, stopped,
- * falling or gone touches no enemy. Nothing else changes: no score, no bounce, no change to the cart's speed.
+ * falling or gone touches no enemy. Nothing else changes: no score, no bounce, no change to the cart's speed. A cart never runs over its own
+ * rider, the Cacomixtle whose `rail` is its place in `rails` (GDD-ENM-04); any other rolling cart does.
  */
 export function runOver(rails: readonly Rail[], carts: readonly CartState[], enemies: readonly Enemy[], states: readonly EnemyState[]): EnemyState[] {
   const boxes = rails.flatMap((r, i) => {
     const b = rollingBox(r, carts[i]!);
-    return b ? [{ x0: b.x, x1: b.x + b.w, y0: b.y, y1: b.y + b.h }] : [];
+    return b ? [{ rail: i, x0: b.x, x1: b.x + b.w, y0: b.y, y1: b.y + b.h }] : [];
   });
-  return states.map((e, i) => (boxes.some((b) => boxTouchesEnemy(b, enemies[i]!, e)) ? { ...e, alive: false } : e));
+  return states.map((e, i) => {
+    const def = enemies[i]!;
+    return boxes.some((b) => !(kindOf(def) === 'cacomixtle' && def.rail === b.rail) && boxTouchesEnemy(b, def, e)) ? { ...e, alive: false } : e;
+  });
 }
 
 /**
@@ -191,11 +195,13 @@ export function breakCarts(rails: readonly Rail[], carts: readonly CartState[], 
  * An empty cart comes back: at a step's start, a cart stopped at its buffer counts the step if Poncho does not stand on its floor (`player`,
  * as the last step ended him) and holds its count at 0 while he does; a cart that has left a broken end counts every step from the one it
  * left. On the step the count reaches CART.returnSteps it is back at its start, standing. Not in a boss level (`boss`): there a cart stays
- * at its rail's end until a life is lost (GDD-BOS-04).
+ * at its rail's end until a life is lost (GDD-BOS-04). Nor does the cart of a Cacomixtle's rail (`cacomixtleRails`), with its rider or
+ * emptied: it stays where it stops until a life is lost (GDD-ENM-04).
  */
-export function returnCarts(rails: readonly Rail[], carts: readonly CartState[], player: PlayerState, boss: boolean): CartState[] {
+export function returnCarts(rails: readonly Rail[], carts: readonly CartState[], player: PlayerState, boss: boolean, cacomixtleRails: ReadonlySet<number>): CartState[] {
   if (boss) return [...carts];
   return carts.map((c, i) => {
+    if (cacomixtleRails.has(i)) return c;
     if (c.phase !== 'stopped' && c.phase !== 'falling' && c.phase !== 'gone') return c;
     if (c.phase === 'stopped' && standsIn(player, rails[i]!, c)) return { phase: c.phase, m: c.m };
     const empty = (c.empty ?? 0) + 1;
@@ -264,11 +270,12 @@ function stayOn(stepped: PlayerState, floor: PlatformPos, world: World): PlayerS
  * A rider is anchored at the cart's middle (user, 2026-11-11): standing on the floor of a waiting or rolling cart at the end of a step, the
  * landing step included, he is put at its middle after this step's roll, on the floor under it, with his speed in it 0. So he cannot walk in
  * a rolling cart: left and right only turn him (`step` sets his facing). Not if a solid tile is in the way there (a low beam still takes him
- * out). A cart stopped at its buffer anchors nobody: he walks off it. `carts` are the carts after this step's roll.
+ * out). A cart stopped at its buffer anchors nobody: he walks off it. Nor does a cart with a live Cacomixtle in it (`riders`, the places of
+ * their rails, GDD-ENM-04): it is no cart of his, he stands on its floor where he landed. `carts` are the carts after this step's roll.
  */
-export function anchorInCarts(player: PlayerState, rails: readonly Rail[], carts: readonly CartState[], world: World): PlayerState {
+export function anchorInCarts(player: PlayerState, rails: readonly Rail[], carts: readonly CartState[], world: World, riders: ReadonlySet<number>): PlayerState {
   const i = standingIn(player, rails, carts);
-  if (i < 0 || carts[i]!.phase === 'stopped') return player;
+  if (i < 0 || carts[i]!.phase === 'stopped' || riders.has(i)) return player;
   const floor = cartFloor(rails[i]!, carts[i]!);
   const x = floor.x + floor.w / 2;
   return blocked(world, x, floor.y) ? player : { ...player, x, y: floor.y, vx: 0 };
@@ -287,7 +294,10 @@ export function keepCarry(before: PlayerState, after: PlayerState, rails: readon
   return { ...after, vx: carry, carry };
 }
 
-/** A waiting cart on whose floor Poncho stands at the end of a step starts rolling: it first moves on the next step. */
-export function boardCarts(rails: readonly Rail[], carts: readonly CartState[], player: PlayerState): CartState[] {
-  return carts.map((c, i) => (c.phase === 'waiting' && standsIn(player, rails[i]!, c) ? { ...c, phase: 'rolling' } : c));
+/**
+ * A waiting cart on whose floor Poncho stands at the end of a step starts rolling: it first moves on the next step. Not one with a live
+ * Cacomixtle in it (`riders`, the places of their rails, GDD-ENM-04): the ringtail starts that one.
+ */
+export function boardCarts(rails: readonly Rail[], carts: readonly CartState[], player: PlayerState, riders: ReadonlySet<number>): CartState[] {
+  return carts.map((c, i) => (c.phase === 'waiting' && !riders.has(i) && standsIn(player, rails[i]!, c) ? { ...c, phase: 'rolling' } : c));
 }

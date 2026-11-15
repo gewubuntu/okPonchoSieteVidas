@@ -28,6 +28,17 @@ describe('L-012 gate-pipe hook', () => {
     for (const git of ['git status', 'git log --oneline -3', 'git push', 'git amend-notes', 'git merge-base HEAD origin/main']) expect(gateProblem(`node scripts/check.mjs | tail -1; ${git}`), git).toBeNull();
   });
 
+  it('denies a push chained after the gate and the commit (L-078)', () => {
+    expect(gateProblem('node scripts/check.mjs >/dev/null 2>&1 && git commit -qm x && git push -q')).toMatch(/L-078/);
+    expect(gateProblem('node scripts/check.mjs && git commit -m x && git -C repo push origin b')).toMatch(/L-078/);
+  });
+
+  it('lets a gate and commit with no push through, and a push that is not after a gated commit (L-078)', () => {
+    expect(gateProblem('node scripts/check.mjs && git commit -m x && git log -1 --oneline')).toBeNull();
+    expect(gateProblem('git push -u origin b')).toBeNull();
+    expect(gateProblem('git push && node scripts/check.mjs && git commit -m x')).toBeNull();
+  });
+
   it('ignores commands without both the gate and a commit after it', () => {
     expect(gateProblem('node scripts/check.mjs | tail -1')).toBeNull();
     expect(gateProblem('git commit -m x; node scripts/check.mjs | tail')).toBeNull();

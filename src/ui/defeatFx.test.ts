@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Rail } from '../sim/cart';
 import { freshEnemies, type Enemy, type EnemyState } from '../sim/enemy';
 import { parseTiles } from '../sim/tilemap';
 import { defeatLook, stepDefeats, type DefeatFx } from './defeatFx';
@@ -7,8 +8,14 @@ import { defeatLook, stepDefeats, type DefeatFx } from './defeatFx';
 const WORLD = parseTiles(Array.from({ length: 17 }, () => '.'.repeat(40)));
 
 // One of each kind. The Alacran's box is 14 x 10 px on its feet, the Zopilote's 16 x 10 px on its flight y, the Tlacuache's 16 x 10 px.
-const LEVEL: { enemies: readonly Enemy[]; world: typeof WORLD } = {
+// The Cacomixtle (7) rides the second of two rails, which rolls left; the first rolls right.
+const RAILS: Rail[] = [
+  { x: 100, y: 240, dir: 1, segments: [{ kind: 'level', tiles: 10 }], end: 'buffer' },
+  { x: 500, y: 240, dir: -1, segments: [{ kind: 'level', tiles: 10 }], end: 'buffer' },
+];
+const LEVEL: { enemies: readonly Enemy[]; world: typeof WORLD; rails: Rail[] } = {
   world: WORLD,
+  rails: RAILS,
   enemies: [
     { x: 100, y: 160 },
     { x: 200, y: 80, kind: 'zopilote' },
@@ -17,6 +24,7 @@ const LEVEL: { enemies: readonly Enemy[]; world: typeof WORLD } = {
     { x: 40, y: 224, kind: 'paloma' },
     { x: 60, y: 224, kind: 'chapulin' },
     { x: 80, y: 224, kind: 'trompo' },
+    { x: 484, y: 232, kind: 'cacomixtle', rail: 1 },
   ],
 };
 const ALIVE = freshEnemies(LEVEL.enemies);
@@ -202,5 +210,25 @@ describe('GDD-ENM-02 the defeat poof', () => {
     expect(stepDefeats(fx, { enemies: dead }, { ...after(dead), phase: 'respawning' }, LEVEL)).toEqual([]);
     // The enemies back at their start, alive, as after the respawn: a new list with the defeated one alive again.
     expect(stepDefeats(fx, { enemies: dead }, after(freshEnemies(LEVEL.enemies)), LEVEL)).toEqual([]);
+  });
+});
+
+describe('GDD-ENM-04 the Cacomixtle\'s defeat', () => {
+  it('GDD-ENM-04 a stomped Cacomixtle leaves its squash frame where it stood, upright and mirrored as its rail rolls, then the poof', () => {
+    // Its box is 14 x 14 px on its feet at y = 232 (the cart's floor), in the middle of the cart at x = 484. Its own dir is 1: the rail's is -1.
+    const fx = squashed(7);
+    expect(fx).toEqual({ kind: 'cacomixtle', x: 484, y: 225, feet: 232, flip: true, stomped: true, age: 0 });
+    expect(defeatLook(fx)).toEqual({ sheet: 'cacomixtle', look: 'squash', frame: 6, x: 484, y: 232, flip: true });
+    expect(defeatLook({ ...fx, age: 7 }).look).toBe('squash');
+    expect(defeatLook({ ...fx, age: 8 })).toMatchObject({ sheet: 'poof', look: 'poof0', x: 484, y: 225 });
+  });
+
+  it('GDD-ENM-04 a Cacomixtle knocked by the claw or a fireball shows its hit frame rising 6 px; on a rail rolling right it is not mirrored', () => {
+    const fx = swiped(7);
+    expect(fx.stomped).toBe(false);
+    expect(defeatLook(fx)).toEqual({ sheet: 'cacomixtle', look: 'hit', frame: 7, x: 484, y: 232, flip: true });
+    expect(defeatLook({ ...fx, age: 7 }).y).toBe(232 - 5.25);
+    const right = { ...LEVEL, enemies: LEVEL.enemies.map((d, i) => (i === 7 ? { ...d, rail: 0 } : d)) };
+    expect(stepDefeats([], { enemies: ALIVE }, after(without(ALIVE, 7)), right)[0]!.flip).toBe(false);
   });
 });

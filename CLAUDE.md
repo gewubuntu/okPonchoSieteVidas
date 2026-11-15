@@ -52,6 +52,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `npm run test:sight` | The sight sweep of World 3's levels (GDD-WLD-03, L-014): every flight a level invites, failing on a life lost to something off screen at the take-off; accepted families with their GDD sentence in `src/levels/sight.test.ts`. About 2.5 minutes for 3-1. |
 | `npm run shots` | Screenshots for visual review: desktop and phone viewport, into `shots/` (not committed). Scenarios live in `e2e/shots/`. |
 | `node scripts/overview.mjs docs/screenshots/<slug>` | Compose the approved screenshots in that folder into its `overview.png` sheet (L-031). |
+| `node scripts/art-lineup.mjs <folder> <out.png>` | Every sprite sheet in a folder side by side at one scale, to judge new art against its neighbours before the user sees it (L-066). |
 | `node scripts/pr-screenshots.mjs [base]` | Warn if visible files changed and no screenshot was added under `docs/screenshots/`. |
 | `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `harness-playtest` skill). |
 | `node scripts/mutate.mjs <mutants.json>` | Run mutants (L-010) and restore each file; `--restore` after an interrupted run, which the gate otherwise fails on (L-020). |

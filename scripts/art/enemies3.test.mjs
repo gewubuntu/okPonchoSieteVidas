@@ -3,10 +3,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ART_SCALE, ENEMY_ART } from '../../src/config/tuning';
-import { ARMADILLO_BOTTOMS, ARMADILLO_LOOK_BOXES, ARMADILLO_LOOKS, ENEMY_LOOKS, MURCIELAGO_LOOKS, SHEETS } from '../../src/ui/enemyLooks';
+import { ARMADILLO_BOTTOMS, ARMADILLO_LOOK_BOXES, ARMADILLO_LOOKS, CACOMIXTLE_LOOKS, ENEMY_LOOKS, MURCIELAGO_LOOKS, SHEETS } from '../../src/ui/enemyLooks';
 import { OUTLINE } from './enemies2/kit.mjs';
 import { FLASH } from './enemies1/kit.mjs';
 import * as armadillo from './enemies3/armadillo.mjs';
+import * as cacomixtle from './enemies3/cacomixtle.mjs';
+import { CART_ART, drawCartFrames } from './rails.mjs';
 import * as murcielago from './enemies3/murcielago.mjs';
 import { buildEnemies, enemySheet, KINDS } from './make-enemies.mjs';
 
@@ -365,5 +367,141 @@ describe('GDD-ENM-04 the Armadillo sprite', { timeout: 60_000 }, () => {
     const dE = (a, b) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]));
     expect(Math.round(dE(shell, ochre))).toBe(40);
     expect(Math.round(dE(shell, timber))).toBe(20);
+  });
+});
+
+// GDD-ENM-04, GDD-ART-06: the Cacomixtle's colours from World 3's palette (mist white, ochre light, ochre, ochre shade, iron dark, rust, rock
+// deep) and the outline; its red look adds the telegraph's two reds (GDD-ENM-01). No lamp amber: it carries no lantern and the warning post's is the
+// only lit lamp in the play layer.
+const WORLD_3 = ['#527391', '#8AA5B8', '#BFCDD2', '#EEF1EA', '#A9B8AC', '#7F9488', '#5B7067', '#24403A', '#3F6350', '#A3A85A', '#EDCB86', '#CC983F', '#9A6A2C', '#5A3B28', '#A89480', '#75614F', '#43362F', '#93A0AE', '#353A48', '#B0562E', '#221D2E', '#3D3650', '#5C5269', '#F0A23A'];
+const LAMP_AMBER = '#F0A23A';
+const C_FRAMES = cacomixtle.drawFrames();
+const cFrame = (look) => C_FRAMES.find((f) => f.look === look).grid;
+const C_FUR = ['#EEF1EA', '#EDCB86', '#CC983F', '#9A6A2C', '#353A48', '#B0562E', '#5A3B28', OUTLINE];
+
+describe('GDD-ENM-04 the Cacomixtle sprite', { timeout: 60_000 }, () => {
+  it('GDD-ENM-04 the committed cacomixtle PNG is the one the script makes', () => {
+    expect(KINDS.cacomixtle).toBe(cacomixtle);
+    expect(buildEnemies()['cacomixtle.png'].equals(readFileSync(join(dir, 'cacomixtle.png')))).toBe(true);
+  });
+
+  it('GDD-ENM-04 the sheet is one row of 8 equal cells of 24 x 28 game px, in the order the game picks them', () => {
+    const looks = ['doze', 'stand', 'standRed', 'ride0', 'ride1', 'parked', 'squash', 'hit'];
+    expect(cacomixtle.LOOKS).toEqual(looks);
+    expect([...CACOMIXTLE_LOOKS]).toEqual(looks);
+    expect([...ENEMY_LOOKS.cacomixtle]).toEqual(looks);
+    expect(C_FRAMES.map((f) => f.look)).toEqual(looks);
+    expect(ENEMY_ART.frames.cacomixtle).toEqual({ w: 24, h: 28 });
+    expect(ENEMY_ART.frames.cacomixtle).toEqual({ w: cacomixtle.FRAME.w / 2, h: cacomixtle.FRAME.h / 2 });
+    const sheet = enemySheet(cacomixtle, C_FRAMES);
+    expect([sheet.width, sheet.height]).toEqual([768, 112]);
+    expect([sheet.width, sheet.height]).toEqual([8 * 24 * ART_SCALE, 28 * ART_SCALE]);
+    expect(sheet.width).toBeLessThanOrEqual(4096); // L-068
+    // The game loads it only in a level that has one (`sheetsFor`), not with the sheets every level loads.
+    expect(SHEETS).not.toContain('cacomixtle');
+    for (const { look, grid } of C_FRAMES) expect([grid.width, grid.height], look).toEqual([48, 56]);
+    // Its box, 14 x 14 game px (tuning CACOMIXTLE), is the middle of the cell across and stands on its bottom row.
+    expect(cacomixtle.BOX).toEqual({ x0: 10, y0: 28, x1: 38, y1: 56 });
+  });
+
+  it('GDD-ART-06 the Cacomixtle uses only World 3\'s colours and the outline, and the telegraph\'s reds only in its red look; no lamp amber', () => {
+    for (const { look, grid } of C_FRAMES) {
+      const allowed = look === 'standRed' ? [OUTLINE, FLASH.colour, FLASH.shade] : [...WORLD_3, OUTLINE];
+      for (const c of new Set(grid.cells.filter((c) => c !== null))) expect(allowed, `${look} ${c}`).toContain(c);
+      if (look !== 'standRed') for (const c of new Set(grid.cells.filter((c) => c !== null))) expect(C_FUR, `${look} ${c}`).toContain(c);
+      expect(new Set(grid.cells), look).not.toContain(LAMP_AMBER);
+    }
+    // Ochre light fur, and a tail ringed iron dark and mist white, in the looks that show the tail up: a white ring round its dark eye.
+    for (const look of ['doze', 'stand', 'ride0', 'ride1', 'parked', 'squash', 'hit']) for (const c of ['#EDCB86', '#353A48', '#EEF1EA']) expect(new Set(cFrame(look).cells), `${look} ${c}`).toContain(c);
+    for (const look of ['stand', 'ride0', 'ride1', 'parked']) expect(new Set(cFrame(look).cells), look).toContain('#B0562E'); // the ears' insides
+  });
+
+  // L-059: assets/sprites/enemies/cacomixtle.png. Every frame has the outline round it and none is cut off by its cell's edge.
+  it('GDD-ART-05 every Cacomixtle frame has the outline round it and nothing on the cell\'s edge (L-059)', () => {
+    for (const { look, grid } of C_FRAMES) {
+      expect(bare(grid), look).toEqual([]);
+      expect(row(grid, 0).filter(Boolean), `${look} top`).toEqual([]);
+      expect(column(grid, 0).filter(Boolean), `${look} left`).toEqual([]);
+      expect(column(grid, grid.width - 1).filter(Boolean), `${look} right`).toEqual([]);
+    }
+  });
+
+  // L-059: the feet line is the cart's floor, the cell's bottom row: in every look the lowest drawn row is the bottom one (only its outline),
+  // and nothing hangs below it.
+  it('GDD-ENM-04 every Cacomixtle look stands on the cell\'s bottom row, the cart\'s floor line (L-059)', () => {
+    for (const { look, grid } of C_FRAMES) {
+      const bottom = row(grid, grid.height - 1).filter(Boolean);
+      expect(bottom.length, `${look} bottom row`).toBeGreaterThan(0);
+      expect(new Set(bottom), look).toEqual(new Set([OUTLINE]));
+      expect(boxOf(grid).y1, look).toBe(grid.height - 1);
+    }
+  });
+
+  // L-059, L-072: the cart's front layer hides what lies behind its rim, measured on the cart's art (`drawCartFrames`: the layers are in art px, 4 to a
+  // game px): its first painted row is game row 3 in the standing, rolling0 and stopped looks and row 4 in rolling1, the floor's line at row 8
+  // (`CART_ART.floor`), so 5 game px over the floor at the most and 4 at the least. The cell's feet line is the floor's, 28 rows (game px) tall: the front layer
+  // covers the rows from 28 - 5 = 23 down, 46 in drawing px (`RIM_ROW`).
+  it('GDD-ENM-04 the cart\'s front layer hides a cell from its row 46 down, and every look shows its head or body, and its tail, above that', () => {
+    const firsts = drawCartFrames().map((f) => {
+      const art = boxOf(f.front);
+      return { look: f.look, game: art.y0 / 4 };
+    });
+    expect(firsts).toEqual([{ look: 'standing', game: 3 }, { look: 'rolling0', game: 3 }, { look: 'rolling1', game: 4 }, { look: 'stopped', game: 3 }]);
+    const rim = Math.min(...firsts.map((f) => f.game));
+    expect(CART_ART.floor).toBe(8);
+    expect((cacomixtle.FRAME.h / 2 - (CART_ART.floor - rim)) * 2).toBe(46);
+    expect(cacomixtle.RIM_ROW).toBe(46);
+    const above = (look, keep) => {
+      let n = 0;
+      const g = cFrame(look);
+      for (let y = 0; y < cacomixtle.RIM_ROW; y++) for (let x = 0; x < g.width; x++) if (keep(g.get(x, y))) n++;
+      return n;
+    };
+    // Measured (L-072): the least drawn above the rim is the squash's 343 px; the others 491 and more (hit 491, doze 628, parked 716).
+    for (const { look } of C_FRAMES) expect(above(look, (c) => c !== null), look).toBeGreaterThanOrEqual(343);
+    // Dozing and parked: the head (its ochre light fur and the white ring round its eye) and the ringed tail (iron dark) show over the rim.
+    for (const look of ['doze', 'parked']) {
+      expect(above(look, (c) => c === '#353A48'), `${look} tail`).toBeGreaterThanOrEqual(100);
+      expect(above(look, (c) => c === '#EEF1EA'), `${look} eyes and rings`).toBeGreaterThanOrEqual(100);
+      expect(above(look, (c) => c === '#EDCB86'), `${look} head`).toBeGreaterThanOrEqual(100);
+    }
+    // The defeat frames are drawn at depth 3, behind the front layer too: the squashed head and the knocked-over legs show over the rim.
+    expect(above('squash', (c) => c === '#EDCB86')).toBeGreaterThanOrEqual(100);
+    expect(above('hit', (c) => c === '#EDCB86')).toBeGreaterThanOrEqual(100);
+  });
+
+  // L-059: how far each look's drawing reaches past its 14 x 14 body box (BOX, the middle of the cell, feet on its bottom row), in game px, facing
+  // right: behind (left), in front (right), above. Measured (L-072); nothing reaches below its feet.
+  it('GDD-ENM-04 how far each Cacomixtle look reaches past its body box (L-059)', () => {
+    const reach = (look) => {
+      const b = boxOf(cFrame(look));
+      const { BOX } = cacomixtle;
+      return { behind: (BOX.x0 - b.x0) / 2, front: (b.x1 + 1 - BOX.x1) / 2, above: (BOX.y0 - b.y0) / 2, below: (b.y1 + 1 - BOX.y1) / 2 };
+    };
+    expect(Object.fromEntries(cacomixtle.LOOKS.map((look) => [look, reach(look)]))).toEqual({
+      doze: { behind: 4.5, front: 2.5, above: 1, below: 0 },
+      stand: { behind: 3, front: 0, above: 13, below: 0 },
+      standRed: { behind: 3, front: 0, above: 13, below: 0 },
+      ride0: { behind: 4.5, front: 3, above: 8, below: 0 },
+      ride1: { behind: 4.5, front: 3, above: 8, below: 0 },
+      parked: { behind: 4.5, front: 0.5, above: 8, below: 0 },
+      squash: { behind: 4.5, front: 3.5, above: -1.5, below: 0 },
+      hit: { behind: 4.5, front: 4.5, above: -0.5, below: 0 },
+    });
+  });
+
+  it('GDD-ENM-01 the red look is the standing look flashed: the same silhouette, every pixel but the outline red', () => {
+    expect(cFrame('standRed').cells.map((c) => c !== null)).toEqual(cFrame('stand').cells.map((c) => c !== null));
+    expect(cFrame('standRed').cells.map((c) => c === OUTLINE)).toEqual(cFrame('stand').cells.map((c) => c === OUTLINE));
+    expect(cFrame('standRed').cells).not.toEqual(cFrame('stand').cells);
+    // The tail stands straight up over the cart's rim: the standing look's tail reaches the top of its cell (13 game px over its box).
+    expect(boxOf(cFrame('stand')).y0).toBeLessThanOrEqual(4);
+  });
+
+  it('GDD-ENM-04 the two ride frames differ, the squash is flatter than the standing look and the hit differs from the squash', () => {
+    expect(cFrame('ride0').cells).not.toEqual(cFrame('ride1').cells);
+    expect(boxOf(cFrame('squash')).h).toBeLessThan(boxOf(cFrame('stand')).h / 2);
+    expect(cFrame('hit').cells).not.toEqual(cFrame('squash').cells);
+    expect(new Set(C_FRAMES.map((f) => f.grid.cells.join())).size).toBe(8);
   });
 });

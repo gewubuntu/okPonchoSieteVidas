@@ -1,20 +1,24 @@
 // GDD-ENM-02, GDD-ENM-03, GDD-ENM-04, GDD-ART-05: which frame of its sheet each enemy shows, and where. Pure, no Phaser: the scene draws what this says.
 import { ARMADILLO, CACTUS, CHAPULIN, ENEMY_ART, PALOMA, TILE, TLACUACHE, TROMPO } from '../config/tuning';
 import { kick, tuckLeft, tuckRed } from '../sim/armadillo';
-import { feetOf, kindOf, type Enemy, type EnemyState } from '../sim/enemy';
+import type { Rail } from '../sim/cart';
+import { cacomixtleRed } from '../sim/cacomixtle';
+import { feetOf, type Enemy, type EnemyState } from '../sim/enemy';
 import type { World } from '../sim/movement';
 import type { RunState } from '../sim/run';
 import { surfaceY } from '../sim/slope';
-import { ARMADILLO_BOTTOMS, lookFrame, type EnemyLook, type EnemySheet } from './enemyLooks';
+import { ARMADILLO_BOTTOMS, lookFrame, sheetOf, type EnemyLook, type EnemySheet } from './enemyLooks';
 
 /**
  * What a pose is picked from: the run's clock (the cactus buddy's breathing and shiver) and the middle of Poncho's hurtbox (`centre`); and
- * the level's tiles, which an Armadillo's drawing is kept out of (GDD-ENM-04). Left out, nothing is kept out.
+ * the level's tiles, which an Armadillo's drawing is kept out of (GDD-ENM-04). Left out, nothing is kept out. A Cacomixtle's facing is its
+ * rail's (`rails`, the level's, which it names by `Enemy.rail`): needed for a level that has one.
  */
 export interface PoseContext {
   readonly clock: number;
   readonly poncho: { readonly x: number; readonly y: number };
   readonly world?: World;
+  readonly rails?: readonly Rail[];
 }
 
 export interface EnemyPose {
@@ -43,6 +47,7 @@ const ALARM = ['alarm0', 'alarm1'] as const;
 const CROUCH = ['crouch0', 'crouch1'] as const;
 const SPIN = ['spin0', 'spin1', 'spin2', 'spin3'] as const;
 const ROLL = ['roll0', 'roll1', 'roll2', 'roll3'] as const;
+const RIDE = ['ride0', 'ride1'] as const;
 
 /** The telegraph's red flash (GDD-ENM-01): red for flashSteps, plain for as many. */
 const flash = (age: number): EnemyLook => (Math.floor(age / ENEMY_ART.flashSteps) % 2 === 0 ? 'teleRed' : 'tele');
@@ -127,6 +132,17 @@ function lookOf(kind: EnemySheet, def: Enemy, state: EnemyState, ctx: PoseContex
       if (s.phase === 'dazed') return { look: kick(s) && Math.floor(s.age / ENEMY_ART.kickFlipSteps) % 2 === 0 ? 'dazedKick' : 'dazed', flip: left };
       return { look: WALK[cycle(state.x, ENEMY_ART.walkPx, 4)]!, flip: left };
     }
+    case 'cacomixtle': {
+      // It faces the way its rail rolls (its state's `dir` stays 1): the art faces right, a rail with `dir: -1` mirrors it.
+      const flip = ctx.rails![def.rail!]!.dir < 0;
+      switch (state.ride!.phase) {
+        case 'waiting': return { look: 'doze', flip };
+        case 'telegraph': return { look: cacomixtleRed(state) ? 'standRed' : 'stand', flip };
+        case 'riding': return { look: RIDE[cycle(ctx.clock, ENEMY_ART.cacomixtleRideSteps, 2)]!, flip };
+        case 'parked': return { look: 'parked', flip };
+        default: return state.ride!.phase satisfies never;
+      }
+    }
     default:
       return kind satisfies never;
   }
@@ -149,9 +165,12 @@ function lookOf(kind: EnemySheet, def: Enemy, state: EnemyState, ctx: PoseContex
  * facing the way it moves across. An Armadillo walks like the Alacrán; tucked it flashes red (`tuckRed`, its sheet's own red frame); rolling
  * it shows the next roll frame every rollPx px it rolls, its way, in the air too; dazed it lies on its back, kicking (dazedKick) on every other
  * kickFlipSteps block while `kick` says, drawn ENEMY_ART.dazedBack px back from the wall it faces. It stands on its feet, facing its way.
+ * A Cacomixtle dozes while it waits, stands (`standRed` on the flash's steps, `cacomixtleRed`) while it telegraphs, shows ride0 and ride1 in
+ * turn every ENEMY_ART.cacomixtleRideSteps of the run's clock while it rides and peeks (`parked`) at its buffer, mirrored when its rail
+ * rolls left. Its pose's x and y are the simulation's: the scene draws it on its cart's drawn pose instead (`cacomixtleOnCart`).
  */
 export function enemyPose(def: Enemy, state: EnemyState, ctx: PoseContext): EnemyPose {
-  const kind = kindOf(def);
+  const kind = sheetOf(def);
   const { look, flip } = lookOf(kind, def, state, ctx);
   const y = state.flight?.y ?? state.loop?.y ?? feetOf(def, state) - liftOf(state);
   if (kind === 'armadillo' && state.shell!.phase === 'dazed') return { look, frame: lookFrame(kind, look), x: state.x - state.dir * ENEMY_ART.dazedBack, y, flip };

@@ -12,6 +12,8 @@ const GATE = /\bnode\s+(?:-\S+\s+)*(?:[^\s;&|<>()]*\/)?scripts\/check\.mjs\b|\bn
 // A git command that makes a commit: `git commit`, and since L-012's third time (a `git cherry-pick --continue` after a piped gate) also
 // `cherry-pick`, `merge`, `revert`, `am` and `rebase` (not `merge-base`, which commits nothing); also with options before it (`git -C <dir> commit`, `git -c key=value commit`).
 const COMMIT = /\bgit(?:\s+-[cC]\s+[^\s-]\S*|\s+--?[^\s-][^\s=]*(?:=\S*)?)*\s+(?:commit|cherry-pick|merge|revert|am|rebase)(?![\w-])/g;
+// A push, with options before it as for COMMIT (L-078).
+const PUSH = /\bgit(?:\s+-[cC]\s+[^\s-]\S*|\s+--?[^\s-][^\s=]*(?:=\S*)?)*\s+push(?![\w-])/;
 
 /** The reason to deny a shell command, or null when it is fine. */
 export function gateProblem(command) {
@@ -30,6 +32,14 @@ export function gateProblem(command) {
         'L-012: this command commits after the gate with something other than `&&` between them, so a failing gate could be ' +
         'committed (a pipe keeps only the last exit status; `;`, `||` and new lines go on after a failure). Run ' +
         '`node scripts/check.mjs && git commit ...` with no pipe (or after `set -o pipefail`), and read the output from a separate run if needed.'
+      );
+    }
+    // L-078: the push is its own command, made after reading that the gate passed and the head moved; chained after the commit, a
+    // failed gate's output is easy to miss and the push goes on in the next command as if the commit had been made.
+    if (PUSH.test(text.slice(commit.index))) {
+      return (
+        'L-078: this command runs the gate, commits and pushes in one go. Run `node scripts/check.mjs && git commit ...` first, read ' +
+        'that the gate passed and `git log -1 --oneline` shows the new commit, then push in its own command.'
       );
     }
   }

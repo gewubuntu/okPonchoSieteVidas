@@ -3,8 +3,9 @@ import { BASE_WIDTH, TILE } from '../config/tuning';
 import type { Boss } from '../sim/boss';
 import type { Bottom } from '../sim/bottoms';
 import type { Enemy } from '../sim/enemy';
+import type { MovingPlatform } from '../sim/platform';
 import type { Estrella } from '../sim/estrella';
-import type { Rail } from '../sim/cart';
+import type { Rail, RailSegment } from '../sim/cart';
 import type { Level, Ofrenda, Point } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import type { LevelEntry } from './index';
@@ -940,5 +941,205 @@ describe('GDD-TEC-04 and GDD-ENM-04 Armadillos in the validator', () => {
     expect(mine([...wallAt(20), ...wallAt(44)], [railAt(37)], [armadillo(408, 224)], { pits: [33, 34, 35] })).toEqual([]);
     // With the pit filled its walk reaches the cart.
     expect(mine([...wallAt(20), ...wallAt(44)], [railAt(37)], [armadillo(408, 224)])).toEqual(['armadillo at column 25 walks into the start of the cart at column 37']);
+  });
+});
+
+/** GDD-ENM-04: a Cacomixtle riding rail `rail`, its place given (x, y). `o` adds the fields a test sets (`sightException`). */
+const cacomixtle = (x: number, y: number, rail = 0, o: Partial<Enemy> = {}): Enemy => ({ x, y, kind: 'cacomixtle', rail, ...o });
+/** A rail rolling left on the floor from x = 800 (y = 224, a level 20 tiles, a buffer), or of these segments and end: its cart's middle starts at x = 784 and its floor is at y = 216. */
+const ka = (segments: Rail['segments'] = [{ kind: 'level', tiles: 20 }], end: Rail['end'] = 'buffer', y = 224): Rail => ({ x: 800, y, dir: -1, segments, end });
+/** The Cacomixtle at that rail's cart's start. */
+const KA = cacomixtle(784, 216);
+/** World 3 (or `world`), the ofrendas far right, with the rails, the Cacomixtles and the tiles given as in `mine`. */
+const ringtail = (rails: readonly Rail[], enemies: readonly Enemy[], o: Options = {}) => mine(o.solid ?? [], rails, enemies, o);
+/** A 1-tile ledge in column `col` at row `row` (its top y = 16 row). */
+const ledge = (col: number, row: number) => [[col, row]] as const;
+
+/** A rail of `before` tiles level, a tile of descent, `after` tiles level. */
+const down = (before: number, after: number): Rail => {
+  const segments: RailSegment[] = [{ kind: 'level', tiles: before }, { kind: 'descent', tiles: 1 }, { kind: 'level', tiles: after }];
+  return ka(segments.filter((seg) => seg.tiles > 0));
+};
+
+/** A rail from x = 400 rolling right on the floor: its cart's middle at x = 416, its floor at y = 216, the sight stretch from x = 416 to 616 (columns 26 to 38). */
+const kaRight = (segments: Rail['segments'] = [{ kind: 'level', tiles: 20 }]): Rail => ({ x: 400, y: 224, dir: 1, segments, end: 'buffer' });
+const found = (col: number) => [`cacomixtle at 416,216 has ground at column ${col}, row 12, 24 px from its cart's floor in its sight stretch, expected within 8 or over 120`];
+const downRight = (before: number, after: number): Rail => kaRight([{ kind: 'level', tiles: before }, { kind: 'descent', tiles: 1 }, { kind: 'level', tiles: after }]);
+
+// A one-way platform is ground in its stretch too (GDD-WLD-05). The 20 tile rail of `ka()` from x = 800 rolling left: the floor at y = 216, the
+// stretch from x = 784 to 584, which covers columns 36 to 48 (x 576 to 784). Worked by hand (L-077): a still platform 24 px over the floor
+// (y = 192, x 640 to 672) is 24 px from it, in (8, 120], a problem; one at y = 80 is 136 px, not. A moving one from y = 100 to y = 200 is
+// 116 to 16 px from it, which meets (8, 120], a problem; one from y = 50 to y = 90 is 166 to 126 px, not.
+const withPlatform = (p: Partial<MovingPlatform>, enemy: Enemy = KA, rail: Rail = ka()) =>
+  ringtail([rail], [enemy], { level: { rails: [rail], platforms: [{ x0: 640, y0: 192, x1: 640, y1: 192, w: 32, ...p }] } });
+const PLATFORM = 'cacomixtle at 784,216 has a platform';
+const TAIL = "from its cart's floor in its sight stretch, expected within 8 or over 120";
+
+describe('GDD-TEC-04 and GDD-ENM-04 cacomixtle validator', () => {
+  it('GDD-ENM-04 cacomixtle validator: a Cacomixtle on a level rail with a buffer and flat ground reports nothing', () => {
+    // Its floor is 8 px over the rail's ground (y = 216), and the ground tops in its stretch are at y = 224, 8 px under it: the limit.
+    expect(ringtail([ka()], [KA])).toEqual([]);
+    // A climb in its stretch is uphill for it: nothing.
+    expect(ringtail([ka([{ kind: 'level', tiles: 4 }, { kind: 'climb', tiles: 2 }, { kind: 'level', tiles: 14 }])], [KA])).toEqual([]);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator rule a: its rail is a whole number that is a place in the level\'s rails', () => {
+    expect(ringtail([ka()], [cacomixtle(784, 216, -1)])).toEqual(['cacomixtle at 784,216 has rail -1, expected a whole number from 0 to 0']);
+    expect(ringtail([ka()], [cacomixtle(784, 216, 1.5)])).toEqual(['cacomixtle at 784,216 has rail 1.5, expected a whole number from 0 to 0']);
+    expect(ringtail([ka()], [cacomixtle(784, 216, 1)])).toEqual(['cacomixtle at 784,216 has rail 1, expected a whole number from 0 to 0']);
+    expect(ringtail([ka()], [{ x: 784, y: 216, kind: 'cacomixtle' }])).toEqual(['cacomixtle at 784,216 has rail undefined, expected a whole number from 0 to 0']);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator rule b: its rail ends at a buffer', () => {
+    expect(ringtail([ka(undefined, 'broken')], [KA])).toEqual(['cacomixtle at 784,216 rides a rail that ends broken, expected a buffer']);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator rule c: at most one Cacomixtle rides a rail', () => {
+    expect(ringtail([ka()], [KA, KA])).toEqual(['cacomixtle at 784,216 rides rail 0, which another cacomixtle rides']);
+    // Two rails with one each: nothing (the second on the floor 400 px further left, its Cacomixtle at its cart's start).
+    const second: Rail = { ...ka(), x: 400 };
+    expect(ringtail([ka(), second], [KA, cacomixtle(384, 216, 1)])).toEqual([]);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator rule d: x and y are its place at its cart\'s start, each field alone', () => {
+    expect(ringtail([ka()], [cacomixtle(785, 216)])).toEqual(['cacomixtle at 785,216 is not at its cart\'s start, expected 784,216']);
+    expect(ringtail([ka()], [cacomixtle(783, 216)])).toEqual(['cacomixtle at 783,216 is not at its cart\'s start, expected 784,216']);
+    expect(ringtail([ka()], [cacomixtle(784, 217)])).toEqual(['cacomixtle at 784,217 is not at its cart\'s start, expected 784,216']);
+    expect(ringtail([ka()], [cacomixtle(784, 215)])).toEqual(['cacomixtle at 784,215 is not at its cart\'s start, expected 784,216']);
+    // Rolling right the middle is 16 px right of the rail's start.
+    const right: Rail = { x: 800, y: 224, dir: 1, segments: [{ kind: 'level', tiles: 20 }], end: 'buffer' };
+    expect(ringtail([right], [cacomixtle(816, 216)])).toEqual([]);
+    expect(ringtail([right], [cacomixtle(784, 216)])).toEqual(['cacomixtle at 784,216 is not at its cart\'s start, expected 816,216']);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator rule e: no descent in its sight stretch, 200 px from its middle or the buffer\'s middle-stop', () => {
+    // The stretch is 200 px across from the middle: m from 16 to 216. A descent at tile 12 (m 192 to 208) or 13 (208 to 224) is in it; at tile 14 (224 to 240) it is just past.
+    expect(ringtail([down(12, 7)], [KA])).toEqual(['cacomixtle at 784,216 has a descent in its sight stretch, 192 to 208 px across']);
+    expect(ringtail([down(13, 6)], [KA])).toEqual(['cacomixtle at 784,216 has a descent in its sight stretch, 208 to 224 px across']);
+    expect(ringtail([down(14, 5)], [KA])).toEqual([]);
+    // Where the buffer is nearer: 14 tiles, the buffer's middle-stop at m = 208. A descent at tile 12 is in the stretch; at tile 13, from m = 208 on, it is not.
+    expect(ringtail([down(12, 1)], [KA])).toEqual(['cacomixtle at 784,216 has a descent in its sight stretch, 192 to 208 px across']);
+    expect(ringtail([down(13, 0)], [KA])).toEqual([]);
+    // 15 tiles: the stretch ends at 216, so a descent at tile 13 (208 to 224) is in it.
+    expect(ringtail([down(13, 1)], [KA])).toEqual(['cacomixtle at 784,216 has a descent in its sight stretch, 208 to 224 px across']);
+    // A descent under the cart's back half only (the first tile, m 0 to 16) is before its middle: no problem. The rail starts 16 px up so its floor at the middle is the same.
+    const first: Rail = { x: 800, y: 208, dir: -1, segments: [{ kind: 'descent', tiles: 1 }, { kind: 'level', tiles: 14 }], end: 'buffer' };
+    expect(ringtail([first], [KA])).toEqual([]);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator rule f: every ground in its stretch is within 8 px of its cart\'s floor, or over 120 px from it', () => {
+    // The stretch of the 20 tile rail runs from x = 784 to 584 (columns 36 to 48). The floor is at y = 216 (the rail at 224).
+    const withLedge = (col: number, row: number, rail = ka()) => ringtail([rail], [KA], { solid: ledge(col, row) });
+    // A ledge 24 px over the floor (row 12, top y = 192) fails; one 136 px over (row 5, y = 80) passes; one exactly 120 over (row 6, y = 96) fails; one exactly 8 over (row 13, y = 208) passes.
+    expect(withLedge(42, 12)).toEqual(['cacomixtle at 784,216 has ground at column 42, row 12, 24 px from its cart\'s floor in its sight stretch, expected within 8 or over 120']);
+    expect(withLedge(42, 5)).toEqual([]);
+    expect(withLedge(42, 6)).toEqual(['cacomixtle at 784,216 has ground at column 42, row 6, 120 px from its cart\'s floor in its sight stretch, expected within 8 or over 120']);
+    expect(withLedge(42, 13)).toEqual([]);
+    // With the rail 1 px lower (the floor at y = 217, the ground 7 px under it): a ledge at row 13 is 9 px over it and fails, and one at row 6 is 121 over it and passes.
+    const low = ka(undefined, 'buffer', 225);
+    const lowKa = cacomixtle(784, 217);
+    const atLow = (col: number, row: number) => ringtail([low], [lowKa], { solid: ledge(col, row) });
+    expect(ringtail([low], [lowKa])).toEqual([]);
+    expect(atLow(42, 13)).toEqual(['cacomixtle at 784,217 has ground at column 42, row 13, 9 px from its cart\'s floor in its sight stretch, expected within 8 or over 120']);
+    expect(atLow(42, 6)).toEqual([]);
+    // A ledge in the column just past the stretch's end (x 584; column 35 is x 560 to 576) is not in it; column 36 (576 to 592) is.
+    expect(withLedge(35, 12)).toEqual([]);
+    expect(withLedge(36, 12)).toEqual(['cacomixtle at 784,216 has ground at column 36, row 12, 24 px from its cart\'s floor in its sight stretch, expected within 8 or over 120']);
+    // The same at the near end: the stretch starts at the middle (x 784, column 49 is 784 to 800): column 49 is outside it, 48 inside.
+    expect(withLedge(49, 12)).toEqual([]);
+    expect(withLedge(48, 12)).toEqual(['cacomixtle at 784,216 has ground at column 48, row 12, 24 px from its cart\'s floor in its sight stretch, expected within 8 or over 120']);
+    // Where the buffer is nearer (14 tiles: the stretch ends at x = 592, column 36 is 576 to 592, outside it; column 37 inside).
+    const short = ka([{ kind: 'level', tiles: 14 }]);
+    expect(withLedge(36, 12, short)).toEqual([]);
+    expect(withLedge(37, 12, short)).toEqual(['cacomixtle at 784,216 has ground at column 37, row 12, 24 px from its cart\'s floor in its sight stretch, expected within 8 or over 120']);
+    // A crumbling tile's top counts too (World 3's crumbled ledges come back).
+    expect(ringtail([ka()], [KA], { level: { rails: [ka()], crumbles: [{ col: 42, row: 12 }], crumblesReturn: true } })).toEqual([
+      'cacomixtle at 784,216 has ground at column 42, row 12, 24 px from its cart\'s floor in its sight stretch, expected within 8 or over 120',
+    ]);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator platforms are ground: a still platform is checked at its top, within 8 px or over 120', () => {
+    expect(withPlatform({})).toEqual([`${PLATFORM} at 640,192, 24 px ${TAIL}`]);
+    expect(withPlatform({ y0: 80, y1: 80 })).toEqual([]);
+    // The band's edges: 120 px is a problem, 121 is not; 8 is not, 9 is.
+    expect(withPlatform({ y0: 96, y1: 96 })).toEqual([`${PLATFORM} at 640,96, 120 px ${TAIL}`]);
+    expect(withPlatform({ y0: 95, y1: 95 })).toEqual([]);
+    expect(withPlatform({ y0: 208, y1: 208 })).toEqual([]);
+    expect(withPlatform({ y0: 207, y1: 207 })).toEqual([`${PLATFORM} at 640,207, 9 px ${TAIL}`]);
+    // Under the floor as well as over it.
+    expect(withPlatform({ y0: 240, y1: 240 })).toEqual([`${PLATFORM} at 640,240, 24 px ${TAIL}`]);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator platforms are ground: a moving platform is checked over the range of its path', () => {
+    expect(withPlatform({ y0: 100, y1: 200 })).toEqual([`${PLATFORM} moving from 640,100 to 640,200, 16 to 116 px ${TAIL}`]);
+    expect(withPlatform({ y0: 50, y1: 90 })).toEqual([]);
+    // Over the floor's own height the path's near end is 0: a path from y = 50 to y = 400 crosses the whole band though its ends are 166 and 184 px away.
+    expect(withPlatform({ y0: 50, y1: 400 })).toEqual([`${PLATFORM} moving from 640,50 to 640,400, 0 to 184 px ${TAIL}`]);
+    // Entirely within 8 px of the floor (y 208 to 222, 8 and 6 px): fine; one px further (y 207 to 210, 9 px at the far end): a problem.
+    expect(withPlatform({ y0: 208, y1: 222 })).toEqual([]);
+    expect(withPlatform({ y0: 207, y1: 210 })).toEqual([`${PLATFORM} moving from 640,207 to 640,210, 6 to 9 px ${TAIL}`]);
+    // The far end of its path 121 px and the near end 119: it reaches the band; both ends 121 and 122: it does not.
+    expect(withPlatform({ y0: 95, y1: 97 })).toEqual([`${PLATFORM} moving from 640,95 to 640,97, 119 to 121 px ${TAIL}`]);
+    expect(withPlatform({ y0: 94, y1: 95 })).toEqual([]);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator platforms are ground only over the stretch\'s columns, the whole path of a moving one', () => {
+    // Still: x 500 to 564 ends before column 36 (x 576); x 520 to 584 reaches it. At the near end the stretch's columns end at x = 784: x 784 is clear, 783 not.
+    expect(withPlatform({ x0: 500, x1: 500, w: 64 })).toEqual([]);
+    expect(withPlatform({ x0: 512, x1: 512, w: 64 })).toEqual([]);
+    expect(withPlatform({ x0: 520, x1: 520, w: 64 })).toEqual([`${PLATFORM} at 520,192, 24 px ${TAIL}`]);
+    expect(withPlatform({ x0: 784, x1: 784 })).toEqual([]);
+    expect(withPlatform({ x0: 783, x1: 783 })).toEqual([`${PLATFORM} at 783,192, 24 px ${TAIL}`]);
+    // Moving along x: a path from x = 400 to 500 (to x 532 with its width) never reaches it; one from 400 to 600 does, though its start does not; one from
+    // 900 to 700 does, though its start does not.
+    expect(withPlatform({ x0: 400, x1: 500, w: 32 })).toEqual([]);
+    expect(withPlatform({ x0: 400, x1: 600, w: 32 })).toEqual([`${PLATFORM} moving from 400,192 to 600,192, 24 to 24 px ${TAIL}`]);
+    expect(withPlatform({ x0: 900, x1: 700, w: 32 })).toEqual([`${PLATFORM} moving from 900,192 to 700,192, 24 to 24 px ${TAIL}`]);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator on a rail rolling right: the sight stretch runs to the right of the middle', () => {
+    // The rail from x = 400 rolling right: the middle at x = 416, the floor at y = 216, the stretch from x = 416 to 616 (columns 26 to 38).
+    const right = cacomixtle(416, 216);
+    const withLedge = (col: number, row: number) => ringtail([kaRight()], [right], { solid: ledge(col, row) });
+    expect(ringtail([kaRight()], [right])).toEqual([]);
+    expect(withLedge(26, 12)).toEqual(found(26));
+    expect(withLedge(25, 12)).toEqual([]);
+    expect(withLedge(38, 12)).toEqual(found(38));
+    expect(withLedge(39, 12)).toEqual([]);
+    // A descent in the stretch is reported (the first 200 px across from the middle), one just past it is not.
+    expect(ringtail([downRight(12, 7)], [right])).toEqual(['cacomixtle at 416,216 has a descent in its sight stretch, 192 to 208 px across']);
+    expect(ringtail([downRight(14, 5)], [right])).toEqual([]);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator rule g: only World 3 has Cacomixtles', () => {
+    expect(validateLevel(entry({ world: 1, ofrendas: [60, 70, 80], enemies: [KA], level: { rails: [ka()] } }))).toEqual(['cacomixtle at 784,216 in World 1, only World 3 has them']);
+    expect(validateLevel(entry({ world: 2, ofrendas: [60, 70, 80], enemies: [KA], level: { rails: [ka()] } }))).toEqual(['cacomixtle at 784,216 in World 2, only World 3 has them']);
+    expect(validateLevel(entry({ world: 3, ofrendas: [60, 70, 80], enemies: [KA], level: { rails: [ka()] } }))).toEqual([]);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator keeps 3 tiles from every respawn', () => {
+    // The first ofrenda 40 px from it (x 744, on the floor at y = 224): the usual rule for every enemy.
+    const ofrendas = [{ id: 'o0', x: 744, y: 224 }, { id: 'o1', x: 1128, y: 224 }, { id: 'o2', x: 1288, y: 224 }];
+    expect(ringtail([ka()], [KA], { level: { rails: [ka()], ofrendas } })).toEqual(['cacomixtle at 784,216 is 40 px from the respawn at 744,224, under 48']);
+  });
+
+  it('GDD-ENM-04 cacomixtle sight exception skips only the ground band', () => {
+    // L-028: a Cacomixtle that breaks every rule: a broken end (b), 1 px off its place (d), a descent in its stretch (e) and a ledge 24 px over its floor (f).
+    const bad = ka([{ kind: 'level', tiles: 12 }, { kind: 'descent', tiles: 1 }, { kind: 'level', tiles: 7 }], 'broken');
+    const place = (o: Partial<Enemy>) => cacomixtle(785, 216, 0, o);
+    const all = (o: Partial<Enemy>) => ringtail([bad], [place(o)], { solid: ledge(42, 12), level: { rails: [bad], platforms: [{ x0: 640, y0: 192, x1: 640, y1: 192, w: 32 }] } });
+    const b = 'cacomixtle at 785,216 rides a rail that ends broken, expected a buffer';
+    const d = "cacomixtle at 785,216 is not at its cart's start, expected 784,216";
+    const e = 'cacomixtle at 785,216 has a descent in its sight stretch, 192 to 208 px across';
+    const f = "cacomixtle at 785,216 has ground at column 42, row 12, 24 px from its cart's floor in its sight stretch, expected within 8 or over 120";
+    // (and a platform 24 px over its floor, which is the ground band's too)
+    const g = "cacomixtle at 785,216 has a platform at 640,192, 24 px from its cart's floor in its sight stretch, expected within 8 or over 120";
+    expect(all({})).toEqual([b, d, e, f, g]);
+    expect(all({ sightException: 'GDD-WLD-18: K1 meets him uphill, 40 px inside its sight' })).toEqual([b, d, e]);
+    // An empty sentence is no exception: it is reported, and the ground band is still checked.
+    expect(all({ sightException: '' })).toEqual([b, d, e, 'cacomixtle at 785,216 has an empty sight exception, expected the GDD sentence that names it', f, g]);
+    // Alone, on a Cacomixtle with nothing else wrong.
+    expect(ringtail([ka()], [cacomixtle(784, 216, 0, { sightException: '' })])).toEqual(['cacomixtle at 784,216 has an empty sight exception, expected the GDD sentence that names it']);
+    expect(ringtail([ka()], [cacomixtle(784, 216, 0, { sightException: 'GDD-WLD-18: K1 meets him uphill, 40 px inside its sight' })], { solid: ledge(42, 12) })).toEqual([]);
   });
 });
