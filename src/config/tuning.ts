@@ -551,6 +551,16 @@ export const ARMADILLO = {
   kickSteps: Math.round(0.5 * TICK_HZ),
 } as const;
 
+/** GDD-ENM-04: the Cacomixtle, a ringtail on its own vagoneta (its speeds are the cart's, CART). */
+export const CACOMIXTLE = {
+  width: 14, height: 14,      // its box, standing in the middle of its cart's floor
+  sightX: 200,                // ahead along its rail, by more than 0 and up to this, his hurtbox's centre
+  sightY: 64,                 // his feet within this of the cart's floor, up or down
+  telegraphSteps: 30,         // 0.5 s, the cart still
+  flashOn: 4, flashOff: 4,    // the telegraph's red flash
+  jumpPx: 56,                 // GDD-MOV-02: a full jump's peak (measured, src/sim/movement.test.ts 'full jump peaks at 56 px'), for the sight stretch rule
+} as const;
+
 /**
  * GDD-BOS-02: Don Zopilote, World 1's boss, a `width` x `height` px box (three times the Zopilote). He laps an ellipse `rx` px either
  * side and `ry` px above and below the middle the level gives in `lapSteps` (4.0 s), dropping a cactus fruit at the lap steps in `dropAt`,

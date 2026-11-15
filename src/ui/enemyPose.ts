@@ -1,11 +1,11 @@
 // GDD-ENM-02, GDD-ENM-03, GDD-ENM-04, GDD-ART-05: which frame of its sheet each enemy shows, and where. Pure, no Phaser: the scene draws what this says.
 import { ARMADILLO, CACTUS, CHAPULIN, ENEMY_ART, PALOMA, TILE, TLACUACHE, TROMPO } from '../config/tuning';
 import { kick, tuckLeft, tuckRed } from '../sim/armadillo';
-import { feetOf, kindOf, type Enemy, type EnemyState } from '../sim/enemy';
+import { feetOf, type Enemy, type EnemyState } from '../sim/enemy';
 import type { World } from '../sim/movement';
 import type { RunState } from '../sim/run';
 import { surfaceY } from '../sim/slope';
-import { ARMADILLO_BOTTOMS, lookFrame, type EnemyLook, type EnemySheet } from './enemyLooks';
+import { ARMADILLO_BOTTOMS, lookFrame, sheetOf, type EnemyLook, type EnemySheet } from './enemyLooks';
 
 /**
  * What a pose is picked from: the run's clock (the cactus buddy's breathing and shiver) and the middle of Poncho's hurtbox (`centre`); and
@@ -151,7 +151,7 @@ function lookOf(kind: EnemySheet, def: Enemy, state: EnemyState, ctx: PoseContex
  * kickFlipSteps block while `kick` says, drawn ENEMY_ART.dazedBack px back from the wall it faces. It stands on its feet, facing its way.
  */
 export function enemyPose(def: Enemy, state: EnemyState, ctx: PoseContext): EnemyPose {
-  const kind = kindOf(def);
+  const kind = sheetOf(def);
   const { look, flip } = lookOf(kind, def, state, ctx);
   const y = state.flight?.y ?? state.loop?.y ?? feetOf(def, state) - liftOf(state);
   if (kind === 'armadillo' && state.shell!.phase === 'dazed') return { look, frame: lookFrame(kind, look), x: state.x - state.dir * ENEMY_ART.dazedBack, y, flip };

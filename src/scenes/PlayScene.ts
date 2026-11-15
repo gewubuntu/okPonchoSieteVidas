@@ -5,9 +5,9 @@ import Phaser from 'phaser';
 import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, BOSS_ART, BOSS_BAR, CART, ENEMY_ART, EXIT, GAME_OVER, HILO, HITBOX, MEDAL, OFRENDA, PAUSE_MENU, RESULTS_MENU, SETTINGS_MENU, SPIKE, SPRITE_FRAME, TILE, TIPS, TITLE_PONCHO, VELADORA } from '../config/tuning';
 import { bossCrown, bossStart } from '../sim/boss';
 import { isBossLevel, levelBoss } from '../sim/bossLevel';
-import { centre, enemyPhase, feetOf, kindOf, type EnemyKind } from '../sim/enemy';
+import { centre, enemyPhase, feetOf, type EnemyKind } from '../sim/enemy';
 import { defeatLook, stepDefeats, type DefeatFx } from '../ui/defeatFx';
-import { frameLook, SHEETS, sheetsFor, type EnemyLook, type Sheet } from '../ui/enemyLooks';
+import { frameLook, SHEETS, sheetOf, sheetsFor, type EnemyLook, type Sheet } from '../ui/enemyLooks';
 import { enemyPose, stepRang } from '../ui/enemyPose';
 import { levelById, livesInto, SAVED_LEVELS, SAVED_OFRENDAS, SAVED_WORLD_LEVELS, SAVED_WORLDS, startLevel, TUTORIAL_ID, unlockedAbilities, withUnlocks, worldAtAfter, worldLivesAfter, worldStart, type LevelEntry, type StartSave } from '../levels';
 import { FixedStepper } from '../sim/fixedStep';
@@ -1800,7 +1800,7 @@ export class PlayScene extends Phaser.Scene {
     this.level.enemies.forEach((def, i) => {
       const e = this.run.enemies[i]!;
       if (!e.alive) return;
-      const kind = kindOf(def);
+      const kind = sheetOf(def);
       const pose = enemyPose(def, e, ctx);
       const image = this.poolImage(this.enemyImages, sprites++, kind, pose.frame, pose.flip).setPosition(pose.x, pose.y);
       // GDD-ENM-04: the claw rang off its ball: drawn plain white (`stepRang`).

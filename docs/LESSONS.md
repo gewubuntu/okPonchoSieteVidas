@@ -222,7 +222,8 @@ Retired IDs: L-046
 - **Recurrence 18 (2026-11-11, PR #94, GDD-TEC-04 and GDD-BOS-04, found by three reviews):** the cart's commits left GDD-TEC-04 saying World 3 has no gap limit in the validator after the first commit put one in, and GDD-BOS-04 quoting a fall the roll-off rule had changed, with seven smaller sentences. The hunt searched for the feature's own names (cart, rail, lab-3c) and not for the sentences that state the things it changed by another name ("no limit for Worlds 3 to 7", the boss's "about 16 steps").
 - **Recurrence 19 (2026-11-12, PR #98, found by the review):** adding the test level `lab-3m`, I fixed four sentences that list World 3's labs and left six (GDD-LIFE-05, GDD-WLD-03, GDD-UI-02 twice, GDD-TEC-04 twice), and the changelog line left out two sections the diff edits. I searched for the text of the list as one sentence wrote it ("`lab-3c` and `lab-3t`"); the others word it differently ("cart lab `lab-3c` and tall lab `lab-3t`", a comma list). The skill's step says to search for the siblings' names; searching for the last sibling's name alone (`lab-3t`) and reading every hit finds all ten.
 - **Recurrence 20 (2026-11-13, PR #98, found by the re-review):** fixing "3-2 is not built" across the GDD, I changed the Results menu's sentence and the level list and left "The next level", the very sentence the finding was anchored on, which says the same thing in other words ("3-1, the last level built ... name none"). I searched for the phrases I remembered, not for the anchored line itself; the fix of a review finding starts at the line it names.
-- **Recurrence:** 20
+- **Recurrence 21 (2026-11-15, PR #100):** I recorded a Decided but unbuilt camera addition in GDD-UI-04 and left its backlog row `done`; the pr-reviewer caught it. Step 1 of `harness-gdd-update` names the touched IDs' backlog rows, but I hunted their sentences and not their status column.
+- **Recurrence:** 21
 - **Promoted:** .claude/skills/harness-feature (Update docs step, which now also searches for the path of every test file or block the feature deletes or moves, and since recurrence 8 for the lists a new member of a family must join and a full re-read of each edited section, since recurrence 10 in `docs/BACKLOG.md` too, with a plain pattern; its Push and pull request step runs the retro on the review's findings) and .claude/skills/harness-gdd-update (step 1, the same hunt for GDD edits made outside a feature, with the same plain list pattern since recurrence 10). Guard: none (which sentences a change makes false takes reading the GDD; the pr-reviewer's consistency audit is the backstop).
 
 ## L-014 A claim about where things are in the sandbox level had no test
@@ -883,8 +884,9 @@ Retired IDs: L-046
 - **What went wrong:** The plan for World 3's gap rule (GDD-WLD-03, PR #97) defined a gap's headroom as counted over the right bank's column too, so every gap that rises read its own far bank as a roof and the plan's rise cases could not pass. One of its tests could not kill the mutant it named, the problem text for a level gap was left open, and an existing validator fixture (a World 3 pit with a 7-tile rise) broke the new rule. The implementer stopped on the three contradictions and the part was replanned as its own run.
 - **Root cause:** The rule was written as a sentence and its tests as a table, and neither was worked through the other: no test case was evaluated by hand against the definition before the plan went out, and the existing fixtures of the file the rule lands in were not read for ones the rule would newly fail.
 - **Rule:** Before a plan with a new validator or simulation rule goes to the implementer, work two of its own test cases through the rule's definition as written (one that must pass, one that must fail, with the numbers), and grep the test file the rule lands in for fixtures of the same kind (the same world, the same flag) that the rule would newly reject; the plan says what happens to each.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-15, PR #100, GDD-ENM-04):** the Cacomixtle's plan put the sight-edge tests' Poncho on the ground at 0 and 1 px ahead, where his box already overlaps the ringtail's and he is hit on step 1, and it named a `lookOf` case that cannot compile, because `lookOf` takes a sheet, not a kind; the implementer had to rework both. The rule was in no skill step, so the plan was never checked against it.
+- **Recurrence:** 2
+- **Promoted:** `harness-feature` step 5, "Work the cases through (L-077)"
 
 ## L-078 A failed gate stopped the chained commit, and the push that followed pushed nothing
 
@@ -893,8 +895,9 @@ Retired IDs: L-046
 - **What went wrong:** On PR #97 I changed a validator message ("1 tiles" to "1 tile") after the last gate run and then ran the gate chained to the commit with its output sent to a file. A test that pinned the old text failed, so the commit did not happen (L-012's rule held), but the next command pushed the unchanged branch and I went on as if the fix were on the PR until `git status` showed the files still modified.
 - **Root cause:** The gate's result was not read before the next step: with the output in a file, a failure prints nothing, and nothing compared the branch's head before and after.
 - **Rule:** The command that runs the gate and commits ends by showing what happened (`node scripts/check.mjs > gate.log 2>&1 && git commit ... ; echo "exit $?"; git log -1 --oneline; git status --short`), and the push is its own command, made only after reading that the head moved. An edit after a green gate, however small, means the gate runs again before the commit.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-15, PR #100):** I chained the gate, the commit and the push in one command with the gate's output sent to `/dev/null`; the implementer's half-written code failed the gate, and all I saw was `exit 1`, so I had to rerun the gate to learn why. The rule was prose only, and nothing denied the chained push.
+- **Recurrence:** 2
+- **Promoted:** `scripts/hooks/gate-pipe.mjs` denies a push chained after a gated commit (tested in `scripts/hooks/gate-pipe.test.mjs`); `harness-feature` step 12
 
 ## L-079 Builders' gates in parallel worktrees failed on 5 s test timeouts
 

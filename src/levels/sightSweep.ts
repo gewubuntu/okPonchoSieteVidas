@@ -1,7 +1,7 @@
 // GDD-WLD-03's sight rule as a probe (L-014): fly the flights a level invites and find each one that loses a life to something that was
 // off screen at its take-off. Test support for the level tests, pure, no Phaser: the camera is the pure camera of `src/ui/camera.ts`,
 // stepped along each flight as the scene steps it.
-import { ARMADILLO, BASE_HEIGHT, BASE_WIDTH, CART, HITBOX, HURTBOX, PALOMA, RUN, TILE, TLACUACHE, ZOPILOTE } from '../config/tuning';
+import { ARMADILLO, BASE_HEIGHT, BASE_WIDTH, CACOMIXTLE, CART, HITBOX, HURTBOX, PALOMA, RUN, TILE, TLACUACHE, ZOPILOTE } from '../config/tuning';
 import { bottomRowAt } from '../sim/bottoms';
 import { cartFloor, floorUnder, rollCarts, type CartState } from '../sim/cart';
 import { standsOnPlatform } from '../sim/platform';
@@ -601,8 +601,8 @@ const feetReach = (sightX: number, sightY: number, size: { readonly width: numbe
  * (`enemy.ts`, `STEPS`). The ones that never read him: the Alacrán (`walk`), the cactus buddy (it stands), the Chapulín (`stepChapulin`), the
  * Trompo (`stepTrompo`) and the Murciélago (`stepMurcielago`). The Zopilote (`stepZopilote`) sees his hurtbox's centre within `triggerX`
  * across and below its middle by up to `triggerY`; the Tlacuache (`stepTlacuache`) within `sightX` ahead (taken here on both sides) and his
- * feet within `sightY` of its own; the Paloma (`stepPaloma`) and the Armadillo (`stepArmadillo`) within `sightX` either side and `sightY`.
- * Each is a box. (They are moved by him in other ways too: see `sightSweep`.)
+ * feet within `sightY` of its own; the Paloma (`stepPaloma`) and the Armadillo (`stepArmadillo`) within `sightX` either side and `sightY`; the
+ * Cacomixtle (`stepCacomixtles`) within `sightX` ahead (taken on both sides) and his feet within `sightY` of its cart's floor. Each is a box. (They are moved by him in other ways too: see `sightSweep`.)
  */
 const REACH: Readonly<Record<EnemyKind, Reach>> = {
   alacran: 0,
@@ -615,6 +615,9 @@ const REACH: Readonly<Record<EnemyKind, Reach>> = {
   trompo: 0,
   murcielago: 0,
   armadillo: feetReach(ARMADILLO.sightX, ARMADILLO.sightY, ARMADILLO),
+  // Its sight reads his hurtbox's centre ahead of it only (`stepCacomixtles`); taken here on both sides, as the Tlacuache's, and measured
+  // from the ringtail's box at its cart's start: wider on the safe side (its box moves with the cart, and a flight is only reflown more often).
+  cacomixtle: feetReach(CACOMIXTLE.sightX, CACOMIXTLE.sightY, CACOMIXTLE),
 };
 
 /** A box widened by a kind's reach. */
@@ -623,8 +626,8 @@ const widen = (b: Box, reach: Reach): Box => (reach === 0 ? b : { x0: b.x0 - rea
 /**
  * GDD-ENM-01 to GDD-ENM-04: whether an enemy is in a phase it only enters by him (a reaction, a stomp, a claw), from its state: the Zopilote
  * out of its cruise (telegraph, dive, climbing back), the Tlacuache out of its walk (telegraph, charge, playing dead), the Paloma out of its
- * walk (telegraph, rising, hovering, coming down), the Trompo stunned, the Armadillo out of its walk (tuck, roll, dazed after a roll). The
- * other kinds have no such phase.
+ * walk (telegraph, rising, hovering, coming down), the Trompo stunned, the Armadillo out of its walk (tuck, roll, dazed after a roll), the
+ * Cacomixtle telegraphing or riding (not waiting, nor parked). The other kinds have no such phase.
  */
 const REACTING: Readonly<Record<EnemyKind, (s: EnemyState) => boolean>> = {
   alacran: () => false,
@@ -636,6 +639,8 @@ const REACTING: Readonly<Record<EnemyKind, (s: EnemyState) => boolean>> = {
   trompo: (s) => s.spin!.phase !== 'spin',
   murcielago: () => false,
   armadillo: (s) => s.shell!.phase !== 'walk',
+  // Telegraphing and riding it is set off by him alone; waiting and parked (at the buffer for good) it is idle.
+  cacomixtle: (s) => s.ride!.phase === 'telegraph' || s.ride!.phase === 'riding',
 };
 
 /** Whether a live enemy of the run is in a phase it only enters by him (`REACTING`). */

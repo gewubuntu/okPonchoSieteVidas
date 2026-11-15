@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Hop } from '../sim/chapulin';
 import type { Shell } from '../sim/armadillo';
-import { kindOf, type Enemy, type EnemyState, type Flight, type Gait } from '../sim/enemy';
+import type { Enemy, EnemyState, Flight, Gait } from '../sim/enemy';
 import type { Wing } from '../sim/paloma';
 import { surfaceY } from '../sim/slope';
 import { parseTiles } from '../sim/tilemap';
 import type { Spin } from '../sim/trompo';
-import { ARMADILLO_BOTTOMS, ENEMY_LOOKS } from './enemyLooks';
+import { ARMADILLO_BOTTOMS, ENEMY_LOOKS, sheetOf } from './enemyLooks';
 import { enemyPose, stepRang, type PoseContext } from './enemyPose';
 
 const ALACRAN: Enemy = { x: 100, y: 160 };
@@ -281,7 +281,7 @@ describe('GDD-ENM-03 which frame World 2\'s enemies show', () => {
     ];
     for (const [def, state] of poses) {
       const pose = enemyPose(def, state, FAR);
-      const kind = kindOf(def);
+      const kind = sheetOf(def);
       expect((ENEMY_LOOKS[kind] as readonly string[]).indexOf(pose.look), `${kind} ${pose.look}`).toBe(pose.frame);
     }
   });
@@ -290,6 +290,15 @@ describe('GDD-ENM-03 which frame World 2\'s enemies show', () => {
 // World 3's Murciélago (GDD-ENM-04): its loop's middle at (300, 100); `steps` its own steps, its middle at (x, y).
 const MURCIELAGO: Enemy = { x: 300, y: 100, rx: 16, ry: 24, kind: 'murcielago' };
 const flyer = (steps: number, x = 300, y = 100, dir: 1 | -1 = 1): EnemyState => ({ x, dir, alive: true, loop: { steps, y } });
+
+describe('GDD-ENM-04 a Cacomixtle is not drawn yet', () => {
+  it('GDD-ENM-04 sheetOf names the sheet of a kind and throws for a Cacomixtle, drawn in a later phase', () => {
+    expect(sheetOf({ x: 0, y: 0 })).toBe('alacran');
+    expect(sheetOf({ x: 0, y: 0, kind: 'armadillo' })).toBe('armadillo');
+    expect(() => sheetOf({ x: 0, y: 0, kind: 'cacomixtle', rail: 0 })).toThrow('cacomixtle: drawn in phase B (GDD-ENM-04)');
+    expect(() => enemyPose({ x: 0, y: 0, kind: 'cacomixtle', rail: 0 }, { x: 0, dir: 1, alive: true }, FAR)).toThrow('drawn in phase B');
+  });
+});
 
 describe('GDD-ENM-04 which frame the Murciélago shows', () => {
   it('GDD-ENM-04 a Murciélago shows the next flap frame every 5 steps, is drawn at its box\'s middle and faces the way it moves', () => {

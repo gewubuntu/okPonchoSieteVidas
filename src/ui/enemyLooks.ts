@@ -56,6 +56,15 @@ export const SHEETS: readonly Sheet[] = ['alacran', 'zopilote', 'cactus', 'tlacu
 export const sheetsFor = (level: { readonly enemies: readonly Enemy[] }): readonly Sheet[] => (level.enemies.some((e) => kindOf(e) === 'armadillo') ? [...SHEETS, 'armadillo'] : SHEETS);
 /** The kinds of enemy, which each have a sheet of their own. */
 export type EnemySheet = Exclude<Sheet, 'poof'>;
+/**
+ * The sheet of an enemy's kind. A Cacomixtle has none yet: it is drawn in phase B (GDD-ENM-04), and nothing in the game can reach it
+ * until its lab is registered, so asking for it throws.
+ */
+export function sheetOf(def: Enemy): EnemySheet {
+  const kind = kindOf(def);
+  if (kind === 'cacomixtle') throw new Error('cacomixtle: drawn in phase B (GDD-ENM-04)');
+  return kind;
+}
 /** World 1's kinds. */
 export const isWorld1 = (kind: EnemyKind): kind is 'alacran' | 'zopilote' | 'cactus' | 'tlacuache' => kind === 'alacran' || kind === 'zopilote' || kind === 'cactus' || kind === 'tlacuache';
 /** World 2's kinds (GDD-ENM-03). */
