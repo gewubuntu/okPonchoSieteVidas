@@ -6,7 +6,7 @@
 // jump from a rolling cart keeps the cart's speed across (the carry rule, `movement.ts`). Where it is depends only on the steps since he
 // landed in it. Pure logic, no Phaser (GDD-TEC-02).
 import { CART, GRAVITY, HITBOX, SPIKE, STEP, TILE } from '../config/tuning';
-import { boxTouchesEnemy, type Enemy, type EnemyState } from './enemy';
+import { boxTouchesEnemy, kindOf, type Enemy, type EnemyState } from './enemy';
 import type { Spike } from './hazards';
 import { carryOn, landOn, standsOnPlatform, type PlatformPos } from './platform';
 import { blocked, type PlayerState, type World } from './movement';
@@ -129,7 +129,7 @@ export function runOver(rails: readonly Rail[], carts: readonly CartState[], ene
   });
   return states.map((e, i) => {
     const def = enemies[i]!;
-    return boxes.some((b) => def.rail !== b.rail && boxTouchesEnemy(b, def, e)) ? { ...e, alive: false } : e;
+    return boxes.some((b) => !(kindOf(def) === 'cacomixtle' && def.rail === b.rail) && boxTouchesEnemy(b, def, e)) ? { ...e, alive: false } : e;
   });
 }
 

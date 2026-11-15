@@ -269,7 +269,8 @@ function armadilloProblems(level: Level, def: Enemy): string[] {
  * way, for CACOMIXTLE.sightX px across or to the buffer's middle-stop (the rail's length less half the cart), whichever is nearer: (e) no
  * descent segment overlaps it (a segment that only starts where it ends does not); (f) every standable top whose column it overlaps (a
  * solid tile with a non-solid tile over it, or a crumbling tile) is within sightY less a full jump (jumpPx) of the cart's floor at its start,
- * or more than sightY plus a jump from it, so a jump cannot hide him nor wake it early; `Enemy.sightException`, the GDD sentence that names
+ * or more than sightY plus a jump from it, so a jump cannot hide him nor wake it early, and so is every one-way platform over those columns (a
+ * moving one by the range of its distance over its path); `Enemy.sightException`, the GDD sentence that names
  * the exception, skips (f) alone and is never empty. Not checked here: the cart clear of the phone's buttons when first seen (needs the
  * camera of GDD-UI-04, built later).
  */
@@ -307,14 +308,27 @@ function cacomixtleProblems(level: Level): string[] {
     if (def.sightException) continue;
     // The stretch's columns. One past the level's edge reads as a wall (`solidTile`), which has no top, so no clamp to the level is needed (L-025).
     const [lo, hi] = [Math.min(x, rail.x + rail.dir * end), Math.max(x, rail.x + rail.dir * end)];
+    const [first, last] = [Math.floor(lo / TILE), Math.ceil(hi / TILE)];
     const tops = new Map<string, { col: number; row: number }>();
-    for (let col = Math.floor(lo / TILE); col < Math.ceil(hi / TILE); col++) {
+    for (let col = first; col < last; col++) {
       for (let row = 0; row < level.world.height; row++) if (level.world.solidTile(col, row) && !level.world.solidTile(col, row - 1)) tops.set(`${col},${row}`, { col, row });
       for (const c of level.crumbles) if (c.col === col) tops.set(`${col},${c.row}`, { col, row: c.row });
     }
     for (const { col, row } of tops.values()) {
       const d = Math.abs(row * TILE - floor.y);
       if (d > hides && d <= wakes) problems.push(`${at} has ground at column ${col}, row ${row}, ${d} px from its cart's floor in its sight stretch, expected within ${hides} or over ${wakes}`);
+    }
+    // A one-way platform is ground too (GDD-WLD-05): one whose x span (the whole path's, for a moving one) overlaps those columns, and whose
+    // distances from the cart's floor over its path's y interval (`near` to `far`) meet the band, for a still one the one distance.
+    for (const p of level.platforms) {
+      if (Math.min(p.x0, p.x1) >= last * TILE || Math.max(p.x0, p.x1) + p.w <= first * TILE) continue;
+      const [top, bottom] = [Math.min(p.y0, p.y1), Math.max(p.y0, p.y1)];
+      const near = top <= floor.y && floor.y <= bottom ? 0 : Math.min(Math.abs(top - floor.y), Math.abs(bottom - floor.y));
+      const far = Math.max(Math.abs(top - floor.y), Math.abs(bottom - floor.y));
+      if (far > hides && near <= wakes) {
+        const where = p.x0 === p.x1 && p.y0 === p.y1 ? `at ${p.x0},${p.y0}, ${far} px` : `moving from ${p.x0},${p.y0} to ${p.x1},${p.y1}, ${near} to ${far} px`;
+        problems.push(`${at} has a platform ${where} from its cart's floor in its sight stretch, expected within ${hides} or over ${wakes}`);
+      }
     }
   }
   return problems;

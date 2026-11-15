@@ -113,7 +113,7 @@ describe('GDD-ENM-04 lab-3k', () => {
           }
         }
         if (!onPerch) continue;
-        landedOn.push(`${speed} ${x.toFixed(1)}`);
+        landedOn.push(speed);
         // Landed left of the wake line, he steps in along the perch until he is in sight.
         for (let i = 0; i < 60 && ka(r).ride!.phase === 'waiting'; i++) r = stepRun(r, { move: 1, jumpHeld: false }, level);
         expect(ka(r).ride!.phase, `${speed} take-off at x = ${x}`).not.toBe('waiting');
@@ -124,7 +124,10 @@ describe('GDD-ENM-04 lab-3k', () => {
         expect(ka(r).alive).toBe(true);
       }
     }
-    expect(landedOn.length).toBeGreaterThanOrEqual(1);
+    // Measured (L-003): 12 of the 32 take-offs land on it, 2 from a standstill (x 316.8 and 320) and 10 at a run.
+    expect(landedOn.filter((speed) => speed === 'stand').length).toBe(2);
+    expect(landedOn.filter((speed) => speed === 'run').length).toBe(10);
+    expect(landedOn.length).toBe(12);
   });
 
   it('GDD-ENM-04 lab-3k standing in Kb\'s cart beside its ringtail, he is carried through both joins at the same place on its floor', () => {
@@ -163,6 +166,16 @@ describe('GDD-ENM-04 lab-3k', () => {
     const without = validateLevel(entry({ ...level, enemies: [LAB_3K_ENEMIES[0]!, bare] }));
     const cols = [45, 46, 47, 48, 49, 50, 51, 52];
     expect(without).toEqual(cols.map((c) => `cacomixtle at 928,200 has ground at column ${c}, row 11, 24 px from its cart's floor in its sight stretch, expected within 8 or over 120`));
+    expect(validateLevel(entry())).toEqual([]);
+  });
+
+  it('GDD-ENM-04 lab-3k Ka is a named exception too: its perch is a platform in its sight, 32 px over its floor', () => {
+    // Ka's floor is y = 200 and the perch's top y = 168: 32 px, in (8, 120], over columns 20 and 21 of its stretch (x 328 to 528): one problem.
+    const kaDef = LAB_3K_ENEMIES[0]!;
+    expect(kaDef.sightException).toBe('GDD-WLD-18: the perch, K1 s lesson, stands in its sight');
+    const bare: Enemy = { x: kaDef.x, y: kaDef.y, kind: 'cacomixtle', rail: 0 };
+    const without = validateLevel(entry({ ...level, enemies: [bare, LAB_3K_ENEMIES[1]!] }));
+    expect(without).toEqual(["cacomixtle at 528,200 has a platform at 320,168, 32 px from its cart's floor in its sight stretch, expected within 8 or over 120"]);
     expect(validateLevel(entry())).toEqual([]);
   });
 });

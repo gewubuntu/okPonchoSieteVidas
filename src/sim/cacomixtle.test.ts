@@ -41,6 +41,8 @@ interface Options {
   /** Which tiles are ground, of 40 x 17: by default row 12 down (y = 192), all along. */
   readonly solid?: (col: number, row: number) => boolean;
   readonly spikes?: Level['spikes'];
+  /** The abilities of the level: both off unless said. */
+  readonly abilities?: Level['abilities'];
 }
 
 const levelOf = (o: Options = {}): Level => ({
@@ -58,7 +60,7 @@ const levelOf = (o: Options = {}): Level => ({
   fragiles: [],
   enemies: o.enemies ?? [RINGTAIL],
   rails: o.rails ?? [RAIL],
-  abilities: { glide: false, wallCling: false },
+  abilities: o.abilities ?? { glide: false, wallCling: false },
 });
 
 const standing = (x: number, y: number, facing: 1 | -1 = 1): PlayerState => ({ ...spawn(x, y), facing });
@@ -435,6 +437,46 @@ describe('GDD-ENM-04 cacomixtle an emptied cart', () => {
   });
 });
 
+/** A stomp on the ringtail on the step its telegraph counts step `t` (it is at step `t - 1` before): the run after that step, with Poncho put far away. */
+const stompedAt = (level: Level, t: number): RunState => {
+  const r = stepRun(ready(level, falling(MID, 168, 300), { ride: { phase: 'telegraph', t: t - 1 }, cart: WAITING }), idle, level);
+  expect(r.enemies[0]!.alive).toBe(false);
+  expect(r.stomped).toBe(true);
+  expect(r.lives.lives).toBe(7);
+  return away(r);
+};
+
+describe('GDD-ENM-04 cacomixtle a defeat at the end of the telegraph', () => {
+  it('GDD-ENM-04 cacomixtle a defeat on the telegraph last step leaves its cart rolling on empty', () => {
+    // Step 30 starts the cart, which first moves on the next step; the stomp on that same step defeats the ringtail, and the cart rolls on empty.
+    const level = levelOf();
+    let r = stompedAt(level, 30);
+    expect(cartOf(r)).toEqual({ phase: 'rolling', m: 16 });
+    r = stepRun(r, idle, level);
+    expect(cartOf(r).phase).toBe('rolling');
+    expect(cartOf(r).m).toBeCloseTo(16 + LEVEL_PX, 9);
+    for (let i = 0; i < 300 && cartOf(r).phase === 'rolling'; i++) r = stepRun(r, idle, level);
+    expect(cartOf(r)).toEqual({ phase: 'stopped', m: LAST_M });
+    // It stays at its buffer, empty, and he is not hurt.
+    r = play(level, r, 600);
+    expect(cartOf(r)).toEqual({ phase: 'stopped', m: LAST_M });
+    expect(r.enemies[0]!.alive).toBe(false);
+    expect(r.lives.lives).toBe(7);
+  });
+
+  it('GDD-ENM-04 cacomixtle a defeat on the telegraph step 29 leaves its cart waiting, still', () => {
+    // One step earlier the cart has not been started: it stands empty at its start for as long as nobody lands in it.
+    const level = levelOf();
+    let r = stompedAt(level, 29);
+    expect(cartOf(r)).toEqual({ phase: 'waiting', m: 16 });
+    for (let i = 0; i < 600; i++) {
+      r = stepRun(r, idle, level);
+      expect(cartOf(r)).toEqual({ phase: 'waiting', m: 16 });
+    }
+    expect(r.lives.lives).toBe(7);
+  });
+});
+
 describe('GDD-ENM-04 cacomixtle its cart is a cart, a floor beside it', () => {
   it('GDD-ENM-04 cacomixtle landing beside a live ringtail behind it is a landing, not a hit, and does not start it', () => {
     // 9 px of floor each side: he lands at x = 478 (body 472 to 484, 8 px on the floor 448 to 480), his hurtbox 473 to 483, clear of its 457 to 471.
@@ -567,6 +609,16 @@ describe('GDD-ENM-04 cacomixtle and the other enemies', () => {
   });
 });
 
+describe('GDD-ENM-04 cacomixtle only its own rider is spared by a cart', () => {
+  it('GDD-ENM-04 cacomixtle a rolling cart still runs over an Alacran that has a rail field', () => {
+    // An Alacrán on the ground at x = 380 with `rail: 0` (a field only a Cacomixtle reads) is run over by the cart of rail 0 rolling over it.
+    const alacran: Enemy = { x: 380, y: 192, rail: 0 };
+    const level = levelOf({ enemies: [alacran] });
+    const r = stepRun(ready(level, standing(600, 192), { cart: { phase: 'rolling', m: 100 } }), idle, level);
+    expect(r.enemies[0]!.alive).toBe(false);
+  });
+});
+
 describe('GDD-ENM-04 cacomixtle another cart defeats it', () => {
   /** A second rail on the same ground rolling right from x = 301 (its cart's middle at 317), his own cart: its front edge is at 333 + 2.5 k after k steps rolling. */
   const OWN: Rail = { x: 301, y: 192, dir: 1, segments: [{ kind: 'level', tiles: 20 }], end: 'buffer' };
@@ -628,10 +680,10 @@ describe('GDD-ENM-04 cacomixtle and a lost life', () => {
 /**
  * Poncho stands on the ground at x = 300; a ringtail rolls at him from x = 464 (its cart rolling from m = 16), its left edge reaching his hurtbox
  * (x 295 to 305) in about 61 steps. He waits `k` steps, then takes a full jump with jump held to his landing, and lets go of it (L-048).
- * What came of it after the ringtail has passed.
+ * What came of it after the ringtail has passed. The level's abilities are given, so `test:abilities` leaves the glide as the test says.
  */
-function jump(k: number): { hit: boolean; defeated: boolean; grounded: boolean; y: number } {
-  const level = levelOf();
+function jump(k: number, glide: boolean): { hit: boolean; defeated: boolean; grounded: boolean; y: number } {
+  const level = levelOf({ abilities: { glide, wallCling: false } });
   let r = ready(level, standing(300, 192), { ride: { phase: 'riding', t: 0 }, cart: { phase: 'rolling', m: 16 } });
   let left = false;
   let landed = false;
@@ -645,14 +697,28 @@ function jump(k: number): { hit: boolean; defeated: boolean; grounded: boolean; 
   return { hit: r.lives.lives < 7, defeated: !r.enemies[0]!.alive, grounded: r.player.grounded, y: r.player.y };
 }
 
+/** The take-off steps k (0 to 79) from which a full jump passes it with no life lost, it not stomped, and he standing again on the ground (y = 192). */
+function passes(glide: boolean): { ks: number[]; first: ReturnType<typeof jump>; last: ReturnType<typeof jump> } {
+  const outcomes = Array.from({ length: 80 }, (_, k) => jump(k, glide));
+  return { ks: outcomes.flatMap((o, k) => (!o.hit && !o.defeated && o.grounded && o.y === 192 ? [k] : [])), first: outcomes[0]!, last: outcomes[79]! };
+}
+const range = (from: number, to: number): number[] => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
 describe('GDD-ENM-04 cacomixtle jumping over it', () => {
-  it('GDD-ENM-04 cacomixtle a standing Poncho can jump over the ringtail rolling at him, and the window is at least one step', () => {
-    const outcomes = Array.from({ length: 80 }, (_, k) => jump(k));
-    // A take-off passes it when no life is lost, it is not stomped and he stands again on the ground (y = 192).
-    const passes = outcomes.flatMap((o, k) => (!o.hit && !o.defeated && o.grounded && o.y === 192 ? [k] : []));
-    expect(passes.length).toBeGreaterThanOrEqual(1);
-    // Too early: he lands in front of it, and it hits him; too late: it is on him before he leaves the ground. Both ends of the take-offs lose.
-    expect(outcomes[0]!.hit || outcomes[0]!.defeated).toBe(true);
-    expect(outcomes[79]!.hit).toBe(true);
+  it('GDD-ENM-04 cacomixtle a standing Poncho passes the ringtail rolling at him from a window of 15 take-off steps, with the glide off', () => {
+    // Measured (L-003): waiting 43 to 57 steps before the press lands him on the ground again with no hit: 15 steps (the GDD's 13 is a target).
+    const { ks, first, last } = passes(false);
+    expect(ks).toEqual(range(43, 57));
+    // Too early: he lands in front of it, and it hits him; too late: it is on him before he leaves the ground.
+    expect(first.hit || first.defeated).toBe(true);
+    expect(last.hit).toBe(true);
+  });
+
+  it('GDD-ENM-04 cacomixtle a standing Poncho passes the ringtail rolling at him from a window of 37 take-off steps, with the glide on', () => {
+    // Measured (L-003): holding jump into the glide, 21 to 57 steps before the press: 37 steps.
+    const { ks, first, last } = passes(true);
+    expect(ks).toEqual(range(21, 57));
+    expect(first.hit || first.defeated).toBe(true);
+    expect(last.hit).toBe(true);
   });
 });

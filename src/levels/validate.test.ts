@@ -3,6 +3,7 @@ import { BASE_WIDTH, TILE } from '../config/tuning';
 import type { Boss } from '../sim/boss';
 import type { Bottom } from '../sim/bottoms';
 import type { Enemy } from '../sim/enemy';
+import type { MovingPlatform } from '../sim/platform';
 import type { Estrella } from '../sim/estrella';
 import type { Rail, RailSegment } from '../sim/cart';
 import type { Level, Ofrenda, Point } from '../sim/run';
@@ -965,6 +966,15 @@ const kaRight = (segments: Rail['segments'] = [{ kind: 'level', tiles: 20 }]): R
 const found = (col: number) => [`cacomixtle at 416,216 has ground at column ${col}, row 12, 24 px from its cart's floor in its sight stretch, expected within 8 or over 120`];
 const downRight = (before: number, after: number): Rail => kaRight([{ kind: 'level', tiles: before }, { kind: 'descent', tiles: 1 }, { kind: 'level', tiles: after }]);
 
+// A one-way platform is ground in its stretch too (GDD-WLD-05). The 20 tile rail of `ka()` from x = 800 rolling left: the floor at y = 216, the
+// stretch from x = 784 to 584, which covers columns 36 to 48 (x 576 to 784). Worked by hand (L-077): a still platform 24 px over the floor
+// (y = 192, x 640 to 672) is 24 px from it, in (8, 120], a problem; one at y = 80 is 136 px, not. A moving one from y = 100 to y = 200 is
+// 116 to 16 px from it, which meets (8, 120], a problem; one from y = 50 to y = 90 is 166 to 126 px, not.
+const withPlatform = (p: Partial<MovingPlatform>, enemy: Enemy = KA, rail: Rail = ka()) =>
+  ringtail([rail], [enemy], { level: { rails: [rail], platforms: [{ x0: 640, y0: 192, x1: 640, y1: 192, w: 32, ...p }] } });
+const PLATFORM = 'cacomixtle at 784,216 has a platform';
+const TAIL = "from its cart's floor in its sight stretch, expected within 8 or over 120";
+
 describe('GDD-TEC-04 and GDD-ENM-04 cacomixtle validator', () => {
   it('GDD-ENM-04 cacomixtle validator: a Cacomixtle on a level rail with a buffer and flat ground reports nothing', () => {
     // Its floor is 8 px over the rail's ground (y = 216), and the ground tops in its stretch are at y = 224, 8 px under it: the limit.
@@ -1048,6 +1058,45 @@ describe('GDD-TEC-04 and GDD-ENM-04 cacomixtle validator', () => {
     ]);
   });
 
+  it('GDD-ENM-04 cacomixtle validator platforms are ground: a still platform is checked at its top, within 8 px or over 120', () => {
+    expect(withPlatform({})).toEqual([`${PLATFORM} at 640,192, 24 px ${TAIL}`]);
+    expect(withPlatform({ y0: 80, y1: 80 })).toEqual([]);
+    // The band's edges: 120 px is a problem, 121 is not; 8 is not, 9 is.
+    expect(withPlatform({ y0: 96, y1: 96 })).toEqual([`${PLATFORM} at 640,96, 120 px ${TAIL}`]);
+    expect(withPlatform({ y0: 95, y1: 95 })).toEqual([]);
+    expect(withPlatform({ y0: 208, y1: 208 })).toEqual([]);
+    expect(withPlatform({ y0: 207, y1: 207 })).toEqual([`${PLATFORM} at 640,207, 9 px ${TAIL}`]);
+    // Under the floor as well as over it.
+    expect(withPlatform({ y0: 240, y1: 240 })).toEqual([`${PLATFORM} at 640,240, 24 px ${TAIL}`]);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator platforms are ground: a moving platform is checked over the range of its path', () => {
+    expect(withPlatform({ y0: 100, y1: 200 })).toEqual([`${PLATFORM} moving from 640,100 to 640,200, 16 to 116 px ${TAIL}`]);
+    expect(withPlatform({ y0: 50, y1: 90 })).toEqual([]);
+    // Over the floor's own height the path's near end is 0: a path from y = 50 to y = 400 crosses the whole band though its ends are 166 and 184 px away.
+    expect(withPlatform({ y0: 50, y1: 400 })).toEqual([`${PLATFORM} moving from 640,50 to 640,400, 0 to 184 px ${TAIL}`]);
+    // Entirely within 8 px of the floor (y 208 to 222, 8 and 6 px): fine; one px further (y 207 to 210, 9 px at the far end): a problem.
+    expect(withPlatform({ y0: 208, y1: 222 })).toEqual([]);
+    expect(withPlatform({ y0: 207, y1: 210 })).toEqual([`${PLATFORM} moving from 640,207 to 640,210, 6 to 9 px ${TAIL}`]);
+    // The far end of its path 121 px and the near end 119: it reaches the band; both ends 121 and 122: it does not.
+    expect(withPlatform({ y0: 95, y1: 97 })).toEqual([`${PLATFORM} moving from 640,95 to 640,97, 119 to 121 px ${TAIL}`]);
+    expect(withPlatform({ y0: 94, y1: 95 })).toEqual([]);
+  });
+
+  it('GDD-ENM-04 cacomixtle validator platforms are ground only over the stretch\'s columns, the whole path of a moving one', () => {
+    // Still: x 500 to 564 ends before column 36 (x 576); x 520 to 584 reaches it. At the near end the stretch's columns end at x = 784: x 784 is clear, 783 not.
+    expect(withPlatform({ x0: 500, x1: 500, w: 64 })).toEqual([]);
+    expect(withPlatform({ x0: 512, x1: 512, w: 64 })).toEqual([]);
+    expect(withPlatform({ x0: 520, x1: 520, w: 64 })).toEqual([`${PLATFORM} at 520,192, 24 px ${TAIL}`]);
+    expect(withPlatform({ x0: 784, x1: 784 })).toEqual([]);
+    expect(withPlatform({ x0: 783, x1: 783 })).toEqual([`${PLATFORM} at 783,192, 24 px ${TAIL}`]);
+    // Moving along x: a path from x = 400 to 500 (to x 532 with its width) never reaches it; one from 400 to 600 does, though its start does not; one from
+    // 900 to 700 does, though its start does not.
+    expect(withPlatform({ x0: 400, x1: 500, w: 32 })).toEqual([]);
+    expect(withPlatform({ x0: 400, x1: 600, w: 32 })).toEqual([`${PLATFORM} moving from 400,192 to 600,192, 24 to 24 px ${TAIL}`]);
+    expect(withPlatform({ x0: 900, x1: 700, w: 32 })).toEqual([`${PLATFORM} moving from 900,192 to 700,192, 24 to 24 px ${TAIL}`]);
+  });
+
   it('GDD-ENM-04 cacomixtle validator on a rail rolling right: the sight stretch runs to the right of the middle', () => {
     // The rail from x = 400 rolling right: the middle at x = 416, the floor at y = 216, the stretch from x = 416 to 616 (columns 26 to 38).
     const right = cacomixtle(416, 216);
@@ -1078,15 +1127,17 @@ describe('GDD-TEC-04 and GDD-ENM-04 cacomixtle validator', () => {
     // L-028: a Cacomixtle that breaks every rule: a broken end (b), 1 px off its place (d), a descent in its stretch (e) and a ledge 24 px over its floor (f).
     const bad = ka([{ kind: 'level', tiles: 12 }, { kind: 'descent', tiles: 1 }, { kind: 'level', tiles: 7 }], 'broken');
     const place = (o: Partial<Enemy>) => cacomixtle(785, 216, 0, o);
-    const all = (o: Partial<Enemy>) => ringtail([bad], [place(o)], { solid: ledge(42, 12) });
+    const all = (o: Partial<Enemy>) => ringtail([bad], [place(o)], { solid: ledge(42, 12), level: { rails: [bad], platforms: [{ x0: 640, y0: 192, x1: 640, y1: 192, w: 32 }] } });
     const b = 'cacomixtle at 785,216 rides a rail that ends broken, expected a buffer';
     const d = "cacomixtle at 785,216 is not at its cart's start, expected 784,216";
     const e = 'cacomixtle at 785,216 has a descent in its sight stretch, 192 to 208 px across';
     const f = "cacomixtle at 785,216 has ground at column 42, row 12, 24 px from its cart's floor in its sight stretch, expected within 8 or over 120";
-    expect(all({})).toEqual([b, d, e, f]);
+    // (and a platform 24 px over its floor, which is the ground band's too)
+    const g = "cacomixtle at 785,216 has a platform at 640,192, 24 px from its cart's floor in its sight stretch, expected within 8 or over 120";
+    expect(all({})).toEqual([b, d, e, f, g]);
     expect(all({ sightException: 'GDD-WLD-18: K1 meets him uphill, 40 px inside its sight' })).toEqual([b, d, e]);
     // An empty sentence is no exception: it is reported, and the ground band is still checked.
-    expect(all({ sightException: '' })).toEqual([b, d, e, 'cacomixtle at 785,216 has an empty sight exception, expected the GDD sentence that names it', f]);
+    expect(all({ sightException: '' })).toEqual([b, d, e, 'cacomixtle at 785,216 has an empty sight exception, expected the GDD sentence that names it', f, g]);
     // Alone, on a Cacomixtle with nothing else wrong.
     expect(ringtail([ka()], [cacomixtle(784, 216, 0, { sightException: '' })])).toEqual(['cacomixtle at 784,216 has an empty sight exception, expected the GDD sentence that names it']);
     expect(ringtail([ka()], [cacomixtle(784, 216, 0, { sightException: 'GDD-WLD-18: K1 meets him uphill, 40 px inside its sight' })], { solid: ledge(42, 12) })).toEqual([]);

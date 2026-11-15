@@ -77,10 +77,11 @@ export const LAB_3K_OFRENDAS: readonly Ofrenda[] = [
 
 /**
  * GDD-ENM-04: the two Cacomixtles, each at its cart's start: the middle of the cart (16 px across from its rail's start) and its floor, 8 px over
- * the rail's ground there (y = 200). Kb's names the exception to the sight stretch's ground rule (`sightException`, GDD-TEC-04).
+ * the rail's ground there (y = 200). Both name the exception to the sight stretch's ground rule (`sightException`, GDD-TEC-04): Ka's, its perch
+ * (a platform 32 px over its floor, in its sight); Kb's, the shelf.
  */
 export const LAB_3K_ENEMIES: readonly Enemy[] = [
-  { x: 34 * TILE - TILE, y: LAB_3K_FLOOR_ROW * TILE - 8, kind: 'cacomixtle', rail: 0 },
+  { x: 34 * TILE - TILE, y: LAB_3K_FLOOR_ROW * TILE - 8, kind: 'cacomixtle', rail: 0, sightException: 'GDD-WLD-18: the perch, K1 s lesson, stands in its sight' },
   { x: 59 * TILE - TILE, y: LAB_3K_FLOOR_ROW * TILE - 8, kind: 'cacomixtle', rail: 1, sightException: 'GDD-WLD-18: K1 meets him uphill, 40 px inside its sight' },
 ];
 
