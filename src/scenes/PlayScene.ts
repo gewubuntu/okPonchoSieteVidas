@@ -94,7 +94,7 @@ import { veladoraUsed } from '../sim/veladora';
 import { NO_COMBO, noteRate, stepSounds, type HiloCombo, type SfxName } from '../sim/sfx';
 import { stepVibration } from '../sim/vibration';
 import type { Power } from '../sim/taco';
-import { cameraDrawY, cameraLimits, cameraScroll, cutCameraY, followCamera, stepCameraY, type CameraLimits, type CameraY } from '../ui/camera';
+import { cameraDrawY, cameraLimits, cameraScroll, cartLeadDraw, cutCameraY, followCamera, ponchoShown, stepCameraY, stepCartLead, type CameraLimits, type CameraY } from '../ui/camera';
 import { dashedRect } from '../ui/dashed';
 import { GamepadReader } from '../ui/gamepad';
 import { sceneryFor, type Scenery } from '../ui/scenery/scenery';
@@ -210,9 +210,12 @@ export interface PonchoDebug {
    * y as last drawn (the level y at the screen's top edge, between steps and at whole art pixels), without a screen shake, and `viewY`,
    * the y scroll passed to Phaser with the shake on top (`cameras.main.scrollY`, what `cameraScrollY()` reads); both 0 in a one-screen level
    * but for the shake. `stepY` is the camera's y after the last step and `fromY` the y it is drawn from towards it (the y after the step
-   * before, or after a cut `stepY` itself): `scrollY` lies between them.
+   * before, or after a cut `stepY` itself): `scrollY` lies between them. Sideways in a rolling cart: `lead`, the camera's lead after the
+   * last step (game px, signed, + to the right: 0 outside a ride, 64 or -64 settled in one) and `leadDrawn`, the lead last drawn, between
+   * the lead before the last step and `lead` (a cut puts both at 0). `look` is the camera's look up and down after the last step (`'band'`, `'up'`
+   * or `'downward'`: the look-up and the look-down on the ground, GDD-UI-04).
    */
-  camera(): { scrollX: number; viewX: number; scrollY: number; viewY: number; stepY: number; fromY: number };
+  camera(): { scrollX: number; viewX: number; scrollY: number; viewY: number; stepY: number; fromY: number; lead: number; leadDrawn: number; look: CameraY['look'] };
   /**
    * How far the backdrop's clouds, far band (`mountains`: World 1's mountains, World 2's hill town) and mid band (`desert`: the far desert
    * strip, World 2's rooftops or its arena's plaza) are shifted (GDD-ART-06), in game px, read back from what was drawn: the clouds from
@@ -905,9 +908,13 @@ export class PlayScene extends Phaser.Scene {
    * before (drawn between the two like his body), the y last drawn, and the level's own limits, the backdrop's anchor (0 to 0 in a level
    * one screen tall; each step reads those of his column, `cameraLimitsAt`).
    */
-  private cameraY: CameraY = { y: 0, lead: false };
+  private cameraY: CameraY = { y: 0, lead: false, look: 'band', ref: 0, still: 0, last: null };
   private prevCameraY = 0;
   private drawnCameraY = 0;
+  /** GDD-UI-04: the camera's lead sideways in a rolling cart after the last step (`stepCartLead`), the lead after the step before, and the lead last drawn. */
+  private cartLead = 0;
+  private prevCartLead = 0;
+  private drawnCartLead = 0;
   private readonly cameraBounds: CameraLimits;
   /** GDD-ART-06: the backdrop, the decor and the ground tiles of the level's world. */
   private readonly scenery: Scenery;
@@ -1408,7 +1415,7 @@ export class PlayScene extends Phaser.Scene {
         resultsMenu: () => this.resultsRows,
         clearReveal: () => this.clearRevealLog,
         level: () => this.entry.id,
-        camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x, scrollY: this.drawnCameraY, viewY: this.cameras.main.scrollY, stepY: this.cameraY.y, fromY: this.prevCameraY }),
+        camera: () => ({ scrollX: this.scrollX, viewX: this.cameras.main.getWorldPoint(0, 0).x, scrollY: this.drawnCameraY, viewY: this.cameras.main.scrollY, stepY: this.cameraY.y, fromY: this.prevCameraY, lead: this.cartLead, leadDrawn: this.drawnCartLead, look: this.cameraY.look }),
         backdrop: () => this.scenery.backdrop(),
         backdropLayout: () => this.scenery.backdropLayout(),
         scenery: () => this.scenery.drawn(),
@@ -2449,11 +2456,13 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * GDD-UI-04: the camera follows the body where it is drawn, and stands still while it is hidden. Up and down it is drawn `alpha` of the way
-   * between its last two steps, at whole art pixels.
+   * GDD-UI-04: the camera follows the body where it is drawn, and stands still while it is hidden. Sideways it follows the point `x + lead`,
+   * the lead drawn `alpha` of the way between its last two steps; up and down it is drawn `alpha` of the way between its last two steps,
+   * at whole art pixels.
    */
   private followBody(alpha: number): void {
-    this.scrollX = followCamera(this.scrollX, this.body.visible ? this.body.x : null, this.world.width * TILE);
+    this.drawnCartLead = cartLeadDraw(this.prevCartLead, this.cartLead, alpha);
+    this.scrollX = followCamera(this.scrollX, this.body.visible ? this.body.x + this.drawnCartLead : null, this.world.width * TILE);
     this.drawnCameraY = cameraDrawY(this.prevCameraY, this.cameraY.y, alpha);
     // GDD-BOS-01: the screen shake moves the whole picture up and down: the camera draws the level `offset` lower (a positive offset draws it
     // down, so the camera goes up from its y) and the far backdrop, which the camera does not move (a scroll factor of 0), is drawn the same
@@ -2466,17 +2475,25 @@ export class PlayScene extends Phaser.Scene {
     this.scenery.follow(this.scrollX, scrollY, this.drawnCameraY, this.cameraBounds.bottom, offset);
   }
 
-  /** GDD-UI-04: the cut (`cutCameraY`), with nothing to draw between. */
+  /** GDD-UI-04: the cut (`cutCameraY`, and the lead sideways 0), with nothing to draw between. */
   private cutCamera(): void {
     this.cameraY = cutCameraY(this.run, this.level);
     this.prevCameraY = this.cameraY.y;
+    this.cartLead = 0;
+    this.prevCartLead = 0;
   }
 
-  /** GDD-UI-04: one step of the camera up and down after the step from `before` (`stepCameraY`), and the y it is drawn from towards it. */
+  /**
+   * GDD-UI-04: one step of the camera after the step from `before`: up and down (`stepCameraY`), and the y it is drawn from towards it, and
+   * the lead sideways (`stepCartLead`), drawn from the lead before the step; the step he appears (a respawn) is a cut, drawn from the new lead.
+   */
   private stepCamera(before: RunState): void {
     const stepped = stepCameraY(this.cameraY, before, this.run, this.level);
     this.cameraY = stepped.camera;
     this.prevCameraY = stepped.from;
+    const lead = stepCartLead(this.cartLead, before, this.run, this.level);
+    this.prevCartLead = ponchoShown(this.run) && !ponchoShown(before) ? lead : this.cartLead;
+    this.cartLead = lead;
   }
 
   /** One fixed simulation step with the given input. */
@@ -2727,10 +2744,11 @@ export class PlayScene extends Phaser.Scene {
         const before = this.run;
         this.simStep(input);
         this.hold = hitStopSteps(before, this.run);
-        // The hit's frame stays on screen: Poncho is not drawn sliding from the step before it to the hit's during the hold, nor the camera.
+        // The hit's frame stays on screen: Poncho is not drawn sliding from the step before it to the hit's during the hold, nor the camera (up and down, nor its lead sideways).
         if (this.hold > 0) {
           this.prevPlayer = this.run.player;
           this.prevCameraY = this.cameraY.y;
+          this.prevCartLead = this.cartLead;
         }
       });
     } else if (this.paused) {

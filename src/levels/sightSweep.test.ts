@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { BASE_HEIGHT, TILE } from '../config/tuning';
 import type { Bottom } from '../sim/bottoms';
-import type { Rail } from '../sim/cart';
+import { cartFloor, type CartState, type Rail } from '../sim/cart';
 import type { Enemy } from '../sim/enemy';
 import type { Spike } from '../sim/hazards';
-import type { Level } from '../sim/run';
+import { spawn as newPlayer } from '../sim/movement';
+import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import { cameraLimits } from '../ui/camera';
-import { camerasAlong, describeLoss, flySight, onScreen, rideRun, rideSaves, sightSweep, tileBox, viewsAlong, type Loss, type SightReport, type Takeoff } from './sightSweep';
+import { LAB_3C_LEVEL } from './lab3c';
+import { approachCamera, camerasAlong, describeLoss, flySight, onScreen, rideRun, rideSaves, sightSweep, tileBox, viewsAlong, type Loss, type SightReport, type Takeoff } from './sightSweep';
 
 // GDD-WLD-03's sight rule as a sweep (`src/levels/sightSweep.ts`), on small fixture levels. The screen is 480 x 270; flying right from a
 // settled camera he stands 256 px from its left edge, so it shows 224 px ahead of him (GDD-UI-04).
@@ -220,10 +222,12 @@ const lines = (losses: readonly Loss[]) => losses.map(describeLoss);
 /**
  * A flat at row 14, 40 columns, with no glide; a rail on it from column 2 rolling right whose broken end is 30 tiles from the boarding
  * place (the cart's middle at its start, column 3), at the lip of a 3-tile pit (columns 33 to 35). He starts at column 0. With `roof`, a
- * low roof 3 tiles over the ground (row 10) from column 19 over the pit: a standing rider passes under it, and a jump hits it.
+ * low roof 3 tiles over the ground (row 10) from column 14 over the pit: a standing rider passes under it, and a jump hits it. (From column 19
+ * until the camera led in a rolling cart, GDD-UI-04: the pit's lip now comes on screen 26 steps earlier, so the roof starts 5 tiles earlier,
+ * before the first step a reaction can be taken on, to be over every jump that could save him.)
  */
 const brokenOverPit = (roof: boolean): Level => ({
-  ...fixture((c, r) => (r >= 14 && (c < 33 || c > 35)) || (roof && r === 10 && c >= 19 && c <= 35), [], 17, undefined, { spawn: { col: 0, row: 14 }, rails: [rail(2, 14, 31, 'broken')] }),
+  ...fixture((c, r) => (r >= 14 && (c < 33 || c > 35)) || (roof && r === 10 && c >= 14 && c <= 35), [], 17, undefined, { spawn: { col: 0, row: 14 }, rails: [rail(2, 14, 31, 'broken')] }),
   abilities: {},
 });
 /**
@@ -241,11 +245,12 @@ describe('GDD-WLD-03 GDD-WLD-15 the sight sweep of rides', () => {
     const level = brokenOverPit(false);
     const sweep = sightSweep(level, [0]);
     expect([...sweep.rides.keys()]).toEqual([0]);
-    // Staying in, with nothing held and with right held, he is lost in the pit 211 steps after the boarding; its lip came on screen 109 steps
-    // before, 14 tiles before the end (the screen shows 224 px ahead of him), so he reacts 12 tiles before it.
+    // Staying in, with nothing held and with right held, he is lost in the pit 211 steps after the boarding; its lip came on screen 135 steps
+    // before (GDD-UI-04: the camera leads 64 px in a rolling cart, so the screen shows 288 px ahead of him, 64 px more than the 109 steps
+    // before it led, 2.5 px a step), so he reacts 12 steps after that.
     expect(lines(sweep.rideLosses)).toEqual([
-      'pit 33-35 (x 528 to 544, y 224 to 240) from column 3 y 224 x 48, right, stand, ride, rail 0 staying in with nothing held, start 0: lost at step 211, take-off step 0, on screen 109 steps before',
-      'pit 33-35 (x 528 to 544, y 224 to 240) from column 3 y 224 x 48, right, stand, ride, rail 0 staying in with its way held, start 0: lost at step 211, take-off step 0, on screen 109 steps before',
+      'pit 33-35 (x 528 to 544, y 224 to 240) from column 3 y 224 x 48, right, stand, ride, rail 0 staying in with nothing held, start 0: lost at step 211, take-off step 0, on screen 135 steps before',
+      'pit 33-35 (x 528 to 544, y 224 to 240) from column 3 y 224 x 48, right, stand, ride, rail 0 staying in with its way held, start 0: lost at step 211, take-off step 0, on screen 135 steps before',
     ]);
     // A ride loss is no loss in sight, and no blind one.
     expect([sweep.inSight['pit 33-35'] === undefined, sweep.blind]).toEqual([false, []]);
@@ -262,22 +267,22 @@ describe('GDD-WLD-03 GDD-WLD-15 the sight sweep of rides', () => {
     const sweep = sightSweep(level, [0]);
     const unsaved = sweep.rideLosses.filter((l) => rideSaves(level, l).length === 0);
     expect(lines(unsaved)).toEqual([
-      'pit 33-35 (x 528 to 544, y 224 to 240) from column 3 y 224 x 48, right, stand, ride, rail 0 staying in with nothing held, start 0: lost at step 211, take-off step 0, on screen 109 steps before',
-      'pit 33-35 (x 528 to 544, y 224 to 240) from column 3 y 224 x 48, right, stand, ride, rail 0 staying in with its way held, start 0: lost at step 211, take-off step 0, on screen 109 steps before',
+      'pit 33-35 (x 528 to 544, y 224 to 240) from column 3 y 224 x 48, right, stand, ride, rail 0 staying in with nothing held, start 0: lost at step 211, take-off step 0, on screen 135 steps before',
+      'pit 33-35 (x 528 to 544, y 224 to 240) from column 3 y 224 x 48, right, stand, ride, rail 0 staying in with its way held, start 0: lost at step 211, take-off step 0, on screen 135 steps before',
     ]);
   });
 
   it('GDD-WLD-03 GDD-WLD-15 sight sweep: a jump out of a ride onto a spike off screen at the press is a blind loss with its rail and step, and on screen a loss in sight', { timeout: 120000 }, () => {
     // Boarded from behind, the camera has him at the dead zone's leading edge: the screen shows 224 px ahead. A held jump (the glide) out of
-    // the cart on steps 0 to 4 lands on the spike, 237.5 to 227.5 px ahead of him after the press: off screen.
+    // the cart on steps 0 to 4 lands on the spike, 237.5 to 227.5 px ahead of him after the press. GDD-UI-04: the lead grows 2 px a step as
+    // the cart rolls, so the screen shows more and more ahead of him: the spike is off screen at the press on steps 0 and 2 and on screen on
+    // step 4 (it was blind on all three before the camera led).
     const behind = sightSweep(bankRail(17), [0]);
     expect(spikeJumps(behind)).toEqual([
       ['held', 0, 0],
       ['held', 2, 0],
-      ['held', 4, 0],
       ['held', 0, 1],
       ['held', 2, 1],
-      ['held', 4, 1],
     ]);
     expect(behind.blind.filter((l) => l.takeoff.ride).every((l) => l.takeoff.ride!.rail === 0 && l.takeoffStep === l.takeoff.ride!.step)).toBe(true);
     // Boarded from in front, moving left, the camera has him at the dead zone's back edge when the cart starts to roll: the screen shows
@@ -306,4 +311,48 @@ describe('GDD-WLD-03 GDD-WLD-15 the sight sweep of rides', () => {
   });
 
   // The sweep of lab-3c, over 10 s, is in the sight run (`src/levels/sight.test.ts`).
+});
+
+// GDD-UI-04: in a rolling cart the camera leads 64 px, so the sweep's camera must too (it is the scene's camera, stepped along each flight).
+/** Where his body is on the screen of the camera: its x less the scroll. */
+const onScreenX = (x: number, c: { scrollX: number }) => x - c.scrollX;
+
+describe('GDD-UI-04 the sight sweep with the lead in a rolling cart', () => {
+  const lab = LAB_3C_LEVEL;
+  /** A run with Poncho standing in lab-3c's cart `i` (`phase`) with its middle `m` px along its rail. */
+  const inCart = (i: number, m: number, phase: CartState['phase'] = 'rolling'): RunState => {
+    const cart: CartState = { phase, m };
+    const floor = cartFloor(lab.rails![i]!, cart);
+    const base = startRun(lab);
+    return { ...base, player: { ...newPlayer(floor.x + floor.w / 2, floor.y), grounded: true }, carts: base.carts.map((c, k) => (k === i ? cart : c)) };
+  };
+  it('GDD-UI-04 a take-off from a rolling cart starts with the lead settled', () => {
+    // Rolling right (rail 0, 200 px along): the lead is +64 and he is at 192 (40% of the width); rolling left (rail 3, 64 px along): -64 and 288.
+    const right = inCart(0, 200);
+    const back = inCart(3, 64);
+    const [r, l] = [approachCamera(lab, right, 1), approachCamera(lab, back, -1)];
+    expect([r.lead, onScreenX(right.player.x, r)]).toEqual([64, 192]);
+    expect([l.lead, onScreenX(back.player.x, l)]).toEqual([-64, 288]);
+    // A cart that is not rolling is no ride: no lead, and he is on the dead zone's leading edge, 256 and 224.
+    const [wr, wl] = [approachCamera(lab, inCart(0, 200, 'waiting'), 1), approachCamera(lab, inCart(3, 64, 'waiting'), -1)];
+    expect([wr.lead, onScreenX(right.player.x, wr), wl.lead, onScreenX(back.player.x, wl)]).toEqual([0, 256, 0, 224]);
+    // Clamped by the level's edge, as ever: at the boarding, 16 px along rail 0, the scroll stays at 0 and he is where he stands.
+    const boarding = inCart(0, 16);
+    expect([approachCamera(lab, boarding, 1).scrollX, approachCamera(lab, boarding, 1).lead]).toEqual([0, 64]);
+  });
+
+  it('GDD-UI-04 a flight from a rolling cart keeps the lead on', () => {
+    // On in the cart (nothing held) from the settled camera, 40 steps: the lead stays 64 and he stays at 192, the camera moving with the cart.
+    const from = inCart(0, 200);
+    const states: RunState[] = [];
+    let r = from;
+    for (let i = 0; i < 40; i++) states.push((r = stepRun(r, { move: 0, jumpHeld: false }, lab)));
+    const cameras = camerasAlong(lab, approachCamera(lab, from, 1), from, states);
+    expect(states.every((s) => s.carts[0]!.phase === 'rolling' && s.player.grounded)).toBe(true);
+    cameras.forEach((c, k) => {
+      expect(c.lead, `step ${k}`).toBe(64);
+      expect(onScreenX(states[k]!.player.x, c), `step ${k}`).toBe(192);
+    });
+    expect(cameras[39]!.scrollX).toBeGreaterThan(approachCamera(lab, from, 1).scrollX + 90);
+  });
 });

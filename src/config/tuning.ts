@@ -191,10 +191,32 @@ export const VELADORA = { size: 12 } as const;
  * GDD-UI-04: the camera stands still while Poncho is inside a dead zone this many px wide, in the middle of the screen. Up and down: on
  * the ground it stands still while his feet are between screen y `bandTop` and `bandBottom` and pans at up to `panSpeed` px/s to the
  * nearer edge; in the air it goes up with him past `airTop`, and in a fall below `bandBottom` it moves at his fall speed plus `leadSpeed`
- * until his feet are at `bandTop`. Never faster than `maxSpeed` px/s. A cut puts his feet at `spawnFeet`; its bottom edge stops
+ * until his feet are at `downFeet`. Never faster than `maxSpeed` px/s. A cut puts his feet at `spawnFeet`; its bottom edge stops
  * `bottomCutPx` above the level's floor line.
  */
-export const CAMERA = { deadZone: 32, bandTop: 116, bandBottom: 156, airTop: 56, panSpeed: 180, leadSpeed: 120, maxSpeed: 480, spawnFeet: 136, bottomCutPx: 2 } as const;
+export const CAMERA = {
+  deadZone: 32,
+  bandTop: 116,
+  bandBottom: 156,
+  airTop: 56,
+  panSpeed: 180,
+  leadSpeed: 120,
+  maxSpeed: 480,
+  spawnFeet: 136,
+  bottomCutPx: 2,
+  // GDD-UI-04, the look-ahead up and down (Proposed): standing this far above (the look-up) or below (the look-down on the ground) where he
+  // last stood still starts it; in the look-up his feet are held at `upFeet` (60% of the screen's height), in the look-down at `downFeet`
+  // (40%), also where a fall's look-down catches up; `settleSteps` steps standing at one height (within `stillTolerance` px) end it.
+  riseTrigger: 32,
+  upFeet: 162,
+  downFeet: 108,
+  settleSteps: 30,
+  stillTolerance: 0.01,
+  // GDD-UI-04, the look-ahead sideways (Proposed): in a rolling cart the dead zone moves `cartLead` px behind him (his body at 40% of the
+  // width, 288 px ahead), grown and shrunk by `cartLeadStep` px a step (120 px/s).
+  cartLead: 64,
+  cartLeadStep: 2,
+} as const;
 
 /**
  * GDD-TEC-03: the ground and decor images drawn are those in the screen at the camera's scroll, widened by `marginTiles` tiles on every

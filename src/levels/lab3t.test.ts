@@ -161,19 +161,31 @@ describe('GDD-UI-04 lab-3t, the tall lab', () => {
     expect(level.abilities).toEqual({ glide: true });
   });
 
-  it('GDD-UI-04 lab-3t: the staircase does not move the camera', () => {
-    // The plateau's top at row 8, and steps of 1 and 2 tiles, down and up: up 1, down 2, up 2, up 1.
+  it('GDD-UI-04 lab-3t: the staircase starts the look-up once he stands 2 tiles up', () => {
+    // The plateau's top at row 8, and steps of 1 and 2 tiles, down and up: up 1, down 2, up 2, up 1. The last step is 2 tiles over the plateau.
     expect(LAB_3T_PLATEAU.row).toBe(8);
     expect([LAB_3T_PLATEAU, ...LAB_3T_STAIRS].slice(1).map((s, i) => [LAB_3T_PLATEAU, ...LAB_3T_STAIRS][i]!.row - s.row)).toEqual([1, -2, 2, 1]);
+    expect(LAB_3T_PLATEAU.row * TILE - LIP_Y).toBe(2 * TILE);
     const frames = stairs();
     const last = frames[frames.length - 1]!;
     expect(last.r.player).toMatchObject({ grounded: true, y: LIP_Y });
     // He stood on every step on the way.
     const stood = new Set(frames.filter((f) => f.r.player.grounded).map((f) => f.r.player.y / TILE));
     for (const s of LAB_3T_STAIRS) expect(stood.has(s.row), `row ${s.row}`).toBe(true);
+    // The camera is at the level's top the whole way (nothing is above it to pan to). Measured: the look-up starts on the step he lands on the last
+    // step, 32 px over where he started (the step down to row 9 and the steps of one tile never reach it); until then it is the band.
     frames.forEach((f, i) => expect(f.cam.y, `step ${i}`).toBe(0));
-    // His feet stay between screen y 96 and 144 on it: inside the band or above it, where the level's top holds the camera.
-    expect(Math.max(...frames.map(feetOnScreen))).toBeLessThanOrEqual(CAMERA.bandBottom);
+    expect(frames.findIndex((f) => f.cam.look === 'up')).toBe(frames.length - 1);
+    expect(last.cam).toMatchObject({ look: 'up', ref: LIP_Y });
+    // His feet are at screen y 96 there, short of the 60% line (162): with the camera at the level's top they cannot reach it.
+    expect(feetOnScreen(last)).toBe(LIP_Y);
+    // Standing there 30 steps (the arrival step counted 0) ends it: the band holds again with that height as its reference.
+    let f = last;
+    for (let i = 1; i <= CAMERA.settleSteps; i++) {
+      f = advance(f, { move: 0, jumpHeld: false });
+      expect(f.cam.look, `standing step ${i}`).toBe(i < CAMERA.settleSteps ? 'up' : 'band');
+    }
+    expect(f.cam).toMatchObject({ y: 0, ref: LIP_Y });
   });
 
   it('GDD-UI-04 lab-3t: the walk-off drop: the landing ground is in view from the step he leaves the lip', () => {
@@ -189,10 +201,13 @@ describe('GDD-UI-04 lab-3t, the tall lab', () => {
       expect(LANDING_Y - f.cam.y, `step ${frames.indexOf(f)}`).toBeLessThan(270);
       expect(LAB_3T_DROP.col0 * TILE - f.scrollX).toBeLessThan(480);
     }
-    // The camera looked down on the way, and he lands with his feet in the band.
+    // The camera looked down on the way. The last stair started the look-up (above), whose fall's look-down starts only below 194 (the 60%
+    // line and a turn of 32 px, GDD-UI-04), so he lands a little under the band (measured: 173) in the look-down on the ground (160 px under
+    // his reference), which then pans him up to the 40% line.
     expect(landed.cam.y).toBeGreaterThan(0);
+    expect(landed.cam.look).toBe('downward');
     expect(feetOnScreen(landed)).toBeGreaterThanOrEqual(CAMERA.bandTop);
-    expect(feetOnScreen(landed)).toBeLessThanOrEqual(CAMERA.bandBottom);
+    expect(feetOnScreen(landed)).toBeLessThanOrEqual(CAMERA.upFeet + CAMERA.riseTrigger);
   });
 
   it('GDD-UI-04 lab-3t: the glide: the far side lip is in view before he has fallen 3 tiles', () => {
@@ -210,12 +225,19 @@ describe('GDD-UI-04 lab-3t, the tall lab', () => {
     expect(frames[first]!.r.player.y - LANDING_Y).toBeLessThan(3 * TILE);
   });
 
-  it('GDD-UI-04 lab-3t: the spring under open sky moves the camera by at most 17 px', () => {
-    // From where the glide lands, right onto the first spring, to the top of the first launch (L-026).
+  it('GDD-UI-04 lab-3t: the spring under open sky moves the camera by at most 17.08 px', () => {
+    // From where the glide lands, standing until the look-down has ended and the camera has settled (the look `'band'`, his feet in it), right
+    // onto the first spring, to the top of the first launch (L-026).
     let f = glide().at(-1)!;
     const spring = LAB_3T_SPRINGS[0]!;
     // Open sky over it.
     for (let row = 0; row < spring.row; row++) expect(level.world.solidTile(spring.col, row), `row ${row}`).toBe(false);
+    // Measured: he lands in the look-down with his feet at screen y 108; after 30 steps the band holds and the camera pans him to its top edge.
+    expect(feetOnScreen(f)).toBeCloseTo(CAMERA.downFeet, 6);
+    expect(f.cam.look).toBe('downward');
+    for (let i = 0; i < 200 && !(f.cam.look === 'band' && feetOnScreen(f) >= CAMERA.bandTop - 1e-9); i++) f = advance(f, { move: 0, jumpHeld: false });
+    expect(f.cam.look).toBe('band');
+    expect(feetOnScreen(f)).toBeCloseTo(CAMERA.bandTop, 6);
     const y0 = f.cam.y;
     let launched = false;
     let least = y0;
@@ -226,13 +248,12 @@ describe('GDD-UI-04 lab-3t, the tall lab', () => {
       if (launched && f.r.player.vy >= 0) break;
     }
     expect(launched).toBe(true);
-    // Measured: 15.2 px, from his feet at screen y 117.9 after the glide's landing (17.1 from the band's top edge, src/ui/camera.test.ts).
-    expect(feetOnScreen(glide().at(-1)!)).toBeCloseTo(117.9, 1);
-    expect(y0 - least).toBeCloseTo(15.19, 2);
-    expect(y0 - least).toBeLessThanOrEqual(17);
+    // Measured: 17.08 px, from the band's top edge (src/ui/camera.test.ts; 15.19 from feet at 117.9 before the look-ahead).
+    expect(y0 - least).toBeCloseTo(17.08, 2);
+    expect(y0 - least).toBeLessThanOrEqual(17.0834);
   });
 
-  it('GDD-UI-04 lab-3t: the lift is followed with his feet on the band edge', () => {
+  it('GDD-UI-04 lab-3t: the lift starts the look-up and holds him at the 60% line', () => {
     // 14 tiles up, at 40 px/s.
     expect((LAB_3T_LIFT.y0 - LAB_3T_LIFT.y1) / TILE).toBe(14);
     expect(PLATFORM.speed).toBe(40);
@@ -240,24 +261,39 @@ describe('GDD-UI-04 lab-3t, the tall lab', () => {
     const top = frames.at(-1)!;
     expect(top.r.player.grounded).toBe(true);
     expect(top.r.player.y).toBeCloseTo(LAB_3T_TOP.row * TILE, 6);
-    // Once his feet reach the band's top edge they stay on it while the camera can go up, and over it once it is at the level's top.
-    const reached = frames.findIndex((f) => feetOnScreen(f) <= CAMERA.bandTop + 1e-9);
-    expect(reached).toBeGreaterThan(0);
-    for (const f of frames.slice(reached)) {
-      if (f.cam.y > 0) expect(feetOnScreen(f), `step ${frames.indexOf(f)}`).toBeCloseTo(CAMERA.bandTop, 6);
-      else expect(feetOnScreen(f), `step ${frames.indexOf(f)}`).toBeLessThanOrEqual(CAMERA.bandTop);
+    // The look-up starts on the lift step his feet are 32 px over where he boarded (measured: the 48th step, 40 px/s), the band before it.
+    const turned = frames.findIndex((f) => f.cam.look === 'up');
+    expect(turned).toBe(48);
+    expect(frames[0]!.r.player.y - frames[turned]!.r.player.y).toBe(2 * TILE);
+    frames.slice(0, turned).forEach((f, i) => expect(f.cam.look, `step ${i}`).toBe('band'));
+    // From the step his feet first reach 162 on screen (measured: the 67th, 19 steps later: the pan's 3 px a step against the lift's 0.67) they
+    // stay there while the camera can go up, and at 162 or above once it is at the level's top (the 189th step).
+    const reached = frames.findIndex((f, i) => i > turned && feetOnScreen(f) >= CAMERA.upFeet - 1e-9);
+    expect(reached).toBe(67);
+    const atTop = frames.findIndex((f) => f.cam.y === 0);
+    expect(atTop).toBe(189);
+    for (const [i, f] of frames.entries()) {
+      if (i < reached) expect(feetOnScreen(f), `step ${i}`).toBeLessThan(CAMERA.upFeet);
+      else if (i < atTop) expect(feetOnScreen(f), `step ${i}`).toBeCloseTo(CAMERA.upFeet, 6);
+      else expect(feetOnScreen(f), `step ${i}`).toBeLessThanOrEqual(CAMERA.upFeet + 1e-9);
     }
-    frames.forEach((f) => expect(feetOnScreen(f)).toBeLessThanOrEqual(CAMERA.bandBottom));
+    // Once he stands on the highest ledge, 30 steps at one height end the look: the band returns, his feet at screen y 64 with the camera at the
+    // level's top (the band's bottom edge, 156, is below them; nothing is above it to pan to).
+    let f = top;
+    let n = 0;
+    while (f.cam.look === 'up' && n++ < 100) f = advance(f, { move: 0, jumpHeld: false });
+    expect(f.cam).toMatchObject({ look: 'band', still: CAMERA.settleSteps, y: 0 });
+    expect(feetOnScreen(f)).toBeCloseTo(LAB_3T_TOP.row * TILE, 6);
   });
 
-  it('GDD-UI-04 lab-3t: the climbing and the descending cart are followed with his feet on the band edge', () => {
+  it('GDD-UI-04 lab-3t: the climbing cart starts the look-up and the descending one the look-down', () => {
     // R1 climbs 6 tiles, R2 descends 6 tiles (GDD-WLD-15: 84.9 px/s up, 127.3 px/s down, under the 180 px/s pan).
     expect(LAB_3T_RAILS.map((r) => r.segments.find((s) => s.kind !== 'level'))).toEqual([{ kind: 'climb', tiles: 6 }, { kind: 'descent', tiles: 6 }]);
     const cases = [
-      { i: 0, x: (LAB_3T_RAILS[0]!.x - TILE) + TILE / 2, y: FAR_Y, edge: CAMERA.bandTop, rise: 6 * TILE },
-      { i: 1, x: LAB_3T_CART_PLATEAU.col0 * TILE + TILE / 2, y: LAB_3T_CART_PLATEAU.row * TILE, edge: CAMERA.bandBottom, rise: -6 * TILE },
-    ];
-    const catchUp: number[] = [];
+      { i: 0, x: (LAB_3T_RAILS[0]!.x - TILE) + TILE / 2, y: FAR_Y, look: 'up', line: CAMERA.upFeet, rise: 6 * TILE },
+      { i: 1, x: LAB_3T_CART_PLATEAU.col0 * TILE + TILE / 2, y: LAB_3T_CART_PLATEAU.row * TILE, look: 'downward', line: CAMERA.downFeet, rise: -6 * TILE },
+    ] as const;
+    const measured: { turned: number; caught: number }[] = [];
     for (const c of cases) {
       const frames = ride(c.i, c.x, c.y);
       const end = frames.at(-1)!;
@@ -267,19 +303,25 @@ describe('GDD-UI-04 lab-3t, the tall lab', () => {
       const ridden = frames.slice(rolling);
       ridden.forEach((f) => expect(f.r.player.grounded, `R${c.i + 1} step ${frames.indexOf(f)}`).toBe(true));
       expect(ridden[0]!.r.player.y - end.r.player.y, `R${c.i + 1}`).toBe(c.rise);
-      // His feet on the band's edge from the step the camera has caught up with him, inside the band before.
-      const caught = ridden.findIndex((f) => Math.abs(feetOnScreen(f) - c.edge) < 1e-9);
+      // The look starts on the step his feet are 32 px from the height he stood at before (`ref`), the band held until then.
+      const ref = ridden[0]!.cam.ref;
+      const turned = ridden.findIndex((f) => f.cam.look !== 'band');
+      expect(Math.abs(ridden[turned]!.r.player.y - ref), `R${c.i + 1}`).toBeGreaterThanOrEqual(32);
+      expect(Math.abs(ridden[turned - 1]!.r.player.y - ref), `R${c.i + 1}`).toBeLessThan(32);
+      ridden.slice(turned).forEach((f) => expect(f.cam.look, `R${c.i + 1} step ${frames.indexOf(f)}`).toBe(c.look));
+      // His feet on the look's line from the step the camera has caught up with him, if it does before the ride ends; towards it until then.
+      const caught = ridden.findIndex((f) => Math.abs(feetOnScreen(f) - c.line) < 1e-9);
+      measured.push({ turned, caught });
       expect(caught, `R${c.i + 1}`).toBeGreaterThanOrEqual(0);
-      const outside = ridden.filter((f) => feetOnScreen(f) < CAMERA.bandTop - 1e-9 || feetOnScreen(f) > CAMERA.bandBottom + 1e-9).length;
-      catchUp.push(outside);
-      for (const f of ridden.slice(caught)) {
-        const on = feetOnScreen(f);
-        expect(on, `R${c.i + 1} step ${frames.indexOf(f)}`).toBeGreaterThanOrEqual(CAMERA.bandTop - 1e-9);
-        expect(on, `R${c.i + 1} step ${frames.indexOf(f)}`).toBeLessThanOrEqual(CAMERA.bandBottom + 1e-9);
-      }
+      if (caught >= 0) for (const f of ridden.slice(caught)) expect(feetOnScreen(f), `R${c.i + 1} step ${frames.indexOf(f)}`).toBeCloseTo(c.line, 9);
+      const sign = c.look === 'up' ? 1 : -1;
+      const on = ridden.slice(turned, caught >= 0 ? caught : undefined).map(feetOnScreen);
+      on.slice(1).forEach((v, k) => expect(sign * (v - on[k]!), `R${c.i + 1} ${k}`).toBeGreaterThanOrEqual(-1e-9));
     }
-    // Measured: no step of either ride has his feet outside the band: the pan (3 px a step) outruns both carts (1.4 and 2.1 px a step).
-    expect(catchUp).toEqual([0, 0]);
+    // Measured (steps since the cart began to roll): R1's look starts on the 17th and the camera, gaining on him at his speed plus 2 px a step
+    // (1.4 px a step: 3.4, over the pan's 3), has caught up with him on the 39th, holding him at 162 to the end of the ride. R2's starts on
+    // the 19th, at screen y 154.1, and the camera (2.1 px a step: 4.1) has caught up on the 42nd, holding him at 108 to the end.
+    expect(measured).toEqual([{ turned: 17, caught: 39 }, { turned: 19, caught: 42 }]);
   });
 
   it('GDD-UI-04 lab-3t: at the lowest ground the camera is at its bottom limit and at the highest ledge at 0', () => {
@@ -299,7 +341,7 @@ describe('GDD-UI-04 lab-3t, the tall lab', () => {
   it('GDD-UI-04 lab-3t: a respawn at each ofrenda cuts to his feet at 136 or the limit', () => {
     // He falls out of the level's bottom with the camera at its bottom limit, the ofrenda his checkpoint.
     LAB_3T_OFRENDAS.forEach((o, i) => {
-      let f: Frame = { ...at(o.x, 700, { ...startRun(level), checkpoint: { x: o.x, y: o.y }, checkpointIndex: i }), cam: { y: LIMITS.bottom, lead: false } };
+      let f: Frame = { ...at(o.x, 700, { ...startRun(level), checkpoint: { x: o.x, y: o.y }, checkpointIndex: i }), cam: { ...at(o.x, 700).cam, y: LIMITS.bottom } };
       f = { ...f, r: { ...f.r, player: { ...f.r.player, grounded: false } } };
       const ys: number[] = [];
       for (let n = 0; n < 200 && f.r.phase !== 'playing' || n === 0; n++) {
@@ -455,6 +497,7 @@ describe('GDD-UI-04 lab-3t, the camera after a landing and in a fall', () => {
     const floor = cartFloor(R2, { phase: 'waiting', m: CART.width / 2 });
     let most = 0;
     let boarded = 0;
+    let lookedUp = 0;
     for (let dx = -40; dx <= 40; dx++) {
       for (let h = 1; h <= 14; h++) {
         let f = at(floor.x + floor.w / 2 + dx, floor.y - h * TILE);
@@ -467,6 +510,7 @@ describe('GDD-UI-04 lab-3t, the camera after a landing and in a fall', () => {
           f = advance(f, { move: 0, jumpHeld: false });
           if (landed < 0 && f.r.player.grounded) [landed, before] = [i, y];
           if (landed >= 0) least = Math.min(least, f.cam.y);
+          if (landed >= 0 && f.cam.look === 'up') lookedUp++;
         }
         if (landed < 0 || f.r.carts[1]!.phase === 'waiting') continue;
         boarded++;
@@ -474,8 +518,10 @@ describe('GDD-UI-04 lab-3t, the camera after a landing and in a fall', () => {
       }
     }
     expect(boarded).toBeGreaterThan(100);
-    // Measured: 12 px at the most (from 19 px right of its middle, 7 tiles up).
-    expect(most).toBe(12);
+    // Measured: 7.76 px at the most (12 px before the look-ahead, which catches the look-down up to 108 on the way down, GDD-UI-04; a landing
+    // counts no speed of its own, so the step he lands pans 3 px at most). The cart's anchor, up to 15.5 px, never starts the look-up.
+    expect(most).toBeCloseTo(7.757, 3);
+    expect(lookedUp).toBe(0);
   }, 60_000);
 
   it('GDD-UI-04 lab-3t: a spring bounce back onto the ledge above swings the camera down 55.25 px and up 35.25 px', () => {
@@ -504,6 +550,30 @@ describe('GDD-UI-04 lab-3t, the camera after a landing and in a fall', () => {
     expect(feetOnScreen(f)).toBe(CAMERA.bandTop);
   });
 
+  it('GDD-UI-04 lab-3t: once the look-down has caught up 162 px show below his feet', () => {
+    // A walk-off from the landing ground into the chasm, his feet on the band's bottom edge, middle and top: the steps in the air until what is
+    // in view below his feet (270 less their screen y) is 162, the 40% line's 108, with the camera short of its bottom limit.
+    const lip = (LAB_3T_DROP.col1 + 1) * TILE;
+    const caught = [CAMERA.bandBottom, CAMERA.spawnFeet, CAMERA.bandTop].map((on) => {
+      let f = at(lip - 7, LANDING_Y);
+      f = { ...f, cam: { ...f.cam, y: LANDING_Y - on } };
+      let inAir = 0;
+      for (let i = 0; i < 150; i++) {
+        f = advance(f, { move: 1, jumpHeld: false });
+        if (f.r.player.grounded) {
+          if (inAir > 0) break;
+          continue;
+        }
+        inAir++;
+        if (f.cam.y >= LIMITS.bottom) break;
+        if (BASE_HEIGHT - feetOnScreen(f) >= 162 - 1e-9) return inAir;
+      }
+      return -1;
+    });
+    // Measured: 23, 32 and 34 steps (20, 28 and 30 steps to 154 px, at the band's top edge, before the look-ahead).
+    expect(caught).toEqual([23, 32, 34]);
+  });
+
   it('GDD-UI-04 lab-3t: the least view below his feet in a fall is 114.09 px, and 113.71 px with a glide started as his feet pass the band', () => {
     // A walk-off from the landing ground into the chasm with his feet at every quarter px of the band (116 to 156), and jump held from each
     // step 0 to 40 after it (a jump while he can, a glide once he falls): the least of 270 less his feet's screen y while he falls, but where
@@ -513,7 +583,8 @@ describe('GDD-UI-04 lab-3t, the camera after a landing and in a fall', () => {
     let glided = { least: Infinity, gliding: false };
     for (let on = CAMERA.bandTop; on <= CAMERA.bandBottom; on += 0.25) {
       for (let j = -1; j <= 40; j++) {
-        let f: Frame = { ...at(lip - 7, LANDING_Y), cam: { y: LANDING_Y - on, lead: false } };
+        let f: Frame = at(lip - 7, LANDING_Y);
+        f = { ...f, cam: { ...f.cam, y: LANDING_Y - on } };
         let left = false;
         for (let i = 0; i < 150; i++) {
           f = advance(f, { move: 1, jumpHeld: j >= 0 && i >= j });
