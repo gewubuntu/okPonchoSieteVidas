@@ -905,7 +905,7 @@ export class PlayScene extends Phaser.Scene {
    * before (drawn between the two like his body), the y last drawn, and the level's own limits, the backdrop's anchor (0 to 0 in a level
    * one screen tall; each step reads those of his column, `cameraLimitsAt`).
    */
-  private cameraY: CameraY = { y: 0, lead: false };
+  private cameraY: CameraY = { y: 0, lead: false, look: 'band', ref: 0, still: 0, last: null };
   private prevCameraY = 0;
   private drawnCameraY = 0;
   private readonly cameraBounds: CameraLimits;

@@ -21,10 +21,20 @@ export function followCamera(scrollX: number, targetX: number | null, levelWidth
   return Math.round(clamped * ART_SCALE) / ART_SCALE;
 }
 
-/** GDD-UI-04: the camera up and down: `y`, the level y at the screen's top edge (game px), and `lead`, whether it is looking down a fall. */
+/**
+ * GDD-UI-04: the camera up and down. `y` is the level y at the screen's top edge (game px). `lead` is whether it is looking down a fall.
+ * `look` is how it looks on the ground: the `'band'`, or the look-up or the look-down on the ground, each held by one line (`upFeet`,
+ * `downFeet`). `ref` is the level y of his feet where he last stood still, which the look keeps (the highest for the look-up, the lowest
+ * for the look-down). `still` counts the grounded steps in a row his feet have stayed at one height; `last` is their level y on the step
+ * before, if he stood on that step, and null if he was in the air (or before any step), so a landing counts no speed of its own.
+ */
 export interface CameraY {
   readonly y: number;
   readonly lead: boolean;
+  readonly look: 'band' | 'up' | 'downward';
+  readonly ref: number;
+  readonly still: number;
+  readonly last: number | null;
 }
 
 /** What the camera reads of Poncho after a step: his feet's level y, whether he stands on anything, his speed down (px/s, negative rising), whether he is hidden. */
@@ -48,10 +58,14 @@ export interface CameraLimits {
 export const cameraLimits = (levelHeightPx: number, floorY: number = levelHeightPx): CameraLimits => ({ top: 0, bottom: Math.max(0, floorY - CAMERA.bottomCutPx - BASE_HEIGHT) });
 
 /**
- * GDD-UI-04: one simulation step of the camera up and down. Hidden, it holds. On the ground it stands still while his feet are in the
- * band and otherwise pans towards its nearer edge, 3 px a step at most. In the air it goes up with him past the air's top line; in a fall
- * that takes his feet below the band (and on while it lasts) it looks down, at his fall speed plus `leadSpeed` until his feet are on the
- * band's top edge, then at his fall speed; landing or rising ends that. Never more than `maxSpeed` a step, never past the limits, but for a
+ * GDD-UI-04: one simulation step of the camera up and down. Hidden, it holds. On the ground it first updates the look from where he
+ * stands (standing `riseTrigger` or more above `ref` starts the look-up, as far below it the look-down on the ground, each keeping the
+ * highest or the lowest he has stood and turning at `riseTrigger` the other way; `settleSteps` steps at one height end it, that height
+ * the new `ref`), then pans: in the band's look to its nearer edge, 3 px a step at most; in the look-up to his feet at `upFeet` and in
+ * the look-down to `downFeet`, at his own speed (how far his feet moved since the step before, if he stood on it; 0 on a landing) plus `leadSpeed`, but 3 px a step
+ * at least. In the air it keeps the look and the reference, forgets `last`, goes up with him past the air's top line, and in a fall that takes his feet below the band
+ * (below `upFeet` in the look-up) and on while it lasts it looks down, at his fall speed plus `leadSpeed` until his feet are at
+ * `downFeet`, then at his fall speed; landing or rising ends that. Never more than `maxSpeed` a step, never past the limits, but for a
  * bottom limit that has just risen above it, which it pans up to at `panSpeed`. Not rounded: `cameraDrawY` rounds what is drawn.
  */
 export function followCameraY(state: CameraY, input: CameraYInput, limits: CameraLimits): CameraY {
@@ -60,25 +74,54 @@ export function followCameraY(state: CameraY, input: CameraYInput, limits: Camer
   const on = feetY - state.y;
   let wanted = state.y;
   let lead = false;
+  let { look, ref, still, last } = state;
   if (input.grounded) {
-    const edge = on < CAMERA.bandTop ? feetY - CAMERA.bandTop : on > CAMERA.bandBottom ? feetY - CAMERA.bandBottom : state.y;
-    const pan = CAMERA.panSpeed * STEP;
+    // Each look keeps the highest (the look-up) or the lowest (the look-down) he has stood, so only a turn of `riseTrigger` the other way
+    // can start the other look; from the band, either. Each look takes his height then as its `ref`.
+    if (look === 'up') ref = Math.min(ref, feetY);
+    else if (look === 'downward') ref = Math.max(ref, feetY);
+    if (feetY <= ref - CAMERA.riseTrigger) [look, ref] = ['up', feetY];
+    else if (feetY >= ref + CAMERA.riseTrigger) [look, ref] = ['downward', feetY];
+    const speed = last === null ? 0 : Math.abs(feetY - last);
+    still = last !== null && speed <= CAMERA.stillTolerance ? still + 1 : 0;
+    last = feetY;
+    if (still >= CAMERA.settleSteps) [look, ref] = ['band', feetY];
+    const edge =
+      look === 'up' ? feetY - CAMERA.upFeet
+      : look === 'downward' ? feetY - CAMERA.downFeet
+      : on < CAMERA.bandTop ? feetY - CAMERA.bandTop
+      : on > CAMERA.bandBottom ? feetY - CAMERA.bandBottom
+      : state.y;
+    // In a look it gains `leadSpeed` on him as in a fall (GDD-UI-04), never slower than the band's pan; `maxSpeed` caps it below.
+    const pan = Math.max(CAMERA.panSpeed * STEP, look === 'band' ? 0 : speed + CAMERA.leadSpeed * STEP);
     wanted = state.y + Math.max(-pan, Math.min(pan, edge - state.y));
-  } else if (on < CAMERA.airTop) {
-    wanted = feetY - CAMERA.airTop;
-  } else if (vy > 0 && (state.lead || on > CAMERA.bandBottom)) {
-    lead = true;
-    wanted = Math.min(state.y + (vy + CAMERA.leadSpeed) * STEP, feetY - CAMERA.bandTop);
+  } else {
+    // A landing counts no speed of its own: `last` is a grounded step's height only, so the step he lands moves at the pan.
+    still = 0;
+    last = null;
+    if (on < CAMERA.airTop) {
+      wanted = feetY - CAMERA.airTop;
+    } else if (vy > 0 && (state.lead || on > (look === 'up' ? CAMERA.upFeet : CAMERA.bandBottom))) {
+      lead = true;
+      wanted = Math.min(state.y + (vy + CAMERA.leadSpeed) * STEP, feetY - CAMERA.downFeet);
+    }
   }
   const most = CAMERA.maxSpeed * STEP;
   const moved = state.y + Math.max(-most, Math.min(most, wanted - state.y));
   // A bottom limit that has risen above the camera (he walked onto a raised bottom, GDD-WLD-03) is reached at the pan, never by a jump.
   const bottom = Math.max(limits.bottom, state.y - CAMERA.panSpeed * STEP);
-  return { y: Math.min(bottom, Math.max(limits.top, moved)), lead };
+  return { y: Math.min(bottom, Math.max(limits.top, moved)), lead, look, ref, still, last };
 }
 
-/** GDD-UI-04: the cut (a level start, a respawn, a teleport): his feet at `spawnFeet`, or as near as the limits allow. */
-export const placeCameraY = (feetY: number, limits: CameraLimits): CameraY => ({ y: Math.min(limits.bottom, Math.max(limits.top, feetY - CAMERA.spawnFeet)), lead: false });
+/** GDD-UI-04: the cut (a level start, a respawn, a teleport): his feet at `spawnFeet`, or as near as the limits allow, the band's look with `ref` and `last` at his feet. */
+export const placeCameraY = (feetY: number, limits: CameraLimits): CameraY => ({
+  y: Math.min(limits.bottom, Math.max(limits.top, feetY - CAMERA.spawnFeet)),
+  lead: false,
+  look: 'band',
+  ref: feetY,
+  still: 0,
+  last: feetY,
+});
 
 /** GDD-UI-04, GDD-WLD-03: the camera's limits over the column level x `x` is in: its bottom edge 2 px above that column's floor line. */
 export const cameraLimitsAt = (level: Level, x: number): CameraLimits => cameraLimits(level.world.height * TILE, floorYAt(level, x));

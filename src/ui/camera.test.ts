@@ -53,7 +53,13 @@ describe('GDD-UI-04 the camera', () => {
 // GDD-UI-04, up and down. Screen y is counted from the screen's top (0 to 270) and "feet" is the bottom of his body box; the band is 116
 // to 156, the air's top line 56. The expected values are the GDD's. A level 40 rows tall (640 px) lets the camera go from 0 to 368.
 const LIMITS = cameraLimits(40 * TILE);
-const still = (y: number): CameraY => ({ y, lead: false });
+// The camera at `y` in the band's look, where he last stood still at `ref` (the new look-ahead fields, GDD-UI-04); `last` null: before any
+// grounded step, so the air tests, which never read it, use it as it is.
+const still = (y: number, ref = 0): CameraY => ({ y, lead: false, look: 'band', ref, still: 0, last: null });
+/** The camera at `y` with him standing at level y `feetY`, as a cut puts it there and as a step on the ground leaves it. */
+const stood = (y: number, feetY: number): CameraY => ({ ...still(y, feetY), last: feetY });
+/** What a grounded step changes besides these is the look's bookkeeping (`ref`, `still`, `last`): the old rule's tests compare these. */
+const flat = (c: CameraY) => ({ y: c.y, lead: c.lead, look: c.look });
 const ground = (feetY: number): CameraYInput => ({ feetY, grounded: true, vy: 0, hidden: false });
 const air = (feetY: number, vy: number): CameraYInput => ({ feetY, grounded: false, vy, hidden: false });
 /** What the camera reads of Poncho after a step. */
@@ -81,7 +87,7 @@ const rowsOf = (width: number, top: (col: number) => number): string[] =>
 
 /** The camera's move on each of 20 steps from y 100 with him standing, his feet at `feetY`. */
 const pan = (feetY: number): number[] => {
-  let cam = still(100);
+  let cam = stood(100, feetY);
   const moves: number[] = [];
   for (let i = 0; i < 20; i++) {
     const next = followCameraY(cam, ground(feetY), LIMITS);
@@ -91,15 +97,27 @@ const pan = (feetY: number): number[] => {
   return moves;
 };
 
+/** From standing at level y `from` to standing at `to` (the look starts), the look and the steps until his feet are on its line, and the camera's y then. */
+const reach = (from: number, to: number) => {
+  let cam: CameraY = { ...stood(100, from), last: to };
+  const first = followCameraY(cam, ground(to), LIMITS);
+  let steps = 0;
+  for (cam = first; steps < 100; steps++) {
+    if (Math.abs(to - cam.y - (to < from ? CAMERA.upFeet : CAMERA.downFeet)) < 1e-9) break;
+    cam = followCameraY(cam, ground(to), LIMITS);
+  }
+  return { look: first.look, steps: steps + 1, y: cam.y };
+};
+
 describe('GDD-UI-04 the camera follows up and down', () => {
   it('GDD-UI-04 it stands still while his feet are in the band on the ground: at 116 and at 156', () => {
-    expect(followCameraY(still(100), ground(216), LIMITS)).toEqual(still(100));
-    expect(followCameraY(still(100), ground(256), LIMITS)).toEqual(still(100));
+    expect(flat(followCameraY(stood(100, 216), ground(216), LIMITS))).toEqual(flat(still(100)));
+    expect(flat(followCameraY(stood(100, 256), ground(256), LIMITS))).toEqual(flat(still(100)));
   });
 
   it('GDD-UI-04 it moves when they are a quarter px outside: at 115.75 and 156.25', () => {
-    expect(followCameraY(still(100), ground(215.75), LIMITS).y).toBe(99.75);
-    expect(followCameraY(still(100), ground(256.25), LIMITS).y).toBe(100.25);
+    expect(followCameraY(stood(100, 215.75), ground(215.75), LIMITS).y).toBe(99.75);
+    expect(followCameraY(stood(100, 256.25), ground(256.25), LIMITS).y).toBe(100.25);
   });
 
   it('GDD-UI-04 on the ground it pans at 180 px/s, 3 px a step, and stops with his feet on the nearer edge of the band', () => {
@@ -109,25 +127,24 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     expect(pan(176)).toEqual([...Array<number>(13).fill(-3), -1, ...Array<number>(6).fill(0)]);
   });
 
-  it('GDD-UI-04 a step of one tile does not move it, nor one of two from the band edge, but two from its middle pan it 12 px', () => {
-    // From the band's middle (136) a tile up or down stays inside it.
-    expect(followCameraY(still(100), ground(236 + TILE), LIMITS).y).toBe(100);
-    expect(followCameraY(still(100), ground(236 - TILE), LIMITS).y).toBe(100);
-    // Two tiles from one edge towards the other stay inside it: from 116 down to 148, from 156 up to 124.
-    expect(followCameraY(still(100), ground(216 + 2 * TILE), LIMITS).y).toBe(100);
-    expect(followCameraY(still(100), ground(256 - 2 * TILE), LIMITS).y).toBe(100);
-    // Measured: two tiles from the middle end 12 px outside the 40 px band (168 or 104), so the camera pans 12 px to the nearer edge; three
-    // tiles end 28 px outside it (184 or 88), and it pans 28 px.
-    const settle = (feetY: number) => {
-      let cam = still(100);
-      for (let i = 0; i < 20; i++) cam = followCameraY(cam, ground(feetY), LIMITS);
-      return cam.y - 100;
-    };
-    expect([settle(236 + 2 * TILE), settle(236 - 2 * TILE)]).toEqual([12, -12]);
-    expect([settle(236 + 3 * TILE), settle(236 - 3 * TILE)]).toEqual([28, -28]);
-    // Three tiles never fit in it: from either edge it moves.
-    expect(followCameraY(still(100), ground(216 + 3 * TILE), LIMITS).y).toBeGreaterThan(100);
-    expect(followCameraY(still(100), ground(256 - 3 * TILE), LIMITS).y).toBeLessThan(100);
+  it('GDD-UI-04 a step of one tile does not move it', () => {
+    // From the band's middle (136) a tile up or down stays inside it, and from either edge towards the other.
+    expect(followCameraY(stood(100, 236), ground(236 + TILE), LIMITS).y).toBe(100);
+    expect(followCameraY(stood(100, 236), ground(236 - TILE), LIMITS).y).toBe(100);
+    expect(followCameraY(stood(100, 216), ground(216 + TILE), LIMITS).y).toBe(100);
+    expect(followCameraY(stood(100, 256), ground(256 - TILE), LIMITS).y).toBe(100);
+  });
+
+  it('GDD-UI-04 a step of two tiles starts the look-up and pans his feet to the 60% line', () => {
+    // Two tiles are the trigger (32 px). From the band's bottom edge (screen y 156) and its middle (136) up, and from its top edge (116) and
+    // its middle down: his feet are held at 162 (up) or 108 (down), 3 px a step with him standing, and the band's 12 px and 28 px pans are
+    // gone. He stands at the new height already (`last` there), so only the pan is measured: steps until his feet are on the line.
+    // Up from 256 to 224: the camera's top from 100 to 62, 38 px: 12 steps of 3 and one of 2. From the middle, 236 to 204: 42, 58 px, 20 steps.
+    expect(reach(256, 224)).toEqual({ look: 'up', steps: 13, y: 62 });
+    expect(reach(236, 204)).toEqual({ look: 'up', steps: 20, y: 42 });
+    // Down from 216 to 248: 140, 40 px, 14 steps. From the middle, 236 to 268: 160, 60 px, 20 steps.
+    expect(reach(216, 248)).toEqual({ look: 'downward', steps: 14, y: 140 });
+    expect(reach(236, 268)).toEqual({ look: 'downward', steps: 20, y: 160 });
   });
 
   it('GDD-UI-04 a jump from the ground does not move it', () => {
@@ -136,7 +153,7 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     const limits = cameraLimits(2000);
     for (const edge of [CAMERA.bandTop, CAMERA.bandBottom]) {
       const y0 = FLOOR - edge;
-      let cam = still(y0);
+      let cam = stood(y0, FLOOR);
       let s = step(spawn(100, FLOOR), { move: 0, jumpHeld: true }, world);
       cam = followCameraY(cam, seen(s), limits);
       let highest = s.y - cam.y;
@@ -158,7 +175,7 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     const launch = (edge: number): { moved: number; feetAt: number } => {
       const y0 = 30 * TILE - edge;
       let r: RunState = { ...startRun(level), player: spawn(56, 30 * TILE) };
-      let cam = still(y0);
+      let cam = stood(y0, 30 * TILE);
       let launched = false;
       let feetAt = edge;
       for (let i = 0; i < 300; i++) {
@@ -183,7 +200,7 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     expect(bottom.feetAt).toBeCloseTo(CAMERA.bandBottom - 77.08, 2);
   });
 
-  it('GDD-UI-04 a fall looks down: below y = 156 and falling, it gains 2 px a step on him until his feet are at 116, then follows at his fall speed', () => {
+  it('GDD-UI-04 a fall looks down: below y = 156 and falling, it gains 2 px a step on him until his feet are at 108, then follows at his fall speed', () => {
     // At a speed vy (px/s) his feet move vy / 60 a step, from the band's bottom edge (screen y 156).
     // A level tall enough that no limit is reached.
     const limits = cameraLimits(2000);
@@ -203,9 +220,10 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     };
     for (const vy of [GRAVITY.terminalVelocity, GLIDE.fallSpeed]) {
       const { moves, feet } = fall(vy);
-      // 20 steps at his speed plus 120 px/s (2 px a step more than him), which bring his feet from 156 to 116; then at his speed.
-      moves.forEach((m, i) => expect(m, `${vy} px/s, step ${i}`).toBeCloseTo(((i < 20 ? vy + CAMERA.leadSpeed : vy) * STEP), 9));
-      feet.forEach((f, i) => expect(f, `${vy} px/s, step ${i}`).toBeCloseTo(i < 20 ? 154 - 2 * i : 116, 9));
+      // 24 steps at his speed plus 120 px/s (2 px a step more than him), which bring his feet from 156 to 108 (the 40% line, GDD-UI-04's
+      // look-ahead; to the band's top, 116, in 20 steps before it); then at his speed.
+      moves.forEach((m, i) => expect(m, `${vy} px/s, step ${i}`).toBeCloseTo(((i < 24 ? vy + CAMERA.leadSpeed : vy) * STEP), 9));
+      feet.forEach((f, i) => expect(f, `${vy} px/s, step ${i}`).toBeCloseTo(i < 24 ? 154 - 2 * i : 108, 9));
     }
     // A plain fall moves it at up to 480 px/s (8 px a step), a glide at 190 px/s for a third of a second and then at 70.
     expect((GRAVITY.terminalVelocity + CAMERA.leadSpeed) * STEP).toBe(8);
@@ -220,35 +238,54 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     expect(followCameraY(still(100), air(256.5, 300), LIMITS).lead).toBe(true);
   });
 
-  it('GDD-UI-04 it ends when he lands, with no swing back', () => {
-    let cam = still(100);
+  it('GDD-UI-04 a landing 2 tiles or more below starts the look-down on the ground', () => {
+    // A fall of 60 px from standing at 256, the camera at the look-down's end of it: 10 steps of 6 px.
+    let cam = stood(100, 256);
     let feetY = 256;
     for (let i = 0; i < 10; i++) {
       feetY += 6;
       cam = followCameraY(cam, air(feetY, 360), LIMITS);
     }
     expect(cam.lead).toBe(true);
+    // The landing is the next grounded step, 60 px below the reference: the look-down on the ground, the lead over. A landing counts no
+    // speed of its own (he was in the air the step before), so the camera moves at the pan, 3 px.
     const landed = followCameraY(cam, ground(feetY), LIMITS);
-    expect(landed.lead).toBe(false);
-    expect(landed.y).toBe(cam.y);
-    // His feet are inside the band: the next 30 steps on the ground do not move it.
-    let after = landed;
-    for (let i = 0; i < 30; i++) after = followCameraY(after, ground(feetY), LIMITS);
-    expect(after).toEqual(landed);
-    // And a hop down inside the band afterwards is no look-down.
-    expect(followCameraY(after, air(feetY + 4, 200), LIMITS)).toEqual(landed);
-    // Rising ends it too.
-    expect(followCameraY(cam, air(feetY - 2, -100), LIMITS).lead).toBe(false);
+    expect(landed).toMatchObject({ look: 'downward', ref: feetY, lead: false, last: feetY });
+    expect(landed.y).toBe(cam.y + 3);
+    // His feet go to the 108 line, 3 px a step: 25 px away after the landing step.
+    let on = landed;
+    let steps = 0;
+    while (feetY - on.y > CAMERA.downFeet && steps++ < 50) on = followCameraY(on, ground(feetY), LIMITS);
+    expect([steps, feetY - on.y, on.look]).toEqual([9, CAMERA.downFeet, 'downward']);
+    // 30 steps at one height end it, counted from the landing; the camera pans to the band's nearer edge, its top, 116: 8 px, 3 steps.
+    let after = on;
+    for (let i = steps + 1; i <= CAMERA.settleSteps; i++) after = followCameraY(after, ground(feetY), LIMITS);
+    expect(after.look).toBe('band');
+    for (let i = 0; i < 4; i++) after = followCameraY(after, ground(feetY), LIMITS);
+    expect([after.look, feetY - after.y]).toEqual(['band', CAMERA.bandTop]);
+    // A landing less than 32 px below has no swing back: 18 px in 3 steps, his feet inside the band when he lands.
+    let short = stood(100, 256);
+    let low = 256;
+    for (let i = 0; i < 3; i++) {
+      low += 6;
+      short = followCameraY(short, air(low, 360), LIMITS);
+    }
+    const down = followCameraY(short, ground(low), LIMITS);
+    expect(down).toMatchObject({ look: 'band', ref: 256, lead: false });
+    expect(down.y).toBe(short.y);
+    let hold = down;
+    for (let i = 0; i < 30; i++) hold = followCameraY(hold, ground(low), LIMITS);
+    expect(flat(hold)).toEqual(flat(down));
   });
 
-  it('GDD-UI-04 in any fall at least 114 px below his feet are in view, and 154 px after 20 steps', () => {
+  it('GDD-UI-04 in any fall at least 114 px below his feet are in view, and 162 px once the look-down has caught up', () => {
     // He walks off ground at row 10 (y 160) and falls 12 tiles to ground at row 22, the camera with his feet on the band's top, middle
     // and bottom. What is in view below his feet (270 less their screen y) on each step in the air, by where they started.
     const level = levelOf(rowsOf(30, (col) => (col < 10 ? 10 : 22)));
     const below = new Map<number, number[]>();
     for (const on of [CAMERA.bandTop, CAMERA.spawnFeet, CAMERA.bandBottom]) {
       let r: RunState = { ...startRun(level), player: spawn(140, 10 * TILE) };
-      let cam = still(10 * TILE - on);
+      let cam = stood(10 * TILE - on, 10 * TILE);
       const seenBelow: number[] = [];
       for (let i = 0; i < 300; i++) {
         r = stepRun(r, { move: 1, jumpHeld: false }, level);
@@ -264,22 +301,24 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     const least = Math.min(...[...below.values()].flat());
     expect(least).toBeGreaterThanOrEqual(114);
     expect(least).toBeCloseTo(115.72, 2);
-    // From the band's bottom edge the look-down starts at once: 154 px from the 19th step on, so after 20 steps (0.33 s) as the GDD says.
-    expect(below.get(CAMERA.bandBottom)![19]).toBeCloseTo(154, 6);
+    // From the band's bottom edge the look-down starts at once and catches up with his feet at the 40% line (108, GDD-UI-04's look-ahead): 162
+    // px below them from the 23rd step on (154 px, from the 20th, when it caught up to the band's top at 116).
+    expect(below.get(CAMERA.bandBottom)![19]).toBeCloseTo(157, 6);
+    expect(below.get(CAMERA.bandBottom)!.findIndex((b) => b > 161.99) + 1).toBe(23);
     // Measured: from higher in the band it starts only once his feet pass 156, so 20 steps in he sees 135.1 px (from the top edge) and
-    // 138.4 (from the middle), and 154 from the 30th and the 28th step on.
+    // 138.4 (from the middle), and 162 from the 34th and the 32nd step on (the 30th and the 28th to 154).
     expect(below.get(CAMERA.bandTop)![19]).toBeCloseTo(135.13, 2);
     expect(below.get(CAMERA.spawnFeet)![19]).toBeCloseTo(138.38, 2);
-    expect(below.get(CAMERA.bandTop)!.findIndex((b) => b > 153.99) + 1).toBe(30);
-    expect(below.get(CAMERA.spawnFeet)!.findIndex((b) => b > 153.99) + 1).toBe(28);
+    expect(below.get(CAMERA.bandTop)!.findIndex((b) => b > 161.99) + 1).toBe(34);
+    expect(below.get(CAMERA.spawnFeet)!.findIndex((b) => b > 161.99) + 1).toBe(32);
   });
 
   it('GDD-UI-04 it never moves more than 8 px in a step', () => {
     // A teleport-sized change: on the ground the 3 px pan, in the air at most 8 px, up or down.
-    expect(followCameraY(still(200), ground(5000), LIMITS).y).toBe(203);
+    expect(followCameraY(stood(200, 5000), ground(5000), LIMITS).y).toBe(203);
     expect(followCameraY(still(200), air(5000, 3000), LIMITS).y).toBe(208);
     expect(followCameraY(still(200), air(-5000, -3000), LIMITS).y).toBe(192);
-    expect(followCameraY({ y: 200, lead: true }, air(5000, 3000), LIMITS).y).toBe(208);
+    expect(followCameraY({ ...still(200), lead: true }, air(5000, 3000), LIMITS).y).toBe(208);
   });
 
   it('GDD-UI-04 it stops at the level top and at 2 px above its floor line', () => {
@@ -287,10 +326,10 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     expect(cameraLimits(640)).toEqual({ top: 0, bottom: 368 });
     // A floor line above the level's bottom (a raised bottom, GDD-WLD-03) stops it 2 px above that line.
     expect(cameraLimits(640, 400)).toEqual({ top: 0, bottom: 128 });
-    expect(followCameraY(still(1), ground(50), LIMITS).y).toBe(0);
+    expect(followCameraY(stood(1, 50), ground(50), LIMITS).y).toBe(0);
     expect(followCameraY(still(1), air(-500, -400), LIMITS).y).toBe(0);
-    expect(followCameraY(still(367), ground(700), LIMITS).y).toBe(368);
-    expect(followCameraY({ y: 366, lead: true }, air(900, 360), LIMITS).y).toBe(368);
+    expect(followCameraY(stood(367, 700), ground(700), LIMITS).y).toBe(368);
+    expect(followCameraY({ ...still(366), lead: true }, air(900, 360), LIMITS).y).toBe(368);
   });
 
   it('GDD-UI-04 a level 17 rows tall never moves it: every level in the game today', () => {
@@ -311,15 +350,16 @@ describe('GDD-UI-04 the camera follows up and down', () => {
 
   it('GDD-UI-04 hidden, it holds', () => {
     for (const lead of [false, true]) {
-      expect(followCameraY({ y: 100, lead }, { feetY: 600, grounded: false, vy: 360, hidden: true }, LIMITS)).toEqual({ y: 100, lead });
-      expect(followCameraY({ y: 100, lead }, { feetY: 20, grounded: true, vy: 0, hidden: true }, LIMITS)).toEqual({ y: 100, lead });
+      const held = { ...stood(100, 300), lead };
+      expect(followCameraY(held, { feetY: 600, grounded: false, vy: 360, hidden: true }, LIMITS)).toEqual(held);
+      expect(followCameraY(held, { feetY: 20, grounded: true, vy: 0, hidden: true }, LIMITS)).toEqual(held);
     }
   });
 
   it('GDD-UI-04 the cut puts his feet at 136, or as near as the limits allow', () => {
-    expect(placeCameraY(300, LIMITS)).toEqual(still(164));
-    expect(placeCameraY(100, LIMITS)).toEqual(still(0));
-    expect(placeCameraY(600, LIMITS)).toEqual(still(368));
+    expect(placeCameraY(300, LIMITS)).toEqual(stood(164, 300));
+    expect(placeCameraY(100, LIMITS)).toEqual(stood(0, 100));
+    expect(placeCameraY(600, LIMITS)).toEqual(stood(368, 600));
   });
 
   it('GDD-UI-04 it is drawn at whole art pixels between steps', () => {
@@ -334,17 +374,17 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     const raised = cameraLimits(640, 432);
     expect(raised).toEqual({ top: 0, bottom: 160 });
     expect(raised.bottom + BASE_HEIGHT).toBe(432 - CAMERA.bottomCutPx);
-    let cam: CameraY = { y: 150, lead: true };
+    let cam: CameraY = { ...still(150), lead: true };
     for (let i = 0; i < 20; i++) cam = followCameraY(cam, air(400 + 6 * i, 360), raised);
     expect(cam.y).toBe(160);
-    expect(followCameraY(still(159), ground(600), raised).y).toBe(160);
+    expect(followCameraY(stood(159, 600), ground(600), raised).y).toBe(160);
   });
 
   it('GDD-UI-04 a bottom limit that rises as he walks is reached at the pan 3 px a step, never by a jump', () => {
     // The camera at the level's own bottom limit (368); he walks onto a raised bottom that puts it 100 px higher (268) and stands there, his
     // feet below the band: it pans up 3 px a step, 33 steps and one of 1 px, then stands at the new limit.
     const risen = { top: 0, bottom: 268 };
-    let cam = still(368);
+    let cam = stood(368, 600);
     const moves: number[] = [];
     for (let i = 0; i < 40; i++) {
       const next = followCameraY(cam, ground(600), risen);
@@ -354,16 +394,16 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     expect(moves).toEqual([...Array<number>(33).fill(-3), -1, ...Array<number>(6).fill(0)]);
     expect(cam.y).toBe(268);
     // Falling, with the look-down wanting it lower, it still pans up 3 px a step; rising past the air's top line it may go up faster, 8 px at most.
-    expect(followCameraY({ y: 368, lead: true }, air(700, 360), risen)).toEqual({ y: 365, lead: true });
+    expect(followCameraY({ ...still(368), lead: true }, air(700, 360), risen)).toEqual({ ...still(365), lead: true });
     expect(followCameraY(still(368), air(368 + 20, -400), risen).y).toBe(360);
   });
 
   it('GDD-UI-04 a bottom limit that drops lets the camera follow by the ordinary rule', () => {
     // At a raised bottom's limit (160) he walks off it onto ground where the limit is the level's (368): the camera does not move by itself.
     const dropped = cameraLimits(640);
-    expect(followCameraY(still(160), ground(160 + 140), dropped)).toEqual(still(160));
+    expect(flat(followCameraY(stood(160, 160 + 140), ground(160 + 140), dropped))).toEqual(flat(still(160)));
     // With his feet below the band it pans down 3 px a step as anywhere.
-    expect(followCameraY(still(160), ground(160 + 192), dropped)).toEqual(still(163));
+    expect(flat(followCameraY(stood(160, 160 + 192), ground(160 + 192), dropped))).toEqual(flat(still(163)));
   });
 
   it('GDD-UI-04 the step he appears at a respawn is a cut to the respawn point, drawn from there', () => {
@@ -386,8 +426,8 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     }
     expect(r.phase).toBe('respawning');
     // The cut, to where he appears, not where he fell; drawn from the new y, so nothing between the two is drawn.
-    expect(appeared).toEqual({ camera: still(344), from: 344 });
-    expect(cutCameraY(r, level)).toEqual(still(344));
+    expect(appeared).toEqual({ camera: stood(344, 480), from: 344 });
+    expect(cutCameraY(r, level)).toEqual(stood(344, 480));
   });
 
   it('GDD-UI-04 stepping the camera reads whether he stands and draws from its last y', () => {
@@ -396,15 +436,16 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     const r: RunState = { ...startRun(level), player: spawn(200, 480) };
     const next = stepRun(r, { move: 0, jumpHeld: false }, level);
     expect(next.player.grounded).toBe(true);
-    expect(stepCameraY(still(100), r, next, level)).toEqual({ camera: still(103), from: 100 });
+    const panned = stepCameraY(stood(100, 480), r, next, level);
+    expect({ camera: flat(panned.camera), from: panned.from }).toEqual({ camera: flat(still(103)), from: 100 });
     // In play it reads the limits of his column: a raised bottom over it at row 29 (GDD-WLD-03, its floor line y 480 under his feet) puts its
     // limit at 208; from 210, his feet below the band, it pans up 2 px to that limit instead of down 3.
     const raised: Level = { ...level, bottoms: [{ fromCol: 10, toCol: 15, row: 29 }] };
     expect(cameraLimitsAt(raised, 200)).toEqual({ top: 0, bottom: 208 });
     const onRaised = stepRun(r, { move: 0, jumpHeld: false }, raised);
     expect(onRaised.phase).toBe('playing');
-    expect(stepCameraY(still(210), r, onRaised, raised)).toEqual({ camera: still(208), from: 210 });
-    expect(stepCameraY(still(210), r, onRaised, level)).toEqual({ camera: still(213), from: 210 });
+    const [up, down] = [stepCameraY(stood(210, 480), r, onRaised, raised), stepCameraY(stood(210, 480), r, onRaised, level)];
+    expect([up.camera.y, up.from, down.camera.y, down.from]).toEqual([208, 210, 213, 210]);
   });
 
   it("GDD-UI-04 a cut over a raised bottom stops at the span's limit", () => {
@@ -413,24 +454,27 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     const level: Level = { ...levelOf(rowsOf(30, () => 30)), bottoms: [{ fromCol: 10, toCol: 15, row: 30 }] };
     expect(cameraLimitsAt(level, 12 * TILE)).toEqual({ top: 0, bottom: 224 });
     const run = startRun(level);
-    expect(cutCameraY({ ...run, player: spawn(12 * TILE, 480) }, level)).toEqual(still(224));
-    expect(cutCameraY({ ...run, player: spawn(20 * TILE, 480) }, level)).toEqual(still(344));
+    expect(cutCameraY({ ...run, player: spawn(12 * TILE, 480) }, level)).toEqual(stood(224, 480));
+    expect(cutCameraY({ ...run, player: spawn(20 * TILE, 480) }, level)).toEqual(stood(344, 480));
     // At a respawn the respawn point's column counts, not where he fell.
     const waiting: RunState = { ...run, phase: 'respawning', wait: 10, checkpoint: { x: 12 * TILE, y: 480 }, player: spawn(20 * TILE, 900) };
-    expect(cutCameraY(waiting, level)).toEqual(still(224));
-    expect(cutCameraY({ ...waiting, checkpoint: { x: 20 * TILE, y: 480 }, player: spawn(12 * TILE, 900) }, level)).toEqual(still(344));
+    expect(cutCameraY(waiting, level)).toEqual(stood(224, 480));
+    expect(cutCameraY({ ...waiting, checkpoint: { x: 20 * TILE, y: 480 }, player: spawn(12 * TILE, 900) }, level)).toEqual(stood(344, 480));
   });
 
   it('GDD-UI-04 the level start is a cut to his feet at 136, which in every level built but 3-1 is the camera at 0', () => {
     // A start low in a tall level: the cut puts his feet at 136.
     const level = { ...levelOf(rowsOf(30, () => 30)), spawn: { x: 200, y: 480 } };
-    expect(cutCameraY(startRun(level), level)).toEqual(still(344));
+    expect(cutCameraY(startRun(level), level)).toEqual(stood(344, 480));
     // Every level built but 3-1 starts where the cut puts the camera at 0, where it is before the first cut: the scene's start cut changes
     // nothing there (lab-3t's start is on its plateau at row 8, his feet at y 128). 3-1 starts on its rim at row 9 (GDD-WLD-16), his feet at
     // y 144: the cut puts them at 136, the camera at 8.
-    for (const e of LEVELS.filter((l) => l.id !== '3-1')) expect(cutCameraY(startRun(e.level), e.level), e.id).toEqual(still(0));
+    for (const e of LEVELS.filter((l) => l.id !== '3-1')) {
+      const run = startRun(e.level);
+      expect(cutCameraY(run, e.level), e.id).toEqual(stood(0, run.player.y));
+    }
     const rim = levelById('3-1')!.level;
-    expect(cutCameraY(startRun(rim), rim)).toEqual(still(8));
+    expect(cutCameraY(startRun(rim), rim)).toEqual(stood(8, 144));
   });
 
   it('GDD-BOS-01 a screen shake is drawn on top of the camera y', () => {
@@ -438,5 +482,208 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     expect(cameraScroll(100, 2)).toBe(98);
     expect(cameraScroll(100, -4)).toBe(104);
     expect(cameraScroll(0, 2)).toBe(-2);
+  });
+});
+
+/** The camera at `y` in the look `look`, his feet last grounded at `last` (default `ref`), none of the 30 steps counted yet. */
+const looking = (look: 'up' | 'downward', y: number, ref: number, last = ref): CameraY => ({ ...stood(y, last), look, ref });
+
+// GDD-UI-04, the look-ahead up and down (Proposed): the expected values are the GDD's. Limits wide enough that nothing clamps unless a test
+// says so: a level 100 rows tall.
+describe('GDD-UI-04 the look-ahead, up and down', () => {
+  const WIDE = cameraLimits(100 * TILE);
+  /** `n` grounded steps with his feet at level y `feetY`. */
+  const stand = (cam: CameraY, feetY: number, n: number): CameraY => {
+    for (let i = 0; i < n; i++) cam = followCameraY(cam, ground(feetY), WIDE);
+    return cam;
+  };
+
+  it('GDD-UI-04 standing 32 px above the reference starts the look-up and pans to the 60% line', () => {
+    // Standing at 500; the camera's top at 250, so his feet are at screen y 250 (88 px under the 60% line, 162).
+    const start = { ...stood(250, 500), last: 468 }; // standing at 468 already: only the pan is measured
+    let cam = followCameraY(start, ground(468), WIDE);
+    expect(cam).toMatchObject({ look: 'up', ref: 468 });
+    // 3 px a step (180 px/s) until his feet are at 162: 468 - 162 = 306, 56 px from 250: 18 steps of 3 and one of 2.
+    const moves = [cam.y - 250];
+    for (let i = 0; i < 25; i++) {
+      const next = followCameraY(cam, ground(468), WIDE);
+      moves.push(next.y - cam.y);
+      cam = next;
+      expect(cam.look, `step ${i}`).toBe('up');
+      if (468 - cam.y === 162) break;
+    }
+    expect(moves).toEqual([...Array<number>(18).fill(3), 2]);
+    expect(468 - cam.y).toBe(162);
+    // 31 px above is not enough: the band stays, the reference where it was.
+    expect(followCameraY(start, ground(469), WIDE)).toMatchObject({ look: 'band', ref: 500 });
+  });
+
+  it('GDD-UI-04 standing 32 px below the reference starts the look-down on the ground at the 40% line', () => {
+    // Standing at 500; the camera's top at 380.
+    const start = { ...stood(380, 500), last: 532 };
+    let cam = followCameraY(start, ground(532), WIDE);
+    expect(cam).toMatchObject({ look: 'downward', ref: 532 });
+    // His feet at 532 - 380 = 152 on screen: 44 px to go to 108, so 14 steps of 3 and one of 2.
+    const moves = [cam.y - 380];
+    for (let i = 0; i < 25; i++) {
+      const next = followCameraY(cam, ground(532), WIDE);
+      moves.push(next.y - cam.y);
+      cam = next;
+      expect(cam.look, `step ${i}`).toBe('downward');
+      if (532 - cam.y === 108) break;
+    }
+    expect(moves).toEqual([...Array<number>(14).fill(3), 2]);
+    expect(532 - cam.y).toBe(108);
+    expect(followCameraY(start, ground(531), WIDE)).toMatchObject({ look: 'band', ref: 500 });
+  });
+
+  it('GDD-UI-04 the look-up keeps the highest he has stood and turns at 32 px back', () => {
+    const up = looking('up', 300, 400);
+    // Higher: the reference follows him.
+    const higher = followCameraY(up, ground(380), WIDE);
+    expect(higher).toMatchObject({ look: 'up', ref: 380 });
+    // Back down 31 px from the highest: still the look-up; 32 px: the look-down, with his feet there as its reference.
+    expect(followCameraY(higher, ground(411), WIDE)).toMatchObject({ look: 'up', ref: 380 });
+    expect(followCameraY(higher, ground(412), WIDE)).toMatchObject({ look: 'downward', ref: 412 });
+    // The mirror: the look-down keeps the lowest and turns at 32 px up.
+    const down = looking('downward', 300, 400);
+    const lower = followCameraY(down, ground(420), WIDE);
+    expect(lower).toMatchObject({ look: 'downward', ref: 420 });
+    expect(followCameraY(lower, ground(389), WIDE)).toMatchObject({ look: 'downward', ref: 420 });
+    expect(followCameraY(lower, ground(388), WIDE)).toMatchObject({ look: 'up', ref: 388 });
+  });
+
+  it('GDD-UI-04 30 steps at one height end the look and the band holds again', () => {
+    // In the look-up with his feet at screen y 162 (camera 306 for feet 468): 29 steps at one height keep it, the 30th ends it.
+    const up = looking('up', 306, 468);
+    const after29 = stand(up, 468, 29);
+    expect(after29).toMatchObject({ look: 'up', ref: 468, still: 29, y: 306 });
+    const settled = followCameraY(after29, ground(468), WIDE);
+    expect(settled).toMatchObject({ look: 'band', ref: 468, y: 309 });
+    // The band pans him from 162 to its bottom edge, 156: 6 px, 3 px a step.
+    expect(stand(settled, 468, 2).y).toBe(312);
+    expect(468 - stand(settled, 468, 5).y).toBe(CAMERA.bandBottom);
+    // The same in the look-down: 108 to the band's top, 116.
+    const settledDown = stand(looking('downward', 360, 468), 468, 30);
+    expect(settledDown).toMatchObject({ look: 'band', ref: 468 });
+    expect(468 - stand(settledDown, 468, 5).y).toBe(CAMERA.bandTop);
+    // A step that moves his feet by 0.02 px resets the count; one that moves them by 0.005 does not. From 28 counted steps:
+    const nearly = { ...up, still: 28 };
+    expect(stand(nearly, 468.005, 2)).toMatchObject({ look: 'band', ref: 468.005 });
+    expect(stand(nearly, 468.02, 2)).toMatchObject({ look: 'up', still: 1 });
+    // The step he arrives at a new height counts 0: 29 more there keep the look-up, the 30th ends it.
+    const arrived = followCameraY(up, ground(470), WIDE);
+    expect(arrived.still).toBe(0);
+    expect(stand(arrived, 470, 29).look).toBe('up');
+    expect(stand(arrived, 470, 30)).toMatchObject({ look: 'band', ref: 470 });
+  });
+
+  it('GDD-UI-04 standing still in the band makes where he stands the reference', () => {
+    // The band's look, the reference at 500: 30 steps at 484, and 468 is then 16 px above the reference, not 32.
+    const band = { ...stood(300, 500), last: 484 };
+    expect(followCameraY(stand(band, 484, 30), ground(468), WIDE)).toMatchObject({ look: 'band', ref: 484 });
+    // 29 steps are not enough: the reference stays 500 and 468 starts the look-up.
+    expect(followCameraY(stand(band, 484, 29), ground(468), WIDE)).toMatchObject({ look: 'up', ref: 468 });
+  });
+
+  it("GDD-UI-04 a fall's look-down catches up at the 40% line", () => {
+    // In the air falling at 300 px/s with the look-down on, the camera's top at 100: it gains 7 px a step (the fall's 5 and 2) while his feet
+    // are lower than screen y 108 and 2 px more than they gain on it at the end, and stops when they are at 108.
+    const falling = { ...still(100), lead: true };
+    expect(followCameraY(falling, air(100 + 108, 300), WIDE).y).toBe(100);
+    expect(followCameraY(falling, air(100 + 110, 300), WIDE).y).toBe(102);
+    expect(followCameraY(falling, air(100 + 116, 300), WIDE).y).toBe(107);
+    expect(followCameraY(falling, air(100 + 130, 300), WIDE).y).toBe(107);
+  });
+
+  it('GDD-UI-04 in the look-up a fall starts the look-down below 162, not 156', () => {
+    const falling = (look: 'up' | 'downward', onScreen: number) => followCameraY({ ...looking(look, 100, 300), last: 300 }, air(100 + onScreen, 300), WIDE);
+    expect(falling('up', 160).lead).toBe(false);
+    expect(falling('up', 162).lead).toBe(false);
+    expect(falling('up', 162.5).lead).toBe(true);
+    // In the band, and in the look-down on the ground, the line is 156 as before.
+    expect(followCameraY(still(100), air(100 + 157, 300), WIDE).lead).toBe(true);
+    expect(followCameraY(still(100), air(100 + 156, 300), WIDE).lead).toBe(false);
+    expect(falling('downward', 157).lead).toBe(true);
+    expect(falling('downward', 156).lead).toBe(false);
+  });
+
+  it('GDD-UI-04 the air keeps the look and the reference and forgets the last grounded y', () => {
+    const mid: CameraY = { ...looking('up', 100, 300, 310), still: 12 };
+    for (const [name, input] of [['rising', air(300, -200)], ['falling', air(280, 200)]] as const) {
+      const next = followCameraY(mid, input, WIDE);
+      expect(next, name).toMatchObject({ look: 'up', ref: 300, last: null, still: 0 });
+    }
+    // And the landing is the next grounded step, compared with the reference: 32 px under it starts the look-down.
+    const landed = followCameraY(followCameraY(mid, air(300, 200), WIDE), ground(332), WIDE);
+    expect(landed).toMatchObject({ look: 'downward', ref: 332, still: 0, last: 332 });
+  });
+
+  it('GDD-UI-04 the cut places the band mode at his feet', () => {
+    expect(placeCameraY(300, LIMITS)).toEqual({ y: 164, lead: false, look: 'band', ref: 300, still: 0, last: 300 });
+  });
+
+  it('GDD-UI-04 a jump onto a ledge one tile up and a cart anchor of 15.5 px do not start the look-up', () => {
+    const band = stood(300, 500);
+    for (const rise of [TILE, 15.5, 31.75]) expect(followCameraY(band, ground(500 - rise), WIDE), `${rise}`).toMatchObject({ look: 'band', ref: 500 });
+    for (const drop of [TILE, 15.5, 31.75]) expect(followCameraY(band, ground(500 + drop), WIDE), `${drop}`).toMatchObject({ look: 'band', ref: 500 });
+  });
+
+  it('GDD-UI-04 in a look on the ground the camera gains 2 px a step on him', () => {
+    // His feet move `speed` px a step (down or up) with the look on; the camera, far from its line, moves at his speed plus 2 px (120 px/s),
+    // 3 px a step at least, 8 at most, and stops with his feet on the line.
+    const chase = (look: 'up' | 'downward', speed: number, start: number) => {
+      const sign = look === 'up' ? -1 : 1;
+      let feetY = 1000;
+      let cam = looking(look, start, feetY);
+      const moves: number[] = [];
+      for (let i = 0; i < 80; i++) {
+        feetY += sign * speed;
+        const next = followCameraY(cam, ground(feetY), WIDE);
+        moves.push(next.y - cam.y);
+        cam = next;
+        if (Math.abs(feetY - cam.y - (look === 'up' ? CAMERA.upFeet : CAMERA.downFeet)) < 1e-9) break;
+      }
+      return { moves: moves.map((m) => sign * m), on: feetY - cam.y };
+    };
+    // 2.12 px a step (the descending cart): 4.12 a step, on his feet's line at the end, never past it.
+    for (const [look, start] of [['downward', 800], ['up', 900]] as const) {
+      const { moves, on } = chase(look, 2.12, start);
+      moves.slice(0, -1).forEach((m, i) => expect(m, `${look} step ${i}`).toBeCloseTo(4.12, 9));
+      expect(moves.at(-1)!, look).toBeLessThanOrEqual(4.12 + 1e-9);
+      expect(on, look).toBeCloseTo(look === 'up' ? CAMERA.upFeet : CAMERA.downFeet, 9);
+    }
+    // 0.5 px a step: 2.5 is under the pan, so 3. 10 px a step: 12 is over the fastest move, so 8.
+    expect(chase('downward', 0.5, 800).moves.slice(0, -1).every((m) => Math.abs(m - 3) < 1e-9)).toBe(true);
+    expect(chase('downward', 10, 400).moves.slice(0, 5)).toEqual([8, 8, 8, 8, 8]);
+    // The band's pan is not gained on: his feet at 6 px a step, 40 px below it, still 3 px a step.
+    expect(followCameraY({ ...stood(100, 296), last: 290 }, ground(296), LIMITS).y).toBe(103);
+  });
+
+  it('GDD-UI-04 the look-up still pans at most 3 px a step and respects the limits', () => {
+    // His feet at 312, the camera at 100: the 60% line puts it at 150, 50 px away: 16 steps of 3 and one of 2.
+    let cam = looking('up', 100, 312);
+    const moves: number[] = [];
+    for (let i = 0; i < 17; i++) {
+      const next = followCameraY(cam, ground(312), WIDE);
+      moves.push(next.y - cam.y);
+      cam = next;
+    }
+    expect(moves).toEqual([...Array<number>(16).fill(3), 2]);
+    // The target (-2) is over the top limit (90): it stops there. And a target under the bottom limit (120) stops there.
+    const top = { top: 90, bottom: 1000 };
+    let high = looking('up', 100, 160);
+    for (let i = 0; i < 10; i++) high = followCameraY(high, ground(160), top);
+    expect(high.y).toBe(90);
+    let low = looking('up', 100, 312);
+    for (let i = 0; i < 10; i++) low = followCameraY(low, ground(312), { top: 0, bottom: 120 });
+    expect(low.y).toBe(120);
+    // The look-down's line (108) is held by the same limits: feet at 312 want 204, over the bottom limit 120; at 160 they want 52, over the top 90.
+    let deep = looking('downward', 100, 312);
+    for (let i = 0; i < 10; i++) deep = followCameraY(deep, ground(312), { top: 0, bottom: 120 });
+    expect(deep.y).toBe(120);
+    let shallow = looking('downward', 100, 160);
+    for (let i = 0; i < 10; i++) shallow = followCameraY(shallow, ground(160), top);
+    expect(shallow.y).toBe(90);
   });
 });
