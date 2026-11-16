@@ -801,6 +801,37 @@ describe('GDD-UI-04 a short drop in the look-up', () => {
     return { run, cam: { ...stood(480 - CAMERA.upFeet, 480), look: 'up', ref: 480 } };
   };
 
+  it('GDD-UI-04 in the look-up his feet never stand lower than one step of fall past y = 194, so y = 200 at the most', () => {
+    // A fall in the look-up starts the look-down only past y = 194, and then gains on him. So his feet can pass 194 by one step of fall at
+    // most: terminal velocity, 6 px a step, gives y = 200, 8 px over the Jump button's top (208). Swept: every start height in the look-up
+    // line's reach, every fall speed up to terminal velocity, with a landing (or a step on, in the air) on every step of the fall.
+    const WIDE = cameraLimits(100 * TILE);
+    const bound = CAMERA.upFeet + CAMERA.riseTrigger + GRAVITY.terminalVelocity * STEP;
+    expect(bound).toBe(200);
+    // `most` over every start, the rest line's and the heights a pan passes through after a short landing; `fromRest` over starts at the 60%
+    // line or above, where he stands at rest, which must reach past 194 (else the look-down would start sooner than the rule says).
+    let most = 0;
+    let fromRest = 0;
+    for (let startOn = 150; startOn <= 194; startOn += 0.35) {
+      for (let vy = 30; vy <= GRAVITY.terminalVelocity; vy += 30) {
+        let cam: CameraY = looking('up', 100, 100 + startOn - 16, 100 + startOn);
+        let feetY = 100 + startOn;
+        for (let i = 0; i < 40; i++) {
+          feetY += vy * STEP;
+          // The landing on this step, compared with going on in the air.
+          const landed = followCameraY(cam, ground(feetY), WIDE);
+          const low = Math.max(feetY - cam.y, feetY - landed.y);
+          cam = followCameraY(cam, air(feetY, vy), WIDE);
+          const lowest = Math.max(low, feetY - cam.y);
+          most = Math.max(most, lowest);
+          if (startOn <= CAMERA.upFeet) fromRest = Math.max(fromRest, lowest);
+        }
+      }
+    }
+    expect(most).toBeLessThanOrEqual(bound + 1e-9);
+    expect(fromRest).toBeGreaterThan(CAMERA.upFeet + CAMERA.riseTrigger);
+  });
+
   it('GDD-UI-04 a short drop in the look-up does not swing the camera back', () => {
     let { run, cam } = edge();
     const ys: number[] = [cam.y];
