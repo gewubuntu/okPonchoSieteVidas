@@ -3,6 +3,7 @@
 // stepped along each flight as the scene steps it.
 import { ARMADILLO, BASE_HEIGHT, BASE_WIDTH, CACOMIXTLE, CAMERA, CART, HITBOX, HURTBOX, PALOMA, RUN, TILE, TLACUACHE, ZOPILOTE } from '../config/tuning';
 import { bottomRowAt } from '../sim/bottoms';
+import { riderRails } from '../sim/cacomixtle';
 import { cartFloor, floorUnder, ridingCart, rollCarts, type CartState } from '../sim/cart';
 import { standsOnPlatform } from '../sim/platform';
 import { enemyBox, enemyPhase, harmlessFromBelow, kindOf, touchesEnemy, type Box, type EnemyKind, type EnemyState } from '../sim/enemy';
@@ -275,12 +276,18 @@ export function rideRun(level: Level, rail: number, start: number): RunState {
   return { ...warm, player, carts, clock: 0 };
 }
 
-/** GDD-WLD-15: the cart he stands in on its floor under his feet, of those that are on their rail (`rolling` only: of those that roll), or -1. */
+/**
+ * GDD-WLD-15, GDD-ENM-04: the cart he stands in on its floor under his feet, of those that are on their rail (`rolling` only: of those that
+ * roll), or -1. A cart with a live ringtail in it is not his to board (`riderRails`, as `boardCarts` and `anchorInCarts` read it): standing
+ * on its floor is no boarding and no ride, and the cart emptied by the ringtail's defeat is his again. `r` is a state of `level` (its
+ * `enemies` are the level's, one each).
+ */
 function cartUnder(level: Level, r: RunState, rolling: boolean): number {
+  const riders = riderRails(level.enemies, r.enemies);
   return (level.rails ?? []).findIndex((rail, i) => {
     const c = r.carts[i]!;
     const on = rolling ? c.phase === 'rolling' : c.phase !== 'falling' && c.phase !== 'gone';
-    return on && standsOnPlatform(r.player, floorUnder(rail, c, r.player.x));
+    return !riders.has(i) && on && standsOnPlatform(r.player, floorUnder(rail, c, r.player.x));
   });
 }
 
@@ -789,7 +796,7 @@ export function sightSweep(level: Level, starts: readonly number[] = sightStarts
           // Back in its cart: staying in covers the ride from there if it is still in it on that step; if not, the ride goes on from it.
           const landed = plain.states.length - 1;
           const stayed = calmStay.states[landed];
-          const covered = stayed !== undefined && stayed.phase === 'playing' && cartUnder(level, stayed, true) === ride.rail;
+          const covered = stayed !== undefined && stayed.phase === 'playing' && cartUnder(calm, stayed, true) === ride.rail;
           if (plain.boarded === ride.rail && !covered && !continued.has(`${ride.rail}|${landed}`)) {
             continued.add(`${ride.rail}|${landed}`);
             rideQueue.push({ ...ride, via: [...via, { step: k, input, move, landed }] });

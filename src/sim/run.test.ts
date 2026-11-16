@@ -166,14 +166,37 @@ describe('GDD-LIFE-03 ofrenda checkpoints', () => {
     return r;
   };
 
-  it('touches an ofrenda only when the body box overlaps its box', () => {
-    const reach = (HITBOX.width + OFRENDA.width) / 2;
-    expect(touchesOfrenda(spawn(56 + reach - 0.01, 64), near)).toBe(true);
-    expect(touchesOfrenda(spawn(56 + reach, 64), near)).toBe(false); // edges only
-    expect(touchesOfrenda(spawn(56, 64 - OFRENDA.height + 0.01), near)).toBe(true); // feet just below its top
-    expect(touchesOfrenda(spawn(56, 64 - OFRENDA.height), near)).toBe(false); // feet exactly at its top
-    expect(touchesOfrenda(spawn(56, 64 - OFRENDA.height - HITBOX.height), near)).toBe(false); // a jump over the top
-    expect(touchesOfrenda(spawn(56, 64 + HITBOX.height), near)).toBe(false); // below its feet
+  // GDD-WLD-05 (user, 2026-11-16: "Fly-over counts"): his body box in the ofrenda's column, anywhere above its base, activates it. The
+  // body box is HITBOX.height (32) tall, so the base y = 448 is reached by feet at 479 or higher and not by feet at 480 or lower.
+  const base: Ofrenda = { id: 'base', x: 56, y: 448 };
+  const reach = (HITBOX.width + OFRENDA.width) / 2;
+
+  it('GDD-WLD-05 a glide 150 px over an ofrenda reaches it', () => {
+    expect(touchesOfrenda(spawn(56, 448 - 150), base)).toBe(true);
+    // Far over it, past its own 32 px top and past his own height: still in its column.
+    expect(touchesOfrenda(spawn(56, 448 - 150 - OFRENDA.height - HITBOX.height), base)).toBe(true);
+  });
+
+  it('GDD-WLD-05 an ofrenda is reached with his feet at its base and in its body, as before', () => {
+    expect(touchesOfrenda(spawn(56 + reach - 0.01, 448), base)).toBe(true);
+    expect(touchesOfrenda(spawn(56, 448), base)).toBe(true); // feet at its base: his box is over it
+    expect(touchesOfrenda(spawn(56, 448 - OFRENDA.height + 0.01), base)).toBe(true); // feet just under its top
+    expect(touchesOfrenda(spawn(56, 448 - OFRENDA.height), base)).toBe(true); // feet exactly at its top: now above its base too
+  });
+
+  it('GDD-WLD-05 passing under an ofrenda on a ledge does not reach it', () => {
+    // The top of his box exactly at its base shares an edge only; 1 px lower he is clear below it; 1 px higher he overlaps it.
+    expect(touchesOfrenda(spawn(56, 448 + HITBOX.height), base)).toBe(false);
+    expect(touchesOfrenda(spawn(56, 448 + HITBOX.height + 1), base)).toBe(false);
+    expect(touchesOfrenda(spawn(56, 448 + HITBOX.height - 1), base)).toBe(true);
+  });
+
+  it('GDD-WLD-05 a box beside the column, sharing an edge, does not reach it', () => {
+    for (const y of [448, 448 - 150]) {
+      expect(touchesOfrenda(spawn(56 + reach, y), base)).toBe(false);
+      expect(touchesOfrenda(spawn(56 - reach, y), base)).toBe(false);
+      expect(touchesOfrenda(spawn(56 - reach + 0.01, y), base)).toBe(true);
+    }
   });
 
   it('activating restores one life when fewer than seven and sets the checkpoint', () => {

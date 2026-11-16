@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BASE_HEIGHT, TILE } from '../config/tuning';
+import { BASE_HEIGHT, CART, TILE } from '../config/tuning';
 import type { Bottom } from '../sim/bottoms';
 import { cartFloor, type CartState, type Rail } from '../sim/cart';
 import type { Enemy } from '../sim/enemy';
@@ -9,6 +9,7 @@ import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import { cameraLimits } from '../ui/camera';
 import { LAB_3C_LEVEL } from './lab3c';
+import { LAB_3K_FLOOR_ROW, LAB_3K_LEVEL } from './lab3k';
 import { approachCamera, camerasAlong, describeLoss, flySight, onScreen, rideRun, rideSaves, sightSweep, tileBox, viewsAlong, type Loss, type SightReport, type Takeoff } from './sightSweep';
 
 // GDD-WLD-03's sight rule as a sweep (`src/levels/sightSweep.ts`), on small fixture levels. The screen is 480 x 270; flying right from a
@@ -212,6 +213,69 @@ describe('GDD-WLD-03 GDD-ENM-04 the sight sweep with a Cacomixtle', () => {
     const sweep = sightSweep(ringtail(), [0]);
     expect(sweep.reflown.some((t) => sameTakeoff(t, left(190)))).toBe(true);
     expect(sweep.reflown.some((t) => sameTakeoff(t, left(186)))).toBe(false);
+  });
+});
+
+// GDD-WLD-03, GDD-ENM-04: a cart with a live ringtail in it is not his to board (`riderRails`, as the game's `boardCarts` and `anchorInCarts`
+// read it), so the sweep neither takes standing on its rolling floor for a boarding nor rides its rail. The cart emptied by the ringtail's
+// defeat is his again, as in the game.
+describe('GDD-WLD-03 GDD-ENM-04 the sight sweep with a ringtail\'s cart', () => {
+  const lab = LAB_3K_LEVEL;
+  const floorY = LAB_3K_FLOOR_ROW * TILE;
+  /**
+   * Lab-3k's Ka rolling (rail 0, its middle 16 px along it, x = 528) with Poncho standing on its floor 14 px behind its middle (x = 542, his
+   * hurtbox clear of its 14 px box); the ringtail riding (`riding`) or defeated.
+   */
+  const inKa = (riding: boolean): RunState => {
+    const base = startRun(lab);
+    const cart: CartState = { phase: 'rolling', m: CART.width / 2 };
+    const floor = cartFloor(lab.rails![0]!, cart);
+    return {
+      ...base,
+      player: { ...newPlayer(floor.x + floor.w / 2 + 14, floor.y), grounded: true },
+      carts: base.carts.map((c, k) => (k === 0 ? cart : c)),
+      enemies: base.enemies.map((e, k) => (k === 0 ? (riding ? { ...e, ride: { phase: 'riding' as const, t: 0 } } : { ...e, alive: false }) : e)),
+    };
+  };
+  /** Walking right, off the cart's back, from a standstill. */
+  const walkOff = (from: RunState): Takeoff => ({ place: { col: 34, y: floorY }, x: from.player.x, dir: 1, speed: 'stand', input: 'walk', start: 0 });
+
+  it('GDD-WLD-03 the sweep does not board a cart with a live ringtail: standing on its rolling floor is no boarding', () => {
+    const from = inKa(true);
+    // The state is what the test is about: on Ka's floor (8 px over the rail's ground), its cart rolling, its ringtail alive, no life lost.
+    expect(from.player).toMatchObject({ y: floorY - 8, grounded: true });
+    expect([from.carts[0]!.phase, from.enemies[0]!.alive, from.enemies[0]!.ride!.phase, from.lives.lives]).toEqual(['rolling', true, 'riding', 7]);
+    const f = flySight(lab, walkOff(from), from);
+    expect(f.boarded).toBeUndefined();
+    expect(f.loss).toBeNull();
+    // He did stand on the rolling cart's floor on the flight's first step: it is the live ringtail that makes it no boarding.
+    expect(f.states[0]!.player).toMatchObject({ y: floorY - 8, grounded: true });
+    expect(f.states[0]!.carts[0]!.phase).toBe('rolling');
+  });
+
+  it('GDD-WLD-03 the sweep boards the cart a defeated ringtail leaves empty: it is his again', () => {
+    const from = inKa(false);
+    expect([from.carts[0]!.phase, from.enemies[0]!.alive]).toEqual(['rolling', false]);
+    const f = flySight(lab, walkOff(from), from);
+    expect(f.boarded).toBe(0);
+  });
+
+  it('GDD-WLD-03 the sweep does not ride the rails of lab-3k, a ringtail in each cart: no ride, no boarding, no ride loss', { timeout: 120000 }, () => {
+    // Flown over the whole of lab-3k (25 s): without the rule a flight that is carried on Ka's and Kb's rolling carts boards both rails.
+    const sweep = sightSweep(lab);
+    expect([...sweep.rides.keys()]).toEqual([]);
+    expect(sweep.rideLosses).toEqual([]);
+  });
+
+  it('GDD-WLD-03 the sweep rides the plain rail of a level with a ringtail on another, and not the ringtail\'s', { timeout: 120000 }, () => {
+    // A flat at row 14, 40 columns: rail 0 from column 36 rolling left to a buffer with its ringtail; rail 1 from column 2 rolling right, a plain
+    // cart he boards from the spawn at column 3. Both rails are in the sweep's reach: a ride's flights read the calm level's carts (no enemies).
+    const level = fixture((_c, r) => r >= 14, [{ x: 36 * TILE - 16, y: Y(14) - 8, kind: 'cacomixtle', rail: 0 }], 17, undefined, {
+      spawn: { col: 0, row: 14 },
+      rails: [{ x: 36 * TILE, y: Y(14), dir: -1, segments: [{ kind: 'level', tiles: 8 }], end: 'buffer' }, rail(2, 14, 12, 'buffer')],
+    });
+    const sweep = sightSweep(level, [0]);
+    expect([...sweep.rides.keys()]).toEqual([1]);
   });
 });
 

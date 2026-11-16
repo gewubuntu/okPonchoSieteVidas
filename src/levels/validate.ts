@@ -1,6 +1,6 @@
 // GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have (GDD-MOV-09: its sand slopes
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
-import { ARMADILLO, AWNING, BASE_WIDTH, CACOMIXTLE, CART, COVER, ESTRELLA, LEVEL_RULES, MURCIELAGO, RAIL_RULES, ROLLO, TILE } from '../config/tuning';
+import { ARMADILLO, AWNING, BASE_WIDTH, CACOMIXTLE, CAMERA, CART, COVER, ESTRELLA, LEVEL_RULES, MURCIELAGO, RAIL_RULES, ROLLO, TILE, TOUCH } from '../config/tuning';
 import { rollPath } from '../sim/armadillo';
 import { bossStart } from '../sim/boss';
 import { bottomRowAt, type Bottom } from '../sim/bottoms';
@@ -14,6 +14,8 @@ import { murcielagoAt } from '../sim/murcielago';
 import { groundTop } from '../sim/slope';
 import type { Level } from '../sim/run';
 import type { TileGrid } from '../sim/tilemap';
+import { cameraLimitsAt, followCamera } from '../ui/camera';
+import { layoutTouchButtons } from '../ui/touchLayout';
 import type { LevelEntry } from './index';
 
 export interface Gap {
@@ -263,6 +265,52 @@ function armadilloProblems(level: Level, def: Enemy): string[] {
 }
 
 /**
+ * The rows of the standable tops in column `col`: every solid tile with a non-solid tile over it, and every crumbling tile. One past the
+ * level's edge reads as a wall (`solidTile`), which has none.
+ */
+function topRows(level: Level, col: number): number[] {
+  const rows = new Set<number>();
+  for (let row = 0; row < level.world.height; row++) if (level.world.solidTile(col, row) && !level.world.solidTile(col, row - 1)) rows.add(row);
+  for (const c of level.crumbles) if (c.col === col) rows.add(c.row);
+  return [...rows];
+}
+
+/**
+ * GDD-ENM-04, GDD-UI-04, GDD-TEC-04: (h), a Cacomixtle's cart is clear of the phone's Jump button when he first sees it. He stands at the
+ * edge of its sight, `CACOMIXTLE.sightX` ahead of its middle along its rail's way (`sees`), on a top of that column (`topRows`: a solid tile
+ * with open air over it or a crumbling tile) that is within `CACOMIXTLE.sightY` of its cart's floor, the ones that can wake it. He walks
+ * towards it, so the camera holds him on the dead zone's edge on the cart's side (`followCamera` from a scroll far on the cart's side:
+ * facing right when the rail rolls left), and up and down at its worst at rest, his feet on the line `CAMERA.upFeet` (60% of the screen)
+ * within the limits of his column (`cameraLimitsAt`). The cart's box (`CART.width` x `CART.height`, its bottom on the rail's ground under
+ * its middle, as `armadilloProblems` has it) on that screen may not overlap the Jump button's rectangle of the standard layout or of the
+ * mirrored one; boxes that only share an edge do not overlap. The buttons are at a scale where none grows (the pause button, the smallest,
+ * reaches `TOUCH.minCssPx`). Left out, as not tops: one-way platforms, springs, piñatas, doors and slope surfaces (the sight rule (f) reads
+ * the platforms; this one does not). A column with no top in reach, a pit or past the level's edge, has nobody standing in it.
+ */
+function jumpButtonProblems(level: Level, at: string, rail: Rail, floorY: number): string[] {
+  const middle = CART.width / 2;
+  const x = rail.x + rail.dir * (middle + CACOMIXTLE.sightX);
+  const col = Math.floor(x / TILE);
+  const scrollX = followCamera(rail.dir < 0 ? -Infinity : Infinity, x, level.world.width * TILE);
+  const limits = cameraLimitsAt(level, x);
+  const bottom = railGround(rail, middle);
+  const cartX = rail.x + rail.dir * middle - scrollX - CART.width / 2;
+  const scale = TOUCH.minCssPx / Math.min(TOUCH.size, TOUCH.jumpSize, TOUCH.pauseSize);
+  const problems: string[] = [];
+  for (const row of topRows(level, col)) {
+    const feet = row * TILE;
+    if (Math.abs(feet - floorY) > CACOMIXTLE.sightY) continue;
+    const cartY = bottom - CART.height - Math.min(limits.bottom, Math.max(limits.top, feet - CAMERA.upFeet));
+    for (const layout of ['standard', 'mirrored'] as const) {
+      const jump = layoutTouchButtons(scale, 'buttons', false, layout).find((b) => b.id === 'jump')!;
+      const [w, h] = [Math.min(cartX + CART.width, jump.x + jump.w) - Math.max(cartX, jump.x), Math.min(cartY + CART.height, jump.y + jump.h) - Math.max(cartY, jump.y)];
+      if (w > 0 && h > 0) problems.push(`${at} has its cart's box ${w} x ${h} px over the phone's Jump button (${layout} layout) where it first sees him, standing at column ${col}, row ${row}`);
+    }
+  }
+  return problems;
+}
+
+/**
  * GDD-ENM-04, GDD-TEC-04: a Cacomixtle's rail and its sight stretch. (a) `rail` is a whole number that is a place in `level.rails`;
  * (b) that rail ends at a buffer, so its cart never falls; (c) no two Cacomixtles ride one rail; (d) `x` and `y` are its place at its cart's
  * start: the cart's middle and the cart's floor under it. The sight stretch is the rail from the cart's middle at its start, ahead along its
@@ -271,8 +319,8 @@ function armadilloProblems(level: Level, def: Enemy): string[] {
  * solid tile with a non-solid tile over it, or a crumbling tile) is within sightY less a full jump (jumpPx) of the cart's floor at its start,
  * or more than sightY plus a jump from it, so a jump cannot hide him nor wake it early, and so is every one-way platform over those columns (a
  * moving one by the range of its distance over its path); `Enemy.sightException`, the GDD sentence that names
- * the exception, skips (f) alone and is never empty. Not checked here: the cart clear of the phone's buttons when first seen (needs the
- * camera of GDD-UI-04, built later).
+ * the exception, skips (f) alone and is never empty. (h) (GDD-UI-04, user, 2026-11-15: "Layout rule"): the cart's box at its start is clear
+ * of the phone's Jump button, in both layouts, when he first sees it: see `jumpButtonProblems`.
  */
 function cacomixtleProblems(level: Level): string[] {
   const problems: string[] = [];
@@ -305,15 +353,14 @@ function cacomixtleProblems(level: Level): string[] {
       from = to;
     }
     if (def.sightException === '') problems.push(`${at} has an empty sight exception, expected the GDD sentence that names it`);
+    // (h) is the phone's rule, not the ground band's: an exception skips (f) alone.
+    problems.push(...jumpButtonProblems(level, at, rail, floor.y));
     if (def.sightException) continue;
     // The stretch's columns. One past the level's edge reads as a wall (`solidTile`), which has no top, so no clamp to the level is needed (L-025).
     const [lo, hi] = [Math.min(x, rail.x + rail.dir * end), Math.max(x, rail.x + rail.dir * end)];
     const [first, last] = [Math.floor(lo / TILE), Math.ceil(hi / TILE)];
     const tops = new Map<string, { col: number; row: number }>();
-    for (let col = first; col < last; col++) {
-      for (let row = 0; row < level.world.height; row++) if (level.world.solidTile(col, row) && !level.world.solidTile(col, row - 1)) tops.set(`${col},${row}`, { col, row });
-      for (const c of level.crumbles) if (c.col === col) tops.set(`${col},${c.row}`, { col, row: c.row });
-    }
+    for (let col = first; col < last; col++) for (const row of topRows(level, col)) tops.set(`${col},${row}`, { col, row });
     for (const { col, row } of tops.values()) {
       const d = Math.abs(row * TILE - floor.y);
       if (d > hides && d <= wakes) problems.push(`${at} has ground at column ${col}, row ${row}, ${d} px from its cart's floor in its sight stretch, expected within ${hides} or over ${wakes}`);

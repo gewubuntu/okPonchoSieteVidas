@@ -541,9 +541,12 @@ describe('GDD-WLD-17 level 3-2 Sho: the broken ends of rails C and D', () => {
     const lastTwo = flights.top.filter((f) => f.k < leave && endOf('C') - f.x <= 2 * TILE);
     expect(lastTwo.length).toBeGreaterThan(10);
     expect(lastTwo.filter((f) => as(f) !== 'bank').map((f) => f.k)).toEqual([]);
-    // A glide that lands in cart D has flown over the ofrenda at 65: the checkpoint he has at that landing (-1, the level's start; 0, the
-    // ofrenda at 65). Measured: some of them land in D without it, so a life lost at D's end would bring him back at the spawn.
-    expect([...new Set(flights.held.filter((f) => as(f) === 'cart D').map((f) => f.landed!.checkpointIndex))]).toEqual([0, -1]);
+    // A glide that lands in cart D has flown over the ofrenda at 65, which counts as reaching it (GDD-WLD-05, user, 2026-11-16: "Fly-over
+    // counts"): the checkpoint he has at that landing is 0, the ofrenda at 65, in all 18 (steps 64 to 81). Measured before the rule: 6 of the
+    // 18 landed in D with the level's start (-1) as their checkpoint, so a life lost at D's end brought him back at the spawn.
+    const intoD = flights.held.filter((f) => as(f) === 'cart D');
+    expect(intoD.length).toBe(18);
+    expect([...new Set(intoD.map((f) => f.landed!.checkpointIndex))]).toEqual([0]);
   }, 30_000);
 
   it('GDD-WLD-15 3-2 rail C: from the step the cart passes the post at column 54 to its torn end at x = 960', () => {

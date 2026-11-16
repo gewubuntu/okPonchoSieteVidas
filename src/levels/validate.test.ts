@@ -9,6 +9,7 @@ import type { Rail, RailSegment } from '../sim/cart';
 import type { Level, Ofrenda, Point } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import type { LevelEntry } from './index';
+import { LAB_3K_LEVEL } from './lab3k';
 import { gaps, openGaps, validateLevel } from './validate';
 
 const HEIGHT = 17;
@@ -950,8 +951,15 @@ const cacomixtle = (x: number, y: number, rail = 0, o: Partial<Enemy> = {}): Ene
 const ka = (segments: Rail['segments'] = [{ kind: 'level', tiles: 20 }], end: Rail['end'] = 'buffer', y = 224): Rail => ({ x: 800, y, dir: -1, segments, end });
 /** The Cacomixtle at that rail's cart's start. */
 const KA = cacomixtle(784, 216);
-/** World 3 (or `world`), the ofrendas far right, with the rails, the Cacomixtles and the tiles given as in `mine`. */
-const ringtail = (rails: readonly Rail[], enemies: readonly Enemy[], o: Options = {}) => mine(o.solid ?? [], rails, enemies, o);
+/** World 3 (or `world`), the ofrendas far right, with the rails, the Cacomixtles and the tiles given as in `mine`: every problem. */
+const ringtailAll = (rails: readonly Rail[], enemies: readonly Enemy[], o: Options = {}) => mine(o.solid ?? [], rails, enemies, o);
+/**
+ * The same without rule (h), the cart clear of the phone's Jump button: these fixtures stand on the 17-row floor (y = 224), where the camera
+ * cannot move and every cart shows 16 px over the button's top (208). (h) is not what they test; its own describe below does, with `ringtailAll`.
+ */
+const ringtail = (rails: readonly Rail[], enemies: readonly Enemy[], o: Options = {}) => withoutJump(ringtailAll(rails, enemies, o));
+/** Problems but rule (h)'s, for a fixture on the 17-row floor (see `ringtail`). */
+const withoutJump = (problems: readonly string[]) => problems.filter((p) => !p.includes("over the phone's Jump button"));
 /** A 1-tile ledge in column `col` at row `row` (its top y = 16 row). */
 const ledge = (col: number, row: number) => [[col, row]] as const;
 
@@ -1112,9 +1120,9 @@ describe('GDD-TEC-04 and GDD-ENM-04 cacomixtle validator', () => {
   });
 
   it('GDD-ENM-04 cacomixtle validator rule g: only World 3 has Cacomixtles', () => {
-    expect(validateLevel(entry({ world: 1, ofrendas: [60, 70, 80], enemies: [KA], level: { rails: [ka()] } }))).toEqual(['cacomixtle at 784,216 in World 1, only World 3 has them']);
-    expect(validateLevel(entry({ world: 2, ofrendas: [60, 70, 80], enemies: [KA], level: { rails: [ka()] } }))).toEqual(['cacomixtle at 784,216 in World 2, only World 3 has them']);
-    expect(validateLevel(entry({ world: 3, ofrendas: [60, 70, 80], enemies: [KA], level: { rails: [ka()] } }))).toEqual([]);
+    expect(withoutJump(validateLevel(entry({ world: 1, ofrendas: [60, 70, 80], enemies: [KA], level: { rails: [ka()] } })))).toEqual(['cacomixtle at 784,216 in World 1, only World 3 has them']);
+    expect(withoutJump(validateLevel(entry({ world: 2, ofrendas: [60, 70, 80], enemies: [KA], level: { rails: [ka()] } })))).toEqual(['cacomixtle at 784,216 in World 2, only World 3 has them']);
+    expect(withoutJump(validateLevel(entry({ world: 3, ofrendas: [60, 70, 80], enemies: [KA], level: { rails: [ka()] } })))).toEqual([]);
   });
 
   it('GDD-ENM-04 cacomixtle validator keeps 3 tiles from every respawn', () => {
@@ -1141,5 +1149,102 @@ describe('GDD-TEC-04 and GDD-ENM-04 cacomixtle validator', () => {
     // Alone, on a Cacomixtle with nothing else wrong.
     expect(ringtail([ka()], [cacomixtle(784, 216, 0, { sightException: '' })])).toEqual(['cacomixtle at 784,216 has an empty sight exception, expected the GDD sentence that names it']);
     expect(ringtail([ka()], [cacomixtle(784, 216, 0, { sightException: 'GDD-WLD-18: K1 meets him uphill, 40 px inside its sight' })], { solid: ledge(42, 12) })).toEqual([]);
+  });
+});
+
+// GDD-ENM-04 (h), GDD-UI-04 "A Cacomixtle's cart and the phone's buttons" (user, 2026-11-15: "Layout rule"): when he first sees a Cacomixtle,
+// its cart's box is clear of the phone's Jump button, in both layouts. Worked by hand (L-077). He stands 200 px ahead of the cart's middle
+// (the sight's edge), the cart rolling left (`ka()`: its middle at x = 784) so he stands at x = 584 in column 36, facing right: the camera holds
+// him 256 px from its left edge, the scroll 584 - 256 = 328, and the cart's box (x 768 to 800) is on screen from 440 to 472. The Jump button of
+// the standard layout is x 418 to 474, y 208 to 264 (the mirrored one's x 6 to 62). Up and down, his feet at rest on the line 162 px down
+// (60% of the screen), within the limits of his column: in a 40-row level (640 px) 0 to 640 - 2 - 270 = 368, in a 17-row one 0 to 0. The
+// cart's bottom is its rail's ground, so on screen it is that less the camera's y.
+const JUMP_EXCEPTION = 'GDD-WLD-18: a test fixture, the ground band is not what these are about';
+/** A rail rolling left from x = 800 whose ground is at y = `y`, level for 20 tiles to a buffer; its cart's middle is at x = 784. */
+const jumpRail = (y: number): Rail => ka(undefined, 'buffer', y);
+/** The Cacomixtle at that rail's cart's start, with the exception, so that only (h) can speak (L-028). */
+const jumpRider = (y: number, o: Partial<Enemy> = { sightException: JUMP_EXCEPTION }) => cacomixtle(784, y - 8, 0, o);
+/** Ground tiles from column `from` to `to` in row `row`. */
+const strip = (from: number, to: number, row: number) => cols(from, to).map((c) => [c, row] as const);
+/** A level 40 rows tall with the tiles given (its 3 floor rows are 37 to 39, y = 592), the rail's ground at `y`, and its Cacomixtle. */
+const jumpTall = (solid: readonly (readonly [number, number])[], y: number, o: Partial<Enemy> = { sightException: JUMP_EXCEPTION }) =>
+  ringtailAll([jumpRail(y)], [jumpRider(y, o)], { height: 40, solid });
+const jumpOver = (who: string, w: number, h: number, layout: 'standard' | 'mirrored', col: number, row: number) =>
+  `${who} has its cart's box ${w} x ${h} px over the phone's Jump button (${layout} layout) where it first sees him, standing at column ${col}, row ${row}`;
+/** Lab-3k with its rails and enemies as given. */
+const jumpLab = (rails: readonly Rail[], enemies: readonly Enemy[]): LevelEntry => ({ id: 'lab-3k', world: 3, test: true, level: { ...LAB_3K_LEVEL, rails, enemies }, place: 'mina' });
+/** A rail on the default floor (y = 224) rolling left from x = `x`. */
+const jumpRailAtX = (x: number): Rail => ({ ...ka(undefined, 'buffer', 224), x });
+
+describe('GDD-ENM-04 a cacomixtle cart clear of the phone\'s Jump button', () => {
+  /** His ground in a 40-row level: row 30 (y = 480), a strip of tiles over the floor. */
+  const ground = strip(30, 43, 30);
+
+  it('GDD-ENM-04 jump button: a cart at his height has its bottom at 162 on screen, 46 px over the button, and passes', () => {
+    // His feet at 480 put the camera's y at 480 - 162 = 318 (inside 0 to 368); the cart's bottom, on the same ground (y = 480), is at 162.
+    expect(jumpTall([...ground, ...strip(44, 52, 30)], 480)).toEqual([]);
+  });
+
+  it('GDD-ENM-04 jump button: the K1 shape, a cart 2 tiles below his ground, has its bottom at 194, 14 px over the button, and passes', () => {
+    // The rail's ground at y = 512: its bottom on screen is 512 - 318 = 194 (162 + 32), its top 178.
+    expect(jumpTall([...ground, ...strip(44, 52, 32)], 512)).toEqual([]);
+  });
+
+  it('GDD-ENM-04 jump button: a cart 4 tiles below his ground overlaps the button by 32 x 16 px, with the exception on', () => {
+    // The rail's ground at y = 544: the cart's bottom is on screen at 544 - 318 = 226, its box y 210 to 226 against the button's 208 to 264, x 440
+    // to 472 inside 418 to 474: 32 x 16. (The floor's top at row 37, y = 592, is in his reach of its floor, y = 536, but his feet there put the
+    // camera at the limit 368 and the cart at 176: no overlap.) With the feet line `bandBottom`, 156, the camera is at 324 and it is 12 px.
+    const bad = jumpTall([...ground, ...strip(44, 52, 34)], 544);
+    expect(bad).toEqual([jumpOver('cacomixtle at 784,536', 32, 16, 'standard', 36, 30)]);
+    // The exception skips the ground band (f) alone: without it the ledge 56 px over its floor in its stretch is a problem too, and (h) stays.
+    const bare = jumpTall([...ground, ...strip(44, 52, 34)], 544, {});
+    expect(bare.filter((p) => p.includes('Jump button'))).toEqual(bad);
+    expect(bare.length).toBeGreaterThan(bad.length);
+  });
+
+  it('GDD-ENM-04 jump button: a crumbling ledge is ground he stands on too', () => {
+    // L-080: the ground family the sight rule (f) reads is a solid tile with open air over it and a crumbling tile (World 3's come back). The
+    // same 4-tile-lower cart as above, his only ground in column 36 a crumbling ledge at row 30 (y = 480): the same overlap, 32 x 16.
+    const rail = jumpRail(544);
+    const solid = strip(44, 52, 34);
+    const level = { rails: [rail], crumbles: [{ col: 36, row: 30 }], crumblesReturn: true };
+    expect(ringtailAll([rail], [jumpRider(544)], { height: 40, solid, level })).toEqual([jumpOver('cacomixtle at 784,536', 32, 16, 'standard', 36, 30)]);
+  });
+
+  it('GDD-ENM-04 jump button: ground out of the ringtail\'s sight is not where he stands', () => {
+    // A tile in column 36 at row 25 (y = 400) is 72 px over its floor (y = 472), beyond the 64 px it sees him within: his feet there would put the
+    // camera at 238 and the cart's bottom at 242 on screen, 16 px over the button, but he never wakes the ringtail from there.
+    expect(jumpTall([...ground, ...strip(44, 52, 30), [36, 25]], 480)).toEqual([]);
+  });
+
+  it('GDD-ENM-04 jump button: a camera held at its bottom limit overlaps by 32 x 16 px, in a level 17 rows tall', () => {
+    // The default floor's top is row 14 (y = 224), the camera cannot move (limits 0 to 0): the cart's bottom is on screen at 224, 16 px under the
+    // button's top; its feet put the unclamped camera at 224 - 162 = 62, which would have it at 162 and pass.
+    expect(ringtailAll([ka()], [jumpRider(224)])).toEqual([jumpOver('cacomixtle at 784,216', 32, 16, 'standard', 36, 14)]);
+  });
+
+  it('GDD-ENM-04 jump button: lab-3k as it is passes, its carts sharing an edge with the button, and 1 px lower overlaps by 1 px', () => {
+    // Lab-3k is 17 rows, the camera rests at y 0 and Ka's and Kb's carts' bottoms are at their rail's ground, y = 208, the button's top: 32 x 0.
+    const rails = LAB_3K_LEVEL.rails!;
+    const [kaDef, kbDef, closet] = LAB_3K_LEVEL.enemies;
+    expect(validateLevel(jumpLab(rails, LAB_3K_LEVEL.enemies))).toEqual([]);
+    // Ka's rail 1 px lower (and its Cacomixtle with it): its cart's bottom at 209 overlaps by 1 px, in the column 20 he stands in.
+    expect(validateLevel(jumpLab([{ ...rails[0]!, y: rails[0]!.y + 1 }, rails[1]!], [{ ...kaDef!, y: kaDef!.y + 1 }, kbDef!, closet!]))).toEqual([
+      jumpOver('cacomixtle at 528,201', 32, 1, 'standard', 20, 13),
+    ]);
+  });
+
+  it('GDD-ENM-04 jump button: the mirrored layout alone, a cart to his left near the screen\'s left edge', () => {
+    // A rail from x = 400 rolling right (`kaRight`): the cart's middle at 416, he stands at 616 in column 38 facing left, the camera holds him 224 px
+    // from its left edge (scroll 392), and the cart's box is on screen from 8 to 40: inside the mirrored button's x 6 to 62, far from the standard one's.
+    const right = cacomixtle(416, 216, 0, { sightException: JUMP_EXCEPTION });
+    expect(ringtailAll([kaRight()], [right])).toEqual([jumpOver('cacomixtle at 416,216', 32, 16, 'mirrored', 38, 14)]);
+  });
+
+  it('GDD-ENM-04 jump button: the box and the button share an edge across at the level\'s left edge and overlap by 1 px a pixel on', () => {
+    // A rail from x = 418 rolling left, its cart's middle at 402: he stands at x = 202 and the camera is at the level's edge (scroll 0), so the
+    // cart's box is on screen from 386 to 418, the button's left edge: no overlap. A pixel on (box 387 to 419) it is 1 x 16.
+    expect(ringtailAll([jumpRailAtX(418)], [cacomixtle(402, 216)])).toEqual([]);
+    expect(ringtailAll([jumpRailAtX(419)], [cacomixtle(403, 216)])).toEqual([jumpOver('cacomixtle at 403,216', 1, 16, 'standard', 12, 14)]);
   });
 });
