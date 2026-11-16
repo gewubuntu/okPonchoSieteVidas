@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CART, FANTASMA, HIT, RESPAWN, SPIKE, TILE } from '../config/tuning';
 import { LEVEL_1_4 } from '../levels/level1-4';
 import { bossBox, bossStart } from './boss';
-import { cartFloor, fallingBox, floorUnder, railLength, rollCarts, warningPost, type CartState, type Rail, type RailSegment } from './cart';
+import { cartFloor, fallingBox, floorUnder, railLength, ridingCart, rollCarts, warningPost, type CartState, type Rail, type RailSegment } from './cart';
 import { clawBox } from './claw';
 import { enemyBox, freshEnemies, type Box, type Enemy, type EnemyState } from './enemy';
 import { spawnFireball } from './fireball';
@@ -1671,5 +1671,27 @@ describe('GDD-WLD-15 a rolling cart defeats the enemies it hits', () => {
     expect(states[0]!.enemies[0]).toEqual({ x: 134.5, y: FLOOR, dir: 1, alive: false });
     expect(states.every((s) => s.enemies[0]!.x === 134.5 && !s.enemies[0]!.alive)).toBe(true);
     expect(states.every((s) => s.phase === 'playing' && s.lives.lives === 7 && !s.stomped && inCart(l, s))).toBe(true);
+  });
+});
+
+describe('GDD-UI-04 the cart he rides', () => {
+  it('GDD-UI-04 ridingCart finds only a rolling cart he stands in', () => {
+    // Two rails side by side: the second, rail 1, is the one he stands in, so the index is not 0 by accident.
+    const lvl = levelOf([rail(160, level(10)), rail(640, level(20), { dir: -1 })]);
+    const rails = lvl.rails!;
+    const standing = (phase: CartState['phase'], grounded = true): RunState => {
+      const cart: CartState = { phase, m: 80 };
+      const floor = cartFloor(rails[1]!, cart);
+      const player: PlayerState = { ...spawn(floor.x + floor.w / 2, floor.y), grounded };
+      return runWith(lvl, player, [{ phase: 'waiting', m: CART.width / 2 }, cart]);
+    };
+    const at = (r: RunState) => ridingCart(r.player, rails, r.carts);
+    expect(at(standing('rolling'))).toBe(1);
+    expect(at(standing('waiting'))).toBe(-1);
+    expect(at(standing('stopped'))).toBe(-1);
+    // In the air at the height of the rolling cart's floor: he stands in nothing.
+    expect(at(standing('rolling', false))).toBe(-1);
+    // On plain ground, away from every cart.
+    expect(ridingCart(spawn(24, FLOOR), rails, startRun(lvl).carts)).toBe(-1);
   });
 });

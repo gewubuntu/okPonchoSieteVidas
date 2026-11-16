@@ -88,32 +88,35 @@ test('GDD-UI-04 camera: riding the lift', async ({ page, isMobile }, info) => {
   });
   expect(on.grounded).toBe(true);
   expect(on.feet).toBeCloseTo(on.deck, 6);
+  // GDD-UI-04: 6 tiles up the look-up has started and caught up: his feet are on the 60% line, 162.
   const { cam, s } = await view(page);
-  expect(s.y - cam.scrollY).toBeGreaterThanOrEqual(CAMERA.bandTop - 0.125);
-  expect(s.y - cam.scrollY).toBeLessThanOrEqual(CAMERA.bandBottom + 0.125);
+  expect(cam.look).toBe('up');
+  expect(Math.abs(s.y - cam.scrollY - CAMERA.upFeet)).toBeLessThanOrEqual(0.25);
   await shot(page, info, 'camera-lift');
 });
 
 test('GDD-UI-04 camera: the cart climbing', async ({ page, isMobile }, info) => {
   const R1 = LAB_3T_RAILS[0]!;
   await open(page, isMobile, { x: R1.x - TILE / 2, y: R1.y });
-  // A hop into R1's cart, steering over its middle, then nothing held while it climbs, to the middle of the climb (3 tiles up).
+  // A hop into R1's cart, steering over its middle, then nothing held while it climbs, past the middle of the climb (3 tiles up) until the
+  // look-up (GDD-UI-04) has caught up: his feet on the 60% line, 162.
   const ride = await page.evaluate(
-    ([half, mid]) => {
+    ([half, mid, line]) => {
       const d = window.__PONCHO__!;
       for (let n = 0; n < 200 && d.carts()[0]!.phase === 'waiting'; n++) {
         const gap = d.carts()[0]!.x! + half! - d.state().x;
         d.step(1, { move: Math.abs(gap) > 2 ? Math.sign(gap) : 0, jumpHeld: n < 12 });
       }
-      for (let n = 0; n < 400 && d.carts()[0]!.y! > mid!; n++) d.step(1);
+      for (let n = 0; n < 400 && !(d.carts()[0]!.y! <= mid! && Math.abs(d.state().y - d.camera().scrollY - line!) <= 0.25); n++) d.step(1);
       return { phase: d.carts()[0]!.phase, cart: d.carts()[0]!.y!, feet: d.state().y, grounded: d.state().grounded };
     },
-    [CART.width / 2, R1.y - CART.floorPx - 3 * TILE],
+    [CART.width / 2, R1.y - CART.floorPx - 3 * TILE, CAMERA.upFeet],
   );
   expect(ride.phase).toBe('rolling');
   expect([ride.grounded, ride.feet]).toEqual([true, ride.cart]);
   const { cam, s } = await view(page);
-  expect(s.y - cam.scrollY).toBeCloseTo(CAMERA.bandTop, 0);
+  expect(cam.look).toBe('up');
+  expect(Math.abs(s.y - cam.scrollY - CAMERA.upFeet)).toBeLessThanOrEqual(0.25);
   await shot(page, info, 'camera-cart-climb');
 });
 

@@ -1,8 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CAMERA, TILE } from '../src/config/tuning';
+import { CAMERA, CART, TILE } from '../src/config/tuning';
+import { LAB_3C_BEAM, LAB_3C_RAILS } from '../src/levels/lab3c';
 import { LEVEL_1_1 } from '../src/levels/level1-1';
 import { LEVEL_2_4 } from '../src/levels/level2-4';
 import { LAB_3T_DROP, LAB_3T_HIGH_BOTTOM, LAB_3T_HIGH_PIT, LAB_3T_LOWEST, LAB_3T_OFRENDAS, LAB_3T_TOP } from '../src/levels/lab3t';
+import { railLength } from '../src/sim/cart';
 import { gaps } from '../src/levels/validate';
 import { LOOKS } from '../src/ui/scenery/looks';
 import { boot, pixelsAt, red } from './helpers';
@@ -414,4 +416,223 @@ test("GDD-ART-06 the backdrop's mid layer shifts down as the camera rises", asyn
   // Every object of the backdrop moved down or not at all; the far strip, its foot and the mid strip are the last three.
   expect(high.shifts.slice(-3)).toEqual([36.75, 36.75, 73.5]);
   expect(new Set(high.shifts.slice(0, -3))).toEqual(new Set([0]));
+});
+
+// GDD-UI-04, the lead sideways in a rolling cart, in lab-3c (`?level=lab-3c`). Where the rails are comes from `src/levels/lab3c.ts` (L-062):
+// R1 (rail 0) rolls right for 20 tiles, 115 steps at 150 px/s; R4 (rail 3) is the only one that rolls left, 8 tiles, so a ride of 38 steps, 6 of
+// them after its lead has settled (32 steps): the longest there is. R5 (rail 4) is under a low beam and ends over a pit. A step's debug draw
+// is at once, but the view Phaser renders from it (`viewX`) is read after two frames; per step the scroll the scene passed (`scrollX`) is read.
+const [R1, R4, R5] = [LAB_3C_RAILS[0]!, LAB_3C_RAILS[3]!, LAB_3C_RAILS[4]!];
+const SPEED = 150; // px/s on the level (GDD-WLD-15)
+const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
+
+/**
+ * Boots lab-3c, pauses it and puts Poncho down in cart `i` (1 px over its floor, a teleport: a cut), then steps until the cart rolls with him
+ * in it (the step he lands in it: the lead has grown by its first 2 px by then). Returns the console errors.
+ */
+async function board(page: Page, i: number): Promise<string[]> {
+  const errors = await boot(page, '/?level=lab-3c');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  const rail = LAB_3C_RAILS[i]!;
+  const rolled = await page.evaluate(
+    ([k, x, y]) => {
+      const d = window.__PONCHO__!;
+      d.pause(true);
+      d.teleport(x!, y! - 1);
+      let n = 0;
+      for (; n < 60 && d.carts()[k!]!.phase !== 'rolling'; n++) d.step(1);
+      return { phase: d.carts()[k!]!.phase, grounded: d.state().grounded, lead: d.camera().lead };
+    },
+    [i, rail.x + rail.dir * (CART.width / 2), rail.y - CART.floorPx],
+  );
+  expect(rolled).toMatchObject({ phase: 'rolling', grounded: true, lead: 2 * rail.dir });
+  return errors;
+}
+
+test('GDD-UI-04 in a rolling cart the camera leads: 18 tiles ahead', async ({ page }) => {
+  expect(railLength(R1) / TILE).toBe(20);
+  expect([R1.dir, R4.dir]).toEqual([1, -1]);
+  // Rolling right: until the lead is 64 and the scroll has begun to move (the cart is then at x 176 and the point x + 64 passes the dead zone
+  // at x 192; before it the camera stands at 0), then 20 steps more. The lead grows 2 px a step, so it is 64 32 steps after the landing.
+  const errors = await board(page, 0);
+  const right = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    const leads: number[] = [d.camera().lead];
+    let n = 0;
+    for (; n < 100 && !(d.camera().lead === 64 && d.camera().scrollX > 0); n++) {
+      d.step(1);
+      leads.push(d.camera().lead);
+    }
+    const seen: { x: number; lead: number; phase: string }[] = [];
+    for (let i = 0; i < 20; i++) {
+      seen.push({ x: d.state().x - d.camera().scrollX, lead: d.camera().lead, phase: d.carts()[0]!.phase });
+      d.step(1);
+    }
+    return { n, leads, seen };
+  });
+  expect(right.n).toBeLessThan(100);
+  expect(right.leads.slice(0, 32)).toEqual(Array.from({ length: 32 }, (_, i) => 2 * (i + 1)));
+  // 480 - 192 = 288 px, 18 tiles, ahead of him, on every step from then on.
+  expect((480 - 192) / TILE).toBe(18);
+  for (const s of right.seen) expect(s, 'right').toMatchObject({ lead: 64, phase: 'rolling' });
+  for (const s of right.seen) expect(Math.abs(s.x - 192), 'right').toBeLessThanOrEqual(0.5);
+  // What Phaser draws is the same: his x less the view's left edge, once the frames have drawn the last step.
+  await frames(page);
+  const drawn = await page.evaluate(() => window.__PONCHO__!.state().x - window.__PONCHO__!.camera().viewX);
+  expect(Math.abs(drawn - 192)).toBeLessThanOrEqual(0.5);
+  // A teleport is a cut: the lead is 0 at once, before any step has run after it.
+  expect(await page.evaluate(() => (window.__PONCHO__!.teleport(40, 100), window.__PONCHO__!.camera().lead))).toBe(0);
+  // Rolling left (R4): -64 and he is at 288, 288 px ahead of him to the left, with the cart still rolling (6 of its 38 steps are left).
+  await board(page, 3);
+  const left = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    let n = 0;
+    for (; n < 100 && d.camera().lead !== -64; n++) d.step(1);
+    return { n, lead: d.camera().lead, x: d.state().x - d.camera().scrollX, phase: d.carts()[3]!.phase };
+  });
+  expect(left).toMatchObject({ lead: -64, phase: 'rolling' });
+  expect(Math.abs(left.x - 288)).toBeLessThanOrEqual(0.5);
+  expect(left.n).toBeGreaterThan(25);
+  await frames(page);
+  const drawnLeft = await page.evaluate(() => window.__PONCHO__!.state().x - window.__PONCHO__!.camera().viewX);
+  expect(Math.abs(drawnLeft - 288)).toBeLessThanOrEqual(0.5);
+  expect(errors).toEqual([]);
+});
+
+test("GDD-UI-04 the cart's lead eases back with no jump of the picture", async ({ page }) => {
+  await board(page, 0);
+  // To the buffer, then 40 steps more: the scroll after each step, and the lead, his x on the screen and the cart's phase.
+  const ride = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    const out: { scroll: number; lead: number; x: number; phase: string; grounded: boolean }[] = [];
+    let after = 0;
+    for (let i = 0; i < 400 && after < 40; i++) {
+      d.step(1);
+      const phase = d.carts()[0]!.phase;
+      out.push({ scroll: d.camera().scrollX, lead: d.camera().lead, x: d.state().x - d.camera().scrollX, phase, grounded: d.state().grounded });
+      if (phase === 'stopped') after++;
+    }
+    return out;
+  });
+  const stopped = ride.findIndex((s) => s.phase === 'stopped');
+  expect(stopped).toBeGreaterThan(100);
+  expect(ride.length - stopped).toBeGreaterThanOrEqual(40);
+  // He rode in with the lead settled and his body at 192, up to the step before the cart stopped.
+  expect(ride[stopped - 1]).toMatchObject({ lead: 64, phase: 'rolling' });
+  expect(Math.abs(ride[stopped - 1]!.x - 192)).toBeLessThanOrEqual(0.5);
+  // The picture never moves more than the cart's own 2.5 px a step plus the lead's 2 (and a quarter px of rounding), from the boarding on.
+  const bound = SPEED / 60 + CAMERA.cartLeadStep + 0.25;
+  for (let i = 1; i < ride.length; i++) expect(Math.abs(ride[i]!.scroll - ride[i - 1]!.scroll), `step ${i}`).toBeLessThanOrEqual(bound);
+  // Easing back: the lead falls 2 px a step from the stopping step's 62 to 0 over 31 more steps, never up. While it is 32 or more the point
+  // x + lead is in the dead zone and the camera stands still (15 steps after the stopping step), then it moves back 2 px a step.
+  const after = ride.slice(stopped);
+  expect(after.every((s) => s.grounded)).toBe(true);
+  expect(after[0]!.lead).toBe(62);
+  for (let i = 1; i < after.length; i++) expect(after[i]!.lead, `eased ${i}`).toBe(Math.max(0, after[i - 1]!.lead - 2));
+  expect(after[31]!.lead).toBe(0);
+  for (let i = 1; i <= 15; i++) expect(after[i]!.scroll, `still ${i}`).toBe(after[0]!.scroll);
+  expect(after[16]!.lead).toBe(30);
+  // It moves back with the point: 1.5 px on the first step (the point was 1.5 px past the edge), then the lead's 2 px a step, to the plain dead zone.
+  for (let i = 16; i <= 31; i++) expect(after[i - 1]!.scroll - after[i]!.scroll, `back ${i}`).toBeCloseTo(i === 16 ? 1.5 : 2, 6);
+  expect(after[0]!.scroll - after.at(-1)!.scroll).toBeCloseTo(31.5, 6);
+  // At the end the lead is 0 and his body is at the dead zone's edge, 224.
+  expect(after.at(-1)!.lead).toBe(0);
+  expect(Math.abs(after.at(-1)!.x - 224)).toBeLessThanOrEqual(0.25);
+});
+
+test('GDD-UI-04 a jump in a rolling cart keeps the lead', async ({ page }) => {
+  await board(page, 0);
+  // The lead settled and the scroll following, then 3 steps with nothing held so that the jump button counts as released.
+  await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    for (let i = 0; i < 100 && !(d.camera().lead === 64 && d.camera().scrollX > 0); i++) d.step(1);
+    d.step(3);
+  });
+  expect(await page.evaluate(() => window.__PONCHO__!.state().jumpWasHeld)).toBe(false);
+  // A jump straight up, held until he lands back in the cart: the lead after each step, until he stands again.
+  const jump = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    const out: { lead: number; grounded: boolean; x: number }[] = [];
+    for (let i = 0; i < 120 && (i < 2 || !d.state().grounded); i++) {
+      d.step(1, { move: 0, jumpHeld: true });
+      out.push({ lead: d.camera().lead, grounded: d.state().grounded, x: d.state().x - d.camera().scrollX });
+    }
+    return { out, phase: d.carts()[0]!.phase };
+  });
+  expect(jump.out.filter((s) => !s.grounded).length).toBeGreaterThan(20);
+  expect(jump.out.at(-1)!.grounded).toBe(true);
+  expect(jump.phase).toBe('rolling');
+  expect(new Set(jump.out.map((s) => s.lead))).toEqual(new Set([64]));
+  // The camera does not jerk: he is at 192 on the screen on every step of it, in the air too.
+  for (const s of jump.out) expect(Math.abs(s.x - 192), 'jump').toBeLessThanOrEqual(0.5);
+});
+
+test('GDD-UI-04 the lead is drawn between its steps', async ({ page }) => {
+  // With the cart stopped, the lead falls 2 px a step: a frame drawn at 0, a half and all of the way from the step before shows the lead
+  // there (62 to 60: drawn at 62, 61, 60).
+  await board(page, 0);
+  const drawn = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    for (let i = 0; i < 400 && d.carts()[0]!.phase !== 'stopped'; i++) d.step(1);
+    d.step(1);
+    const lead = d.camera().lead;
+    const at = [0, 0.5, 1].map((alpha) => {
+      d.drawAt(alpha);
+      return d.camera().leadDrawn;
+    });
+    return { lead, at };
+  });
+  expect(drawn.lead).toBe(60);
+  expect(drawn.at).toEqual([62, 61, 60]);
+});
+
+test('GDD-UI-04 a respawn is a cut of the lead', async ({ page }) => {
+  // R5's cart drops him against its low beam; he is put in the cart again past the beam (a teleport) and rides it off its broken end into the
+  // pit: a life lost in the air with the lead at 64. The lead holds while he is in the air and while he is hidden; the step he appears at the
+  // respawn point it is 0, and a frame drawn at the start of that step has it 0 too (it is not drawn from 64).
+  const errors = await board(page, 4);
+  expect(railLength(R5) / TILE).toBe(20);
+  const lost = await page.evaluate(
+    ([past]) => {
+      const d = window.__PONCHO__!;
+      for (let i = 0; i < 200 && d.carts()[4]!.x! < past!; i++) d.step(1);
+      const cart = d.carts()[4]!;
+      d.teleport(cart.x! + cart.w! / 2, cart.y! - 1);
+      const leads: number[] = [];
+      const air: boolean[] = [];
+      for (let i = 0; i < 600 && d.phase() === 'playing'; i++) {
+        d.step(1);
+        leads.push(d.camera().lead);
+        air.push(!d.state().grounded);
+      }
+      return { phase: d.phase(), leads, air, lives: d.lives() };
+    },
+    [LAB_3C_BEAM.col * TILE + 2 * TILE],
+  );
+  expect(lost.phase).toBe('respawning');
+  expect(lost.lives).toBe(6);
+  // Riding it grew the lead to 64, 2 px a step; the last step was in the air, and so was the one before.
+  const first = lost.leads.findIndex((l) => l > 0);
+  expect(first).toBeGreaterThanOrEqual(0);
+  expect(lost.leads.slice(first, first + 32)).toEqual(Array.from({ length: 32 }, (_, i) => 2 * (i + 1)));
+  expect(lost.leads.at(-1)).toBe(64);
+  expect(lost.air.slice(-3)).toEqual([true, true, true]);
+  // Hidden: it holds, step after step, until he appears.
+  const hidden = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    const leads: number[] = [];
+    for (let i = 0; i < 200 && !d.bodyVisible(); i++) {
+      d.step(1);
+      leads.push(d.camera().lead);
+    }
+    const appeared = { visible: d.bodyVisible(), lead: d.camera().lead };
+    d.drawAt(0);
+    return { leads: leads.slice(0, -1), appeared, drawnFrom: d.camera().leadDrawn, phase: d.phase() };
+  });
+  expect(hidden.phase).toBe('respawning');
+  expect(hidden.appeared).toEqual({ visible: true, lead: 0 });
+  expect(hidden.leads.length).toBeGreaterThan(10);
+  expect(new Set(hidden.leads)).toEqual(new Set([64]));
+  expect(hidden.drawnFrom).toBe(0);
+  expect(errors).toEqual([]);
 });

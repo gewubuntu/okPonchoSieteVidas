@@ -1,15 +1,15 @@
 // GDD-WLD-03's sight rule as a probe (L-014): fly the flights a level invites and find each one that loses a life to something that was
 // off screen at its take-off. Test support for the level tests, pure, no Phaser: the camera is the pure camera of `src/ui/camera.ts`,
 // stepped along each flight as the scene steps it.
-import { ARMADILLO, BASE_HEIGHT, BASE_WIDTH, CACOMIXTLE, CART, HITBOX, HURTBOX, PALOMA, RUN, TILE, TLACUACHE, ZOPILOTE } from '../config/tuning';
+import { ARMADILLO, BASE_HEIGHT, BASE_WIDTH, CACOMIXTLE, CAMERA, CART, HITBOX, HURTBOX, PALOMA, RUN, TILE, TLACUACHE, ZOPILOTE } from '../config/tuning';
 import { bottomRowAt } from '../sim/bottoms';
-import { cartFloor, floorUnder, rollCarts, type CartState } from '../sim/cart';
+import { cartFloor, floorUnder, ridingCart, rollCarts, type CartState } from '../sim/cart';
 import { standsOnPlatform } from '../sim/platform';
 import { enemyBox, enemyPhase, harmlessFromBelow, kindOf, touchesEnemy, type Box, type EnemyKind, type EnemyState } from '../sim/enemy';
 import { touchesSpike } from '../sim/hazards';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { isInPit, startRun, stepRun, type Level, type Point, type RunState } from '../sim/run';
-import { cameraLimitsAt, followCamera, placeCameraY, stepCameraY, type CameraY } from '../ui/camera';
+import { cameraLimitsAt, followCamera, placeCameraY, stepCameraY, stepCartLead, type CameraY } from '../ui/camera';
 
 /** What the screen shows: the level point at its top-left corner. The view is BASE_WIDTH x BASE_HEIGHT (480 x 270). */
 export interface View {
@@ -17,27 +17,38 @@ export interface View {
   readonly y: number;
 }
 
-/** The camera of a flight as the scene keeps it: the scroll left and right (`followCamera`) and the camera up and down (`stepCameraY`). */
+/**
+ * The camera of a flight as the scene keeps it: the scroll left and right (`followCamera`), the lead it follows (`stepCartLead`, GDD-UI-04: the
+ * scroll follows `x + lead`) and the camera up and down (`stepCameraY`).
+ */
 export interface SightCamera {
   readonly scrollX: number;
+  readonly lead: number;
   readonly y: CameraY;
 }
 
 /**
- * GDD-UI-04: the camera at a take-off at level x `x` with his feet at `feetY`, settled as after an approach of 3 tiles in the flight's
- * direction `dir` on level ground. Left and right: `followCamera` from the scroll that has him at the screen's middle 3 tiles back (where a
- * cut puts him) to the take-off; 3 tiles are longer than the dead zone (32 px), so he stands on its leading edge, 256 px from the screen's
- * left edge going right and 224 px going left, or the scroll stops at the level's edge. Up and down: `placeCameraY` with the limits of his
- * column (his feet 136 px down, the middle of the ground band, where a walk on level ground leaves the camera).
+ * GDD-UI-04: the camera at a take-off from the state `from` (his x and feet's y are the take-off's), settled as after an approach of 3 tiles
+ * in the flight's direction `dir` on level ground. Left and right: `followCamera` from the scroll that has him at the screen's middle 3 tiles
+ * back (where a cut puts him) to the take-off; 3 tiles are longer than the dead zone (32 px), so he stands on its leading edge, 256 px from the
+ * screen's left edge going right and 224 px going left, or the scroll stops at the level's edge. Standing in a rolling cart (`ridingCart`) the
+ * lead is settled too, `CAMERA.cartLead` the way the rail rolls, and the point `x + lead` is the one on that edge: he stands at 192 going
+ * right and 288 going left. Up and down: `placeCameraY` with the limits of his column (his feet 136 px down, the middle of the ground band,
+ * where a walk on level ground leaves the camera).
  */
-export function approachCamera(level: Level, x: number, feetY: number, dir: 1 | -1): SightCamera {
+export function approachCamera(level: Level, from: RunState, dir: 1 | -1): SightCamera {
+  const { x, y } = from.player;
+  const riding = ridingCart(from.player, level.rails ?? [], from.carts);
+  const lead = riding >= 0 ? level.rails![riding]!.dir * CAMERA.cartLead : 0;
   const back = x - dir * 3 * TILE;
-  return { scrollX: followCamera(back - BASE_WIDTH / 2, x, level.world.width * TILE), y: placeCameraY(feetY, cameraLimitsAt(level, x)) };
+  // The lead moves only the point followed, `x + lead`: 3 tiles are longer than the dead zone with it too, so the start (3 tiles back, without it) leaves no trace.
+  return { scrollX: followCamera(back - BASE_WIDTH / 2, x + lead, level.world.width * TILE), lead, y: placeCameraY(y, cameraLimitsAt(level, x)) };
 }
 
-/** GDD-UI-04: the camera after the run's step from `before` to `after`, as the scene follows the body (`followCamera`, `stepCameraY`). */
+/** GDD-UI-04: the camera after the run's step from `before` to `after`, as the scene follows the body (`stepCartLead`, `followCamera`, `stepCameraY`). */
 export function stepSightCamera(camera: SightCamera, before: RunState, after: RunState, level: Level): SightCamera {
-  return { scrollX: followCamera(camera.scrollX, after.player.x, level.world.width * TILE), y: stepCameraY(camera.y, before, after, level).camera };
+  const lead = stepCartLead(camera.lead, before, after, level);
+  return { scrollX: followCamera(camera.scrollX, after.player.x + lead, level.world.width * TILE), lead, y: stepCameraY(camera.y, before, after, level).camera };
 }
 
 export const viewOf = (camera: SightCamera): View => ({ x: camera.scrollX, y: camera.y.y });
@@ -50,7 +61,7 @@ export const onScreen = (box: Box, view: View): boolean => box.x0 < view.x + BAS
  * the camera starting settled at `from` (`approachCamera`).
  */
 export function viewsAlong(level: Level, from: RunState, states: readonly RunState[], dir: 1 | -1): View[] {
-  return camerasAlong(level, approachCamera(level, from.player.x, from.player.y, dir), from, states).map(viewOf);
+  return camerasAlong(level, approachCamera(level, from, dir), from, states).map(viewOf);
 }
 
 /** The camera after each of `states`, stepped from `camera` at `from`: one continuous run. */
@@ -359,7 +370,7 @@ export interface FlyOptions {
  */
 export function flySight(level: Level, t: Takeoff, from: RunState = takeoffRun(level, t), reaction?: Reaction, o: FlyOptions = {}): SightFlight {
   const F = SIGHT_FLIGHT;
-  const camera = o.camera ?? approachCamera(level, from.player.x, from.player.y, t.dir);
+  const camera = o.camera ?? approachCamera(level, from, t.dir);
   const states: RunState[] = [...(o.prefix ?? [])];
   const stood: Place[] = [];
   const stay = t.input === 'ride';
@@ -451,7 +462,7 @@ export function flyTakeoff(level: Level, t: Takeoff, reaction?: Reaction, o: { r
   if (!t.ride) return flySight(level, t, undefined, reaction, o);
   const from = rideRun(level, t.ride.rail, t.start);
   const via = t.ride.via ?? [];
-  const before = staysUpTo(level, { ...t, input: 'ride', ride: { rail: t.ride.rail, move: t.ride.move } }, via, from, approachCamera(level, from.player.x, from.player.y, t.dir));
+  const before = staysUpTo(level, { ...t, input: 'ride', ride: { rail: t.ride.rail, move: t.ride.move } }, via, from, approachCamera(level, from, t.dir));
   if (before === null) throw new Error(`not a ride that lands back in its cart as ${JSON.stringify(via)} says`);
   if (t.ride.step === undefined) return flySight(level, t, from, reaction, { ...o, prefix: before });
   const stayIn: RideFlight = { rail: t.ride.rail, move: t.ride.move, ...(via.length > 0 ? { via } : {}) };

@@ -2,6 +2,7 @@
 // taller than one screen. Pure logic, no Phaser.
 import { ART_SCALE, BASE_HEIGHT, BASE_WIDTH, CAMERA, STEP, TILE } from '../config/tuning';
 import { floorYAt } from '../sim/bottoms';
+import { ridingCart } from '../sim/cart';
 import { isOutOfLives } from '../sim/lives';
 import { flipPose } from '../sim/respawnFlip';
 import { respawnPoint, type Level, type RunState } from '../sim/run';
@@ -64,7 +65,7 @@ export const cameraLimits = (levelHeightPx: number, floorY: number = levelHeight
  * the new `ref`), then pans: in the band's look to its nearer edge, 3 px a step at most; in the look-up to his feet at `upFeet` and in
  * the look-down to `downFeet`, at his own speed (how far his feet moved since the step before, if he stood on it; 0 on a landing) plus `leadSpeed`, but 3 px a step
  * at least. In the air it keeps the look and the reference, forgets `last`, goes up with him past the air's top line, and in a fall that takes his feet below the band
- * (below `upFeet` in the look-up) and on while it lasts it looks down, at his fall speed plus `leadSpeed` until his feet are at
+ * (below `upFeet + riseTrigger` in the look-up, so a drop of less than two tiles from the line lands in it) and on while it lasts it looks down, at his fall speed plus `leadSpeed` until his feet are at
  * `downFeet`, then at his fall speed; landing or rising ends that. Never more than `maxSpeed` a step, never past the limits, but for a
  * bottom limit that has just risen above it, which it pans up to at `panSpeed`. Not rounded: `cameraDrawY` rounds what is drawn.
  */
@@ -101,7 +102,7 @@ export function followCameraY(state: CameraY, input: CameraYInput, limits: Camer
     last = null;
     if (on < CAMERA.airTop) {
       wanted = feetY - CAMERA.airTop;
-    } else if (vy > 0 && (state.lead || on > (look === 'up' ? CAMERA.upFeet : CAMERA.bandBottom))) {
+    } else if (vy > 0 && (state.lead || on > (look === 'up' ? CAMERA.upFeet + CAMERA.riseTrigger : CAMERA.bandBottom))) {
       lead = true;
       wanted = Math.min(state.y + (vy + CAMERA.leadSpeed) * STEP, feetY - CAMERA.downFeet);
     }
@@ -162,6 +163,28 @@ export function stepCameraY(state: CameraY, before: RunState, after: RunState, l
 
 /** GDD-UI-04: the y drawn `alpha` of the way from the step before (`prev`) to the last one (`next`), at whole art pixels. */
 export const cameraDrawY = (prev: number, next: number, alpha: number): number => Math.round((prev + (next - prev) * alpha) * ART_SCALE) / ART_SCALE;
+
+/**
+ * GDD-UI-04: one simulation step of the camera's lead sideways, in game px, signed (+ to the right): the camera follows the point
+ * `body.x + lead` with the dead zone unchanged. Hidden (the run not in play) it holds, and the step he appears (`ponchoShown`, as the cut of
+ * `stepCameraY`) it is 0. On the ground its target is `CAMERA.cartLead` the way the rail rolls while he stands in a rolling cart (`ridingCart`)
+ * and 0 otherwise, and it moves toward it by at most `CAMERA.cartLeadStep`. In the air it holds, so a jump in a rolling cart or out of
+ * it keeps the lead until he stands somewhere again.
+ */
+export function stepCartLead(lead: number, before: RunState, after: RunState, level: Level): number {
+  if (ponchoShown(after) && !ponchoShown(before)) return 0;
+  if (after.phase !== 'playing' || !after.player.grounded) return lead;
+  const rails = level.rails ?? [];
+  const riding = ridingCart(after.player, rails, after.carts);
+  const target = riding >= 0 ? rails[riding]!.dir * CAMERA.cartLead : 0;
+  return lead + Math.max(-CAMERA.cartLeadStep, Math.min(CAMERA.cartLeadStep, target - lead));
+}
+
+/**
+ * GDD-UI-04: the lead drawn `alpha` of the way from the step before (`prev`) to the last one (`next`), as the camera's y is drawn. Not rounded:
+ * `followCamera` rounds the scroll it gives.
+ */
+export const cartLeadDraw = (prev: number, next: number, alpha: number): number => prev + (next - prev) * alpha;
 
 /**
  * GDD-BOS-01: the y scroll drawn: the camera's y with a screen shake on top (a positive `shake` draws the world lower). Written so that with

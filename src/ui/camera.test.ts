@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { BASE_HEIGHT, CAMERA, GLIDE, GRAVITY, STEP, TILE } from '../config/tuning';
 import { LEVELS, levelById } from '../levels';
+import { LAB_3C_FLOOR_Y, LAB_3C_LEVEL } from '../levels/lab3c';
+import { cartFloor, type CartState } from '../sim/cart';
 import { flatWorld, spawn, step, type PlayerState } from '../sim/movement';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
-import { cameraDrawY, cameraLimits, cameraLimitsAt, cameraScroll, cutCameraY, followCamera, followCameraY, placeCameraY, ponchoShown, stepCameraY, type CameraStepped, type CameraY, type CameraYInput } from './camera';
+import { cameraDrawY, cartLeadDraw, cameraLimits, cameraLimitsAt, cameraScroll, cutCameraY, followCamera, followCameraY, placeCameraY, ponchoShown, stepCameraY, stepCartLead, type CameraStepped, type CameraY, type CameraYInput } from './camera';
 
 // The screen is 480 px wide, so the dead zone, 32 px in the middle, is 224 to 256 px from the screen's left edge. The level is
 // 1440 px wide unless stated, so the camera's scroll goes from 0 to 960.
@@ -596,11 +598,13 @@ describe('GDD-UI-04 the look-ahead, up and down', () => {
     expect(followCameraY(falling, air(100 + 130, 300), WIDE).y).toBe(107);
   });
 
-  it('GDD-UI-04 in the look-up a fall starts the look-down below 162, not 156', () => {
+  it('GDD-UI-04 in the look-up a fall starts the look-down below 194, not 156', () => {
+    // upFeet + riseTrigger: 162 + 32. A drop of less than two tiles from the 60% line lands in the look-up without a look-down first.
     const falling = (look: 'up' | 'downward', onScreen: number) => followCameraY({ ...looking(look, 100, 300), last: 300 }, air(100 + onScreen, 300), WIDE);
     expect(falling('up', 160).lead).toBe(false);
-    expect(falling('up', 162).lead).toBe(false);
-    expect(falling('up', 162.5).lead).toBe(true);
+    expect(falling('up', 162.5).lead).toBe(false);
+    expect(falling('up', 194).lead).toBe(false);
+    expect(falling('up', 194.5).lead).toBe(true);
     // In the band, and in the look-down on the ground, the line is 156 as before.
     expect(followCameraY(still(100), air(100 + 157, 300), WIDE).lead).toBe(true);
     expect(followCameraY(still(100), air(100 + 156, 300), WIDE).lead).toBe(false);
@@ -685,5 +689,141 @@ describe('GDD-UI-04 the look-ahead, up and down', () => {
     let shallow = looking('downward', 100, 160);
     for (let i = 0; i < 10; i++) shallow = followCameraY(shallow, ground(160), top);
     expect(shallow.y).toBe(90);
+  });
+});
+
+// GDD-UI-04, the look-ahead sideways: in a rolling cart the camera keeps a lead of 64 px, grown and shrunk by 2 px a step, and follows the
+// point `body.x + lead`. The level is lab-3c, whose rail 0 rolls right (20 tiles on the floor) and rail 3 rolls left (8 tiles). The expected
+// values are the GDD's: 64 px, 2 px a step, his body at 192 rolling right and 288 rolling left.
+/** The lead's steps from 0 to `to` by `by` px a step: `by`, 2 `by` ... `to`. */
+const upTo = (to: number, by: number): number[] => Array.from({ length: Math.abs(to) / by }, (_, i) => Math.sign(to) * by * (i + 1));
+
+/** The run waiting to respawn, before the flip shows him: Poncho is hidden. */
+const waiting = (run: RunState): RunState => ({ ...run, phase: 'respawning', wait: 100 });
+
+describe('GDD-UI-04 the lead in a rolling cart', () => {
+  const lab = LAB_3C_LEVEL;
+  const RIGHT = 0;
+  const LEFT = 3;
+  /** A run with Poncho standing in cart `i`, in phase `phase`, on the floor of that cart (`grounded` false: at its height in the air). */
+  const inCart = (i: number, phase: CartState['phase'] = 'rolling', grounded = true): RunState => {
+    const rail = lab.rails![i]!;
+    const cart: CartState = { phase, m: 80 };
+    const floor = cartFloor(rail, cart);
+    const base = startRun(lab);
+    return { ...base, player: { ...spawn(floor.x + floor.w / 2, floor.y), grounded }, carts: base.carts.map((c, k) => (k === i ? cart : c)) };
+  };
+  /** Poncho on the floor at column 30, with no cart there (R2 starts at column 27 and its cart is 32 px wide). */
+  const onGround = (grounded = true): RunState => ({ ...startRun(lab), player: { ...spawn(30 * TILE + 8, LAB_3C_FLOOR_Y), grounded } });
+  /** `n` steps of the lead in the one state, the leads after each. */
+  const lead = (from: number, run: RunState, n: number): number[] => {
+    const out: number[] = [];
+    for (let i = 0; i < n; i++) out.push((from = stepCartLead(from, run, run, lab)));
+    return out;
+  };
+
+  it('GDD-UI-04 standing in a rolling cart the lead grows 2 px a step to 64 the way it rolls', () => {
+    expect(lab.rails![RIGHT]!.dir).toBe(1);
+    expect(lab.rails![LEFT]!.dir).toBe(-1);
+    expect(lead(0, inCart(RIGHT), 36)).toEqual([...upTo(64, 2), 64, 64, 64, 64]);
+    expect(lead(0, inCart(LEFT), 36)).toEqual([...upTo(-64, 2), -64, -64, -64, -64]);
+    // A lead of the other sign turns the same way, 2 px a step through 0: from -64 rolling right it takes 32 steps to 0.
+    expect(lead(-64, inCart(RIGHT), 33).slice(29, 32)).toEqual([-4, -2, 0]);
+  });
+
+  it('GDD-UI-04 on ground or in a cart that is not rolling the lead shrinks 2 px a step to 0', () => {
+    const down = [...Array.from({ length: 32 }, (_, i) => 62 - 2 * i), 0, 0];
+    for (const [name, run] of [['a waiting cart', inCart(RIGHT, 'waiting')], ['a stopped cart', inCart(RIGHT, 'stopped')], ['plain ground', onGround()]] as const) {
+      expect(lead(64, run, 34), name).toEqual(down);
+      expect(lead(-64, run, 34), name).toEqual(down.map((l) => (l === 0 ? 0 : -l)));
+    }
+  });
+
+  it('GDD-UI-04 in the air the lead holds', () => {
+    // From 40, in the air off the ground (a jump out of a cart onto ground, or over one) and in the air over a rolling cart (a jump straight
+    // up in it): it stays, whatever the target would be there (64 over a rolling cart, 0 elsewhere).
+    for (const [name, run] of [['over nothing', onGround(false)], ['over a rolling cart', inCart(RIGHT, 'rolling', false)]] as const) {
+      expect(lead(40, run, 5), name).toEqual([40, 40, 40, 40, 40]);
+      expect(lead(-40, run, 5), name).toEqual([-40, -40, -40, -40, -40]);
+    }
+    // From the landing step he stands again: it moves.
+    expect(lead(40, onGround(true), 2)).toEqual([38, 36]);
+  });
+
+  it('GDD-UI-04 hidden the lead holds, and the step he appears cuts it to 0', () => {
+    // Hidden (waiting to respawn, before the flip shows him; or on the game over screen) with him grounded in a rolling cart or on the ground.
+    for (const run of [waiting(inCart(RIGHT)), waiting(onGround()), { ...onGround(), phase: 'gameover' as const }]) {
+      expect(ponchoShown(run)).toBe(false);
+      expect(lead(40, run, 3)).toEqual([40, 40, 40]);
+    }
+    // The step he appears (the respawn: not shown before, in play after): 0, from any lead, though the rule would say 62 or 38.
+    const before = waiting(onGround());
+    for (const [from, run] of [[64, onGround()], [-64, onGround()], [40, inCart(RIGHT)]] as const) {
+      expect(ponchoShown(run) && !ponchoShown(before)).toBe(true);
+      expect(stepCartLead(from, before, run, lab)).toBe(0);
+    }
+    // Shown on both sides of the step, it is not a cut.
+    expect(stepCartLead(64, onGround(), onGround(), lab)).toBe(62);
+  });
+
+  it('GDD-UI-04 with the lead at 64 rolling right he is held at 40% of the width', () => {
+    // The scroll follows the point `x + lead` with the dead zone unchanged: settled, he is at 192 going right (288 px ahead) and 288 going left.
+    const WIDE = 1920;
+    const [right, left] = [lead(0, inCart(RIGHT), 40).at(-1)!, lead(0, inCart(LEFT), 40).at(-1)!];
+    expect([right, left]).toEqual([64, -64]);
+    let scroll = 0;
+    for (const x of [100, 150, 192, 250, 300, 360]) {
+      scroll = followCamera(scroll, x + right, WIDE);
+      if (x >= 192) expect(x - scroll, `right at ${x}`).toBe(192);
+    }
+    expect(480 - 192).toBe(288);
+    scroll = 700;
+    for (const x of [1000, 950, 900, 850, 800]) {
+      scroll = followCamera(scroll, x + left, WIDE);
+      if (x <= 900) expect(x - scroll, `left at ${x}`).toBe(288);
+    }
+  });
+
+  it('GDD-UI-04 the lead is drawn between its steps', () => {
+    expect(cartLeadDraw(60, 62, 0.5)).toBe(61);
+    expect(cartLeadDraw(60, 62, 0)).toBe(60);
+    expect(cartLeadDraw(60, 62, 1)).toBe(62);
+    expect(cartLeadDraw(-62, -64, 0.5)).toBe(-63);
+  });
+});
+
+describe('GDD-UI-04 a short drop in the look-up', () => {
+  // A floor at row 30 (y 480) up to column 9 and one tile lower (row 31) from column 10, in a level 40 rows tall, and the camera in the look-up with
+  // his feet on the 60% line at the edge: the one-tile walk-off.
+  const level = levelOf(rowsOf(40, (col) => (col < 10 ? 30 : 31)));
+  const edge = (): { run: RunState; cam: CameraY } => {
+    const run: RunState = { ...startRun(level), player: { ...spawn(9 * TILE + 8, 30 * TILE), grounded: true } };
+    return { run, cam: { ...stood(480 - CAMERA.upFeet, 480), look: 'up', ref: 480 } };
+  };
+
+  it('GDD-UI-04 a short drop in the look-up does not swing the camera back', () => {
+    let { run, cam } = edge();
+    const ys: number[] = [cam.y];
+    const feet: number[] = [];
+    let landed = -1;
+    for (let i = 0; i < 160; i++) {
+      const next = stepRun(run, { move: 1, jumpHeld: false }, level);
+      cam = stepCameraY(cam, run, next, level).camera;
+      run = next;
+      ys.push(cam.y);
+      feet.push(run.player.y);
+      if (landed < 0 && i > 0 && run.player.y === 31 * TILE && run.player.grounded) landed = i;
+    }
+    // He walked off the edge and landed one tile lower, and the look-up held until the band came back.
+    expect(landed).toBeGreaterThan(0);
+    expect(run.player.y).toBe(31 * TILE);
+    // The camera never moves up, at any step from the walk-off to the settled band: down 16 px to put his feet back on the 60% line, then 6 px
+    // more when the band returns (30 still steps on), 22 in all.
+    for (let i = 1; i < ys.length; i++) expect(ys[i]! - ys[i - 1]!, `step ${i}`).toBeGreaterThanOrEqual(0);
+    expect(ys.at(-1)! - ys[0]!).toBeCloseTo(CAMERA.upFeet - CAMERA.bandBottom + TILE, 9);
+    expect(cam.look).toBe('band');
+    expect(run.player.y - cam.y).toBe(CAMERA.bandBottom);
+    // No look-down was started in the air.
+    expect(feet.length).toBeGreaterThan(0);
   });
 });

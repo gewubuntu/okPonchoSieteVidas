@@ -293,10 +293,10 @@ test('GDD-UI-04 3-1 the camera starts 8 px below the level\'s top with his feet 
   expect(out.at(-1)!.grounded).toBe(true);
   expect(out.at(-1)!.feet).toBe(groundRow(Math.floor(glide.x / TILE)) * TILE);
   expect(Math.floor(glide.x / TILE)).toBeGreaterThan(stone + 10);
-  // Down with him: it never goes up, it ends lower than it started, and he lands with his feet in the band.
+  // Down with him: it never goes up, it ends lower than it started, and he lands with his feet at or below the 40% line the fall's look-down catches up at (108), and no lower than the band's bottom.
   for (let i = 1; i < out.length; i++) expect(out[i]!.y, `step ${i}`).toBeGreaterThanOrEqual(out[i - 1]!.y);
   expect(out.at(-1)!.y).toBeGreaterThan(out[0]!.y);
-  expect(out.at(-1)!.feet - out.at(-1)!.y).toBeGreaterThanOrEqual(CAMERA.bandTop - 0.125);
+  expect(out.at(-1)!.feet - out.at(-1)!.y).toBeGreaterThanOrEqual(CAMERA.downFeet - 0.125);
   expect(out.at(-1)!.feet - out.at(-1)!.y).toBeLessThanOrEqual(CAMERA.bandBottom + 0.125);
   expect(glide.lives).toBe(7);
 });

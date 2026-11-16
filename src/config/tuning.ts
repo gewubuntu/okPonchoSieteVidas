@@ -212,6 +212,10 @@ export const CAMERA = {
   downFeet: 108,
   settleSteps: 30,
   stillTolerance: 0.01,
+  // GDD-UI-04, the look-ahead sideways (Proposed): in a rolling cart the dead zone moves `cartLead` px behind him (his body at 40% of the
+  // width, 288 px ahead), grown and shrunk by `cartLeadStep` px a step (120 px/s).
+  cartLead: 64,
+  cartLeadStep: 2,
 } as const;
 
 /**

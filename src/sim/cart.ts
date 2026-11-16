@@ -229,6 +229,13 @@ export function carryOnCarts(player: PlayerState, rails: readonly Rail[], from: 
   return player;
 }
 
+/**
+ * GDD-UI-04: the cart, by its place in the level's list, that Poncho stands in while it rolls, or -1: a waiting or a stopped cart is none,
+ * and nor is a rolling one under a rider in the air (`standsIn` reads `grounded`, as `standsOnPlatform` does, L-025).
+ */
+export const ridingCart = (player: PlayerState, rails: readonly Rail[], carts: readonly CartState[]): number =>
+  rails.findIndex((r, i) => carts[i]!.phase === 'rolling' && standsIn(player, r, carts[i]!));
+
 /** The cart, by its place in the level's list, whose floor Poncho stands on, or -1. */
 const standingIn = (player: PlayerState, rails: readonly Rail[], carts: readonly CartState[]): number => rails.findIndex((r, i) => standsIn(player, r, carts[i]!));
 
