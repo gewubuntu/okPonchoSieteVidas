@@ -1303,6 +1303,32 @@ describe('GDD-ENM-04 a cacomixtle cart clear of the phone\'s buttons', () => {
     expect(tallH(solid, 480, undefined, { platforms: [{ x0: 400, y0: 408, x1: 560, y1: 408, w: 32 }] })).toEqual(at234(408));
   });
 
+  it('GDD-ENM-04 phone buttons: a path descending from over his place is read only where it is, its fraction clamped at 0', () => {
+    // From (576, 440) down to (776, 640), 32 wide: it covers x = 584 for f from 0 to 0.04, its top 440 to 448, so the highest is 440 (not the 416
+    // an unclamped f of -0.12 would give). His feet at 440: the camera at 278, the cart's bottom at 480 - 278 = 202, its box 186 to 202: the
+    // mirrored mode switch 32 x 16 and nothing else.
+    const solid = [...ground, ...strip(44, 52, 30)];
+    expect(tallH(solid, 480, undefined, { platforms: [{ x0: 576, y0: 440, x1: 776, y1: 640, w: 32 }] })).toEqual([
+      onButton('cacomixtle at 784,472', 32, 16, 'mode', 'mirrored', 'buttons', 36, 440),
+    ]);
+  });
+
+  it('GDD-ENM-04 phone buttons: the claw button alone and the pause button alone are each checked', () => {
+    // Claw: a 17-row level (the camera at 0), the rail's ground at 240 in a pit (columns 18 to 30), its cart's middle at 374 (box x 358 to 390,
+    // y 224 to 240); he stands at x 174, column 10, on the floor (y 224, 8 px over its floor 232); the scroll is 0. The standard claw button,
+    // 374 to 414 x 224 to 264, is the only one it overlaps: 16 x 16 (the mirrored left button starts at 390, an edge).
+    const clawRail = { ...ka(undefined, 'buffer', 240), x: 390 };
+    expect(ringtailAll([clawRail], [cacomixtle(374, 232, 0, { sightException: EDGE_EXCEPTION })], { pits: cols(18, 30) }).filter((p) => p.includes('phone'))).toEqual([
+      onButton('cacomixtle at 374,232', 16, 16, 'claw', 'standard', 'buttons', 10, 224),
+    ]);
+    // Pause: a 40-row level, his ground at row 4 (y 64), the rail's ground at 40 (its floor 32, 32 px under his feet): the camera clamped at 0,
+    // the box at x 440 to 472, y 24 to 40, under the pause button (450 to 474 x 6 to 30, in both layouts): 22 x 6 each.
+    expect(tallH([...strip(30, 43, 4)], 40)).toEqual([
+      onButton('cacomixtle at 784,32', 22, 6, 'pause', 'standard', 'buttons', 36, 64),
+      onButton('cacomixtle at 784,32', 22, 6, 'pause', 'mirrored', 'buttons', 36, 64),
+    ]);
+  });
+
   it('GDD-ENM-04 phone buttons: piñata, door and fragile wall tops are ground, a spring is not', () => {
     // A tile in column 36 at row 27 (top y = 432), 40 px over the cart's floor (472): the camera at 270, the cart's bottom at 210, its box 194
     // to 210: the standard Jump button 32 x 2 and the mirrored mode switch 32 x 16. A spring there throws him, so he never stands on it.

@@ -294,7 +294,7 @@ function topRows(level: Level, col: number): number[] {
  *   screen) is the one read, the band's top when the path passes over it.
  * Out: springs, whose top throws him the step he stands on it (`bounce`), so he never rests there. Not read either: the floors of carts (an
  * empty waiting one starts rolling the step after he stands in it, GDD-WLD-15, but one stopped at its buffer and one with a live ringtail in
- * it hold him at rest), moving blocks, awnings, cordeles and strung rollos.
+ * it hold him at rest), moving blocks, awnings, cordeles and strung rollos: not yet, GDD Open Question 49.
  */
 function groundsAt(level: Level, x: number, floorY: number): number[] {
   const solid = withFragiles(
