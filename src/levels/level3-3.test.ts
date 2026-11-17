@@ -319,10 +319,10 @@ describe('GDD-WLD-18 level 3-3 layout', () => {
     expect(rides).toEqual([
       { n: 'R1', steps: 249 }, // 4.15 s; GDD says 4.0 s (a target)
       { n: 'R2', steps: 101, fromFlash: 99 }, // 1.68 s to its buffer; at column 46 1.65 s after the first flash, GDD says 1.8 s
-      { n: 'R3', steps: 149 }, // 2.48 s from the cart's start at 68; GDD says 2.5 s
+      { n: 'R3', steps: 149 }, // 2.48 s from the cart's start at 68, as GDD-WLD-18 gives it
       { n: 'R4', steps: 109 }, // 1.82 s; GDD says 1.8 s
-      { n: 'R5', steps: 122, fromFlash: 88 }, // 2.03 s to its buffer; at the pier 1.47 s after the first flash, GDD says 1.6 s
-      { n: 'R6', steps: 90, fromFlash: 82 }, // 1.5 s to its buffer; at column 187 1.37 s after the first flash, GDD says 1.6 s
+      { n: 'R5', steps: 122, fromFlash: 88 }, // 2.03 s to its buffer; at the pier 1.47 s after the first flash, as GDD-WLD-18 gives it
+      { n: 'R6', steps: 90, fromFlash: 82 }, // 1.5 s to its buffer; at column 187 1.37 s after the first flash, as GDD-WLD-18 gives it
       { n: 'R7', steps: 93 }, // 1.55 s; GDD says 1.5 s
     ]);
   });
