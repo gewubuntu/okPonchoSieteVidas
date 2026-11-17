@@ -7,7 +7,7 @@ import { spawn, type PlayerInput } from '../sim/movement';
 import { medal } from '../sim/results';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { LEVEL_1_4 } from './level1-4';
-import { LEVELS } from './index';
+import { LEVELS, withUnlocks } from './index';
 import { gaps } from './validate';
 
 const world = LEVEL_1_4.world;
@@ -237,6 +237,15 @@ function measure(hit: RunState): { landed: number; rested: number; last: number 
 describe('GDD-BOS-02 playing 1-4', () => {
   it('GDD-BOS-02 1-4 can be won from the start with all seven lives in under 1500 steps', () => {
     const { run, steps } = bot(LEVEL_1_4, 1500);
+    expect(run.phase).toBe('clear');
+    expect(steps).toBeLessThan(1500);
+    expect(run.lives.lives).toBe(7);
+    expect(run.boss).toMatchObject({ hits: 3, mode: 'defeated' });
+  });
+
+  it('GDD-PRG-01 1-4 with the glide unlocked the fight is still won losing no life', () => {
+    // The same bot with the glide on, as in every level once 2-4 is cleared (user, 2026-11-11: "Accept the skips").
+    const { run, steps } = bot(withUnlocks(LEVEL_1_4, { glide: true }), 1500);
     expect(run.phase).toBe('clear');
     expect(steps).toBeLessThan(1500);
     expect(run.lives.lives).toBe(7);

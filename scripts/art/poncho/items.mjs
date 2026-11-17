@@ -10,7 +10,24 @@ export const ITEM_COLOURS = {
   G: '#4B8A34', // leafDark: their shade
 };
 
-const KEY = { ...COLOURS, ...ITEM_COLOURS };
+/**
+ * GDD-ART-03: the three colours the Chile Fantasma adds (the cap goes from 16 to 19 for it alone, user, 2026-11-10: "Raise the cap for it"),
+ * used only by the pepper and the glow. Each is the median of the colour's pixels in the user's references
+ * (assets/characters/poncho/fantasma/, measured 2026-11-10, L-072): `l`, the pepper's lavender-white, the body colour of all three frames of
+ * pickup.jpg (about 3400 pixels within 10 of the cluster); `v`, its lavender shade, the shadow side of the same frames (about 1900 pixels);
+ * `P`, the pale gold of the warning glow, the ring just outside the near-black outline of glow.jpg's fourth frame (x 785 to 1010, y 150 to 420).
+ * The bright gold of the glow and of the pepper's outline is the victory frame's gold, `GOLD`.
+ */
+export const FANTASMA_COLOURS = {
+  l: '#E4E9FC',
+  v: '#BEC3F7',
+  P: '#D3C193',
+};
+
+/** The gold of the glow and of the pepper's outline: Poncho's gold (GDD-ART-03), the same as `VICTORY_COLOURS.y` (a test compares them). */
+export const GOLD = '#F9D24C';
+
+const KEY = { ...COLOURS, ...ITEM_COLOURS, ...FANTASMA_COLOURS, y: GOLD };
 const OUTLINE = COLOURS['#'];
 
 /** Paints a map of rows (one character a pixel, '.' left as it is) with its top left at (ox, oy). */
@@ -484,5 +501,170 @@ export const fx = {
       { look: 'crumbs0', grid: crumbs(0) },
       { look: 'crumbs1', grid: crumbs(1) },
     ];
+  },
+};
+
+// ---- The Chile Fantasma pickup (GDD-PWR-04): the user's ghost pepper, three frames of a bob (assets/characters/poncho/fantasma/pickup.jpg). ----
+
+// A plump pale lavender-white pepper (l, a lighter highlight W down its left, the lavender shade v down its right and underneath) under a
+// short green stem curling over at the top, a cheeky face (two dot eyes and a small open smile, in the outline's near-black #), its lower body
+// tapering into a wispy ghost tail that curls to the left. Its near-black outline and the gold one round it are added in `pepperAt`.
+const PEPPER = rows([
+  '.......gG.....',
+  '......gGG.....',
+  '.....gGg......',
+  '....lllGll....',
+  '...llllllllll.',
+  '..WWlllllllllv',
+  '..WWlllllllllv',
+  '..WWl#lll#llvv',
+  '..WWl#lll#llvv',
+  '..Wlllllllllvv',
+  '..Wll#lll#lvvv',
+  '..Wlll###llvv.',
+  '...Wlllllllvv.',
+  '...Wllllllvvv.',
+  '...Wlllllllvv.',
+  '....llllllvvv.',
+  '....lllllvvv..',
+  '...lllllvvv...',
+  '..llllvvvv....',
+  '.llllvvv......',
+  'lllvvv........',
+  'llv...........',
+]);
+
+/** A 1 px ring of gold outside every painted pixel (the pepper's glow, as in pickup.jpg), 4-connected like the outline. */
+function halo(g) {
+  const add = [];
+  for (let y = 0; y < g.height; y++) for (let x = 0; x < g.width; x++) {
+    if (g.get(x, y) !== null) continue;
+    if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => g.get(x + dx, y + dy) !== null)) add.push([x, y]);
+  }
+  for (const [x, y] of add) g.set(x, y, KEY.y);
+}
+
+/** A gold sparkle centred on (x, y): a plus `arm` px each way, or when `star` its four points one step longer and a pixel thick. */
+function twinkle(g, x, y, arm, star = false) {
+  g.set(x, y, KEY.y);
+  for (let i = 1; i <= arm; i++) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.set(x + dx * i, y + dy * i, KEY.y);
+  if (star) for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) g.set(x + dx, y + dy, KEY.y);
+}
+
+export const fantasma = {
+  FRAME: { w: 32, h: 32 },
+  LOOKS: ['fantasmaBob0', 'fantasmaBob1', 'fantasmaBob2'],
+  draw() {
+    // Each frame a little lower than the one before: the pepper 0, 2 and 4 drawing px down; its sparkles in different places.
+    const at = (dy, sparkles) => {
+      const g = new Grid(32, 32);
+      stamp(g, PEPPER, 8, 3 + dy);
+      g.outline(OUTLINE, 1);
+      halo(g);
+      for (const [x, y, arm, star] of sparkles) twinkle(g, x, y + dy, arm, star);
+      return g;
+    };
+    return [
+      { look: 'fantasmaBob0', grid: at(0, [[4, 8, 1], [27, 5, 1], [27, 19, 2, true]]) },
+      { look: 'fantasmaBob1', grid: at(2, [[5, 17, 1], [26, 9, 1], [27, 22, 1]]) },
+      { look: 'fantasmaBob2', grid: at(4, [[4, 10, 1], [25, 6, 1], [26, 17, 2, true]]) },
+    ];
+  },
+};
+
+// ---- The glow's effects (GDD-PWR-04): what floats and trails round Poncho while the Chile Fantasma runs (assets/characters/poncho/fantasma/glow.jpg). ----
+
+/** The glow's frames are drawn in gold and, for a soft edge, the pale gold; they are not outlined (the reference's sparkles, flames and streaks are not). */
+const GLOW_FRAME = 16;
+
+/** A map of the glow sheet, one character a pixel: `y` gold, `P` pale gold. */
+const GLOW = {
+  // Four-pointed star, 11 px across: thin arms, a plump middle.
+  sparkleStar: rows([
+    '................',
+    '................',
+    '.......y........',
+    '.......y........',
+    '.......y........',
+    '......yyy.......',
+    '...yyyyyyyyy....',
+    '......yyy.......',
+    '.......y........',
+    '.......y........',
+    '.......y........',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+  ]),
+  // A small plus, 5 px across.
+  sparklePlus: rows([
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '.......y........',
+    '.......y........',
+    '.....yyyyy......',
+    '.......y........',
+    '.......y........',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+  ]),
+  // A flame flicker (glow.jpg frame 1): a teardrop leaning a little to the right, its tip pale.
+  flame: rows([
+    '................',
+    '................',
+    '.........P......',
+    '........Py......',
+    '........yy......',
+    '.......yyy......',
+    '.......yyyy.....',
+    '......yyyyy.....',
+    '......yyyyy.....',
+    '......yyyyy.....',
+    '.......yyy......',
+    '.......PyP......',
+    '................',
+    '................',
+    '................',
+    '................',
+  ]),
+  // A speed streak (glow.jpg frame 2): a thin gold line trailing off to a point, a pale one under it.
+  streak: rows([
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '.........yyyyy..',
+    '..yyyyyyyyyyyyy.',
+    '.....PPPPPPPP...',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+  ]),
+};
+
+export const glowSheet = {
+  FRAME: { w: GLOW_FRAME, h: GLOW_FRAME },
+  LOOKS: ['sparkleStar', 'sparklePlus', 'flame', 'streak'],
+  draw() {
+    return this.LOOKS.map((look) => {
+      const g = new Grid(GLOW_FRAME, GLOW_FRAME);
+      stamp(g, GLOW[look], 0, 0);
+      return { look, grid: g };
+    });
   },
 };

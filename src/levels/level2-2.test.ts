@@ -6,7 +6,7 @@ import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { bundleBox, rolloLength } from '../sim/papel';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
-import type { LevelEntry } from './index';
+import { withUnlocks, type LevelEntry } from './index';
 import { LEVEL_2_2 } from './level2-2';
 import { gaps, openGaps, validateLevel } from './validate';
 
@@ -811,10 +811,27 @@ describe('GDD-WLD-13 playing 2-2: ketsu, rollos with awnings', () => {
   });
 });
 
+/**
+ * The main route played through, in each test that reads it, not as the file loads, so the glide-unlocked run (GDD-PRG-01,
+ * `npm run test:glide`) plays it with the abilities of that test.
+ */
+const playMain = (): Played => play([...route(), ...finale()]);
+
+/**
+ * GDD-PRG-01: a player's habit with the glide unlocked: jump is let go while he falls, unless a whole awning's top is within 12 px under his
+ * feet (a held landing there is a rebound). As scripted, the route's jumps are held through their falls and glide past their landings.
+ */
+const letGo = (c: Ctl): Ctl => (r, t) => {
+  const out = c(r, t);
+  const p = r.player;
+  const awning = A.some((a, i) => !r.awningsGone[i] && a.y - p.y >= 0 && a.y - p.y <= 12 && p.x + 6 > a.x && p.x - 6 < a.x + a.w);
+  return !p.grounded && p.vy > 0 && !awning ? { ...out, input: { ...out.input, jumpHeld: false } } : out;
+};
+
 describe('GDD-WLD-13 2-2 played through', () => {
-  const main = play([...route(), ...finale()]);
 
   it('GDD-WLD-13 2-2 the bot plays the main route from the start to the exit through every ofrenda, losing no life', () => {
+    const main = playMain();
     expect(main.run.phase).toBe('clear');
     expect(main.lost).toBe(0);
     expect(main.run.lives.lives).toBe(7);
@@ -825,7 +842,18 @@ describe('GDD-WLD-13 2-2 played through', () => {
     expect(main.states.length).toBe(2519);
   });
 
+  it('GDD-PRG-01 2-2 with the glide unlocked the route still reaches the exit losing no life', () => {
+    // The main route with the glide on, as in every level once 2-4 is cleared (user, 2026-11-11: "Accept the skips"), jump let go in
+    // falls (`letGo`).
+    const p = play([...route(), ...finale()].map(letGo), withUnlocks(L, { glide: true }));
+    expect(p.run.phase).toBe('clear');
+    expect(p.lost).toBe(0);
+    expect(p.run.lives.lives).toBe(7);
+    expect(p.states.length).toBeLessThan(2700);
+  });
+
   it('GDD-WLD-13 2-2 on the way it unrolls every rollo, the fireball one by a fireball, and collects 49 hilos', () => {
+    const main = playMain();
     expect(main.run.rollos.every((s) => s.steps !== null)).toBe(true);
     // The fireball's unrolls while he stands on the walkway, out of the claw's reach, so only the fireball did it.
     const unrolled = main.states.findIndex((s) => s.rollos[FIRE]!.steps !== null);
@@ -839,6 +867,7 @@ describe('GDD-WLD-13 2-2 played through', () => {
   });
 
   it('GDD-WLD-13 2-2 the expert route takes the veladora off the main route and still reaches the exit, and between them every hilo is taken', () => {
+    const main = playMain();
     const p = play([...route().slice(0, -1), ...expert()]);
     expect(p.run.phase).toBe('clear');
     expect(p.lost).toBe(0);

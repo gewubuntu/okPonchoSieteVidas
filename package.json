@@ -15,6 +15,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:abilities": "vitest run -c vitest.abilities.config.ts",
+    "test:glide": "vitest run -c vitest.glide.config.ts",
+    "test:sight": "vitest run -c vitest.sight.config.ts",
     "test:e2e": "playwright test --project=desktop --project=phone",
     "check": "node scripts/check.mjs",
     "shots": "playwright test --project=shots-desktop --project=shots-phone"
@@ -23,12 +25,12 @@
     "phaser": "^4.2.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.65.0",
+    "@playwright/test": "^1.65.1",
     "@types/node": "^24.19.2",
-    "oxlint": "^1.92.0",
-    "oxlint-tsgolint": "^7.0.2006",
+    "oxlint": "^1.94.0",
+    "oxlint-tsgolint": "^7.0.2007",
     "typescript": "^7.0.2",
-    "vite": "^8.3.7",
+    "vite": "^8.3.8",
     "vitest": "^5.1.0"
   }
 }

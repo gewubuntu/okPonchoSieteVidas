@@ -6,7 +6,7 @@ import { spawn, type PlayerInput } from '../sim/movement';
 import { startRun, stepRun, touchesExit, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
 import { LEVEL_1_1 } from './level1-1';
-import { LEVELS } from './index';
+import { LEVELS, withUnlocks } from './index';
 import { gaps } from './validate';
 
 const world = LEVEL_1_1.world;
@@ -174,6 +174,15 @@ function bot(level: Level, maxSteps: number): { run: RunState; steps: number } {
 describe('GDD-WLD-07 playing 1-1', () => {
   it('GDD-WLD-07 1-1 can be played from the start to the exit with all seven lives in under 1500 steps', () => {
     const { run, steps } = bot(LEVEL_1_1, 1500);
+    expect(run.phase).toBe('clear');
+    expect(steps).toBeLessThan(1500);
+    expect(run.lives.lives).toBe(7);
+    expect(touchesExit(run.player, LEVEL_1_1.exit!)).toBe(true);
+  });
+
+  it('GDD-PRG-01 1-1 with the glide unlocked the route still reaches the exit losing no life', () => {
+    // The same bot with the glide on, as in every level once 2-4 is cleared (user, 2026-11-11: "Accept the skips").
+    const { run, steps } = bot(withUnlocks(LEVEL_1_1, { glide: true }), 1500);
     expect(run.phase).toBe('clear');
     expect(steps).toBeLessThan(1500);
     expect(run.lives.lives).toBe(7);

@@ -39,6 +39,11 @@ export interface PlayerState {
   /** GDD-WLD-10: steps left in which a jump press counts as held at the last plain awning landing, and the tier it gives. Left out means none. */
   awningLate?: number;
   awningLateTier?: number;
+  /**
+   * GDD-WLD-15: the speed across (px/s, signed) of the rolling cart he left, carried until he lands or a wall stops him; `vx` is then his
+   * speed in the world. Left out means none.
+   */
+  carry?: number;
 }
 
 /** Abilities unlocked by progression (GDD-PRG-01). Left out means none. */
@@ -114,9 +119,14 @@ function approach(value: number, target: number, delta: number): number {
   return value < target ? Math.min(value + delta, target) : Math.max(value - delta, target);
 }
 
-/** Advances one fixed step. Returns a new state and never mutates its input. */
-export function step(prev: PlayerState, input: PlayerInput, world: World, abilities: Abilities = {}): PlayerState {
+/**
+ * Advances one fixed step. Returns a new state and never mutates its input. `runSpeed` is the top running speed in px/s: RUN.maxSpeed, or
+ * FANTASMA.runSpeed while the Chile Fantasma runs (GDD-PWR-04); above it with the stick held he slows back at the acceleration's rate.
+ */
+export function step(prev: PlayerState, input: PlayerInput, world: World, abilities: Abilities = {}, runSpeed: number = RUN.maxSpeed): PlayerState {
   const s: PlayerState = { ...prev };
+  // GDD-WLD-15: a carried speed ends with any landing, also one this step does not see (a moving block's top, an awning).
+  if (prev.grounded) delete s.carry;
   delete s.takeoff;
   const vx0 = prev.vx;
   const move = Math.max(-1, Math.min(1, input.move));
@@ -134,12 +144,18 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
   // GDD-MOV-01: horizontal movement. Locked for a moment after a wall kick (GDD-MOV-08).
   if ((prev.kickLock ?? 0) > 0) {
     // keep the kick's speed
+  } else if (s.carry !== undefined) {
+    // GDD-WLD-15: in the air from a rolling cart, no input and forward input both hold the carried speed, and holding against the roll
+    // slows him by up to RUN.maxSpeed (also while the Chile Fantasma runs), always at the air acceleration.
+    const roll = Math.sign(s.carry);
+    s.vx = approach(s.vx, move * roll < 0 ? s.carry - roll * RUN.maxSpeed : s.carry, RUN.airAccel * STEP);
+    if (move !== 0) s.facing = move > 0 ? 1 : -1;
   } else if (move === 0) {
     s.vx = approach(s.vx, 0, (s.grounded ? RUN.groundDecel : RUN.airDecel) * STEP);
   } else {
     const turning = s.vx !== 0 && Math.sign(s.vx) !== Math.sign(move);
     const accel = s.grounded ? (turning ? RUN.turnAccel : RUN.groundAccel) : RUN.airAccel;
-    s.vx = approach(s.vx, move * RUN.maxSpeed, accel * STEP);
+    s.vx = approach(s.vx, move * runSpeed, accel * STEP);
     s.facing = move > 0 ? 1 : -1;
   }
 
@@ -213,6 +229,7 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
   if (up === 'wall') {
     s.x = fromX;
     s.vx = 0;
+    delete s.carry; // GDD-WLD-15: a wall ends a carried speed, and he drops down its face
   } else if (up !== null && (standing || slopeTile(world, s.x, s.y) === null)) {
     s.y = up;
     lifted = true;
@@ -227,6 +244,7 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
         : (Math.floor((s.x - HALF_WIDTH) / TILE) + 1) * TILE + HALF_WIDTH;
     }
     s.vx = 0;
+    delete s.carry; // GDD-WLD-15: a wall ends a carried speed, and he drops down its face
   }
 
   s.y += dy;
@@ -268,6 +286,7 @@ export function step(prev: PlayerState, input: PlayerInput, world: World, abilit
   if (landed) {
     s.gliding = false; // GDD-MOV-07: standing (or landing) ends a glide
     s.clinging = false; // GDD-MOV-08: and a wall slide
+    delete s.carry; // GDD-WLD-15: and a carried speed
   }
   s.wallGrace = Math.max(0, (s.wallGrace ?? 0) - 1);
   if (!landed) s.coyote = Math.max(0, s.coyote - 1);

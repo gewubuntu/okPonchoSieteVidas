@@ -6,7 +6,7 @@ import { loseLife, startWorld } from '../sim/lives';
 import { spawn, type PlayerInput } from '../sim/movement';
 import { startRun, stepRun, touchesExit, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
-import type { LevelEntry } from './index';
+import { withUnlocks, type LevelEntry } from './index';
 import { LEVEL_2_1, LEVEL_2_1_AWNINGS, LEVEL_2_1_CORDELES, LEVEL_2_1_ROWS } from './level2-1';
 import { parseTiles } from '../sim/tilemap';
 import { gaps, openGaps, validateLevel } from './validate';
@@ -857,6 +857,16 @@ describe('GDD-WLD-12 playing 2-1', () => {
     expect(level.ofrendas.map((o) => run.lives.used.has(`ofrenda:${o.id}`))).toEqual([true, true, true]);
     expect(run.enemies.map((e) => e.alive)).toEqual([true, false, false, false, false, false]); // the Alacrán jumped, the Palomas clawed
     expect(clawed).toBe(10); // claw presses, two for each Paloma: the bot presses every other step while one is in its reach
+  });
+
+  it('GDD-PRG-01 2-1 with the glide unlocked the route still reaches the exit losing no life', () => {
+    // The same bot with the glide on, as in every level once 2-4 is cleared (user, 2026-11-11: "Accept the skips").
+    const { run, steps, lost } = bot(withUnlocks(level, { glide: true }), 3000);
+    expect(run.phase).toBe('clear');
+    expect(lost).toBe(0);
+    expect(run.lives.lives).toBe(7);
+    expect(steps).toBeLessThan(3000);
+    expect(touchesExit(run.player, level.exit!)).toBe(true);
   });
 
   it('GDD-WLD-12 2-1 the bot also clears it after waiting 60 120 180 or 240 steps at the start', () => {

@@ -24,7 +24,10 @@ export function oneVersionErrors(baseText, headText, baseName = 'origin/main') {
  * except under CI, where it fails so that a checkout without the full history cannot turn it off unseen.
  */
 export function gddVersionErrors(git, headText, ci) {
-  const base = git('merge-base', 'origin/main', 'HEAD');
+  // L-088: while a merge is in progress, compare with the merge base the merge commit will have (`git merge-base A B C`
+  // is the base of A and a merge of B and C), not HEAD's old one.
+  const merging = git('rev-parse', '-q', '--verify', 'MERGE_HEAD').status === 0;
+  const base = merging ? git('merge-base', 'origin/main', 'HEAD', 'MERGE_HEAD') : git('merge-base', 'origin/main', 'HEAD');
   if (base.status !== 0) {
     return ci ? ['GDD: no merge base with origin/main, so gdd-one-version cannot compare versions; the CI job that runs the gate needs the full history (`fetch-depth: 0`, L-057)'] : [];
   }

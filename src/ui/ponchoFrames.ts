@@ -61,7 +61,7 @@ export const PONCHO_FRAMES: Readonly<Record<PonchoLook, PonchoFrameData>> = {
  * `hand`), the claw's box in the swipe frame (`SWIPE_BOX`, put on the claw's box, `clawBox`; its bottom row is his feet's) and his
  * mouth in the effects frame (`FX_MOUTH`, put on a frame's `mouth`).
  */
-export const ITEM_FRAMES = { taco: { w: 32, h: 32 }, chile: { w: 32, h: 32 }, held: { w: 24, h: 24 }, swipe: { w: 64, h: 64 }, fx: { w: 32, h: 32 } } as const;
+export const ITEM_FRAMES = { taco: { w: 32, h: 32 }, chile: { w: 32, h: 32 }, held: { w: 24, h: 24 }, swipe: { w: 64, h: 64 }, fx: { w: 32, h: 32 }, fantasma: { w: 32, h: 32 }, glow: { w: 16, h: 16 } } as const;
 export const HELD_HAND = { x: 12, y: 12 } as const;
 export const SWIPE_BOX = { x0: 12, y0: 0, x1: 52, y1: 64 } as const;
 export const FX_MOUTH = { x: 3, y: 17 } as const;

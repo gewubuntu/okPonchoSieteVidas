@@ -48,6 +48,21 @@ describe('gdd-version (L-057)', () => {
   };
   const twoAdded = gdd('0.9.4', '0.9.3', '0.9.2', '0.9.1');
 
+  // L-088: during `git merge origin/main`, before the merge is committed, HEAD's merge base is still the old one, so main's
+  // versions counted as the branch's and the gate could not pass on the merge it is run to check.
+  it('reads the GDD at the merge base the merge in progress will have', () => {
+    const merging = (cmd, ...args) => {
+      if (cmd === 'rev-parse' && args.join(' ') === '-q --verify MERGE_HEAD') return { status: 0, stdout: 'm\n' };
+      if (cmd === 'merge-base' && args.join(' ') === 'origin/main HEAD MERGE_HEAD') return { status: 0, stdout: 'main\n' };
+      if (cmd === 'merge-base' && args.join(' ') === 'origin/main HEAD') return { status: 0, stdout: 'old\n' };
+      if (cmd === 'show' && args[0] === 'main:docs/GDD.md') return { status: 0, stdout: gdd('0.9.3', '0.9.2', '0.9.1') };
+      if (cmd === 'show' && args[0] === 'old:docs/GDD.md') return { status: 0, stdout: base };
+      return { status: 1, stdout: '' };
+    };
+    expect(gddVersionErrors(merging, twoAdded, false)).toEqual([]);
+    expect(gddVersionErrors(merging, gdd('0.9.5', '0.9.4', '0.9.3', '0.9.2', '0.9.1'), false)).toHaveLength(1);
+  });
+
   it('reads the GDD at the merge base and fails a branch that adds two versions', () => {
     expect(gddVersionErrors(fakeGit('abc123', base), twoAdded, false)).toHaveLength(1);
     expect(gddVersionErrors(fakeGit('abc123', base), gdd('0.9.3', '0.9.2', '0.9.1'), false)).toEqual([]);

@@ -11,7 +11,7 @@ describe('L-012 gate-pipe hook', () => {
 
   it('denies a pipe between the gate and the commit', () => {
     expect(gateProblem('node scripts/check.mjs | tail -1 && git commit -m x')).toMatch(/L-012/);
-    // L-077: the denial says that no part of the command ran, so a retry keeps its edits.
+    // L-085: the denial says that no part of the command ran, so a retry keeps its edits.
     expect(gateProblem('node scripts/check.mjs | tail -1 && git commit -m x')).toMatch(/None of this command ran/);
     expect(gateProblem('node scripts/check.mjs 2>&1 | tail -1 && git commit -m x')).toMatch(/L-012/);
   });
@@ -28,6 +28,17 @@ describe('L-012 gate-pipe hook', () => {
   it('lets those through when && joins them to the gate, and leaves git commands that make no commit alone', () => {
     for (const git of ['git cherry-pick abc123', 'git merge --ff-only topic', 'git rebase --continue']) expect(gateProblem(`node scripts/check.mjs && ${git}`), git).toBeNull();
     for (const git of ['git status', 'git log --oneline -3', 'git push', 'git amend-notes', 'git merge-base HEAD origin/main']) expect(gateProblem(`node scripts/check.mjs | tail -1; ${git}`), git).toBeNull();
+  });
+
+  it('denies a push chained after the gate and the commit (L-078)', () => {
+    expect(gateProblem('node scripts/check.mjs >/dev/null 2>&1 && git commit -qm x && git push -q')).toMatch(/L-078/);
+    expect(gateProblem('node scripts/check.mjs && git commit -m x && git -C repo push origin b')).toMatch(/L-078/);
+  });
+
+  it('lets a gate and commit with no push through, and a push that is not after a gated commit (L-078)', () => {
+    expect(gateProblem('node scripts/check.mjs && git commit -m x && git log -1 --oneline')).toBeNull();
+    expect(gateProblem('git push -u origin b')).toBeNull();
+    expect(gateProblem('git push && node scripts/check.mjs && git commit -m x')).toBeNull();
   });
 
   it('ignores commands without both the gate and a commit after it', () => {

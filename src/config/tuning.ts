@@ -89,7 +89,7 @@ export const ANIM = { runMinSpeed: 10, runFramePx: 8, runFrames: 4 } as const;
  * way he faces he skids. Standing, he blinks for the last `blinkSteps` of every `blinkEvery` and, in Taco or Fuego, glances at the taco for
  * `glanceSteps` of every `glanceEvery`. `reach` is how far each frame's drawing reaches past his body box (game px), behind it, in front,
  * above and below (L-059); only the respawn flip, drawn in the air, may reach below his feet. A pickup shows its next bob frame every
- * `pickup.bobSteps` of the run's clock and its glint for the last `pickup.glintSteps` of every `pickup.glintEvery`; `pickup.reach` is how far
+ * `pickup.bobSteps` of the run's clock and its glint (not the Chile Fantasma's, which bobs through its three frames, GDD-PWR-04) for the last `pickup.glintSteps` of every `pickup.glintEvery`; `pickup.reach` is how far
  * its frames reach past its 12 px square at most (L-059), the square's middle on the frame's middle. A taco or chile out of a piñata, standing
  * on its feet, is drawn `reach.below` higher than its square, so no bob frame reaches below its feet.
  */
@@ -161,6 +161,8 @@ export const PONCHO_ART = {
     reach: {
       taco: { behind: 0.5, front: 0.5, above: 0.5, below: 0.5 },
       chile: { behind: 0, front: 0.5, above: 1, below: 1 },
+      // GDD-PWR-04: the Chile Fantasma's three bob frames (it has no glint), each lower than the last: the most any of them reaches.
+      fantasma: { behind: 0.5, front: 1, above: 1.5, below: 1.5 },
     },
   },
 } as const;
@@ -185,8 +187,42 @@ export const EXIT = { width: TILE, height: 3 * TILE } as const;
 /** GDD-LIFE-03: a veladora pickup is a 12 x 12 px square in the middle of its tile. */
 export const VELADORA = { size: 12 } as const;
 
-/** GDD-UI-04: the camera stands still while Poncho is inside a dead zone this many px wide, in the middle of the screen. */
-export const CAMERA = { deadZone: 32 } as const;
+/**
+ * GDD-UI-04: the camera stands still while Poncho is inside a dead zone this many px wide, in the middle of the screen. Up and down: on
+ * the ground it stands still while his feet are between screen y `bandTop` and `bandBottom` and pans at up to `panSpeed` px/s to the
+ * nearer edge; in the air it goes up with him past `airTop`, and in a fall below `bandBottom` it moves at his fall speed plus `leadSpeed`
+ * until his feet are at `downFeet`. Never faster than `maxSpeed` px/s. A cut puts his feet at `spawnFeet`; its bottom edge stops
+ * `bottomCutPx` above the level's floor line.
+ */
+export const CAMERA = {
+  deadZone: 32,
+  bandTop: 116,
+  bandBottom: 156,
+  airTop: 56,
+  panSpeed: 180,
+  leadSpeed: 120,
+  maxSpeed: 480,
+  spawnFeet: 136,
+  bottomCutPx: 2,
+  // GDD-UI-04, the look-ahead up and down (Proposed): standing this far above (the look-up) or below (the look-down on the ground) where he
+  // last stood still starts it; in the look-up his feet are held at `upFeet` (60% of the screen's height), in the look-down at `downFeet`
+  // (40%), also where a fall's look-down catches up; `settleSteps` steps standing at one height (within `stillTolerance` px) end it.
+  riseTrigger: 32,
+  upFeet: 162,
+  downFeet: 108,
+  settleSteps: 30,
+  stillTolerance: 0.01,
+  // GDD-UI-04, the look-ahead sideways (Proposed): in a rolling cart the dead zone moves `cartLead` px behind him (his body at 40% of the
+  // width, 288 px ahead), grown and shrunk by `cartLeadStep` px a step (120 px/s).
+  cartLead: 64,
+  cartLeadStep: 2,
+} as const;
+
+/**
+ * GDD-TEC-03: the ground and decor images drawn are those in the screen at the camera's scroll, widened by `marginTiles` tiles on every
+ * side, so a screen shake and the camera's own motion within a frame stay inside it.
+ */
+export const VIEW = { marginTiles: 2 } as const;
 
 /** GDD-CTL-03: touch buttons, in game pixels except `minCssPx`. */
 export const TOUCH = {
@@ -270,8 +306,11 @@ export const LIFE_LOSS = { crackSteps: Math.round(0.4 * TICK_HZ) } as const;
 /** GDD-LIFE-02 and GDD-MOV-05: in the last 0.35 s of the wait Poncho drops in 48 px above the respawn point, turning once, and lands feet-first. */
 export const FLIP = { steps: Math.round(0.35 * TICK_HZ), height: 48, turns: 1 } as const;
 
-/** GDD-WLD-05: a crumbling tile gives 0.5 s of warning from the step Poncho lands on it, then is gone. */
-export const CRUMBLE = { warningSteps: Math.round(0.5 * TICK_HZ) } as const;
+/**
+ * GDD-WLD-05: a crumbling tile gives 0.5 s of warning from the step Poncho lands on it, then is gone. In a level whose ledges come back
+ * (World 3's) it is whole again 2.0 s after it went (user, 2026-11-10: "Come back after 2 s").
+ */
+export const CRUMBLE = { warningSteps: Math.round(0.5 * TICK_HZ), returnSteps: Math.round(2 * TICK_HZ) } as const;
 
 /**
  * GDD-WLD-05: a spring launches Poncho upwards at `velocity` (a jump takes off at 410). A jump pressed in the 0.1 s
@@ -320,11 +359,27 @@ export const COVER = { abovePx: 3 * TILE } as const;
 /** GDD-WLD-05: moving blocks travel at this speed (px/s), like the platforms. */
 export const BLOCK = { speed: 40 } as const;
 
+/**
+ * GDD-WLD-15: a vagoneta (mine cart) is `width` x `height` px, its floor `floorPx` over the rail's ground under its middle. It rolls at
+ * `speedLevel` px/s on the level, `speedUp` uphill and `speedDown` downhill, each measured along the rail. A broken end's warning post
+ * stands `postTiles` (6) tiles before it; an empty cart is back at its start `returnSteps` (2.0 s) after it reached its rail's end.
+ */
+export const CART = { width: 32, height: 16, floorPx: 8, speedLevel: 150, speedUp: 120, speedDown: 180, postTiles: 6, returnSteps: Math.round(2.0 * TICK_HZ) } as const;
+
+/**
+ * GDD-WLD-15, GDD-TEC-04: a rail's limits in a level that is not a boss level (GDD-BOS-04). A broken end comes after at least
+ * `levelBeforeEnd` tiles of level rail, and a broken rail is at least `minBrokenTiles` tiles long.
+ */
+export const RAIL_RULES = { levelBeforeEnd: 6, minBrokenTiles: 12 } as const;
+
 /** GDD-CMB-03: a hit that leaves Poncho alive gives 2.0 s of invulnerability and pushes him away from the source (px/s). */
 export const HIT = { invulnerableSteps: Math.round(2.0 * TICK_HZ), knockback: 80 } as const;
 
 /** GDD-PWR-02: a taco is a square this many px wide (a pickup sits centred in its tile); one released from a piñata walks at `walkSpeed` px/s. */
 export const TACO = { size: 12, walkSpeed: 40 } as const;
+
+/** GDD-PWR-04: the Chile Fantasma lasts `steps` (8 s); its last `warnSteps` (2 s) dim the glow; he runs at up to `runSpeed` px/s. */
+export const FANTASMA = { steps: 8 * TICK_HZ, warnSteps: 2 * TICK_HZ, runSpeed: 180 } as const;
 
 /** GDD-WLD-04: a hilo pickup is an 8 x 8 px square in the middle of its tile. A hilo saved in an earlier run is drawn at `savedAlpha` (35 %) opacity. */
 export const HILO = { size: 8, savedAlpha: 0.35 } as const;
@@ -393,8 +448,8 @@ export const ZOPILOTE = {
 } as const;
 
 /**
- * GDD-ENM-02, GDD-ENM-03, GDD-ART-05: the enemy sprites, World 1's and World 2's. `frames` is each sheet's frame in game px (a walker's box's middle on the frame's middle
- * column and its feet on the bottom row; the Zopilote's and the poof's middle on the frame's middle). A walker shows the next walk frame every
+ * GDD-ENM-02, GDD-ENM-03, GDD-ENM-04, GDD-ART-05: the enemy sprites, World 1's, World 2's and World 3's Murciélago. `frames` is each sheet's frame in game px (a walker's box's middle on the frame's middle
+ * column and its feet on the bottom row; the Zopilote's, the Murciélago's and the poof's middle on the frame's middle). A walker shows the next walk frame every
  * `walkPx` px it walks, the Tlacuache the next run frame every `chargePx` px it charges; the Zopilote the next flap every `flapSteps` and the
  * next climb every `climbSteps`; a telegraph flashes red for `flashSteps` and plain for as many (GDD-ENM-01). A Zopilote dives steep while its
  * dive's drop is at least `steepRatio` times its run. The cactus buddy breathes every `dozeSteps`, peeks while Poncho's hurtbox centre is
@@ -406,7 +461,7 @@ export const ZOPILOTE = {
  * `scripts/art/enemies1.levels.test.mjs`, and World 2's by `scripts/art/enemies2.levels.test.mjs`). World 2's own pose steps are the last six.
  */
 export const ENEMY_ART = {
-  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, poof: { w: 24, h: 24 } },
+  frames: { alacran: { w: 24, h: 16 }, zopilote: { w: 32, h: 24 }, cactus: { w: 16, h: 24 }, tlacuache: { w: 28, h: 16 }, paloma: { w: 24, h: 20 }, chapulin: { w: 20, h: 16 }, trompo: { w: 20, h: 20 }, murcielago: { w: 32, h: 24 }, armadillo: { w: 28, h: 16 }, cacomixtle: { w: 24, h: 28 }, poof: { w: 24, h: 24 } },
   reach: {
     alacran: { behind: 4.5, front: 1.5, above: 3, below: 0 },
     zopilote: { behind: 6, front: 0.5, above: 6.5, below: 3.5 },
@@ -441,6 +496,21 @@ export const ENEMY_ART = {
   spinSteps: 3,
   /** GDD-ENM-03 (Proposed): a stunned Trompo's rock in its last `TROMPO.wobbleSteps` shows stunWobble on every other block of `rockSteps` steps. */
   rockSteps: 4,
+  /** GDD-ENM-04 (Proposed): the Murciélago shows the next flap frame every `batFlapSteps` of its own steps. */
+  batFlapSteps: 5,
+  /** GDD-ENM-04 (Proposed): the rolling Armadillo shows the next roll frame every `rollPx` px it rolls, its way. */
+  rollPx: 6,
+  /** GDD-ENM-04 (Proposed): kicking (`ARMADILLO.kickSteps`), the dazed Armadillo shows dazedKick on every other block of `kickFlipSteps` steps. */
+  kickFlipSteps: 4,
+  /**
+   * GDD-ENM-04 (Proposed): the dazed Armadillo lies facing the wall that stopped it, and is drawn `dazedBack` px back from it: its dazed
+   * frames reach that far past its box's front (pinned by `scripts/art/enemies3.test.mjs`), so their front is on its box's front.
+   */
+  dazedBack: 5,
+  /** GDD-ENM-04 (Proposed): the claw rang off the rolling ball: it is drawn white for `rangSteps` steps, the step it rang and the next. */
+  rangSteps: 2,
+  /** GDD-ENM-04 (Proposed): a riding Cacomixtle shows the next of its two ride frames every `cacomixtleRideSteps` steps of the run's clock. */
+  cacomixtleRideSteps: 4,
 } as const;
 
 /**
@@ -475,6 +545,45 @@ export const CHAPULIN = { width: 12, height: 10, crouchSteps: Math.round(0.6 * T
  * along at `speed` px/s. A claw swipe or a fireball stuns it for `stunSteps` (1.0 s); it wobbles in the last `wobbleSteps` (0.5 s).
  */
 export const TROMPO = { width: 14, height: 14, speed: 70, stunSteps: Math.round(1.0 * TICK_HZ), wobbleSteps: Math.round(0.5 * TICK_HZ) } as const;
+
+/**
+ * GDD-ENM-04: the Murciélago (bat) is `width` x `height` px, centred on where it flies. It loops round the middle the level gives, `rx` px
+ * across (0 to `maxRx`) and `ry` px up and down (0 to `maxRy`), once every `periodSteps` (4.0 s).
+ */
+export const MURCIELAGO = { width: 16, height: 10, periodSteps: Math.round(4.0 * TICK_HZ), maxRx: 48, maxRy: 24 } as const;
+
+/**
+ * GDD-ENM-04: the Armadillo is `width` x `height` px, standing on the ground, walking or rolled up, and walks at `walkSpeed` px/s. When
+ * Poncho's hurtbox centre is within `sightX` px of its middle across, either side, and his feet within `sightY` px of its own, it tucks for
+ * `tuckSteps` (0.5 s, GDD-ENM-01), flashing red `flashOn` steps and plain `flashOff`, then rolls at `rollSpeed` px/s on the level,
+ * `rollDown` downhill and `rollUp` uphill, measured along the ground. A wall leaves it dazed for `dazedSteps` (1.0 s), kicking its feet
+ * in the last `kickSteps` (0.5 s, drawn only).
+ */
+export const ARMADILLO = {
+  width: 16,
+  height: 12,
+  walkSpeed: 20,
+  sightX: 80,
+  sightY: 24,
+  tuckSteps: Math.round(0.5 * TICK_HZ),
+  flashOn: 4,
+  flashOff: 4,
+  rollSpeed: 130,
+  rollDown: 160,
+  rollUp: 100,
+  dazedSteps: Math.round(1.0 * TICK_HZ),
+  kickSteps: Math.round(0.5 * TICK_HZ),
+} as const;
+
+/** GDD-ENM-04: the Cacomixtle, a ringtail on its own vagoneta (its speeds are the cart's, CART). */
+export const CACOMIXTLE = {
+  width: 14, height: 14,      // its box, standing in the middle of its cart's floor
+  sightX: 200,                // ahead along its rail, by more than 0 and up to this, his hurtbox's centre
+  sightY: 64,                 // his feet within this of the cart's floor, up or down
+  telegraphSteps: 30,         // 0.5 s, the cart still
+  flashOn: 4, flashOff: 4,    // the telegraph's red flash
+  jumpPx: 56,                 // GDD-MOV-02: a full jump's peak (measured, src/sim/movement.test.ts 'full jump peaks at 56 px'), for the sight stretch rule
+} as const;
 
 /**
  * GDD-BOS-02: Don Zopilote, World 1's boss, a `width` x `height` px box (three times the Zopilote). He laps an ellipse `rx` px either
@@ -630,13 +739,20 @@ export const STOMP = { bounce: 260, boostBounce: 410, tolerance: 4 } as const;
  * GDD-TEC-04: what the level validator checks. GDD-WLD-03: a level is `minScreens` to `maxScreens` (for its world: 6 in Worlds 0 and 1, 8 from
  * World 2 on, user, 2026-11-04) screens of BASE_WIDTH wide, has 3 ofrendas,
  * and its gaps never exceed `maxGapTiles` for its world (Worlds 1 and 2 have a limit so far, World 2 a tile more, and the tutorial 0-1, outside the seven worlds, follows World 1: GDD-WLD-01). GDD-ENM-01: no enemy starts
- * closer than 3 tiles to a respawn.
+ * closer than 3 tiles to a respawn. GDD-WLD-03: World 3's gaps follow `world3Gap` instead: `base` tiles plus `perDropTile` for each tile the
+ * right bank lies below the left, counting at most `maxDropTiles`; `byRise` with the right bank 1, 2 or 3 tiles higher, and no higher rise
+ * over a pit; `perMissingRoofTile` off for each tile of headroom over the left bank under `roofTiles`, never under 1, and a headroom under
+ * `minHeadroomLevel` not allowed where the gap does not drop.
  */
 export const LEVEL_RULES = {
   minScreens: 3,
-  maxScreens: { 0: 6, 1: 6, 2: 8 } as Readonly<Record<number, number>>,
+  // GDD-WLD-03: 17 to 51 rows tall (one to three screens); a boss level is one screen tall, 17 rows.
+  minRows: 17,
+  maxRows: 51,
+  maxScreens: { 0: 6, 1: 6, 2: 8, 3: 8 } as Readonly<Record<number, number>>,
   ofrendas: 3,
   maxGapTiles: { 0: 3, 1: 3, 2: 4 } as Readonly<Record<number, number>>,
+  world3Gap: { base: 6, perDropTile: 1, maxDropTiles: 8, byRise: [4, 3, 2], roofTiles: 6, perMissingRoofTile: 2, minHeadroomLevel: 4 },
   enemyClearance: 3 * TILE,
 } as const;
 
@@ -660,6 +776,15 @@ export const TIPS = { fadeSteps: Math.round(0.2 * TICK_HZ), pulseSteps: Math.rou
  * px from the screen's top; the far desert strip runs from `desertTop` to the floor's top at 224).
  */
 export const BACKDROP = { cloudFactor: 0.1, mountainFactor: 0.3, sunX: 104, sunY: 36, sunSize: 24, cloudTop: 16, cloudBottom: 88, mountainTop: 92, desertFactor: 0.5, desertTop: 180 } as const;
+
+/**
+ * GDD-ART-06: in a level taller than one screen (GDD-UI-04), for every px the camera is above its lowest the far strip and its foot are
+ * drawn `far` px lower and the mid strip `mid` px lower; the sky, the sun and the clouds do not move up or down. Every world.
+ */
+export const BACKDROP_RISE = { far: 0.1, mid: 0.2 } as const;
+
+/** GDD-ART-06: the frame every decor sheet's items are drawn in, game px (World 1's plants' frame), each item bottom-aligned and centred. */
+export const DECOR_FRAME = { w: 16, h: 40 } as const;
 
 /** GDD-ART-06: World 1's plants in the order of their kind (nopal, cholla, biznaga, palm yucca, ocotillo, agave, flowers), their size in game px. */
 export const PLANTS = [
@@ -730,5 +855,74 @@ export const MERCADO = {
     { name: 'farol', w: 8, h: 40 },
     { name: 'rebozos', w: 16, h: 24 },
     { name: 'loteria', w: 12, h: 16 },
+  ],
+} as const;
+
+/**
+ * GDD-ART-06: World 3's (Sierra) backdrop and decor for the canyon, from `scripts/art/sierra.mjs`, put together as World 2's: the clouds
+ * scroll at `cloudFactor` of the camera's scroll, the far ranges at `farFactor` and the canyon's far wall at `midFactor`. The sky's grey-blue
+ * bands are flat colours (`skyBands`), the first two ending `skyEnds` art px from the top (y 60 and 110) with a dither strip of `stripArt`
+ * px; the last is the camera's background. No sun. Each of the three streaks of cloud is an image at `clouds` (game px), on the sky's top
+ * band, clear of the lives and the hilo counter. The far band is `farBandArt` art px tall from game y `farTop`, with the flat foot in
+ * `footColour` (pine deep) below it; the mid band is `midBandArt` art px tall from `midTop` (down to the floor's top at 224). `decor` is the
+ * pine-oak forest's seven kinds (pino, encino, madroño, maguey, sotol, tocón, zacatón), their size in game px, placed by World 1's plant rule.
+ */
+export const SIERRA = {
+  cloudFactor: 0.1,
+  farFactor: 0.3,
+  midFactor: 0.5,
+  skyBands: [0x527391, 0x8aa5b8, 0xbfcdd2],
+  skyEnds: [240, 440],
+  stripArt: 2,
+  clouds: [
+    { x: 118, y: 24 },
+    { x: 206, y: 46 },
+    { x: 292, y: 30 },
+  ],
+  farTop: 84,
+  farBandArt: 464,
+  midTop: 148,
+  midBandArt: 304,
+  footColour: 0x24403a,
+  decor: [
+    { name: 'pino', w: 16, h: 40 },
+    { name: 'encino', w: 16, h: 28 },
+    { name: 'madrono', w: 14, h: 24 },
+    { name: 'maguey', w: 16, h: 12 },
+    { name: 'sotol', w: 10, h: 32 },
+    { name: 'tocon', w: 14, h: 8 },
+    { name: 'zacaton', w: 12, h: 8 },
+  ],
+} as const;
+
+/**
+ * GDD-ART-06: the mine's backdrop and decor (3-2 La Mina, underground), from `scripts/art/sierra-mina.mjs`, at the canyon's shares of the
+ * camera's scroll. The sky slot is the rock: the roof band in gallery deep (`skyBands[0]`) to `skyEnds` art px from the top (y 40) under a
+ * dither strip of `stripArt` px, gallery base below it (the camera's background). No sun and no clouds. The far band (the old workings) is
+ * `farBandArt` art px tall from game y `farTop`, with the flat foot in `footColour` (gallery deep: a pit is a black shaft) below it; the mid
+ * band (the timbering) is `midBandArt` art px tall from `midTop` (down to the floor's top at 224). `decor` is the mine's seven kinds (ore
+ * heap, timber stack, barrel, pick and shovel, ore bucket, lantern on a peg post, ore sacks), their size in game px, placed by World 1's
+ * plant rule.
+ */
+export const SIERRA_MINA = {
+  cloudFactor: 0.1,
+  farFactor: 0.3,
+  midFactor: 0.5,
+  skyBands: [0x221d2e, 0x3d3650],
+  skyEnds: [160],
+  stripArt: 2,
+  farTop: 40,
+  farBandArt: 640,
+  midTop: 100,
+  midBandArt: 496,
+  footColour: 0x221d2e,
+  decor: [
+    { name: 'mena', w: 14, h: 8 },
+    { name: 'vigas', w: 16, h: 10 },
+    { name: 'barril', w: 10, h: 12 },
+    { name: 'pico', w: 12, h: 16 },
+    { name: 'cubeta', w: 10, h: 10 },
+    { name: 'linterna', w: 8, h: 24 },
+    { name: 'costales', w: 14, h: 10 },
   ],
 } as const;

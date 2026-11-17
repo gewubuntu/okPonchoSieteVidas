@@ -61,6 +61,7 @@ export function stepFireball(fb: Fireball, world: TileGrid): Fireball | null {
     y = top;
     vy = -BOUNCE_SPEED;
   }
+  // GDD-WLD-03: it leaves by the level's bottom, below a raised bottom too (only Poncho is lost at one).
   if (y - FIREBALL.size > world.height * TILE) return null;
   return { x, y, vx: fb.vx, vy, age };
 }

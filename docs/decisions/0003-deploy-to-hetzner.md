@@ -34,8 +34,8 @@ user wants a Docker deploy that runs on its own, with no changes to the other pr
   `web` and waits for its health check, puts the previous tag back if the new container does not start healthy, logs
   out, and keeps the newest 5 images for a rollback (`deploy <older sha>`, by hand on the server too).
 - The deploy SSH key may run only that script (`command=...,restrict` in `authorized_keys`), which accepts `live`,
-  `index` and `deploy <40-hex sha>` and nothing else: the `deploy` user is in the `docker` group, which is as strong as
-  root. The server's host key is pinned in a secret (`DEPLOY_KNOWN_HOSTS`), never trusted on first use. The secrets
+  `index` and `deploy <40-hex sha>` and nothing else: the deploy user (on the server the existing account `forkfall`)
+  is in the `docker` group, which is as strong as root. The server's host key is pinned in a secret (`DEPLOY_KNOWN_HOSTS`), never trusted on first use. The secrets
   live in a GitHub `production` environment; without them the workflow skips with a notice, so `main` stays green
   before the server is set up.
 - After the swap the workflow fetches the site and fails unless it serves the `index.html` just built (when the commit

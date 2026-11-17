@@ -124,7 +124,7 @@ test('GDD-BOS-03 in phase 2 she thuds through the cordel to the floor and a tejo
   expect(await api(page, () => window.__PONCHO__!.tejocotes())).toEqual([]);
 });
 
-test('GDD-BOS-03 the third hit defeats her; 1.0 s later the level clear screen, 2-4 saved and Next level greyed', async ({ page }) => {
+test('GDD-BOS-03 the third hit defeats her; 1.0 s later the level clear screen, 2-4 saved and Next level offered', async ({ page }) => {
   await arena(page);
   await api(page, () => window.__PONCHO__!.setEstrella(2));
   const heard = (await api(page, () => window.__PONCHO__!.sfx())).length;
@@ -146,8 +146,8 @@ test('GDD-BOS-03 the third hit defeats her; 1.0 s later the level clear screen, 
   await waitForResults(page);
   const clear = await api(page, () => window.__PONCHO__!.clearDrawn());
   expect(clear).toMatchObject({ shown: true, hilos: 'Hilos 0/0', medal: 'Gold medal' });
-  // 2-4 is World 2's last level: Next level is greyed and the menu opens on Retry (GDD-UI-02).
-  expect(clear.menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
+  // 2-4 is World 2's last level and names World 3's first, 3-1 (GDD-UI-02, GDD-WLD-16): the menu opens on Next level.
+  expect(clear.menu).toMatchObject({ chosen: 'next', colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'] });
   const saved: { levels: Record<string, unknown> } = JSON.parse((await page.evaluate(() => window.localStorage.getItem('poncho-siete-vidas')))!);
   expect(saved.levels['2-4']).toMatchObject({ hilos: '', medal: 'gold', cleared: true });
 });

@@ -30,7 +30,19 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # L-076: the browser itself comes from Playwright's own host; its system packages (fonts) come from the runner's Ubuntu mirrors,
+      # which can be unreachable for hours. They are tried twice, each for at most 4 minutes; without them the playtests still run,
+      # on the fonts the runner image has, and the job says so in a warning.
+      - name: Install the browser
+        run: npx playwright install chromium
+      - name: Install the browser's system packages (retried; a warning if the mirrors are down)
+        run: |
+          for attempt in 1 2; do
+            if timeout 240 npx playwright install-deps chromium; then exit 0; fi
+            echo "attempt $attempt failed"
+            sleep 15
+          done
+          echo "::warning title=Playtests run without the browser's extra system packages::npx playwright install-deps chromium failed twice (the Ubuntu mirrors could not be reached); the playtests run on the runner image's own fonts."
       - name: Playtests
         run: npm run test:e2e
         env:

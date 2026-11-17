@@ -1,5 +1,6 @@
-// Writes the taco, the chile, what Poncho holds, the claw swipe and the effects at his mouth to assets/sprites/poncho/ (GDD-ART-04,
-// GDD-PWR-02, GDD-PWR-03, GDD-CMB-02): taco.png, chile.png, held.png, swipe.png and fx.png, each one row of its frames in the order of
+// Writes the taco, the chile, what Poncho holds, the claw swipe, the effects at his mouth, the Chile Fantasma and its glow's effects to
+// assets/sprites/poncho/ (GDD-ART-04, GDD-PWR-02, GDD-PWR-03, GDD-PWR-04, GDD-CMB-02): taco.png, chile.png, held.png, swipe.png, fx.png,
+// fantasma.png and glow.png, each one row of its frames in the order of
 // its sheet's LOOKS in scripts/art/poncho/items.mjs, each frame FRAME.w x FRAME.h drawing px (2 x 2 art px each). The PNGs are
 // committed, so only run this after changing a drawing (scripts/art/poncho/items.test.mjs checks they match).
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -7,12 +8,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sheet } from './enemies1/kit.mjs';
 import { encodePng } from './png.mjs';
-import { chile, fx, held, swipe, taco } from './poncho/items.mjs';
+import { chile, fantasma, fx, glowSheet, held, swipe, taco } from './poncho/items.mjs';
 
 const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'sprites', 'poncho');
 
 /** The item sheets, by the name of their file. */
-export const ITEM_SHEETS = { taco, chile, held, swipe, fx };
+export const ITEM_SHEETS = { taco, chile, held, swipe, fx, fantasma, glow: glowSheet };
 
 /** A sheet in art px: its frames in one row. */
 export const itemSheet = (m, frames = m.draw()) => sheet(frames.map((f) => f.grid), m.FRAME, m.LOOKS.length);

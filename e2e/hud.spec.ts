@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { boot, pixelsAt } from './helpers';
+import { boot, nearHex, pixelsAt } from './helpers';
 
 type Colour = { r: number; g: number; b: number };
 /** How far two pixels are apart, summing the channels' differences. The level's backdrop is the desert sky (GDD-ART-06), so the HUD is told from it by this, not by a colour of its own. */
@@ -128,12 +128,13 @@ test('GDD-LIFE-04 with one life left the last triangle pulses, drawn larger at t
   expect(await page.evaluate(() => window.__PONCHO__!.hudPulse())).toBeNull(); // two lives
   await page.evaluate(() => window.__PONCHO__!.loseLife());
   // The first triangle spans x 8 to 18, y 8 to 17; at 1.4x it reaches x 6 to 20, y 5.6 to 18.2. Count the pixels that are
-  // not sky in a box around it, at the smallest and the largest point of a pulse.
+  // not sky in a box around it, at the smallest and the largest point of a pulse. Its dark outline (GDD-UI-01), 1 px outside it and
+  // reaching past the box at 1.4x, is not counted: the triangle is (the outline's own growth is `hudOutlines`', below).
   const box = Array.from({ length: 16 * 18 }, (_, i) => ({ x: 4 + (i % 16), y: 4 + Math.floor(i / 16) }));
   const [sky] = await pixelsAt(page, [{ x: 2, y: 12 }]); // the sky in this band, left of the lives
   const lit = async () => {
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
-    return (await pixelsAt(page, box)).filter((c) => apart(c, sky!) > 40).length;
+    return (await pixelsAt(page, box)).filter((c) => apart(c, sky!) > 40 && !nearHex(c, '#2a1f2e', 40)).length;
   };
   const scaleNow = () => page.evaluate(() => window.__PONCHO__!.hudPulse());
   let small = -1;
@@ -184,4 +185,60 @@ test('GDD-LIFE-04 a second drop to one life, after a life came back, starts the 
     return window.__PONCHO__!.hudPulse();
   });
   expect(again).toBe(1);
+});
+
+/**
+ * GDD-UI-01: triangle i of the row at rest spans x 8 + 13 i to 18 + 13 i, y 8 to 17; its outline is it grown 1 px outward on every side.
+ * Its sides run 5 across for 9 down (length sqrt 106), so the apex moves up sqrt(106) / 5 = 2.059 px, the base down 1 px and its corners out
+ * (5 + sqrt 106) / 9 = 1.700 px, worked out by hand.
+ */
+const outlineAt = (i: number) => {
+  const left = 8 + 13 * i;
+  const r = Math.sqrt(106);
+  const out = 8 - (67 - r) / 9;
+  return [left + 5, 8 - r / 5, left - out, 18, left + 10 + out, 18];
+};
+
+test('GDD-UI-01 each life has a dark outline, a kept one and a lost one', async ({ page }) => {
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => {
+    window.__PONCHO__!.pause(true);
+    for (let i = 0; i < 3; i++) window.__PONCHO__!.loseLife();
+    window.__PONCHO__!.step(30); // past the cracking (24 steps): four kept, three lost
+  });
+  const drawn = await page.evaluate(() => window.__PONCHO__!.hudOutlines());
+  // One outline per triangle, the kept ones and the lost ones, in the boss bar's dark (#2a1f2e), 1 px wide, round each one.
+  expect(drawn.map((o) => [o.index, o.filled])).toEqual([0, 1, 2, 3, 4, 5, 6].map((i) => [i, i < 4]));
+  for (const o of drawn) {
+    expect([o.colour, o.px], `triangle ${o.index}`).toEqual([0x2a1f2e, 1]);
+    o.points.forEach((v, k) => expect(v, `triangle ${o.index} value ${k}`).toBeCloseTo(outlineAt(o.index)[k]!, 6));
+  }
+  // With one life left, the pulsing triangle's outline grows with it.
+  await page.evaluate(() => {
+    for (let i = 0; i < 3; i++) window.__PONCHO__!.loseLife();
+    window.__PONCHO__!.step(24); // past the cracking, 24 steps into the 48-step pulse: at its largest
+  });
+  const pulsing = await page.evaluate(() => ({ outlines: window.__PONCHO__!.hudOutlines(), scale: window.__PONCHO__!.hudPulse() }));
+  const s = pulsing.scale!;
+  expect(s).toBeGreaterThan(1.3);
+  expect(pulsing.outlines.map((o) => [o.index, o.filled])).toEqual([0, 1, 2, 3, 4, 5, 6].map((i) => [i, i < 1]));
+  // Scaled about its centre (13, 14), the triangle's apex rises 6 (s - 1) px and its base drops 3 (s - 1): its outline's with it.
+  const first = pulsing.outlines[0]!.points;
+  expect(first[1]!).toBeCloseTo(outlineAt(0)[1]! - 6 * (s - 1), 6);
+  expect(first[3]!).toBeCloseTo(outlineAt(0)[3]! + 3 * (s - 1), 6);
+});
+
+test('GDD-UI-01 the dark outline is drawn under a life, on the desktop', async ({ page, isMobile }) => {
+  // L-017: the outline is 1 game px, 2.7 px on the desktop's 1280 px canvas and 1.4 px on the phone's, too thin to sample there; the
+  // phone's is checked by `hudOutlines` above. The middle of the first triangle's base outline, y 17.5 to 18.5, sampled at its middle.
+  test.skip(isMobile, 'a 1 px line is 1.4 px on the phone (L-017)');
+  await boot(page);
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await page.evaluate(() => window.__PONCHO__!.pause(true));
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
+  const [line, sky] = await pixelsAt(page, [{ x: 13, y: 18 }, { x: 13, y: 21 }]);
+  expect(nearHex(line!, '#2a1f2e', 24), JSON.stringify(line)).toBe(true);
+  // Below it, the sky as before.
+  expect(nearHex(sky!, '#2a1f2e', 60)).toBe(false);
 });

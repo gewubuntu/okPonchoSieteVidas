@@ -3,6 +3,7 @@
 // GDD-UI-02: which one is played, and which one comes after it. GDD-LIFE-05: the lives a level starts with, the lives each world keeps
 // in the save, the level each world's run has reached, and where the restart after the last life plays.
 import { LIVES_MAX } from '../config/tuning';
+import type { Abilities } from '../sim/movement';
 import type { Level } from '../sim/run';
 import type { Tip } from '../ui/tips';
 import { LEVEL_0_1, TIPS_0_1 } from './level0-1';
@@ -14,10 +15,17 @@ import { LEVEL_2_1 } from './level2-1';
 import { LEVEL_2_2 } from './level2-2';
 import { LEVEL_2_3 } from './level2-3';
 import { LEVEL_2_4 } from './level2-4';
+import { LEVEL_3_1, TIPS_3_1 } from './level3-1';
+import { LEVEL_3_2 } from './level3-2';
 import { SANDBOX_LEVEL } from './sandbox';
 import { SLOPES_LEVEL } from './slopes';
 import { LAB_2M_LEVEL } from './lab2m';
 import { LAB_2E_ID, LAB_2E_LEVEL } from './lab2e';
+import { LAB_3C_ID, LAB_3C_LEVEL } from './lab3c';
+import { LAB_3T_ID, LAB_3T_LEVEL } from './lab3t';
+import { LAB_3M_ID, LAB_3M_LEVEL } from './lab3m';
+import { LAB_3A_ID, LAB_3A_LEVEL } from './lab3a';
+import { LAB_3K_ID, LAB_3K_LEVEL } from './lab3k';
 
 export interface LevelEntry {
   readonly id: string;
@@ -29,6 +37,11 @@ export interface LevelEntry {
   readonly tips?: readonly Tip[];
   /** GDD-UI-02: the id of the level the press that ends its level clear screen starts. Left out, that press brings back the title screen. */
   readonly next?: string;
+  /**
+   * GDD-ART-06: a World 3 level's place, which chooses its backdrop, ground sheet and decor sheet: the canyon (`barranca`) or the mine
+   * (`mina`). Left out, the canyon. Only World 3 levels choose one (the validator refuses it elsewhere).
+   */
+  readonly place?: 'barranca' | 'mina';
 }
 
 /** GDD-UI-02: the tutorial level's id. */
@@ -43,16 +56,31 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: '1-3', world: 1, test: false, level: LEVEL_1_3, next: '1-4' },
   // GDD-BOS-02: World 1's boss arena. Its Next level starts World 2 (GDD-UI-02), with seven lives (GDD-LIFE-05).
   { id: '1-4', world: 1, test: false, level: LEVEL_1_4, next: '2-1' },
-  // GDD-WLD-01: World 2, the Mercado: 2-1 to 2-3 (GDD-WLD-12, GDD-WLD-13, GDD-WLD-14); 2-4 is its boss arena and, the last level built, names no next.
+  // GDD-WLD-01: World 2, the Mercado: 2-1 to 2-3 (GDD-WLD-12, GDD-WLD-13, GDD-WLD-14); 2-4 is its boss arena. Its Next level starts World 3
+  // (GDD-UI-02), with seven lives (GDD-LIFE-05).
   { id: '2-1', world: 2, test: false, level: LEVEL_2_1, next: '2-2' },
   { id: '2-2', world: 2, test: false, level: LEVEL_2_2, next: '2-3' },
   { id: '2-3', world: 2, test: false, level: LEVEL_2_3, next: '2-4' },
-  { id: '2-4', world: 2, test: false, level: LEVEL_2_4 },
+  { id: '2-4', world: 2, test: false, level: LEVEL_2_4, next: '3-1' },
+  // GDD-WLD-01: World 3, the Sierra: 3-1 (GDD-WLD-16), with its tip (GDD-UI-05), and 3-2 (GDD-WLD-17); 3-2, the last level built, names no
+  // next.
+  { id: '3-1', world: 3, test: false, level: LEVEL_3_1, tips: TIPS_3_1, next: '3-2' },
+  { id: '3-2', world: 3, test: false, level: LEVEL_3_2, place: 'mina' },
   SANDBOX,
   { id: 'slopes', world: 1, test: true, level: SLOPES_LEVEL },
   // GDD-WLD-10, GDD-WLD-11: the Mercado lab, a World 2 test level.
   { id: 'lab-2m', world: 2, test: true, level: LAB_2M_LEVEL },
   { id: LAB_2E_ID, world: 2, test: true, level: LAB_2E_LEVEL },
+  // GDD-WLD-15: the vagonetas lab, a World 3 test level.
+  { id: LAB_3C_ID, world: 3, test: true, level: LAB_3C_LEVEL },
+  // GDD-UI-04: the tall lab, a World 3 test level 40 rows tall, for the camera up and down.
+  { id: LAB_3T_ID, world: 3, test: true, level: LAB_3T_LEVEL },
+  // GDD-ART-06: the mine lab, a World 3 test level drawn in the mine's look.
+  { id: LAB_3M_ID, world: 3, test: true, level: LAB_3M_LEVEL, place: 'mina' },
+  // GDD-ENM-04: the Armadillo's lab, a World 3 test level in the mine's look.
+  { id: LAB_3A_ID, world: 3, test: true, level: LAB_3A_LEVEL, place: 'mina' },
+  // GDD-ENM-04: the Cacomixtle's lab, a World 3 test level in the mine's look.
+  { id: LAB_3K_ID, world: 3, test: true, level: LAB_3K_LEVEL, place: 'mina' },
 ];
 
 /** GDD-PRG-02: the levels whose progress is saved (the real ones, not the test level), by id, with their hilo counts: what `readSave` needs to read their entries. */
@@ -68,8 +96,8 @@ export const levelById = (id: string): LevelEntry | undefined => LEVELS.find((e)
 export const worldLevels = (world: number): readonly LevelEntry[] => LEVELS.filter((e) => e.world === world && !e.test);
 
 /**
- * GDD-LIFE-05, GDD-PRG-02: the worlds whose lives the save keeps: those of the seven worlds that have a real level (Worlds 1 and 2; a
- * test level, such as the sandbox or the World 2 labs lab-2m and lab-2e, adds no world).
+ * GDD-LIFE-05, GDD-PRG-02: the worlds whose lives the save keeps: those of the seven worlds that have a real level (Worlds 1, 2 and 3; a
+ * test level, such as the sandbox, the World 2 labs lab-2m and lab-2e or the World 3 labs lab-3c, lab-3t, lab-3m and lab-3a, adds no world).
  */
 export const SAVED_WORLDS: readonly number[] = [...new Set(LEVELS.filter((e) => e.world >= 1 && !e.test).map((e) => e.world))];
 
@@ -121,7 +149,8 @@ export function startLevel(search: string, save: StartSave): StartPick {
 
 /**
  * GDD-UI-02: the latest world reached, the one "Start" plays: World 1, and while a world's last level is cleared and names a next level
- * in a later world (1-4 names 2-1), that world. A save from before World 2 that cleared 1-4 so goes on in World 2.
+ * in a later world (1-4 names 2-1, 2-4 names 3-1), that world. A save from before World 2 that cleared 1-4 so goes on in World 2, and one
+ * from before World 3 that cleared 2-4 in World 3.
  */
 export function frontierWorld(levels: StartSave['levels']): number {
   let world = 1;
@@ -138,7 +167,7 @@ export function frontierWorld(levels: StartSave['levels']): number {
 /**
  * GDD-LIFE-05: the lives a level picked on the results menu starts with ("Next level", or "Retry" for the same level): the lives Poncho
  * has at the clear when both are levels of the same one of the seven worlds (1-1's go on into 1-2, 1-2's into 1-3, and 1-3's into 1-4), else
- * seven (1-4's Next level starts 2-1 with seven). The tutorial, World 0, is
+ * seven (1-4's Next level starts 2-1 with seven, 2-4's starts 3-1 with seven). The tutorial, World 0, is
  * outside the seven worlds (GDD-WLD-01): its lives carry neither into 1-1 nor into its own Retry. A test level has no exit, so it never
  * comes here (GDD-TEC-04).
  */
@@ -146,7 +175,7 @@ export const livesInto = (from: LevelEntry, to: LevelEntry, lives: number): numb
 
 /**
  * GDD-LIFE-05: where the restart after the last life plays: the first level of the world (1-1 for every World 1 level, 2-1 for every
- * World 2 level, 0-1 for the tutorial), or a test level's own start, since a test level is in no world's order.
+ * World 2 level, 3-1 for World 3's, 0-1 for the tutorial), or a test level's own start, since a test level is in no world's order.
  */
 export const worldStart = (entry: LevelEntry): LevelEntry => (entry.test ? entry : worldLevels(entry.world)[0]!);
 
@@ -162,7 +191,7 @@ export const worldLivesAfter = (saved: Readonly<Record<string, number>>, entry: 
  * GDD-UI-02, GDD-PRG-02, GDD-LIFE-05 (Proposed): the level each world's run has reached, kept in the save per world, after a clear in a
  * level of `entry`'s world or at the Siete vidas gastadas screen in one. "Start" plays that level. A clear moves the run to the next level
  * of the same world in the game's order (`next` of the entry); the world's last level, which ends the run, starts a new one at the world's
- * first level (1-4, whose next level is in World 2, too). The Siete vidas gastadas screen puts the run back at the world's first level, however it is reached. The tutorial, outside
+ * first level (1-4 and 2-4, whose next levels are in the next world, too). The Siete vidas gastadas screen puts the run back at the world's first level, however it is reached. The tutorial, outside
  * the seven worlds, writes none. A test level never comes here (the scene keeps its screen out of the save, GDD-PRG-02). Retry writes
  * nothing more than the clear did.
  */
@@ -172,3 +201,16 @@ export function worldAtAfter(saved: Readonly<Record<string, string>>, entry: Lev
   const next = event === 'clear' && entry.next !== undefined ? inWorld.find((e) => e.id === entry.next) : undefined;
   return { ...saved, [entry.world]: (next ?? inWorld[0]!).id };
 }
+
+/** GDD-PRG-01: the level whose clear unlocks the glide, World 2's boss arena. */
+export const GLIDE_UNLOCK_ID = '2-4';
+
+/**
+ * GDD-PRG-01 (Decided, user, 2026-11-10: "Glide everywhere"): the abilities the saved progress unlocks in every level: the glide once 2-4
+ * is cleared, nothing before. The wall cling is not unlocked here.
+ */
+export const unlockedAbilities = (levels: StartSave['levels']): Abilities => (levels[GLIDE_UNLOCK_ID]?.cleared === true ? { glide: true } : {});
+
+/** GDD-PRG-01: the level with the unlocked abilities added to its own; with none unlocked, the very same level. */
+export const withUnlocks = (level: Level, unlocked: Abilities): Level =>
+  Object.keys(unlocked).length === 0 ? level : { ...level, abilities: { ...level.abilities, ...unlocked } };

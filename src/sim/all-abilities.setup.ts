@@ -33,9 +33,9 @@ export const ABILITY_OFF_TESTS: ReadonlyMap<string, string> = new Map([
 
 vi.mock('./movement', async (importOriginal) => {
   const m = await importOriginal<typeof Movement>();
-  const step: typeof m.step = (prev, input, world, abilities) =>
+  const step: typeof m.step = (prev, input, world, abilities, runSpeed) =>
     ABILITY_OFF_TESTS.has(expect.getState().currentTestName ?? '')
-      ? m.step(prev, input, world, abilities)
-      : m.step(prev, input, world, { ...ALL_ABILITIES, ...abilities });
+      ? m.step(prev, input, world, abilities, runSpeed)
+      : m.step(prev, input, world, { ...ALL_ABILITIES, ...abilities }, runSpeed);
   return { ...m, step };
 });

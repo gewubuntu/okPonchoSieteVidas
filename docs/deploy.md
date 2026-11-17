@@ -25,12 +25,15 @@ ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 443/udp
 
 Docker Engine with the Compose plugin (`docker compose version`), from Docker's apt repository if missing.
 
-## 4. A deploy user and the project folder
+## 4. The deploy user and the project folder
+
+The deploy user is the account GitHub Actions logs in as. It needs to be in the `docker` group and nothing else. On the
+server this is the existing account `forkfall` (in the `docker` group already); the commands below use it. A server
+without such an account can make one: `adduser --disabled-password --gecos "" deploy && usermod -aG docker deploy`, and
+use `deploy` wherever `forkfall` is written here.
 
 ```sh
-adduser --disabled-password --gecos "" deploy
-usermod -aG docker deploy
-install -d -o deploy -g deploy -m 755 /opt/poncho
+install -d -o forkfall -g forkfall -m 755 /opt/poncho
 ```
 
 From a checkout of this repository, copy the server files (root-owned, so the deploy user cannot change them; it
@@ -45,7 +48,7 @@ Start the edge Caddy once; it fetches the HTTPS certificate on the first request
 502):
 
 ```sh
-cd /opt/poncho && sudo -u deploy docker compose up -d caddy
+cd /opt/poncho && sudo -u forkfall docker compose up -d caddy
 ```
 
 ## 5. An SSH key for GitHub Actions
@@ -56,17 +59,18 @@ On your own machine (not the server), make a key used only for deploying:
 ssh-keygen -t ed25519 -N "" -C "github-actions deploy poncho" -f poncho_deploy
 ```
 
-Put the public half on the server, limited to the deploy script. The `deploy` user is in the `docker` group, which is
-as strong as root, so the key must never get a shell:
+Put the public half on the server, limited to the deploy script. The deploy user is in the `docker` group, which is
+as strong as root (and `forkfall` also has `sudo`), so this key must never get a shell. The restriction is on this
+key's line only; the account's own login keys in the same file keep working as before:
 
 ```sh
-install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
-echo 'command="/opt/poncho/deploy.sh",restrict ssh-ed25519 AAAA... github-actions deploy poncho' >> /home/deploy/.ssh/authorized_keys   # the line in poncho_deploy.pub
-chown deploy:deploy /home/deploy/.ssh/authorized_keys && chmod 600 /home/deploy/.ssh/authorized_keys
+install -d -m 700 -o forkfall -g forkfall /home/forkfall/.ssh
+echo 'command="/opt/poncho/deploy.sh",restrict ssh-ed25519 AAAA... github-actions deploy poncho' >> /home/forkfall/.ssh/authorized_keys   # the line in poncho_deploy.pub
+chown forkfall:forkfall /home/forkfall/.ssh/authorized_keys && chmod 600 /home/forkfall/.ssh/authorized_keys
 ```
 
-Check from your machine: `ssh -i poncho_deploy deploy@<server-ip> live` prints nothing (or the live commit), and
-`ssh -i poncho_deploy deploy@<server-ip> id` prints the usage and fails.
+Check from your machine: `ssh -i poncho_deploy forkfall@<server-ip> live` prints nothing (or the live commit), and
+`ssh -i poncho_deploy forkfall@<server-ip> id` prints the usage and fails.
 
 ## 6. GitHub secrets
 
@@ -76,13 +80,14 @@ Add these environment secrets:
 | Secret | Value |
 | --- | --- |
 | `DEPLOY_HOST` | the server's IP address or host name |
-| `DEPLOY_USER` | `deploy` |
+| `DEPLOY_USER` | the deploy user, `forkfall` |
 | `DEPLOY_SSH_KEY` | the whole private key file `poncho_deploy` |
 | `DEPLOY_KNOWN_HOSTS` | the output of `ssh-keyscan -p <port> -t ed25519 <host>`, run from your machine with exactly the `DEPLOY_HOST` value and the SSH port (22 unless `DEPLOY_PORT` says otherwise); ssh matches the line by that name and port. Compare its key with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on the server |
 | `DEPLOY_PORT` | optional, only if SSH is not on port 22 |
 
 No registry secret is needed: the workflow pushes with its own `GITHUB_TOKEN` and hands that token to the server on
-stdin for the pull; it expires with the job. Then delete the local `poncho_deploy` private key, or keep it somewhere
+stdin for the pull; it expires with the job. The deploy script logs the deploy user in to `ghcr.io` with it and out
+again when it ends, so a login of that account's own to `ghcr.io` is removed by each deploy. Then delete the local `poncho_deploy` private key, or keep it somewhere
 safe.
 
 ## 7. First deploy
@@ -106,7 +111,7 @@ The server keeps the newest 5 images:
 
 ```sh
 docker image ls ghcr.io/gewubuntu/okponchosietevidas      # the tags are commits
-sudo -u deploy /opt/poncho/deploy.sh deploy <older commit sha>
+sudo -u forkfall /opt/poncho/deploy.sh deploy <older commit sha>
 ```
 
 The next deploy from `main` replaces it again, so revert the bad commit on `main` too.
@@ -118,8 +123,8 @@ A deploy changes only the game's image. After a change to `deploy/compose.yaml`,
 
 ```sh
 cd /opt/poncho
-sudo -u deploy docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile   # Caddyfile
-sudo -u deploy docker compose up -d                                                    # compose.yaml
+sudo -u forkfall docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile   # Caddyfile
+sudo -u forkfall docker compose up -d                                                    # compose.yaml
 ```
 
 Logs: `docker compose logs -f caddy web` in `/opt/poncho`.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BACKDROP, MERCADO, PLANTS, TILE } from '../config/tuning';
+import { BACKDROP, MERCADO, PLANTS, SIERRA, TILE } from '../config/tuning';
 import { LEVEL_0_1 } from '../levels/level0-1';
 import { LEVEL_1_2 } from '../levels/level1-2';
 import { LEVEL_1_3 } from '../levels/level1-3';
@@ -8,8 +8,10 @@ import { LEVEL_2_1 } from '../levels/level2-1';
 import { LEVEL_2_2 } from '../levels/level2-2';
 import { LEVEL_2_3 } from '../levels/level2-3';
 import { LEVEL_2_4 } from '../levels/level2-4';
+import { LAB_3C_LEVEL } from '../levels/lab3c';
 import { SANDBOX_LEVEL } from '../levels/sandbox';
 import { SLOPES_LEVEL } from '../levels/slopes';
+import { railGround, railLength, warningPost, type Rail } from '../sim/cart';
 import type { Level } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import { plantSpots } from './plants';
@@ -381,5 +383,105 @@ describe('GDD-ART-06 World 2 decor', () => {
     const cordel = { x: 10 * TILE, y: 192, w: 21 * TILE };
     expect(decorCols(level(14, [], { rollos: [rollo] }))).toEqual(decorCols(level(14, [], { cordeles: [cordel] })));
     expect(decorCols(level(14, [], { rollos: [rollo] }))).not.toEqual(base);
+  });
+});
+
+// GDD-ART-06 World 3's decor stands by the same rule, with three more clearances for its railway: a rail blocks the decor in every tile it
+// crosses, like a level tile, and no item stands within 2 columns of a rail's start (its cart), its end (the buffer past it, or its broken
+// end) or its warning post, on the same row or the row above (GDD-WLD-15's helpers say where those are).
+/** The tiles a rail crosses: those its 4 px over its ground (the rail and its sleepers) lie in, px column by px column. */
+function railTiles(rail: Rail): Set<string> {
+  const tiles = new Set<string>();
+  for (let d = 0; d < railLength(rail); d++) {
+    const x = rail.dir > 0 ? rail.x + d : rail.x - d - 1;
+    const ground = railGround(rail, d + 0.5);
+    for (let row = Math.floor((ground - 4) / TILE); row <= Math.floor((ground - 1) / TILE); row++) tiles.add(`${Math.floor(x / TILE)},${row}`);
+  }
+  return tiles;
+}
+
+/** The tiles the rail's cart (at its start), its end and its warning post stand in: the column, and the row above the ground there. */
+function railThings(rail: Rail): { col: number; row: number }[] {
+  const end = rail.x + rail.dir * railLength(rail);
+  // A buffer stands past the rail's last px; a broken end is its last px.
+  const endX = rail.end === 'buffer' ? end + rail.dir * 0.5 : end - rail.dir * 0.5;
+  const post = warningPost(rail);
+  return [
+    { col: Math.floor((rail.x + rail.dir * 0.5) / TILE), row: rail.y / TILE - 1 },
+    { col: Math.floor(endX / TILE), row: railGround(rail, railLength(rail)) / TILE - 1 },
+    ...(post ? [{ col: Math.floor(post.x / TILE), row: post.y / TILE - 1 }] : []),
+  ];
+}
+
+describe('GDD-ART-06 World 3 decor and the rails', () => {
+  const sizes = SIERRA.decor;
+  /** The spots of `l` that break the rule of `rails`, as `col,row`. */
+  const breaking = (l: Level, rails: readonly Rail[]): string[] => {
+    const tiles = new Set(rails.flatMap((r) => [...railTiles(r)]));
+    const things = rails.flatMap(railThings);
+    return plantSpots(l, sizes)
+      .filter((s) => {
+        const tall = Math.ceil(sizes[s.kind]!.h / TILE);
+        const onTrack = Array.from({ length: tall }, (_, i) => tiles.has(`${s.col},${s.row - 1 - i}`)).some(Boolean);
+        const nearThing = things.some((t) => Math.abs(t.col - s.col) <= 2 && (t.row === s.row || t.row === s.row - 1));
+        return onTrack || nearThing;
+      })
+      .map((s) => `${s.col},${s.row}`);
+  };
+
+  it('GDD-ART-06 nothing stands on a rail\'s tiles or within 2 columns of a cart\'s start, a rail\'s end or its warning post in lab-3c', () => {
+    // Over every rail of lab-3c (R1 to R6: level, climbing, descending, rolling left, two broken ends with their posts).
+    const rails = LAB_3C_LEVEL.rails!;
+    expect(rails).toHaveLength(6);
+    expect(breaking(LAB_3C_LEVEL, rails)).toEqual([]);
+    // Without its rails the formula would put items on such spots: the rule is what keeps them clear.
+    expect(breaking({ ...LAB_3C_LEVEL, rails: [] }, rails).length).toBeGreaterThan(0);
+  });
+
+  // A made-up level, 60 tiles wide with its floor at row 14 and the spawn far right (column 58): rail A from column s on a plateau (columns
+  // s - 4 to s + 1, its top at row 11), 2 tiles level, 3 down over air to the floor, 6 level on it, broken (its post 6 tiles before its end,
+  // at the descent's foot, column s + 5); rail B rolling left, 16 tiles on the floor (columns b to b + 15), ending in a buffer (column b - 1).
+  // The spots each clearance alone keeps clear: behind A's start on the plateau (s - 1, s - 2), 2 columns before A's post on the floor under
+  // the descent, where the rail runs 2 rows up and a short item (a maguey, a tocón or a zacatón, 1 tile) fits under it (s + 3), past A's
+  // broken end (s + 11, s + 12), past B's buffer (b - 3 to b - 1), behind B's start (b + 16, b + 17), and on B's track more than 2 columns
+  // from both its ends (b + 2 to b + 12). s and b are found by search, so that the formula puts an item on each without the rails.
+  const WIDE = 60;
+  const fixture = (s: number, b: number, withRails: boolean): Level => {
+    const rows = Array.from({ length: 17 }, (_, r) => Array.from({ length: WIDE }, (_c, c) => (r >= 14 || (r >= 11 && c >= s - 4 && c <= s + 1) ? '#' : '.')).join(''));
+    const rails: Rail[] = [
+      { x: s * TILE, y: 11 * TILE, dir: 1, segments: [{ kind: 'level', tiles: 2 }, { kind: 'descent', tiles: 3 }, { kind: 'level', tiles: 6 }], end: 'broken' },
+      { x: (b + 16) * TILE, y: 14 * TILE, dir: -1, segments: [{ kind: 'level', tiles: 16 }], end: 'buffer' },
+    ];
+    return { ...level(14), world: parseTiles(rows), spawn: { x: mid(58), y: 14 * TILE }, ...(withRails ? { rails } : {}) };
+  };
+  const spotsOf = (l: Level) => new Map(plantSpots(l, sizes).map((p) => [`${p.col},${p.row}`, p.kind]));
+  const short = (kind: number | undefined) => kind !== undefined && sizes[kind]!.h <= TILE;
+  /** For each clearance, the spots of it the formula fills without the rails. */
+  const wanted = (s: number, b: number) => {
+    const bare = spotsOf(fixture(s, b, false));
+    const has = (cs: number[], row: number) => cs.filter((c) => bare.has(`${c},${row}`)).map((c) => `${c},${row}`);
+    return {
+      start: has([s - 1, s - 2], 11),
+      post: short(bare.get(`${s + 3},14`)) ? [`${s + 3},14`] : [],
+      brokenEnd: has([s + 11, s + 12], 14),
+      buffer: has([b - 3, b - 2, b - 1], 14),
+      startLeft: has([b + 16, b + 17], 14),
+      track: has(Array.from({ length: 11 }, (_, i) => b + 2 + i), 14),
+    };
+  };
+  let found: { s: number; b: number } | null = null;
+  for (let s = 4; s <= 20 && !found; s++) {
+    for (let b = s + 16; b <= 38 && !found; b++) if (Object.values(wanted(s, b)).every((v) => v.length > 0)) found = { s, b };
+  }
+
+  it('GDD-ART-06 nothing stands on a rail\'s tiles or within 2 columns of a cart\'s start, a rail\'s end or its warning post, each clearance alone', () => {
+    expect(found).not.toBeNull();
+    const { s, b } = found!;
+    const want = wanted(s, b);
+    const withRails = spotsOf(fixture(s, b, true));
+    for (const [rule, keys] of Object.entries(want)) for (const k of keys) expect(withRails.has(k), `${rule}: ${k}`).toBe(false);
+    expect(breaking(fixture(s, b, true), fixture(s, b, true).rails!)).toEqual([]);
+    // The spots away from the rails are kept.
+    expect([...spotsOf(fixture(s, b, false)).keys()].filter((k) => withRails.has(k)).length).toBeGreaterThan(0);
   });
 });

@@ -32,9 +32,9 @@ const bumpItAndStop = (page: Page) =>
 test('GDD-PWR-05 a jump from underneath opens the piñata and a taco walks out on top of it', async ({ page }) => {
   await boot(page);
   await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([false, false]);
+  expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([false, false, false]);
   await bumpItAndStop(page);
-  expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([true, false]);
+  expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([true, false, false]);
   const items = await api(page, () => window.__PONCHO__!.itemsDrawn());
   expect(items).toHaveLength(1);
   expect(items[0]!.y).toBe(160); // standing on the piñata's top, not fallen through it
@@ -67,6 +67,6 @@ test('GDD-PWR-05 losing a life closes the piñata again', async ({ page }) => {
     window.__PONCHO__!.step(140);
   });
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('playing');
-  expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([false, false]);
+  expect(await api(page, () => window.__PONCHO__!.pinatasDrawn())).toEqual([false, false, false]);
   expect(await api(page, () => window.__PONCHO__!.itemsDrawn())).toEqual([]);
 });

@@ -13,7 +13,7 @@ import { buildSheet, PONCHO_LOOKS as SHEET_LOOKS, ponchoFrames, SHEET_COLUMNS } 
 import * as actions from './poncho/actions.mjs';
 import * as moves from './poncho/moves.mjs';
 import { ITEM_SHEETS } from './make-poncho-items.mjs';
-import { ITEM_COLOURS } from './poncho/items.mjs';
+import { FANTASMA_COLOURS, ITEM_COLOURS } from './poncho/items.mjs';
 import * as victory from './poncho/victory.mjs';
 import { STRIP } from './poncho/victory-pixels.mjs';
 import { BOX, check, pose, POSE_FRAME, RUN, STANDING } from './poncho/rig.mjs';
@@ -136,13 +136,35 @@ describe('GDD-ART-04 Poncho\'s sheet: his animation frames', { timeout: 60_000 }
     expect(new Set(victory.PALETTE).size).toBe(16);
   });
 
-  it('GDD-ART-03 his palette is 16 colours, full: his sheet and his item sheets together', () => {
+  it('GDD-ART-03 his palette is 19 colours, full: his sheet and his item sheets together', () => {
+    // 16 for him (his 13, the taco's two greens, the gold: "Add gold") and 3 for the Chile Fantasma alone: the cap went from 16 to 19
+    // (user, 2026-11-10: "Raise the cap for it").
     const used = new Set(FRAMES.flatMap((f) => f.grid.cells.filter((c) => c !== null)));
     for (const m of Object.values(ITEM_SHEETS)) for (const f of m.draw()) for (const c of f.grid.cells) if (c !== null) used.add(c);
-    expect(used.size).toBe(16);
-    expect([...used].sort()).toEqual([...Object.values(COLOURS), ...Object.values(ITEM_COLOURS), ...Object.values(victory.VICTORY_COLOURS)].sort());
+    expect(used.size).toBe(19);
+    expect([...used].sort()).toEqual([...Object.values(COLOURS), ...Object.values(ITEM_COLOURS), ...Object.values(victory.VICTORY_COLOURS), ...Object.values(FANTASMA_COLOURS)].sort());
     // The gold the user asked for (GDD-ART-03: "Add gold").
     expect(victory.VICTORY_COLOURS).toEqual({ y: '#F9D24C' });
+  });
+
+  it('GDD-ART-03 only the fantasma and glow sheets use the three Chile Fantasma colours', () => {
+    const three = Object.values(FANTASMA_COLOURS);
+    expect(three).toHaveLength(3);
+    // Every other sheet, his body included, uses only the 16.
+    for (const f of FRAMES) for (const c of f.grid.cells) if (c !== null) expect(three, `${f.look} ${c}`).not.toContain(c);
+    for (const [name, m] of Object.entries(ITEM_SHEETS)) {
+      const used = new Set(m.draw().flatMap((f) => f.grid.cells.filter((c) => c !== null)));
+      const has = three.filter((c) => used.has(c));
+      if (name === 'fantasma' || name === 'glow') expect(has.length, name).toBeGreaterThan(0);
+      else expect(has, name).toEqual([]);
+    }
+    // Between them the two sheets use all three: the lavender-white and shade on the pepper, the pale gold on the glow's soft edges.
+    const usedBy = (name) => new Set(ITEM_SHEETS[name].draw().flatMap((f) => f.grid.cells.filter((c) => c !== null)));
+    expect([...three].filter((c) => !usedBy('fantasma').has(c) && !usedBy('glow').has(c))).toEqual([]);
+    expect(usedBy('glow').has(FANTASMA_COLOURS.l)).toBe(false);
+    expect(usedBy('glow').has(FANTASMA_COLOURS.v)).toBe(false);
+    expect(usedBy('fantasma').has(FANTASMA_COLOURS.l)).toBe(true);
+    expect(usedBy('fantasma').has(FANTASMA_COLOURS.v)).toBe(true);
   });
 
   it('GDD-ART-05 every frame is outlined and clear of the frame\'s edge but the feet\'s row', () => {

@@ -73,7 +73,8 @@ const onGround = (world: TileGrid, x: number, y: number): boolean => groundTop(w
 
 /**
  * Would a hop from (x, y) the way `dir` faces end on the ground no lower than y, or on an awning, without meeting a wall? Its arc is played
- * out step by step, as it would fly; a hop that falls past the bottom of the level ends nowhere.
+ * out step by step, as it would fly; a hop that falls past the bottom of the level ends nowhere (the level's bottom, below a raised bottom
+ * too: only Poncho is lost at one, GDD-WLD-03).
  */
 export function hopLands(world: TileGrid, x: number, y: number, dir: 1 | -1, awnings: readonly PlatformPos[]): boolean {
   let at: Air = { x, y, dir, vy: -CHAPULIN.hopUp, end: 'air' };

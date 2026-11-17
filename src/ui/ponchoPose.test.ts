@@ -324,6 +324,13 @@ describe('GDD-ART-04 the taco and chile pickups', () => {
     expect([111, 112, 119, 120, 231, 232, 239, 240].map((c) => pickupLook('chile', c))).toEqual(['chileBob1', 'chileGlint', 'chileGlint', 'chileBob3', 'chileBob0', 'chileGlint', 'chileGlint', 'chileBob2']);
     expect(pickupLook('taco', 112)).toBe('tacoGlint');
   });
+
+  it('GDD-PWR-04 the fantasma pickup bobs through its three frames', () => {
+    expect([0, 8, 16, 24].map((c) => pickupLook('fantasma', c))).toEqual(['fantasmaBob0', 'fantasmaBob1', 'fantasmaBob2', 'fantasmaBob0']);
+    expect([7, 15, 23, 31].map((c) => pickupLook('fantasma', c))).toEqual(['fantasmaBob0', 'fantasmaBob1', 'fantasmaBob2', 'fantasmaBob0']);
+    // No glint: the clock steps where the taco and chile glint (the last 8 of every 120) bob on.
+    expect([112, 119, 120].map((c) => pickupLook('fantasma', c))).toEqual(['fantasmaBob2', 'fantasmaBob2', 'fantasmaBob0']);
+  });
 });
 
 /** A run on the level clear screen at `wait`. */

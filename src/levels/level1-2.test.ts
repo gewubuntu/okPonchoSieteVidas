@@ -10,7 +10,7 @@ import { withSprings } from '../sim/spring';
 import { SLOPE_HEIGHTS } from '../sim/tilemap';
 import { veladoraUsed } from '../sim/veladora';
 import { LEVEL_1_2 } from './level1-2';
-import { LEVELS } from './index';
+import { LEVELS, withUnlocks } from './index';
 import { gaps } from './validate';
 
 const world = LEVEL_1_2.world;
@@ -343,6 +343,21 @@ describe('GDD-WLD-08 playing 1-2', () => {
     let lost = 0;
     let before = 7;
     const { run, steps } = bot(LEVEL_1_2, 1800, (r) => {
+      if (r.lives.lives < before) lost++;
+      before = r.lives.lives;
+    });
+    expect(run.phase).toBe('clear');
+    expect(steps).toBeLessThan(1800);
+    expect(lost).toBe(0);
+    expect(run.lives.lives).toBe(7);
+    expect(touchesExit(run.player, LEVEL_1_2.exit!)).toBe(true);
+  });
+
+  it('GDD-PRG-01 1-2 with the glide unlocked the route still reaches the exit losing no life', () => {
+    // The same bot with the glide on, as in every level once 2-4 is cleared (user, 2026-11-11: "Accept the skips").
+    let lost = 0;
+    let before = 7;
+    const { run, steps } = bot(withUnlocks(LEVEL_1_2, { glide: true }), 1800, (r) => {
       if (r.lives.lives < before) lost++;
       before = r.lives.lives;
     });

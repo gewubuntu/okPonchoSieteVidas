@@ -42,14 +42,17 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 
 | Command | Purpose |
 | --- | --- |
-| `node scripts/check.mjs` | The gate: the harness checks listed in `docs/HARNESS.md`, then `npm run lint`, `typecheck`, `test` and `test:abilities`. Must pass before every commit. |
+| `node scripts/check.mjs` | The gate: the harness checks listed in `docs/HARNESS.md`, then `npm run lint`, `typecheck`, `test`, `test:abilities`, `test:glide` and `test:sight`. Must pass before every commit. |
 | `npm install` | Install dependencies (needed once; CI runs `npm ci`). |
 | `npm run dev` | Dev server on port 5173. |
 | `npm run build` | Typecheck and production build into `dist/`. |
 | `npm test` | Vitest unit tests (`src/**/*.test.ts`, `scripts/**/*.test.mjs`). |
 | `npm run test:abilities` | The simulation tests again with every progression ability on (L-024); opt-outs with reasons in `src/sim/all-abilities.setup.ts`. |
+| `npm run test:glide` | The level tests of Worlds 0 to 2 again with the glide unlocked, as after clearing 2-4 (GDD-PRG-01); opt-outs with reasons in `src/levels/glide-unlocked.setup.ts`. |
+| `npm run test:sight` | The sight sweep of World 3's levels (GDD-WLD-03, L-014): every flight a level invites, failing on a life lost to something off screen at the take-off; accepted families with their GDD sentence in `src/levels/sight.test.ts`. About 2.5 minutes for 3-1. |
 | `npm run shots` | Screenshots for visual review: desktop and phone viewport, into `shots/` (not committed). Scenarios live in `e2e/shots/`. |
 | `node scripts/overview.mjs docs/screenshots/<slug>` | Compose the approved screenshots in that folder into its `overview.png` sheet (L-031). |
+| `node scripts/art-lineup.mjs <out.png> <folder or file>...` | New art beside its neighbours and the user's references on one image: sheets at one scale, references at one height, to judge it before the user sees it (L-066). |
 | `node scripts/pr-screenshots.mjs [base]` | Warn if visible files changed and no screenshot was added under `docs/screenshots/`. |
 | `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `harness-playtest` skill). |
 | `node scripts/mutate.mjs <mutants.json>` | Run mutants (L-010) and restore each file; `--restore` after an interrupted run, which the gate otherwise fails on (L-020). |
@@ -81,7 +84,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - Keep simulation logic (movement, lives, damage) free of Phaser imports so it is unit-testable.
 - Input that starts something on a press (jump, claw, Fuego) is latched from raw key and pointer events with `src/ui/inputLatch.ts` and cleared by the step that uses it, never only polled once per frame (L-006). A new press-driven action needs a test in `e2e/subframe.spec.ts` that taps it inside one task. Pause (Escape, P) is the exception: it is applied per frame, not per step, from raw browser `keydown` events with auto-repeat ignored, so it needs no latch. It must not use Phaser `Key` `down` events, which can fire again on the release when a press and release land in one frame (L-006), and an extra event toggles the pause back. Its one-task tap tests are in `e2e/pause.spec.ts`. The gamepad is the other exception: browsers give no raw pad events, so it is polled once per frame in `src/ui/gamepad.ts` with no latch, and a press shorter than a frame can be missed (user, 2026-10-25; GDD-CTL-02, GDD-CTL-04). It needs no `e2e/subframe.spec.ts` test.
 - Do not add game code that no GDD ID asks for.
-- A dry run of a CI or deploy step first lists what differs on the runner (a fresh build with new mtimes, overlapping runs, a re-run of the workflow itself or of the one that triggers it, several runs for the same commit, a concurrency queue that keeps one pending run, missing secrets) and reproduces each, or the PR names the ones it does not cover (L-075).
+- A dry run of a CI or deploy step first lists what differs on the runner (a fresh build with new mtimes, overlapping runs, a re-run of the workflow itself or of the one that triggers it, several runs for the same commit, a concurrency queue that keeps one pending run, missing secrets) and reproduces each, or the PR names the ones it does not cover (L-083).
 - Do not name AI models in repository files or in commit subjects and bodies. Attribution trailers (such as `Co-Authored-By`) follow the session's own instructions.
 - Commit on the branch the session designates. After every push, open a draft PR for the branch if it has no open one; a merged or closed PR does not count (user, 2026-11-01). A PR is marked ready for review only when its work is done: gate and CI green, the `pr-reviewer`'s blocking findings fixed, and for a visible change the user's screenshot approval.
 

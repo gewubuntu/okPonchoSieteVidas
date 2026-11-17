@@ -12,7 +12,7 @@ import { medal } from '../sim/results';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { estrellaFrameInfo, estrellaPose } from '../ui/estrellaPose';
 import { LEVEL_2_4, LEVEL_2_4_AWNINGS, LEVEL_2_4_CORDELES } from './level2-4';
-import { LEVELS, levelById } from './index';
+import { LEVELS, levelById, withUnlocks } from './index';
 import { gaps, validateLevel } from './validate';
 
 // GDD-BOS-03: the arena 2-4 and La Estrella's fight in it, measured over the real level data and `stepRun` (L-003, L-014). Expected
@@ -55,7 +55,8 @@ describe('GDD-BOS-03 level 2-4', () => {
     const entry = LEVELS.find((e) => e.id === '2-4')!;
     expect(entry).toMatchObject({ world: 2, test: false });
     expect(entry.level).toBe(LEVEL_2_4);
-    expect(entry.next).toBeUndefined();
+    // GDD-UI-02: its Next level starts World 3 (GDD-WLD-16).
+    expect(entry.next).toBe('3-1');
     expect(levelById('2-3')!.next).toBe('2-4');
     expect(entry.tips).toBeUndefined();
     expect(isBossLevel(LEVEL_2_4)).toBe(true);
@@ -381,6 +382,15 @@ describe('GDD-BOS-03 playing 2-4', () => {
     // Measured: the hits on steps 344, 663 and 975, the clear 60 steps after the third.
     expect(hitsAt).toEqual([344, 663, 975]);
     expect(steps).toBe(1035);
+  });
+
+  it('GDD-PRG-01 2-4 with the glide unlocked the fight is still won losing no life', () => {
+    // The same bot with the glide on, as in every level once 2-4 is cleared (user, 2026-11-11: "Accept the skips").
+    const { run, steps } = bot(withUnlocks(LEVEL_2_4, { glide: true }), 1800);
+    expect(run.phase).toBe('clear');
+    expect(steps).toBeLessThan(1800);
+    expect(run.lives.lives).toBe(7);
+    expect(run.estrella).toMatchObject({ hits: 3, mode: 'defeated' });
   });
 });
 

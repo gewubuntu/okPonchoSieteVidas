@@ -10,7 +10,7 @@ import { medal } from '../sim/results';
 import { startRun, stepRun, touchesExit, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
 import { LEVEL_1_3 } from './level1-3';
-import { LEVELS } from './index';
+import { LEVELS, withUnlocks } from './index';
 import { gaps } from './validate';
 
 /** The level 1-3 comes after (GDD-UI-02). */
@@ -624,6 +624,16 @@ describe('GDD-WLD-09 playing 1-3', () => {
     expect(touchesExit(run.player, LEVEL_1_3.exit!)).toBe(true);
     expect(run.keysTaken).toEqual([true, true, true]);
     expect(run.doorsOpen).toEqual([true, true, true]);
+  });
+
+  it('GDD-PRG-01 1-3 with the glide unlocked the route still reaches the exit losing no life', () => {
+    // The same bot with the glide on, as in every level once 2-4 is cleared (user, 2026-11-11: "Accept the skips").
+    const { run, steps, lost } = bot(withUnlocks(LEVEL_1_3, { glide: true }), 2400);
+    expect(run.phase).toBe('clear');
+    expect(lost).toBe(0);
+    expect(steps).toBeLessThan(2400);
+    expect(run.lives.lives).toBe(7);
+    expect(touchesExit(run.player, LEVEL_1_3.exit!)).toBe(true);
   });
 
   it('GDD-WLD-09 1-3 the playthrough collects 45 of the 50 hilos', () => {
