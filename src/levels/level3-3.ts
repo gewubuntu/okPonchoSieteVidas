@@ -54,18 +54,23 @@ export interface Piece {
 const stretch = (col0: number, col1: number, row: number): Stretch => ({ col0, col1, row });
 
 /**
- * GDD-WLD-18: the ground by name, each solid from its top row down to the level's last row. The landing G0; the valley shelf; the first
- * peak P1; the terrace T1; the peak P2; the ledge L1; the third peak P3; P4; the stone Q; bridge B's pier; P5; the shelf A; the last peak
- * P6; the shelf under R7; the exit bank; the shed's stone gable. GDD-WLD-18 gives no row to columns 32 and 33 under MP0, nor to 199 to 201
- * under MP2: each is ground at its lift's foot, flush with the lift's lowest top (the shelf's row 35 and P5's row 25), since the GDD counts
- * four open pits and has him land "on P5 or the lift's foot" off A.
+ * GDD-WLD-18: the ground by name, each solid from its top row down to the level's last row. The landing G0, in three parts: C1's dip one row
+ * lower at columns 5 and 6, so its cart's floor is 8 px under G0's top and he walks off G0 onto it; the valley shelf; the first peak P1; the
+ * terrace T1, its step one row higher under R2's row-27 stretch (54 to 58); the peak P2; the ledge L1; the third peak P3; P4; the stone Q;
+ * bridge B's pier; P5; the shelf A; the last peak P6; the shelf under R7; the exit bank; the shed's stone gable. Each column is in one
+ * stretch. GDD-WLD-18 gives no row to columns 32 and 33 under MP0, nor to 199 to 201 under MP2: each is ground at its lift's foot, flush
+ * with the lift's lowest top (the shelf's row 35 and P5's row 25), since the GDD counts four open pits and has him land "on P5 or the lift's
+ * foot" off A.
  */
 export const LEVEL_3_3_AT = {
-  G0: stretch(0, 9, 34),
+  G0: stretch(0, 4, 34),
+  dip: stretch(5, 6, 35),
+  G0b: stretch(8, 9, 34),
   shelf: stretch(14, 31, 35),
   mp0Foot: stretch(32, 33, 35),
   P1: stretch(34, 52, 26),
-  T1: stretch(55, 71, 28),
+  T1step: stretch(54, 58, 27),
+  T1: stretch(59, 71, 28),
   P2: stretch(75, 88, 25),
   L1: stretch(99, 107, 29),
   P3: stretch(108, 119, 22),
@@ -85,11 +90,12 @@ export const LEVEL_3_3_GROUND: readonly Stretch[] = Object.values(LEVEL_3_3_AT);
 
 /**
  * GDD-WLD-18: the slopes under the rails, slope tiles one row per column (GDD-MOV-09), each given by its columns, the row of its first
- * slope tile and its tile (`\` falls to the right, `/` rises): R2's from P1 (row 26) to T1 (row 28), R3's from T1 up to P2 (row 25), R7's
+ * slope tile and its tile (`\` falls to the right, `/` rises): R1's out of C1's dip (row 35) up to G0 (row 34), so its climb lies on ground; R2's from P1 (row 26) to T1's step (row 27), R3's from T1 up to P2 (row 25), R7's
  * from P6 (row 9) to the shelf under it (row 12).
  */
 export const LEVEL_3_3_SLOPES = {
-  R2: { col0: 53, col1: 54, row: 26, tile: '\\' },
+  R1: { col0: 7, col1: 7, row: 34, tile: '/' },
+  R2: { col0: 53, col1: 53, row: 26, tile: '\\' },
   R3: { col0: 72, col1: 74, row: 27, tile: '/' },
   R7: { col0: 216, col1: 218, row: 9, tile: '\\' },
 } as const satisfies Record<string, Stretch & { readonly tile: '\\' | '/' }>;
@@ -111,14 +117,16 @@ export const LEVEL_3_3_PITS = {
 
 /**
  * GDD-WLD-03: the raised bottoms, each 4 rows under the lower of its pit's two lips: the chasm (lips at rows 25 and 29), the pit after P3 (22
- * and 25), bridge A's and bridge B's (both lips at 25, the pier inside B's span solid all the way down) and the exit pit (12 and 15). The
- * first pit's lower lip is row 35, so 4 rows under it (row 39) is past the level's last row (36): it is open to the level's last row.
+ * and 25), bridge A's (both lips at 25) and the exit pit (12 and 15); bridge B's (both lips at 25, the pier inside its span solid all the way
+ * down) 6 rows under them, so the camera's bottom limit there (31 + 1) * 16 - 2 - 270 = 240 lets it follow him to 238 over the planks and
+ * K2's cart is clear of the phone's buttons (GDD-ENM-04 (h), GDD-UI-04). The first pit's lower lip is row 35, so 4 rows under it (row 39)
+ * is past the level's last row (36): it is open to the level's last row.
  */
 export const LEVEL_3_3_BOTTOMS: readonly Bottom[] = [
   { fromCol: 89, toCol: 98, row: 33 },
   { fromCol: 120, toCol: 126, row: 29 },
   { fromCol: 141, toCol: 152, row: 29 },
-  { fromCol: 160, toCol: 175, row: 29 },
+  { fromCol: 160, toCol: 175, row: 31 },
   { fromCol: 226, toCol: 231, row: 19 },
 ];
 
@@ -170,16 +178,25 @@ export const LEVEL_3_3_ROWS: readonly string[] = Array.from({ length: HEIGHT }, 
  * rail ending at the edge of that column it meets first.
  */
 export const LEVEL_3_3_RAIL = {
-  // R1, C1's: level in row 34 (5 to 10), up 11 to 14, level in row 30 (15, 16), up 17 to 20, level in row 26 (21 to 38); its buffer at 39.
+  // R1, C1's: level in row 35 in G0's dip (5, 6), up 7 (its line through G0's tile there), level in row 34 (8 to 10), up 11 to 14, level in
+  // row 30 (15, 16), up 17 to 20, level in row 26 (21 to 38); its buffer at 39.
   R1: {
     x: 5 * TILE,
-    y: 34 * TILE,
+    y: 35 * TILE,
     dir: 1,
-    segments: [{ kind: 'level', tiles: 6 }, { kind: 'climb', tiles: 4 }, { kind: 'level', tiles: 2 }, { kind: 'climb', tiles: 4 }, { kind: 'level', tiles: 18 }],
+    segments: [
+      { kind: 'level', tiles: 2 },
+      { kind: 'climb', tiles: 1 },
+      { kind: 'level', tiles: 3 },
+      { kind: 'climb', tiles: 4 },
+      { kind: 'level', tiles: 2 },
+      { kind: 'climb', tiles: 4 },
+      { kind: 'level', tiles: 18 },
+    ],
     end: 'buffer',
   },
-  // R2, K1's, rolling left: level in row 28 (58 down to 55), up the slope (54, 53), level in row 26 (52 down to 42); its buffer at 41.
-  R2: { x: 59 * TILE, y: 28 * TILE, dir: -1, segments: [{ kind: 'level', tiles: 4 }, { kind: 'climb', tiles: 2 }, { kind: 'level', tiles: 11 }], end: 'buffer' },
+  // R2, K1's, rolling left: level in row 27 (58 down to 54) on T1's step, up the slope (53), level in row 26 (52 down to 42); its buffer at 41.
+  R2: { x: 59 * TILE, y: 27 * TILE, dir: -1, segments: [{ kind: 'level', tiles: 5 }, { kind: 'climb', tiles: 1 }, { kind: 'level', tiles: 11 }], end: 'buffer' },
   // R3, C2's: level in row 28 (68 to 71), up 72 to 74, level in row 25 (75 to 89, 1 tile past P2's lip); its broken end at x = 1440.
   R3: { x: 68 * TILE, y: 28 * TILE, dir: 1, segments: [{ kind: 'level', tiles: 4 }, { kind: 'climb', tiles: 3 }, { kind: 'level', tiles: 15 }], end: 'broken' },
   // R4, C3's: level in row 25 (137 to 155) over bridge A's planks; its buffer at 156 on the stone Q.
@@ -198,12 +215,12 @@ export const LEVEL_3_3_RAILS: readonly Rail[] = Object.values(LEVEL_3_3_RAIL);
 
 /**
  * GDD-WLD-05, GDD-WLD-18: the lifts and the perch, each at 40 px/s from its first end, `y` its top: MP0 (columns 32 and 33) from the shelf's
- * top (y = 560) up to P1's (416); the perch (45 and 46), still, its top 40 px over P1; MP1 (105 to 107) from 416 up to P3's top (352); MP2
- * (199 to 201) from P5's top (400) up to 272.
+ * top (y = 560) up to P1's (416); the perch (42 and 43), still, its top 40 px over P1, over K1's cart parked at its buffer and short of its
+ * wake line (x = 728); MP1 (105 to 107) from 416 up to P3's top (352); MP2 (199 to 201) from P5's top (400) up to 272.
  */
 export const LEVEL_3_3_PLATFORM = {
   MP0: { x0: 32 * TILE, y0: 560, x1: 32 * TILE, y1: 416, w: 2 * TILE },
-  perch: { x0: 45 * TILE, y0: LEVEL_3_3_AT.P1.row * TILE - 40, x1: 45 * TILE, y1: LEVEL_3_3_AT.P1.row * TILE - 40, w: 2 * TILE },
+  perch: { x0: 42 * TILE, y0: LEVEL_3_3_AT.P1.row * TILE - 40, x1: 42 * TILE, y1: LEVEL_3_3_AT.P1.row * TILE - 40, w: 2 * TILE },
   MP1: { x0: 105 * TILE, y0: 416, x1: 105 * TILE, y1: 352, w: 3 * TILE },
   MP2: { x0: 199 * TILE, y0: 400, x1: 199 * TILE, y1: 272, w: 3 * TILE },
 } as const satisfies Record<string, MovingPlatform>;
@@ -239,9 +256,9 @@ const PINATAS: readonly Pinata[] = [
 ];
 
 /** A Cacomixtle at its cart's start on rail `rail`: the cart's middle and its floor, 8 px over the rail's ground there. */
-const cacomixtle = (rail: number, sightException?: string): Enemy => {
+const cacomixtle = (rail: number): Enemy => {
   const r = LEVEL_3_3_RAILS[rail]!;
-  return { x: r.x + (r.dir * CART.width) / 2, y: r.y - CART.floorPx, kind: 'cacomixtle', rail, ...(sightException ? { sightException } : {}) };
+  return { x: r.x + (r.dir * CART.width) / 2, y: r.y - CART.floorPx, kind: 'cacomixtle', rail };
 };
 
 /**
@@ -249,11 +266,11 @@ const cacomixtle = (rail: number, sightException?: string): Enemy => {
  * each in its cart on R2, R5 and R6; the Armadillo on P3 from column 114; the row of three Murciélagos climbing to the right over P3
  * (columns 111, 116 and 121, their loops' middles 48, 80 and 112 px over P3's top), each a row bat (`rx` 0, `ry` 8, GDD-ENM-04) in step
  * with the others (phase 0: GDD-WLD-18 gives none); the Zopilote over P5, flying its line from column 190 (187.5 to 193.5), the lowest
- * point of its cruise line 48 px over P5's top (its line at y = 340, the bob 12 px either way). K1 names the exception to the sight
- * stretch's ground rule: P1 is 24 px over its cart's floor and the perch 64 px.
+ * point of its cruise line 48 px over P5's top (its line at y = 340, the bob 12 px either way). No Cacomixtle names an exception to the sight
+ * stretch's ground rule: K1's cart waits on T1's step, its floor 8 px under P1's top.
  */
 export const LEVEL_3_3_ENEMIES: readonly Enemy[] = [
-  cacomixtle(1, 'GDD-WLD-18: K1 meets him uphill, his feet on P1 24 px over its floor, 40 px inside its sight, with the perch to step onto'),
+  cacomixtle(1),
   cacomixtle(4),
   cacomixtle(5),
   { x: mid(114), y: LEVEL_3_3_AT.P3.row * TILE, kind: 'armadillo' },
@@ -271,7 +288,7 @@ const HILOS: readonly Hilo[] = [
   // The secret.
   [30, 27], [27, 28],
   // The perch; the slope and the piñata's wall.
-  [45, 22], [46, 22],
+  [42, 22], [43, 22],
   [53, 25], [62, 25],
   // R3, then the line of a held jump from the rail's end.
   [70, 26], [73, 24], [77, 23], [81, 23], [85, 23], [88, 23],

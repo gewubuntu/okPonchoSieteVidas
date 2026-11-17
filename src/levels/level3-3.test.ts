@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { CACOMIXTLE, CART, HITBOX, LEVEL_RULES, TILE } from '../config/tuning';
+import { CACOMIXTLE, CAMERA, CART, HITBOX, LEVEL_RULES, RUN, TILE } from '../config/tuning';
 import { floorUnder, railGround, railLength, rollCarts, warningPost, type CartState, type Rail } from '../sim/cart';
 import { kindOf } from '../sim/enemy';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { platformAt, standsOnPlatform } from '../sim/platform';
 import { startRun, stepRun, touchesOfrenda, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
+import { cameraLimitsAt } from '../ui/camera';
 import type { LevelEntry } from './index';
 import { LEVEL_3_3, LEVEL_3_3_AT, LEVEL_3_3_PITS, LEVEL_3_3_PLATFORM, LEVEL_3_3_RAIL, LEVEL_3_3_RAILS, LEVEL_3_3_ROWS } from './level3-3';
 import { gaps, openGaps, validateLevel } from './validate';
 
-// GDD-WLD-18: level 3-3, "Las Cumbres", built and not yet registered (phase A2). Every expected number is the design's (GDD-WLD-18, laid
+// GDD-WLD-18: level 3-3, "Las Cumbres", built and not yet registered (phases A2 and A3). Every expected number is the design's (GDD-WLD-18, laid
 // out by the World 3 design swarm before any code, its tables re-typed here); where the real simulation gives another, the test pins the
 // measured value with a comment "GDD says N" (L-003). Part 1 is the layout; Part 2 measures the layout's reaches on the real level with
 // every enemy in it, asserting the lives and where he ends (L-014); a test that measures a reach alone on a copy without an enemy says so.
@@ -132,13 +133,13 @@ const apart = (a: number, b: number): number[] => Array.from({ length: Math.floo
 
 /** GDD-WLD-18's ground, column by column: [from, to, top row]; the pits and the slopes are left out. */
 const GROUND: readonly (readonly [number, number, number])[] = [
-  [0, 9, 34], [14, 31, 35], [32, 33, 35], [34, 52, 26], [55, 71, 28], [75, 88, 25], [99, 107, 29], [108, 119, 22], [127, 140, 25], [153, 159, 25],
+  [0, 4, 34], [5, 6, 35], [8, 9, 34], [14, 31, 35], [32, 33, 35], [34, 52, 26], [54, 58, 27], [59, 71, 28], [75, 88, 25], [99, 107, 29], [108, 119, 22], [127, 140, 25], [153, 159, 25],
   [167, 167, 25], [176, 198, 25], [199, 201, 25], [202, 210, 17], [211, 215, 9], [219, 225, 12], [232, 234, 15], [235, 239, 4],
 ];
 /** The open pits and the pits under the plank bridges: [from, to]. */
 const PITS: readonly (readonly [number, number])[] = [[10, 13], [89, 98], [120, 126], [141, 152], [160, 166], [168, 175], [226, 231]];
 /** The slopes: [from, to, row of the first slope tile, its character]: down to the right, one row a column, or up. */
-const SLOPES: readonly (readonly [number, number, number, '\\' | '/'])[] = [[53, 54, 26, '\\'], [72, 74, 27, '/'], [216, 218, 9, '\\']];
+const SLOPES: readonly (readonly [number, number, number, '\\' | '/'])[] = [[7, 7, 34, '/'], [53, 53, 26, '\\'], [72, 74, 27, '/'], [216, 218, 9, '\\']];
 /** Pier V's hollow (its wall, floor and cap) and the piñatas' walls: [from, to, first row, last row]. */
 const PIECES: readonly (readonly [number, number, number, number])[] = [[22, 22, 26, 36], [23, 24, 31, 36], [22, 25, 26, 26], [62, 62, 26, 27], [132, 132, 23, 24]];
 
@@ -157,28 +158,11 @@ const groundRow = (col: number) => GROUND.find(([a, b]) => col >= a && col <= b)
 /** The hilos standing in a solid tile or a slope tile, as "col,row". */
 const hilosInTiles = (level: Level) => level.hilos!.filter((h) => level.world.solidTile(h.col, h.row) || level.world.slopeAt(h.col, h.row) !== null).map((h) => `${h.col},${h.row}`);
 
-/**
- * GDD-ENM-04 (h) (user, 2026-11-17: "Every button"): the problems 3-3's layout has now, before it is reconciled with the rule in the next
- * phase. Each cart is to his right at the sight's edge, its box on screen at x 440 to 472. K1 (column 45): from P1 (416) the camera is at
- * 416 - 162 = 254 and the box at 178 to 194, 14 px into the mirrored mode switch; from the perch (its top y 376, 64 px over the cart's floor
- * at 440) the camera is at 214 and the box at 218 to 234: the standard Jump button 32 x 16, the mirrored right button and stick 32 x 10 and
- * mode switch 32 x 2. K2
- * (column 165, on bridge B's plank at 400) has the camera at its bottom limit, the box at 176 to 192: 12 px into it. K3 is at 146 to 162 and
- * passes.
- */
-const H_PROBLEMS: readonly string[] = [
-  "cacomixtle at 928,440 has its cart's box 32 x 14 px over the phone's mode button (mirrored layout, buttons mode) where it first sees him, standing at column 45, y 416",
-  ...([[16, 'jump', 'standard', 'buttons'], [10, 'right', 'mirrored', 'buttons'], [2, 'mode', 'mirrored', 'buttons'], [10, 'stick', 'mirrored', 'stick']] as const).map(
-    ([h, id, layout, mode]) => `cacomixtle at 928,440 has its cart's box 32 x ${h} px over the phone's ${id} button (${layout} layout, ${mode} mode) where it first sees him, standing at column 45, y 376`,
-  ),
-  "cacomixtle at 2848,392 has its cart's box 32 x 12 px over the phone's mode button (mirrored layout, buttons mode) where it first sees him, standing at column 165, y 400",
-];
-
 describe('GDD-WLD-18 level 3-3 layout', () => {
   it('GDD-WLD-18 3-3 is 240 by 37 tiles and passes the validator', () => {
     expect([world.width, world.height]).toEqual([240, 37]);
-    // Every check but (h), whose problems the next phase reconciles (`H_PROBLEMS`).
-    expect(validateLevel(entry())).toEqual(H_PROBLEMS);
+    // Every check, (h) included (GDD-ENM-04, user, 2026-11-17: "Every button").
+    expect(validateLevel(entry())).toEqual([]);
     // GDD-PRG-01: the glide on, the wall cling off; its crumbling planks come back (GDD-WLD-05).
     expect(L.abilities).toEqual({ glide: true });
     expect(L.crumblesReturn).toBe(true);
@@ -204,7 +188,7 @@ describe('GDD-WLD-18 level 3-3 layout', () => {
     ]);
     expect(L.platforms).toEqual([
       { x0: 512, y0: 560, x1: 512, y1: 416, w: 32 },
-      { x0: 720, y0: 376, x1: 720, y1: 376, w: 32 },
+      { x0: 672, y0: 376, x1: 672, y1: 376, w: 32 },
       { x0: 1680, y0: 416, x1: 1680, y1: 352, w: 48 },
       { x0: 3184, y0: 400, x1: 3184, y1: 272, w: 48 },
     ]);
@@ -223,8 +207,9 @@ describe('GDD-WLD-18 level 3-3 layout', () => {
       const kinds = [GROUND.some(([a, b]) => col >= a && col <= b), PITS.some(([a, b]) => col >= a && col <= b), SLOPES.some(([a, b]) => col >= a && col <= b)];
       expect(kinds.filter(Boolean).length, `column ${col}`).toBe(1);
     }
-    // Each slope joins the grounds either side: R2's from P1 (26) to T1 (28), R3's from T1 (28) up to P2 (25), R7's from P6 (9) to the shelf (12).
-    expect(SLOPES.map(([a, b, row, ch]) => (ch === '\\' ? [row, row + b - a + 1] : [row + 1, row - (b - a)]))).toEqual([[26, 28], [28, 25], [9, 12]]);
+    // Each slope joins the grounds either side: R1's from C1's dip (35) up to G0 (34), R2's from P1 (26) to T1's step (27), R3's from T1 (28) up to P2 (25), R7's from P6 (9) to the
+    // shelf (12).
+    expect(SLOPES.map(([a, b, row, ch]) => (ch === '\\' ? [row, row + b - a + 1] : [row + 1, row - (b - a)]))).toEqual([[35, 34], [26, 27], [28, 25], [9, 12]]);
     // The hollow: rows 27 to 30 of columns 23 and 24 are empty, under the cap and over the floor, and open to the right (25, under the cap).
     for (let row = 27; row <= 30; row++) for (const col of [23, 24, 25]) expect(world.solidTile(col, row), `${col},${row}`).toBe(false);
     // The gable: solid from row 4 down, over the exit bank's 11 rows.
@@ -253,20 +238,32 @@ describe('GDD-WLD-18 level 3-3 layout', () => {
       for (let col = a!; col <= b!; col++) expect(L.crumbles.some((c) => c.col === col && c.row === 25), `${col}`).toBe(true);
       expect([groundRow(a! - 1), groundRow(b! + 1)]).toEqual([25, 25]);
     }
-    // The raised bottoms, 4 rows under each pit's lower lip; the first pit's would be row 39, past the last row (36), so it has none and is
-    // open to the level's last row.
+    // The raised bottoms, 4 rows under each pit's lower lip but bridge B's, 6 under it; the first pit's would be row 39, past the last row
+    // (36), so it has none and is open to the level's last row.
     expect(L.bottoms).toEqual([
       { fromCol: 89, toCol: 98, row: 29 + 4 },
       { fromCol: 120, toCol: 126, row: 25 + 4 },
       { fromCol: 141, toCol: 152, row: 25 + 4 },
-      { fromCol: 160, toCol: 175, row: 25 + 4 },
+      { fromCol: 160, toCol: 175, row: 25 + 6 },
       { fromCol: 226, toCol: 231, row: 15 + 4 },
     ]);
     expect(35 + 4).toBeGreaterThan(world.height - 1);
+    // GDD-UI-04, GDD-ENM-04 (h): bridge B's bottom is 6 rows down so the camera follows him over it. Its floor line is (31 + 1) * 16 = 512 and
+    // the camera's bottom limit at column 165 is 512 - 2 - 270 = 240; his feet on a plank at 400 put it at 400 - 162 = 238, under the limit,
+    // and K2's cart's box (its bottom on the rail's ground, 400) on screen at 146 to 162, clear of the mirrored mode switch (180 to 220). With
+    // the bottom 4 rows down (row 29) the limit is 480 - 2 - 270 = 208, the box at 176 to 192, 12 px into the switch.
+    expect(cameraLimitsAt(L, mid(165)).bottom).toBe(240);
+    const at29: Level = { ...L, bottoms: L.bottoms!.map((b) => (b.fromCol === 160 ? { ...b, row: 29 } : b)) };
+    expect(cameraLimitsAt(at29, mid(165)).bottom).toBe(208);
+    expect(validateLevel(entry(at29))).toEqual([
+      "cacomixtle at 2848,392 has its cart's box 32 x 12 px over the phone's mode button (mirrored layout, buttons mode) where it first sees him, standing at column 165, y 400",
+    ]);
+    // Bridge A's bottom (141 to 152) keeps its own limit: the camera's limits are read from the column he is in alone.
+    expect(cameraLimitsAt(L, mid(150)).bottom).toBe(208);
     // The gap rule at its limit: the chasm is 10 tiles and 4 down, the limit; one tile wider (L1 starting at 100) fails.
     const rows = LEVEL_3_3_ROWS.map((s, row) => (row >= 29 ? `${s.slice(0, 99)}.${s.slice(100)}` : s));
     const wider: Level = { ...L, world: parseTiles(rows), bottoms: L.bottoms!.map((b) => (b.fromCol === 89 ? { ...b, toCol: 99 } : b)) };
-    expect(validateLevel(entry(wider))).toEqual(['gap of 11 tiles at columns 89 to 99 with a drop of 4 tiles, World 3 allows 10', ...H_PROBLEMS]);
+    expect(validateLevel(entry(wider))).toEqual(['gap of 11 tiles at columns 89 to 99 with a drop of 4 tiles, World 3 allows 10']);
   });
 
   it('GDD-WLD-18 3-3 rails: each start, stretches and end; each ride measured by rolling its cart', () => {
@@ -275,16 +272,17 @@ describe('GDD-WLD-18 level 3-3 layout', () => {
       return { n, middle: r.x + (r.dir * CART.width) / 2, y: r.y, dir: r.dir, segments: r.segments.map((s) => `${s.kind} ${s.tiles}`), end: r.end, endX: endOf(n), endY: railGround(r, railLength(r)) };
     });
     expect(table).toEqual([
-      { n: 'R1', middle: Y(6), y: Y(34), dir: 1, segments: ['level 6', 'climb 4', 'level 2', 'climb 4', 'level 18'], end: 'buffer', endX: Y(39), endY: Y(26) },
-      { n: 'R2', middle: 928, y: Y(28), dir: -1, segments: ['level 4', 'climb 2', 'level 11'], end: 'buffer', endX: Y(42), endY: Y(26) },
+      { n: 'R1', middle: Y(6), y: Y(35), dir: 1, segments: ['level 2', 'climb 1', 'level 3', 'climb 4', 'level 2', 'climb 4', 'level 18'], end: 'buffer', endX: Y(39), endY: Y(26) },
+      { n: 'R2', middle: 928, y: Y(27), dir: -1, segments: ['level 5', 'climb 1', 'level 11'], end: 'buffer', endX: Y(42), endY: Y(26) },
       { n: 'R3', middle: Y(69), y: Y(28), dir: 1, segments: ['level 4', 'climb 3', 'level 15'], end: 'broken', endX: 1440, endY: Y(25) },
       { n: 'R4', middle: Y(138), y: Y(25), dir: 1, segments: ['level 19'], end: 'buffer', endX: Y(156), endY: Y(25) },
       { n: 'R5', middle: 2848, y: Y(25), dir: -1, segments: ['level 21'], end: 'buffer', endX: Y(158), endY: Y(25) },
       { n: 'R6', middle: 3152, y: Y(25), dir: -1, segments: ['level 16'], end: 'buffer', endX: Y(182), endY: Y(25) },
       { n: 'R7', middle: Y(213), y: Y(9), dir: 1, segments: ['level 4', 'descent 3', 'level 8'], end: 'broken', endX: 3632, endY: Y(12) },
     ]);
-    // The slopes under R2, R3 and R7 lie under the rail: its ground at each slope's ends is the ground's there.
-    expect([railGround(railOf('R2'), Y(59) - Y(55)), railGround(railOf('R2'), Y(59) - Y(53))]).toEqual([Y(28), Y(26)]);
+    // The slopes under R2, R3 and R7 lie under the rail: its ground at each slope's ends is the ground's there; R2's row-27 stretch lies on
+    // T1's step (54 to 58).
+    expect([railGround(railOf('R2'), Y(59) - Y(54)), railGround(railOf('R2'), Y(59) - Y(53))]).toEqual([Y(27), Y(26)]);
     expect([railGround(railOf('R3'), Y(72) - Y(68)), railGround(railOf('R3'), Y(75) - Y(68))]).toEqual([Y(28), Y(25)]);
     expect([railGround(railOf('R7'), Y(216) - Y(212)), railGround(railOf('R7'), Y(219) - Y(212))]).toEqual([Y(9), Y(12)]);
     // The posts, 6 tiles (96 px) before each broken end: R3's at 84, R7's at 221; the buffer rails have none. Each broken end is 15 and 8
@@ -319,8 +317,8 @@ describe('GDD-WLD-18 level 3-3 layout', () => {
       return { n, steps: k, ...(to !== undefined ? { fromFlash: to } : {}) };
     });
     expect(rides).toEqual([
-      { n: 'R1', steps: 245 }, // 4.08 s; GDD says 4.0 s (a target)
-      { n: 'R2', steps: 106, fromFlash: 104 }, // 1.77 s to its buffer; at column 46 1.73 s after the first flash, GDD says 1.8 s
+      { n: 'R1', steps: 249 }, // 4.15 s; GDD says 4.0 s (a target)
+      { n: 'R2', steps: 101, fromFlash: 99 }, // 1.68 s to its buffer; at column 46 1.65 s after the first flash, GDD says 1.8 s
       { n: 'R3', steps: 149 }, // 2.48 s from the cart's start at 68; GDD says 2.5 s
       { n: 'R4', steps: 109 }, // 1.82 s; GDD says 1.8 s
       { n: 'R5', steps: 122, fromFlash: 88 }, // 2.03 s to its buffer; at the pier 1.47 s after the first flash, GDD says 1.6 s
@@ -334,7 +332,7 @@ describe('GDD-WLD-18 level 3-3 its things', () => {
   it('GDD-WLD-18 3-3 has the 50 hilos as listed, none in a tile', () => {
     const listed: readonly (readonly [number, number])[] = [
       [3, 33], [4, 32], [8, 32], [13, 30], [15, 28], [19, 26], [23, 24], [27, 24], [31, 24], [35, 24],
-      [30, 27], [27, 28], [45, 22], [46, 22], [53, 25], [62, 25],
+      [30, 27], [27, 28], [42, 22], [43, 22], [53, 25], [62, 25],
       [70, 26], [73, 24], [77, 23], [81, 23], [85, 23], [88, 23], [93, 20], [96, 21], [99, 23], [102, 24],
       [106, 26], [106, 24], [113, 14], [118, 12], [123, 10], [124, 10], [122, 17], [126, 19],
       [132, 22], [144, 23], [148, 23], [167, 23], [190, 23], [200, 21], [200, 18], [205, 13], [207, 11], [209, 9],
@@ -368,7 +366,7 @@ describe('GDD-WLD-18 level 3-3 its things', () => {
 
   it('GDD-WLD-18 3-3 enemies: eight, as listed, each 3 tiles or more from every respawn', () => {
     expect(L.enemies).toEqual([
-      { x: 928, y: Y(28) - 8, kind: 'cacomixtle', rail: 1, sightException: 'GDD-WLD-18: K1 meets him uphill, his feet on P1 24 px over its floor, 40 px inside its sight, with the perch to step onto' },
+      { x: 928, y: Y(27) - 8, kind: 'cacomixtle', rail: 1 },
       { x: 2848, y: Y(25) - 8, kind: 'cacomixtle', rail: 4 },
       { x: 3152, y: Y(25) - 8, kind: 'cacomixtle', rail: 5 },
       { x: mid(114), y: Y(22), kind: 'armadillo' },
@@ -378,41 +376,83 @@ describe('GDD-WLD-18 level 3-3 its things', () => {
       // Its line from 187.5 to 193.5: 48 px either side of column 190's middle (ZOPILOTE.range).
       { x: mid(190), y: Y(25) - 48 - 12, kind: 'zopilote' },
     ]);
-    // GDD-ENM-01: 3 tiles (48 px, the validator's rule, which passes); 3-2's own 192 px is not GDD-WLD-18's. The nearest is K1, 120 px from
-    // the first ofrenda (GDD says 120: 120 across and 8 up).
+    // GDD-ENM-01: 3 tiles (48 px, the validator's rule, which passes); 3-2's own 192 px is not GDD-WLD-18's. The nearest is K1, 122.4 px from
+    // the first ofrenda, 120 across and 24 up (GDD says 120).
     const d = L.enemies.flatMap((e) => [L.spawn, ...L.ofrendas].map((r) => ({ kind: kindOf(e), x: e.x, to: r.x, d: Math.hypot(e.x - r.x, e.y - r.y) })));
     expect(d.filter((x) => x.d < LEVEL_RULES.enemyClearance)).toEqual([]);
     const nearest = d.reduce((a, b) => (b.d < a.d ? b : a));
     expect(nearest).toMatchObject({ kind: 'cacomixtle', x: 928, to: mid(65) });
-    expect(nearest.d).toBeCloseTo(120.27, 2);
+    expect(nearest.d).toBeCloseTo(122.38, 2);
     // 3-2's test held its enemies 192 px from every respawn; two of 3-3's are nearer: K1 to the first ofrenda, K3 (158.8 px) to the third.
-    expect(d.filter((x) => x.d < 192).map((x) => `${x.kind} ${x.x} to ${x.to} ${x.d.toFixed(1)}`)).toEqual(['cacomixtle 928 to 1048 120.3', 'cacomixtle 3152 to 3256 158.8']);
+    expect(d.filter((x) => x.d < 192).map((x) => `${x.kind} ${x.x} to ${x.to} ${x.d.toFixed(1)}`)).toEqual(['cacomixtle 928 to 1048 122.4', 'cacomixtle 3152 to 3256 158.8']);
   });
 
-  it("GDD-WLD-18 3-3 the Cacomixtles' validator checks pass but (h), whose problems are pinned", () => {
-    // (h) is reconciled with the layout in the next phase: until then its problems are pinned exactly (`H_PROBLEMS`), and nothing else.
-    expect(validateLevel(entry()).filter((p) => p.startsWith('cacomixtle'))).toEqual(H_PROBLEMS);
-    // Without K1's exception its ground rule fails, on P1 (24 px over its floor) and on the perch (64 px), the two grounds it names; each
-    // Cacomixtle's (h) comes before its ground rule.
-    const plain: Level = { ...L, enemies: L.enemies.map(({ sightException, ...e }, i) => (i === 0 ? e : { ...e, ...(sightException ? { sightException } : {}) })) };
-    expect(validateLevel(entry(plain))).toEqual([
-      ...H_PROBLEMS.slice(0, 5),
-      ...[45, 46, 47, 48, 49, 50, 51, 52].map((c) => `cacomixtle at 928,440 has ground at column ${c}, row 26, 24 px from its cart's floor in its sight stretch, expected within 8 or over 120`),
-      "cacomixtle at 928,440 has a platform at 720,376, 64 px from its cart's floor in its sight stretch, expected within 8 or over 120",
-      ...H_PROBLEMS.slice(5),
-    ]);
+  it('GDD-WLD-18 3-3 the Cacomixtles pass every validator check, K1 with no sight exception', () => {
+    // GDD-ENM-04 (f) and (h) for the three Cacomixtles, and no exception named: K1's ground rule passes once its cart waits a row higher.
+    expect(validateLevel(entry()).filter((p) => p.startsWith('cacomixtle'))).toEqual([]);
+    expect(L.enemies.filter((e) => e.sightException !== undefined)).toEqual([]);
+    // K1 from P1, after the rise: R2's ground under the cart's middle is 432 (row 27), the cart's floor 424, its box 416 to 432. The sight's
+    // edge is 216 px ahead of the rail's start: x = 944 - 216 = 728, column 45, on P1. His feet at 416 put the camera at 416 - 162 = 254
+    // (under column 45's bottom limit, 592 - 2 - 270 = 320), so the box is on screen at 162 to 178, 2 px over the mirrored mode switch (180).
+    const r2 = railOf('R2');
+    const edge = r2.x + r2.dir * (CART.width / 2 + CACOMIXTLE.sightX);
+    expect([railGround(r2, CART.width / 2), L.enemies[0]!.y, edge, cameraLimitsAt(L, edge).bottom]).toEqual([432, 424, 728, 320]);
+    const cameraY = Y(LEVEL_3_3_AT.P1.row) - CAMERA.upFeet;
+    const ground = railGround(r2, CART.width / 2);
+    expect([cameraY, ground - CART.height - cameraY, ground - cameraY]).toEqual([254, 162, 178]);
+    // (f) by the numbers: P1's top (416) is 8 px over the cart's floor and T1's step (432) 8 px under it, both within 8. The perch (672 to 704)
+    // is short of the sight's edge, outside the stretch's columns (45 to 57): at 45 and 46 (720 to 752) it held x = 728.
+    expect([L.enemies[0]!.y - Y(LEVEL_3_3_AT.P1.row), Y(LEVEL_3_3_AT.T1step.row) - L.enemies[0]!.y]).toEqual([8, 8]);
+    const perch = LEVEL_3_3_PLATFORM.perch;
+    expect([perch.x0, perch.x0 + perch.w, perch.y0]).toEqual([672, 704, 376]);
+    expect(perch.x0 + perch.w).toBeLessThan(edge);
   });
 });
+
+/** K1, the first enemy, in run `r`. */
+const k1 = (r: RunState) => r.enemies[0]!;
 
 /** R1's hilos: into C1, then along R1 at the rider's chest. */
 const R1_HILOS: readonly (readonly [number, number])[] = [[3, 33], [4, 32], [8, 32], [13, 30], [15, 28], [19, 26], [23, 24], [27, 24], [31, 24], [35, 24]];
 
+/** Right held from the spawn, nothing else, until C1 stops at its buffer (or 600 steps): every state. */
+const walkIntoC1 = () => play(startRun(L), 600, () => right, (r) => r.carts[0]!.phase === 'stopped' || r.phase !== 'playing');
+
 describe('GDD-WLD-18 level 3-3 Ki, measured', () => {
-  it('GDD-WLD-18 3-3 C1 and R1: from the spawn into C1, the ride to the buffer with every R1 hilo, and out onto P1', () => {
-    // Right held alone walks through C1 at the ground's height (GDD-WLD-15: that neither boards nor starts it) and off G0 into the first
-    // pit: right held from the spawn does not board C1.
-    const walk = play(startRun(L), 200, () => right, (r) => r.phase !== 'playing');
-    expect([walk.length, last(walk).lives.lives, last(walk).carts[0]!.phase]).toEqual([87, 6, 'waiting']);
+  it('GDD-WLD-18 3-3 C1 boarded on foot: right held from the spawn drops into the dip onto its floor and rides R1 to P1', () => {
+    // GDD-WLD-18: "right held from the spawn boards C1". C1 stands in G0's dip (columns 5 and 6, row 35): its floor is at 552, 8 px under
+    // G0's top (544), so he walks off G0's edge (x = 80) and lands on it, which starts it (GDD-WLD-15), with no hop.
+    const walk = walkIntoC1();
+    const landed = walk.findIndex((r) => r.carts[0]!.phase !== 'waiting');
+    expect([landed + 1, walk[landed]!.player.x, walk[landed]!.player.y, walk[landed]!.player.grounded, inCart(walk[landed]!, 'R1')]).toEqual([34, 96, 552, true, true]);
+    expect([railOf('R1').y, Y(LEVEL_3_3_AT.dip.row) - CART.floorPx - Y(LEVEL_3_3_AT.G0.row)]).toEqual([Y(35), 8]);
+    expect(walk.slice(0, landed).every((r) => r.player.y <= 552 && r.player.vy >= 0)).toBe(true);
+    // The ride, from the landing to the buffer: 249 steps, 4.15 s (GDD says 4.0 s, a target), every life; he stands in C1 at its buffer.
+    const stopped = walk.length - 1;
+    expect([stopped - landed, last(walk).carts[0]!.phase, last(walk).lives.lives]).toEqual([249, 'stopped', 7]);
+    expect(last(walk).player).toMatchObject({ y: Y(26) - 8, grounded: true });
+    expect(last(walk).player.x).toBeCloseTo(608, 0);
+    // R1 climbs out of the dip over the slope tile at (7, 34), so its line lies on ground and he rides anchored at the cart's middle all the
+    // way (with G0's solid tile there instead, his box met it and he stood 7 steps, up to 13.2 px, behind the cart's middle).
+    const behind = walk.slice(landed).map((r) => r.player.x - (railOf('R1').x + r.carts[0]!.m)).filter((d) => Math.abs(d) > 0.5);
+    expect(behind).toEqual([]);
+    // Out at its end: right held on until he stands on P1, then nothing: on P1 short of K1's wake line (x = 728), K1 still waiting, every life.
+    const out = play(last(walk), 200, (r) => (r.player.grounded && r.player.y === Y(26) ? idle : right), (r) => r.player.grounded && r.player.y === Y(26) && r.player.vx === 0);
+    const off = last(out);
+    expect([whereIs(off), off.lives.lives, off.enemies[0]!.ride]).toEqual(['P1', 7, { phase: 'waiting', t: 0 }]);
+    expect(off.player.x).toBeLessThan(728);
+  });
+
+  it('GDD-WLD-18 3-3 C1 on foot takes every R1 hilo, the two into it on the walk line', () => {
+    // The hilos into C1, (3,33) and (4,32), are in empty tiles over G0 where his body (32 px tall, his feet at 544) passes on the walk: he
+    // takes them on steps 8 and 16, before the dip; the ride takes the other eight. Every R1 hilo, none missed.
+    const walk = walkIntoC1();
+    expect([[3, 33], [4, 32]].map(([c, w]) => walk.findIndex((r) => took(r, c!, w!)) + 1)).toEqual([8, 16]);
+    expect(hilosInTiles({ ...L, hilos: R1_HILOS.map(([col, row]) => ({ col, row })) })).toEqual([]);
+    expect(tookOf(last(walk), R1_HILOS)).toEqual(R1_HILOS.map(([c, w]) => `${c},${w}`));
+  });
+
+  it('GDD-WLD-18 3-3 C1 and R1: hops into C1 from the spawn, the ride to the buffer with every R1 hilo, and out onto P1', () => {
     // A hop: right held from the spawn until his middle is at x, then jump held while he rises, the direction held on (`run`) or let go
     // (`up`, a hop straight up as he slows); nothing held once C1 rolls, to its buffer.
     const hop = (x: number, way: 'run' | 'up') => {
@@ -437,6 +477,9 @@ describe('GDD-WLD-18 level 3-3 Ki, measured', () => {
       return { boarded, stopped, lives: end.lives.lives, missed: R1_HILOS.filter(([c, w]) => !took(end, c, w)).map(([c, w]) => `${c},${w}`), end };
     };
     // At a run, take-offs 0.2 tile apart from the spawn to the cart's middle: the take-offs that board, and the hilos into C1 that each misses.
+    // The bot jumps again on every landing (`jumpHeld` while grounded): from 40 to 46.4 it lands in C1 over the slope at column 7; from 49.6 to 75.2 the jump clears C1's floor in the dip, lands on G0
+    // past it and the next jump carries him into the first pit (lost); from 78.4 to 84.8 the jumps carry him over the pit and on (`past`);
+    // from 88 on he has dropped into the dip and boarded on foot before the take-off.
     const running = apart(40, 96).map((x) => {
       const h = hop(x, 'run');
       return `${x.toFixed(1)} ${h.boarded < 0 ? (h.lives < 7 ? 'lost' : 'past') : `in, missing ${h.missed.join(' ') || 'none'}`}`;
@@ -445,16 +488,24 @@ describe('GDD-WLD-18 level 3-3 Ki, measured', () => {
       '40.0 in, missing 3,33 4,32',
       '43.2 in, missing 3,33 4,32',
       '46.4 in, missing 4,32',
-      '49.6 in, missing 4,32',
-      '52.8 in, missing 4,32',
-      ...['56.0', '59.2', '62.4', '65.6', '68.8', '72.0', '75.2'].map((x) => `${x} lost`),
-      ...['78.4', '81.6', '84.8', '88.0', '91.2', '94.4'].map((x) => `${x} past`),
+      ...['49.6', '52.8', '56.0', '59.2', '62.4', '65.6', '68.8', '72.0', '75.2'].map((x) => `${x} lost`),
+      ...['78.4', '81.6', '84.8'].map((x) => `${x} past`),
+      ...['88.0', '91.2', '94.4'].map((x) => `${x} in, missing none`),
     ]);
-    // Walked to the cart and a hop straight up: every take-off from 56 to the cart's middle boards it with every R1 hilo.
-    for (const x of apart(56, 96)) expect(hop(x, 'up'), `${x}`).toMatchObject({ lives: 7, missed: [] });
-    const { boarded, stopped, end } = hop(88, 'up');
-    // The ride, from the landing to the buffer: 245 steps, 4.08 s (GDD says 4.0 s, a target). He stands in C1 at its buffer, its middle at 608.
-    expect([boarded, stopped, stopped - boarded]).toEqual([61, 306, 245]);
+    // Walked to the cart and a hop straight up: from 56 to 62.4 he comes down on G0 short of the dip and stands there (no life lost); every
+    // take-off from 65.6 to the cart's middle boards it with every R1 hilo, from 88 on by the walk into the dip before the take-off.
+    const upright = apart(56, 96).map((x) => {
+      const h = hop(x, 'up');
+      return `${x.toFixed(1)} ${h.boarded < 0 ? (h.lives < 7 ? 'lost' : 'out') : `in ${h.lives}, missing ${h.missed.join(' ') || 'none'}`}`;
+    });
+    expect(upright).toEqual([
+      ...['56.0', '59.2', '62.4'].map((x) => `${x} out`),
+      ...['65.6', '68.8', '72.0', '75.2', '78.4', '81.6', '84.8', '88.0', '91.2', '94.4'].map((x) => `${x} in 7, missing none`),
+    ]);
+    const { boarded, stopped, end } = hop(72, 'up');
+    // The ride from a hop at 72, from the landing to the buffer: 249 steps, 4.15 s (GDD says 4.0 s, a target). He stands in C1 at its buffer,
+    // its middle at 608.
+    expect([boarded, stopped, stopped - boarded]).toEqual([56, 305, 249]);
     expect(end.player).toMatchObject({ x: 608, y: Y(26) - 8, grounded: true });
     expect(end.lives.lives).toBe(7);
     // Out of the cart at its end: right held until he stands on P1, then nothing: he stands on P1 at x = 650.2 (column 40.6), short of K1's
@@ -464,6 +515,57 @@ describe('GDD-WLD-18 level 3-3 Ki, measured', () => {
     expect(whereIs(off)).toBe('P1');
     expect(off.player.x).toBeCloseTo(650.22, 2);
     expect([out.length, off.lives.lives, off.enemies[0]!.ride]).toEqual([30, 7, { phase: 'waiting', t: 0 }]);
+  });
+
+  it('GDD-WLD-18 3-3 the perch: K1 woken from P1 passes under him with its real ringtail and parks under the perch', () => {
+    // The perch (672 to 704, its top 376) is short of K1's wake line (x = 728): standing on it never wakes K1, so he wakes it from P1. From
+    // x = 650 on P1, right held until K1's telegraph starts; then a jump held to the landing with left held for its first `left` steps; then
+    // L-075, he walks to a place on the perch (every 0.2 tile from its left edge to its right, 11 places) and stands there till the cart parks.
+    const perch = LEVEL_3_3_PLATFORM.perch;
+    const PERCH_TOP = Y(26) - 40;
+    const woke = last(play(at(650, Y(26)), 300, () => right, (r) => k1(r).ride!.phase !== 'waiting'));
+    // He wakes it on P1 at x = 731.0, 3 px past the line after the step's run.
+    expect([whereIs(woke), Math.round(woke.player.x * 10) / 10, k1(woke).ride]).toEqual(['P1', 731, { phase: 'telegraph', t: 1 }]);
+    /** From the wake: the jump back, then to `place` (if given), then still until the cart has parked and 120 steps on. */
+    const back = (left: number, place?: number) => {
+      const jump = play(woke, 200, (_r, i) => ({ move: i < left ? -1 : 0, jumpHeld: true }), (r, i) => i > 0 && r.player.grounded);
+      const landed = last(jump);
+      let gap = Infinity;
+      let hit = false;
+      // To the place: towards it while it is farther than his stopping distance on the ground, then nothing.
+      const to = (r: RunState): PlayerInput => {
+        const d = place === undefined ? 0 : place - r.player.x;
+        return Math.abs(d) > r.player.vx ** 2 / (2 * RUN.groundDecel) + 0.5 ? { move: Math.sign(d), jumpHeld: false } : idle;
+      };
+      const rest = play(landed, 600, to, (r, i) => {
+        const e = k1(r);
+        // His feet to the ringtail's top (its box 14 tall on the cart's floor) while their boxes overlap across.
+        if (Math.abs(r.player.x - e.x) < (HITBOX.width + CACOMIXTLE.width) / 2) gap = Math.min(gap, e.y! - CACOMIXTLE.height - r.player.y);
+        if (r.invulnerable > 0) hit = true;
+        return r.carts[cartOf('R2')]!.phase === 'stopped' && i >= 120;
+      });
+      return { landed, end: last(rest), gap, hit };
+    };
+    // The jump back: with left held 24 steps or more he lands on the perch (from 706.4 to 697.5); less, back on P1 in the cart's path, where
+    // the cart hits him.
+    const jumps = [...Array(21).keys()].map((n) => {
+      const b = back(2 * n);
+      return `${2 * n} ${whereIs(b.landed)} ${b.end.lives.lives}`;
+    });
+    expect(jumps).toEqual([...[...Array(12).keys()].map((n) => `${2 * n} P1 6`), ...[...Array(9).keys()].map((n) => `${24 + 2 * n} perch 7`)]);
+    // Standing on the perch at each place: the cart passes under him and parks at its buffer, its middle at 688 under the perch, the ringtail's
+    // top 18 px under his feet at the nearest (408 - 14 = 394 against 376); he is never touched and stays on the perch with every life. At the
+    // perch's left edge (672) the ringtail, parked at 681 to 695, never comes under him across.
+    const places = [...Array(11).keys()].map((k) => perch.x0 + k * 3.2);
+    for (const place of places) {
+      const b = back(34, place);
+      expect([whereIs(b.end), b.end.player.y, b.end.lives.lives, b.hit, b.gap], `${place}`).toEqual(['perch', PERCH_TOP, 7, false, place === 672 ? Infinity : 18]);
+      expect(Math.abs(b.end.player.x - place), `${place}`).toBeLessThan(1);
+      expect(b.end.carts[cartOf('R2')], `${place}`).toEqual({ phase: 'stopped', m: 256 });
+      expect([k1(b.end).alive, k1(b.end).ride!.phase, k1(b.end).x, k1(b.end).y], `${place}`).toEqual([true, 'parked', 688, 408]);
+      // The perch's two hilos are over it, (42,22) and (43,22): landing at 697.5 takes the second, walking to its left part the first too.
+      expect(tookOf(b.end, [[42, 22], [43, 22]]), `${place}`).toEqual(place < 690 ? ['42,22', '43,22'] : ['43,22']);
+    }
   });
 
   it('GDD-WLD-18 3-3 the shelf and MP0: from the shelf the lift takes him up to P1, at every 6th start time of its round', () => {
@@ -683,9 +785,10 @@ describe('GDD-WLD-18 level 3-3 Ten, measured', () => {
       expect(gone - warned, `plank at ${L.crumbles[i]!.col}`).toBe(30);
     }
     expect(bridgeB).toHaveLength(15);
-    // Stopping on a plank (at column 163's middle) he falls into the pit: a life, 117 steps after he set off.
+    // Stopping on a plank (at column 163's middle) he falls into the pit: a life, 123 steps after he set off (117 with the pit's bottom at
+    // row 29: the fall to row 31's floor line is 2 tiles longer).
     const stop = play(at(mid(156), Y(25), 0, 0, noK2), 400, (r) => (r.player.x < mid(163) ? right : idle), (r) => r.phase !== 'playing', noK2);
-    expect([stop.length, last(stop).lives.lives]).toEqual([117, 6]);
+    expect([stop.length, last(stop).lives.lives]).toEqual([123, 6]);
     // A held glide from Q over the 3 tiles before its lip (x = 2560), standing and running: where he lands, and the planks set off by then.
     // A level glide carries about 8.5 tiles (GDD-MOV-07); from the lip he comes down at column 167.8 standing, 168.5 running, so the pier is
     // reached without a plank from three take-offs of 32: standing 6.4 and 3.2 px before the lip, running 16 px before it.

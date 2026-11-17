@@ -6,10 +6,10 @@
 // Two pieces, left to right, and a closet for an Alacrán at the right end:
 // - Ka: a level rail rolling left on the floor from column 34 (the cart's back edge on its start, 17 tiles to a buffer at column 17), its
 //   Cacomixtle waiting in the cart at the right end, so it sees him from x = 328 (200 px ahead of its middle, x = 528). The sight stretch is
-//   flat floor at the rail's ground but for the perch, its named exception (`sightException`, 32 px over the cart's floor). The perch is GDD-WLD-18's K1's, here on the flat: a still one-way platform of columns 20 and 21 whose top is
-//   40 px over the floor (y = 136), on the wake line (x = 328, the middle of column 20) as K1's is, with the buffer 3 tiles behind it so the parked
+//   flat floor at the rail's ground but for the perch, its named exception (`sightException`, 32 px over the cart's floor). The perch is GDD-WLD-18's K1's as first drawn (3-3's now stands out of K1's sight), here on the flat: a still one-way platform of columns 20 and 21 whose top is
+//   40 px over the floor (y = 136), on the wake line (x = 328, the middle of column 20) as K1's was, with the buffer 3 tiles behind it so the parked
 //   cart stops on flat floor. A hop onto it puts him 18 px over the ringtail's head as the cart passes under, and it parks behind him.
-// - Kb: K1's shape (GDD-WLD-18): a rail rolling left from column 59, level on the lower terrace (columns 55 to 59, the floor's row 11), a climb of
+// - Kb: K1's shape as first drawn (GDD-WLD-18; 3-3's K1 now climbs one row, 8 px under him): a rail rolling left from column 59, level on the lower terrace (columns 55 to 59, the floor's row 11), a climb of
 //   two tiles over two slope tiles (columns 53 and 54), then level on the shelf (columns 36 to 52, row 9, y = 144) to a buffer at column 42. Its
 //   start floor (y = 168) is 24 px under the shelf's ground, so the sight stretch's ground rule fails there: the named exception (GDD-ENM-04).
 // A step 2 tiles high leads from the floor up to the shelf. The closet is columns 61 to 65 behind a 2-tile wall at column 60, past Kb's start:
@@ -90,8 +90,8 @@ export const LAB_3K_OFRENDAS: readonly Ofrenda[] = [
  * level's edge.
  */
 export const LAB_3K_ENEMIES: readonly Enemy[] = [
-  { x: 34 * TILE - TILE, y: LAB_3K_FLOOR_ROW * TILE - 8, kind: 'cacomixtle', rail: 0, sightException: 'GDD-WLD-18: the perch, the lesson of K1, stands in its sight' },
-  { x: 59 * TILE - TILE, y: LAB_3K_FLOOR_ROW * TILE - 8, kind: 'cacomixtle', rail: 1, sightException: 'GDD-WLD-18: K1 meets him uphill, 40 px inside its sight' },
+  { x: 34 * TILE - TILE, y: LAB_3K_FLOOR_ROW * TILE - 8, kind: 'cacomixtle', rail: 0, sightException: 'GDD-ENM-04: this lab perch, on the wake line as K1 was first drawn, stands in its sight' },
+  { x: 59 * TILE - TILE, y: LAB_3K_FLOOR_ROW * TILE - 8, kind: 'cacomixtle', rail: 1, sightException: 'GDD-ENM-04: this lab shelf meets him uphill, 40 px inside its sight, as K1 was first drawn' },
   { ...at(63) },
 ];
 

@@ -161,7 +161,7 @@ describe('GDD-ENM-04 lab-3k', () => {
   it('GDD-ENM-04 lab-3k Kb is the named exception: its ground rule fails on the shelf and its sentence is the exception', () => {
     // Kb's start floor is y = 168, the shelf's ground 24 px over it (y = 144) in columns 45 to 52 of its stretch (x 728 to 928): 8 failures.
     const kb = LAB_3K_ENEMIES[1]!;
-    expect(kb.sightException).toBe('GDD-WLD-18: K1 meets him uphill, 40 px inside its sight');
+    expect(kb.sightException).toBe('GDD-ENM-04: this lab shelf meets him uphill, 40 px inside its sight, as K1 was first drawn');
     const bare: Enemy = { x: kb.x, y: kb.y, kind: 'cacomixtle', rail: 1 };
     const without = validateLevel(entry({ ...level, enemies: [LAB_3K_ENEMIES[0]!, bare] }));
     const cols = [45, 46, 47, 48, 49, 50, 51, 52];
@@ -172,7 +172,7 @@ describe('GDD-ENM-04 lab-3k', () => {
   it('GDD-ENM-04 lab-3k Ka is a named exception too: its perch is a platform in its sight, 32 px over its floor', () => {
     // Ka's floor is y = 168 and the perch's top y = 136: 32 px, in (8, 120], over columns 20 and 21 of its stretch (x 328 to 528): one problem.
     const kaDef = LAB_3K_ENEMIES[0]!;
-    expect(kaDef.sightException).toBe('GDD-WLD-18: the perch, the lesson of K1, stands in its sight');
+    expect(kaDef.sightException).toBe('GDD-ENM-04: this lab perch, on the wake line as K1 was first drawn, stands in its sight');
     const bare: Enemy = { x: kaDef.x, y: kaDef.y, kind: 'cacomixtle', rail: 0 };
     const without = validateLevel(entry({ ...level, enemies: [bare, LAB_3K_ENEMIES[1]!] }));
     expect(without).toEqual([`cacomixtle at ${kaDef.x},${kaDef.y} has a platform at ${LAB_3K_PERCH.x0},${LAB_3K_PERCH.y0}, 32 px from its cart's floor in its sight stretch, expected within 8 or over 120`]);
