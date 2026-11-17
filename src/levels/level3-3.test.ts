@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { CACOMIXTLE, CAMERA, CART, HITBOX, LEVEL_RULES, RUN, TILE } from '../config/tuning';
-import { floorUnder, railGround, railLength, rollCarts, warningPost, type CartState, type Rail } from '../sim/cart';
+import { railGround, railLength, rollCarts, warningPost, type CartState } from '../sim/cart';
 import { kindOf } from '../sim/enemy';
-import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
-import { platformAt, standsOnPlatform } from '../sim/platform';
-import { startRun, stepRun, touchesOfrenda, type Level, type RunState } from '../sim/run';
+import type { PlayerInput } from '../sim/movement';
+import { platformAt } from '../sim/platform';
+import { startRun, touchesOfrenda, type Level, type RunState } from '../sim/run';
 import { parseTiles } from '../sim/tilemap';
 import { cameraLimitsAt } from '../ui/camera';
-import type { LevelEntry } from './index';
-import { LEVEL_3_3, LEVEL_3_3_AT, LEVEL_3_3_PITS, LEVEL_3_3_PLATFORM, LEVEL_3_3_RAIL, LEVEL_3_3_RAILS, LEVEL_3_3_ROWS } from './level3-3';
+import { LEVEL_3_3_AT, LEVEL_3_3_PITS, LEVEL_3_3_PLATFORM, LEVEL_3_3_RAILS, LEVEL_3_3_ROWS } from './level3-3';
+import {
+  at, apart, bounced, cartOf, colOf, endOf, entry, faceOf, fly, idle, inCart, L, landedAs, last, middleOf, mid, NAMES, play, railOf, rideOn, right, standsOnTile, took, tookOf, underBat, whereIs, world, Y,
+  type Flight, type Name,
+} from './level3-3.drive';
 import { gaps, openGaps, validateLevel } from './validate';
 
 // GDD-WLD-18: level 3-3, "Las Cumbres", built and not yet registered (phases A2 and A3). Every expected number is the design's (GDD-WLD-18, laid
@@ -16,117 +19,8 @@ import { gaps, openGaps, validateLevel } from './validate';
 // measured value with a comment "GDD says N" (L-003). Part 1 is the layout; Part 2 measures the layout's reaches on the real level with
 // every enemy in it, asserting the lives and where he ends (L-014); a test that measures a reach alone on a copy without an enemy says so.
 
-const L = LEVEL_3_3;
-const world = L.world;
-/** No entry exists yet (the level is unregistered): one as a World 3 level that is not a test level gets. */
-const entry = (level: Level = L): LevelEntry => ({ id: '3-3', world: 3, test: false, level });
-const mid = (col: number) => col * TILE + TILE / 2;
-/** The y of a row's top. */
-const Y = (row: number) => row * TILE;
-const idle: PlayerInput = { move: 0, jumpHeld: false };
-const right: PlayerInput = { move: 1, jumpHeld: false };
-const standing = (x: number, y: number, vx = 0): PlayerState => ({ ...spawn(x, y), grounded: true, vx, facing: vx < 0 ? -1 : 1 });
-/** A fresh run of `level` with Poncho standing at (x, y), running at `vx`, its platforms `tick` steps on. */
-const at = (x: number, y: number, vx = 0, tick = 0, level: Level = L): RunState => ({ ...startRun(level), player: standing(x, y, vx), platformTick: tick });
-
-/** The rails by name and each cart's place in a run's `carts`. */
-const NAMES = ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7'] as const;
-type Name = (typeof NAMES)[number];
-const cartOf = (name: Name) => NAMES.indexOf(name);
-const railOf = (name: Name): Rail => LEVEL_3_3_RAIL[name];
-/** A rail's end, in px across. */
-const endOf = (name: Name) => railOf(name).x + railOf(name).dir * railLength(railOf(name));
-const middleOf = (r: RunState, name: Name) => railOf(name).x + railOf(name).dir * r.carts[cartOf(name)]!.m;
-/** Standing in the cart: it is on its rail and he is on its floor under his feet. */
-function inCart(r: RunState, name: Name): boolean {
-  const c = r.carts[cartOf(name)]!;
-  if (c.phase === 'falling' || c.phase === 'gone') return false;
-  return standsOnPlatform(r.player, floorUnder(railOf(name), c, r.player.x));
-}
-const hiloIndex = (col: number, row: number) => L.hilos!.findIndex((h) => h.col === col && h.row === row);
-const took = (r: RunState, col: number, row: number) => r.hilosTaken[hiloIndex(col, row)] === true;
-const lost = (r: RunState, from: RunState) => r.lives.lives < from.lives.lives || r.phase === 'respawning' || r.phase === 'gameover';
-/** Which of `hilos` run `r` has taken, as "col,row". */
-const tookOf = (r: RunState, hilos: readonly (readonly [number, number])[]) => hilos.filter(([c, w]) => took(r, c, w)).map(([c, w]) => `${c},${w}`);
 const velaTaken = (r: RunState) => r.lives.used.has(`veladora:${L.veladora!.col},${L.veladora!.row}`);
 
-/** Steps `run` with `input` until `done` or `max` steps (L-064), returning every state. */
-function play(run: RunState, max: number, input: (r: RunState, i: number) => PlayerInput, done: (r: RunState, i: number) => boolean = () => false, level: Level = L): RunState[] {
-  const out: RunState[] = [];
-  let r = run;
-  for (let i = 0; i < max && !done(r, i); i++) {
-    r = stepRun(r, input(r, i), level);
-    out.push(r);
-  }
-  return out;
-}
-const last = <T,>(a: readonly T[]): T => a[a.length - 1]!;
-
-/**
- * The jumps of the sweeps, each pressed on its first step with the direction `move` held throughout: the plain jump (`top`, held while he
- * rises and let go at the top, GDD-WLD-18's "a jump not held"), and `held` to the landing, the glide once he falls (GDD-MOV-07).
- */
-type Jump = 'top' | 'held';
-function jumper(kind: Jump, move: -1 | 0 | 1): (r: RunState, i: number) => PlayerInput {
-  let top = -1;
-  return (r, i) => {
-    if (i === 0 || kind === 'held') return { move, jumpHeld: true };
-    if (top < 0 && r.player.vy >= 0) top = i;
-    return { move, jumpHeld: top < 0 };
-  };
-}
-
-/** One flight: where he took off, whether a life was lost, the state he landed in (or cleared the level in) and every state. */
-interface Flight {
-  readonly x: number;
-  readonly lost: boolean;
-  readonly landed?: RunState;
-  readonly states: readonly RunState[];
-}
-
-/** A jump `kind` pressed on the step after `from`: every state up to his landing (grounded after he was in the air), the exit, a lost life or 400 steps. */
-function fly(from: RunState, kind: Jump, move: -1 | 0 | 1 = 1, level: Level = L): Flight {
-  const input = jumper(kind, move);
-  const states: RunState[] = [];
-  let r = from;
-  let air = !from.player.grounded;
-  for (let i = 0; i < 400; i++) {
-    r = stepRun(r, input(r, i), level);
-    states.push(r);
-    if (r.phase === 'clear') return { x: from.player.x, lost: false, landed: r, states };
-    if (lost(r, from)) return { x: from.player.x, lost: true, states };
-    if (!r.player.grounded) air = true;
-    else if (air) return { x: from.player.x, lost: false, landed: r, states };
-  }
-  return { x: from.player.x, lost: false, states };
-}
-
-/** Where he stands in run `r`, by name: a cart, a platform, a plank, a named ground, the hollow's cap or floor, a slope; or `air`. */
-function whereIs(r: RunState): string {
-  if (r.phase === 'clear') return 'exit';
-  const p = r.player;
-  if (!p.grounded) return 'air';
-  const cart = NAMES.find((n) => inCart(r, n));
-  if (cart) return `cart ${cart}`;
-  for (const [name, plat] of Object.entries(LEVEL_3_3_PLATFORM)) if (standsOnPlatform(p, platformAt(plat, r.platformTick))) return name;
-  const col = Math.floor(p.x / TILE);
-  const plank = L.crumbles.find((c) => p.y === Y(c.row) && Math.abs(p.x - mid(c.col)) < (HITBOX.width + TILE) / 2);
-  if (plank && !world.solidTile(col, p.y / TILE)) return 'plank';
-  const over = (col0: number, col1: number) => p.x + HITBOX.width / 2 > Y(col0) && p.x - HITBOX.width / 2 < Y(col1 + 1);
-  if (p.y === Y(26) && over(22, 25)) return 'cap';
-  if (p.y === Y(31) && over(23, 24)) return 'hollow';
-  const near = Object.entries(LEVEL_3_3_AT).find(([, s]) => p.y === Y(s.row) && p.x + HITBOX.width / 2 > s.col0 * TILE && p.x - HITBOX.width / 2 < (s.col1 + 1) * TILE);
-  return near ? near[0] : `ground ${p.y}`;
-}
-/** Where a flight ended: `lost`, `exit`, or where he landed (`whereIs`). */
-const landedAs = (f: Flight) => (f.lost ? 'lost' : f.landed ? whereIs(f.landed) : 'air');
-/** His column, to 0.1, where a flight landed. */
-const colOf = (f: Flight) => (f.landed ? Math.round((f.landed.player.x / TILE) * 10) / 10 : null);
-/** A take-off at x on row `row`'s ground: its box over a solid tile of that row with no solid tile over it (the level's tiles). */
-const standsOnTile = (x: number, row: number) =>
-  [Math.floor((x - HITBOX.width / 2) / TILE), Math.floor((x + HITBOX.width / 2 - 1e-6) / TILE)].some((col) => world.solidTile(col, row) && !world.solidTile(col, row - 1));
-/** Take-offs 0.2 tile (3.2 px) apart from a to b, both included. */
-const apart = (a: number, b: number): number[] => Array.from({ length: Math.floor((b - a) / (0.2 * TILE) + 1e-6) + 1 }, (_, i) => a + i * 0.2 * TILE);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
 // Part 1: the layout, from GDD-WLD-18's bullets.
@@ -157,6 +51,9 @@ const groundRow = (col: number) => GROUND.find(([a, b]) => col >= a && col <= b)
 
 /** The hilos standing in a solid tile or a slope tile, as "col,row". */
 const hilosInTiles = (level: Level) => level.hilos!.filter((h) => level.world.solidTile(h.col, h.row) || level.world.slopeAt(h.col, h.row) !== null).map((h) => `${h.col},${h.row}`);
+
+/** The bank GDD-WLD-15's limit reads: tiles from rail `n`'s broken end to column `col`, and the drop. */
+const bank = (n: Name, col: number) => ({ tiles: col - endOf(n) / TILE, drop: groundRow(col) - railGround(railOf(n), railLength(railOf(n))) / TILE });
 
 describe('GDD-WLD-18 level 3-3 layout', () => {
   it('GDD-WLD-18 3-3 is 240 by 37 tiles and passes the validator', () => {
@@ -291,7 +188,6 @@ describe('GDD-WLD-18 level 3-3 layout', () => {
     expect([railLength(railOf('R3')) / TILE, railLength(railOf('R7')) / TILE]).toEqual([22, 15]);
     // GDD-WLD-15's limits left to the level's test: from each broken end to the far bank at most 5 tiles plus one per tile of drop (R3: 9
     // tiles to L1, 4 down; R7: 5 tiles to the bank, 3 down), and 7 empty tiles over the rail's ground along each broken rail.
-    const bank = (n: Name, col: number) => ({ tiles: col - endOf(n) / TILE, drop: groundRow(col) - railGround(railOf(n), railLength(railOf(n))) / TILE });
     expect([bank('R3', 99), bank('R7', 232)]).toEqual([{ tiles: 9, drop: 4 }, { tiles: 5, drop: 3 }]);
     for (const n of ['R3', 'R7'] as const) {
       const rail = railOf(n);
@@ -317,13 +213,13 @@ describe('GDD-WLD-18 level 3-3 layout', () => {
       return { n, steps: k, ...(to !== undefined ? { fromFlash: to } : {}) };
     });
     expect(rides).toEqual([
-      { n: 'R1', steps: 249 }, // 4.15 s; GDD says 4.0 s (a target)
-      { n: 'R2', steps: 101, fromFlash: 99 }, // 1.68 s to its buffer; at column 46 1.65 s after the first flash, GDD says 1.8 s
+      { n: 'R1', steps: 249 }, // 4.15 s, as GDD-WLD-18 gives it
+      { n: 'R2', steps: 101, fromFlash: 99 }, // 1.68 s to its buffer; at column 46 1.65 s after the first flash, as GDD-WLD-18 gives it
       { n: 'R3', steps: 149 }, // 2.48 s from the cart's start at 68, as GDD-WLD-18 gives it
-      { n: 'R4', steps: 109 }, // 1.82 s; GDD says 1.8 s
+      { n: 'R4', steps: 109 }, // 1.82 s, as GDD-WLD-18 gives it
       { n: 'R5', steps: 122, fromFlash: 88 }, // 2.03 s to its buffer; at the pier 1.47 s after the first flash, as GDD-WLD-18 gives it
       { n: 'R6', steps: 90, fromFlash: 82 }, // 1.5 s to its buffer; at column 187 1.37 s after the first flash, as GDD-WLD-18 gives it
-      { n: 'R7', steps: 93 }, // 1.55 s; GDD says 1.5 s
+      { n: 'R7', steps: 93 }, // 1.55 s, as GDD-WLD-18 gives it
     ]);
   });
 });
@@ -418,6 +314,30 @@ const R1_HILOS: readonly (readonly [number, number])[] = [[3, 33], [4, 32], [8, 
 /** Right held from the spawn, nothing else, until C1 stops at its buffer (or 600 steps): every state. */
 const walkIntoC1 = () => play(startRun(L), 600, () => right, (r) => r.carts[0]!.phase === 'stopped' || r.phase !== 'playing');
 
+// A hop: right held from the spawn until his middle is at x, then jump held while he rises, the direction held on (`run`) or let go
+// (`up`, a hop straight up as he slows); nothing held once C1 rolls, to its buffer.
+const hop = (x: number, way: 'run' | 'up') => {
+  let boarded = -1;
+  let stopped = -1;
+  let pressed = false;
+  const ride = play(
+    startRun(L),
+    600,
+    (r) => {
+      if (boarded >= 0) return idle;
+      if (!pressed && r.player.x >= x) pressed = true;
+      return { move: pressed && way === 'up' ? 0 : 1, jumpHeld: pressed && (r.player.grounded || r.player.vy < 0) };
+    },
+    (r, i) => {
+      if (boarded < 0 && r.carts[0]!.phase !== 'waiting') boarded = i;
+      if (stopped < 0 && r.carts[0]!.phase === 'stopped') stopped = i;
+      return stopped >= 0 || r.phase !== 'playing';
+    },
+  );
+  const end = last(ride);
+  return { boarded, stopped, lives: end.lives.lives, missed: R1_HILOS.filter(([c, w]) => !took(end, c, w)).map(([c, w]) => `${c},${w}`), end };
+};
+
 describe('GDD-WLD-18 level 3-3 Ki, measured', () => {
   it('GDD-WLD-18 3-3 C1 boarded on foot: right held from the spawn drops into the dip onto its floor and rides R1 to P1', () => {
     // GDD-WLD-18: "right held from the spawn boards C1". C1 stands in G0's dip (columns 5 and 6, row 35): its floor is at 552, 8 px under
@@ -453,29 +373,6 @@ describe('GDD-WLD-18 level 3-3 Ki, measured', () => {
   });
 
   it('GDD-WLD-18 3-3 C1 and R1: hops into C1 from the spawn, the ride to the buffer with every R1 hilo, and out onto P1', () => {
-    // A hop: right held from the spawn until his middle is at x, then jump held while he rises, the direction held on (`run`) or let go
-    // (`up`, a hop straight up as he slows); nothing held once C1 rolls, to its buffer.
-    const hop = (x: number, way: 'run' | 'up') => {
-      let boarded = -1;
-      let stopped = -1;
-      let pressed = false;
-      const ride = play(
-        startRun(L),
-        600,
-        (r) => {
-          if (boarded >= 0) return idle;
-          if (!pressed && r.player.x >= x) pressed = true;
-          return { move: pressed && way === 'up' ? 0 : 1, jumpHeld: pressed && (r.player.grounded || r.player.vy < 0) };
-        },
-        (r, i) => {
-          if (boarded < 0 && r.carts[0]!.phase !== 'waiting') boarded = i;
-          if (stopped < 0 && r.carts[0]!.phase === 'stopped') stopped = i;
-          return stopped >= 0 || r.phase !== 'playing';
-        },
-      );
-      const end = last(ride);
-      return { boarded, stopped, lives: end.lives.lives, missed: R1_HILOS.filter(([c, w]) => !took(end, c, w)).map(([c, w]) => `${c},${w}`), end };
-    };
     // At a run, take-offs 0.2 tile apart from the spawn to the cart's middle: the take-offs that board, and the hilos into C1 that each misses.
     // The bot jumps again on every landing (`jumpHeld` while grounded): from 40 to 46.4 it lands in C1 over the slope at column 7; from 49.6 to 75.2 the jump clears C1's floor in the dip, lands on G0
     // past it and the next jump carries him into the first pit (lost); from 78.4 to 84.8 the jumps carry him over the pit and on (`past`);
@@ -584,36 +481,12 @@ describe('GDD-WLD-18 level 3-3 Ki, measured', () => {
   });
 });
 
-/** The first state of a flight in which his body is against P3's face (x = 1728) in the air, as px over L1's top (y = 464), or null. */
-const faceOf = (f: Flight, face: number, floor: number) => {
-  const s = f.states.find((r) => !r.player.grounded && Math.abs(r.player.x + HITBOX.width / 2 - face) < 1e-6);
-  return s ? Math.round((floor - s.player.y) * 10) / 10 : null;
+
+/** A lost plain jump: how far his body's front was short of L1's lip (x = 1584) when his feet went below its top. */
+const short = (f: Flight) => {
+  const q = f.states.find((r) => r.player.y > Y(29));
+  return q ? Math.round((Y(99) - (q.player.x + HITBOX.width / 2)) * 10) / 10 : null;
 };
-
-/** A flight thrown up by the spring on the way (GDD-WLD-05: 480 px/s up, on a step he was falling before). */
-const bounced = (f: Flight) => f.states.some((q, i) => i > 0 && q.player.vy < -400 && f.states[i - 1]!.player.vy > 0);
-
-/** The gap between his box's top and the last bat's box's bottom while his box is under it across (the bats' boxes are 16 x 10). */
-const underBat = (f: Flight) => Math.min(...f.states.filter((r) => Math.abs(r.player.x - r.enemies[6]!.x) < (HITBOX.width + 16) / 2).map((r) => r.player.y - HITBOX.height - (r.enemies[6]!.loop!.y + 5)));
-
-/**
- * A ride on the cart of rail `name` from a hop straight up out of standing at its middle (he lands back in it: it starts), nothing held:
- * every state from the landing until `after` steps past the cart leaving its broken end (or stopping), at most 600.
- */
-function rideOn(name: Name, after: number, level: Level = L, tick = 0): RunState[] {
-  const rail = railOf(name);
-  const from = at(rail.x + (rail.dir * CART.width) / 2, rail.y, 0, tick, level);
-  const hop = play(from, 120, (r, i) => ({ move: 0, jumpHeld: i === 0 || r.player.vy < 0 }), (r) => r.carts[cartOf(name)]!.phase !== 'waiting', level);
-  const landed = last(hop);
-  let end = -1;
-  return [
-    landed,
-    ...play(landed, 600, () => idle, (r, i) => {
-      if (end < 0 && ['falling', 'stopped'].includes(r.carts[cartOf(name)]!.phase)) end = i;
-      return end >= 0 && i >= end + after;
-    }, level),
-  ];
-}
 
 describe('GDD-WLD-18 level 3-3 Sho, measured', () => {
   it("GDD-WLD-18 3-3 R3's broken end: a jump held and a plain one at every step from the post to the end and through coyote time", () => {
@@ -624,11 +497,6 @@ describe('GDD-WLD-18 level 3-3 Sho, measured', () => {
     expect([post, leave]).toEqual([111, 149]);
     // A still rider takes R3's six hilos by the end.
     expect(tookOf(ride[leave]!, [[70, 26], [73, 24], [77, 23], [81, 23], [85, 23], [88, 23]])).toEqual(['70,26', '73,24', '77,23', '81,23', '85,23', '88,23']);
-    /** A lost plain jump: how far his body's front was short of L1's lip (x = 1584) when his feet went below its top. */
-    const short = (f: Flight) => {
-      const q = f.states.find((r) => r.player.y > Y(29));
-      return q ? Math.round((Y(99) - (q.player.x + HITBOX.width / 2)) * 10) / 10 : null;
-    };
     // Each take-off is a state of the ride (k counted from the step the cart leaves the rail: a press at k = -1 is on the leaving step, at
     // k = 4 the last of coyote time), right held: where a held jump and a plain one end. A held jump that comes down on the spring at 106
     // is launched against P3's face and lands on L1 (`+spring`).
@@ -753,6 +621,8 @@ describe('GDD-WLD-18 level 3-3 Sho, measured', () => {
   });
 });
 
+const onP5 = (r: RunState) => r.player.grounded && r.player.y === Y(25) && r.player.x - 6 >= Y(176);
+
 describe('GDD-WLD-18 level 3-3 Ten, measured', () => {
   it('GDD-WLD-18 3-3 bridge A and C3: the ride crosses the planks and sets none off', () => {
     const ride = rideOn('R4', 30);
@@ -770,7 +640,6 @@ describe('GDD-WLD-18 level 3-3 Ten, measured', () => {
     // A reach only (L-014): a copy of the level without K2, so nothing wakes on R5; its cart, with no ringtail, is his and stands at 177
     // and 178, so each run here ends before it.
     const noK2: Level = { ...L, enemies: L.enemies.filter((_, i) => i !== 1) };
-    const onP5 = (r: RunState) => r.player.grounded && r.player.y === Y(25) && r.player.x - 6 >= Y(176);
     const run = play(at(mid(156), Y(25), 0, 0, noK2), 400, () => right, (r) => r.phase !== 'playing' || onP5(r), noK2);
     const e = last(run);
     // From Q's column 156, right held, he runs over both spans and the pier onto P5 in 164 steps with every life; every plank he ran over
@@ -809,11 +678,14 @@ describe('GDD-WLD-18 level 3-3 Ten, measured', () => {
   });
 });
 
+const onP6 = (r: RunState) => r.player.grounded && r.player.y <= Y(9);
+/** Reaching the exit in the air: his feet's height over the bank (y = 240) on the step the level is cleared. */
+const clearAt = (f: Flight) => (f.landed?.phase === 'clear' ? Math.round((Y(15) - f.landed.player.y) * 10) / 10 : null);
+
 describe('GDD-WLD-18 level 3-3 Ketsu, measured', () => {
   it('GDD-WLD-18 3-3 the plank stairs: right held and a jump on each landing climbs from A to P6', () => {
     // From the third ofrenda on A, right held; on every step he stands, jump is let go for that step and pressed on the next, held while he rises.
     let was = false;
-    const onP6 = (r: RunState) => r.player.grounded && r.player.y <= Y(9);
     const climb = play(at(mid(203), Y(17)), 400, (r) => {
       const jump = r.player.grounded ? !was : was && r.player.vy < 0;
       was = jump;
@@ -849,8 +721,6 @@ describe('GDD-WLD-18 level 3-3 Ketsu, measured', () => {
     expect([post, leave]).toEqual([55, 93]);
     // A still rider takes R7's three hilos by the end.
     expect(tookOf(ride[leave]!, [[217, 8], [221, 10], [224, 10]])).toEqual(['217,8', '221,10', '224,10']);
-    /** Reaching the exit in the air: his feet's height over the bank (y = 240) on the step the level is cleared. */
-    const clearAt = (f: Flight) => (f.landed?.phase === 'clear' ? Math.round((Y(15) - f.landed.player.y) * 10) / 10 : null);
     const flights = ride.slice(1, leave + 6).map((s, i) => ({ k: i + 1 - leave, s, held: fly(s, 'held', 1), plain: fly(s, 'top', 1) }));
     const runs = (as: (f: (typeof flights)[number]) => string) => {
       const out: string[] = [];
