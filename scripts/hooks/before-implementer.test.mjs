@@ -1,10 +1,12 @@
 // L-077: the implementer is launched only from a plan whose rules' cases were worked through by hand.
 import { describe, expect, it } from 'vitest';
-import { HEADING, planFile, planPath, workedCasesProblem, workedLines } from './before-implementer.mjs';
+import { FAMILIES, FIXTURES, HEADING, planFile, planPath, sectionLines, workedCasesProblem, workedLines } from './before-implementer.mjs';
 
 const launch = (prompt, subagent_type = 'implementer', tool_name = 'Agent') => ({ tool_name, tool_input: { subagent_type, prompt } });
 const files = (text) => () => text;
-const WORKED = `# Plan\n\n${HEADING}\n\n- Feet at 468 (32 above 500): the look-up starts.\n- Feet at 469 (31 above): it stays the band.\n\n## Tests\n- test 1 at 468\n`;
+const WORKED_ONLY = `# Plan\n\n${HEADING}\n\n- Feet at 468 (32 above 500): the look-up starts.\n- Feet at 469 (31 above): it stays the band.\n\n## Tests\n- test 1 at 468\n`;
+const WITH_FIXTURES = `${WORKED_ONLY}\n${FIXTURES}\n\n- validate.test.ts: the 17-row ringtail fixtures newly fail (h); they filter it out.\n`;
+const WORKED = `${WITH_FIXTURES}\n${FAMILIES}\n\n- buttons: every id layoutTouchButtons returns, all in.\n`;
 
 describe('L-077 the plan path a launch names', () => {
   it('finds a relative and an absolute .plans path, bare or quoted', () => {
@@ -69,6 +71,23 @@ describe('L-077 launching the implementer', () => {
 
   it('is denied with fewer than two lines with numbers', () => {
     expect(workedCasesProblem(launch('Build .plans/a.md'), files(`${HEADING}\n- one case at 32 px\n- another without\n`))).toMatch(/^L-077: .*fewer than two/);
+  });
+
+  it('is denied without an existing-fixtures section, or with an empty one (L-077, recurrence 4)', () => {
+    expect(workedCasesProblem(launch('Build .plans/a.md'), files(WORKED_ONLY))).toMatch(/^L-077: .*no "## Existing fixtures" section/);
+    expect(workedCasesProblem(launch('Build .plans/a.md'), files(`${WORKED_ONLY}${FIXTURES}\n\n## Next\n- 1\n`))).toMatch(/^L-077: .*no "## Existing fixtures"/);
+    expect(workedCasesProblem(launch('Build .plans/a.md'), files(`${WORKED_ONLY}${FIXTURES} (by hand)\n- none: no level has a ringtail\n${FAMILIES}\n- none\n`))).toBeNull();
+  });
+
+  it('is denied without a families section, or with an empty one (L-080, recurrence 3)', () => {
+    expect(workedCasesProblem(launch('Build .plans/a.md'), files(WITH_FIXTURES))).toMatch(/^L-080: .*no "## Families" section/);
+    expect(workedCasesProblem(launch('Build .plans/a.md'), files(`${WITH_FIXTURES}${FAMILIES}\n\n## Next\n- 1\n`))).toMatch(/^L-080: /);
+    expect(workedCasesProblem(launch('Build .plans/a.md'), files(`${WITH_FIXTURES}${FAMILIES}\n- none: the rule names no family\n`))).toBeNull();
+  });
+
+  it('reads a section up to the next heading of its level, with a note after its heading', () => {
+    expect(sectionLines(`${FIXTURES} (grep)\n- a\n### deeper\n- b\n## Next\n- c`, FIXTURES)).toEqual(['- a', '### deeper', '- b']);
+    expect(sectionLines('# Plan', FIXTURES)).toBeNull();
   });
 
   it('is denied when the plan it names cannot be read', () => {

@@ -510,7 +510,7 @@ describe('GDD-WLD-17 level 3-2 the whole level', () => {
     expect({ taken, secret: took(r, 236, 13), missed }).toEqual({ taken: 49, secret: false, missed: [] });
   }, 300_000);
 
-  it('GDD-WLD-03 3-2 ofrendas flown over: a plain jump and the glide from each of the 6 tiles before each ofrenda, and the cart sweeps that land past one', () => {
+  it('GDD-WLD-05 3-2 ofrendas flown over are reached: a plain jump and the glide from each of the 6 tiles before each ofrenda, and the cart sweeps that land past one, leave none behind', () => {
     const over: Record<string, number> = {};
     L.ofrendas.forEach((o, i) => {
       for (const x of apart(o.x - 6 * TILE, o.x - 14)) {
@@ -538,49 +538,27 @@ describe('GDD-WLD-17 level 3-2 the whole level', () => {
         over[`3-2-3 from cart F ${move ? 'right' : 'none'} ${kind}`] = fs[kind].filter((f) => f.landed && f.landed.player.x > L.ofrendas[2]!.x + 14 && f.landed.checkpointIndex < 2).length;
       }
     }
-    // Measured: as C2's; the pen's and the hops' changes moved no flight over an ofrenda.
-    expect(over).toEqual({
+    // GDD-WLD-05 (user, 2026-11-16: "Fly-over counts"): every flight that ends past an ofrenda has reached it, so no flight is counted over
+    // (the keys of `over` that are not take-off counts stay 0 or absent). Measured before the rule, of the same take-offs: 3-2-1 8 take-offs
+    // each, 7 standing and 5 running over it by the glide, 4 and 5 by the plain jump; 3-2-2 26 each, 11 and 10 by the glide, 4 and 6 by the plain
+    // jump; 3-2-3 26 each, 12 and 14 by the glide, 4 and 6 by the plain jump; and 13 of cart C's glides, with the way held or not, landing in D.
+    expect(Object.fromEntries(Object.entries(over).filter(([k]) => k.endsWith('take-offs')))).toEqual({
       '3-2-1 standing top take-offs': 8,
       '3-2-1 standing held take-offs': 8,
-      '3-2-1 standing held': 7,
       '3-2-1 running top take-offs': 8,
-      '3-2-1 running top': 5,
       '3-2-1 running held take-offs': 8,
-      '3-2-1 running held': 5,
-      '3-2-1 standing top': 4,
       '3-2-2 standing top take-offs': 26,
       '3-2-2 standing held take-offs': 26,
       '3-2-2 running top take-offs': 26,
       '3-2-2 running held take-offs': 26,
-      '3-2-2 running held': 10,
-      '3-2-2 standing held': 11,
-      '3-2-2 running top': 6,
-      '3-2-2 standing top': 4,
       '3-2-3 standing top take-offs': 26,
       '3-2-3 standing held take-offs': 26,
       '3-2-3 running top take-offs': 26,
       '3-2-3 running held take-offs': 26,
-      '3-2-3 running held': 14,
-      '3-2-3 standing held': 12,
-      '3-2-3 running top': 6,
-      '3-2-3 standing top': 4,
-      '3-2-1 from cart C right tap': 0,
-      '3-2-3 from cart F right tap': 0,
-      '3-2-1 from cart C right top': 0,
-      '3-2-3 from cart F right top': 0,
-      '3-2-1 from cart C right held': 13,
-      '3-2-3 from cart F right held': 0,
-      '3-2-1 from cart C right again': 0,
-      '3-2-3 from cart F right again': 0,
-      '3-2-1 from cart C none tap': 0,
-      '3-2-3 from cart F none tap': 0,
-      '3-2-1 from cart C none top': 0,
-      '3-2-3 from cart F none top': 0,
-      '3-2-1 from cart C none held': 13,
-      '3-2-3 from cart F none held': 0,
-      '3-2-1 from cart C none again': 0,
-      '3-2-3 from cart F none again': 0,
     });
+    expect(Object.entries(over).filter(([k, n]) => !k.endsWith('take-offs') && n > 0)).toEqual([]);
+    // The sweeps of the carts were flown: C's 8 jumps (4 kinds, 2 ways), F's too.
+    expect(Object.keys(over).filter((k) => k.includes('from cart')).length).toBe(16);
   }, 300_000);
 
   it('GDD-WLD-17 3-2 the bots: one rides every cart, one never boards one, one stays in F, one stays in K3, a careful one; each at every 8th start time of the enemies', () => {

@@ -246,13 +246,12 @@ export function isInPit(player: PlayerState, world: TileGrid, bottoms?: readonly
   return player.y - HITBOX.height > floorYAt({ world, bottoms }, player.x);
 }
 
-/** GDD-WLD-05: whether Poncho's body box overlaps the ofrenda's box. Boxes that only share an edge do not touch. */
+/**
+ * GDD-WLD-05: whether Poncho's body box overlaps the ofrenda's column above its base (user, 2026-11-16: "Fly-over counts"), so a glide or a
+ * jump over it counts as well as passing through it; under it, on ground below its base, does not. Boxes that only share an edge do not touch.
+ */
 export function touchesOfrenda(player: PlayerState, o: Ofrenda): boolean {
-  return (
-    Math.abs(player.x - o.x) < (HITBOX.width + OFRENDA.width) / 2 &&
-    player.y > o.y - OFRENDA.height &&
-    player.y - HITBOX.height < o.y
-  );
+  return Math.abs(player.x - o.x) < (HITBOX.width + OFRENDA.width) / 2 && player.y - HITBOX.height < o.y;
 }
 
 /**
