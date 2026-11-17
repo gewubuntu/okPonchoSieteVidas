@@ -36,8 +36,9 @@ use `deploy` wherever `forkfall` is written here.
 install -d -o forkfall -g forkfall -m 755 /opt/poncho
 ```
 
-From a checkout of this repository, copy the server files (root-owned, so the deploy user cannot change them; it
-writes only `.env` and its lock file):
+From a checkout of this repository, copy the server files, root-owned. A deploy writes only `.env` and its lock file
+in the folder. The deploy user owns the folder (the script writes there), so that account could still replace these
+files; what keeps GitHub's key from doing it is the key's restriction to the deploy script (step 5):
 
 ```sh
 install -o root -g root -m 644 deploy/compose.yaml deploy/Caddyfile /opt/poncho/
@@ -86,9 +87,9 @@ Add these environment secrets:
 | `DEPLOY_PORT` | optional, only if SSH is not on port 22 |
 
 No registry secret is needed: the workflow pushes with its own `GITHUB_TOKEN` and hands that token to the server on
-stdin for the pull; it expires with the job. The deploy script logs the deploy user in to `ghcr.io` with it and out
-again when it ends, so a login of that account's own to `ghcr.io` is removed by each deploy. Then delete the local `poncho_deploy` private key, or keep it somewhere
-safe.
+stdin for the pull; it expires with the job. The deploy script logs in with it in a Docker config of its own, removed
+when the deploy ends, so the deploy user's own registry logins are left alone. Then delete the local `poncho_deploy`
+private key, or keep it somewhere safe.
 
 ## 7. First deploy
 

@@ -53,8 +53,12 @@ case "${1:-}" in
     token=""
     [ -t 0 ] || token=$(cat)
     if [ -n "$token" ]; then
+      # The login goes to a Docker config of this run's own, removed when it ends, never to the deploy user's own
+      # ~/.docker, so a registry login that account holds for anything else is left alone.
+      DOCKER_CONFIG=$(mktemp -d)
+      export DOCKER_CONFIG
+      trap 'rm -rf "$DOCKER_CONFIG"' EXIT
       printf '%s' "$token" | docker login "$REGISTRY" -u deploy --password-stdin >/dev/null
-      trap 'docker logout "$REGISTRY" >/dev/null 2>&1 || true' EXIT
     fi
     if ! docker pull -q "$IMAGE:$sha"; then
       # A rollback by hand on the server can use an image that is still here.

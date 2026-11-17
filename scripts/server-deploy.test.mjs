@@ -16,7 +16,7 @@ const OLD = 'b'.repeat(40);
 const FAKE_DOCKER = `#!/bin/sh
 echo "$*" >> "$FAKE_LOG"
 case "$*" in
-  login*) cat > "$FAKE_DIR/../token" ;;
+  login*) cat > "$FAKE_DIR/../token"; printf '%s' "\${DOCKER_CONFIG:-}" > "$FAKE_DIR/../config-dir" ;;
   "compose ps -q web") printf '%s' "$FAKE_PS" ;;
   inspect*) echo "$FAKE_REV" ;;
   "pull"*) exit "\${FAKE_PULL_RC:-0}" ;;
@@ -96,7 +96,7 @@ describe('GDD-TEC-08 server deploy script', () => {
     expect(none.stdout).toBe('');
   });
 
-  it('deploy logs in with the token from stdin, pulls, swaps web, logs out and keeps the newest 5 images', () => {
+  it('deploy logs in with the token from stdin, pulls, swaps web and keeps the newest 5 images', () => {
     const dir = setup();
     writeFileSync(join(dir, '.env'), `PONCHO_TAG=${OLD}\n`);
     const tags = ['1', '2', '3', '4', '5', '6', '7'].map((n) => n.repeat(40));
@@ -109,7 +109,13 @@ describe('GDD-TEC-08 server deploy script', () => {
     expect(readFileSync(join(dir, 'token'), 'utf8')).toBe('tok');
     expect(r.log).toContain(`pull -q ${IMAGE}:${SHA}`);
     expect(r.log).toContain('compose up -d --no-deps --wait --wait-timeout 60 web');
-    expect(r.log.at(-1)).toBe('logout ghcr.io');
+    // The login goes to a Docker config of its own, removed after the run, so the deploy user's own registry logins
+    // (its ~/.docker) are never touched.
+    const configDir = readFileSync(join(dir, 'config-dir'), 'utf8');
+    expect(configDir).not.toBe('');
+    expect(configDir.startsWith(dir)).toBe(false);
+    expect(existsSync(configDir)).toBe(false);
+    expect(r.log.some((l) => l.startsWith('logout'))).toBe(false);
     const removed = r.log.filter((l) => l.startsWith('image rm')).map((l) => l.split(':').at(-1));
     expect(removed).toEqual([tags[2], tags[1], tags[0]]);
   });

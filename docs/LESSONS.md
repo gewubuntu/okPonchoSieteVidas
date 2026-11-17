@@ -830,8 +830,9 @@ Retired IDs: L-046
 - **Root cause:** The description was edited when the design changed, not when the scope changed; nothing ties a push to a reread of the description.
 - **Rule:** After every push that changes what the PR does (a phase landed, a GDD version, new playtests), rewrite the description's Scope, checks and Notes to match the head before launching the review.
 - **Recurrence 2 (2026-11-09, PR #89, found by the review):** after the fix commit for the first review the description still said the backdrop stays still and there were no screenshots, and listed 49 mutants; the replies on the threads were updated, the description was not.
-- **Recurrence:** 2
-- **Promoted:** scripts/hooks/after-push.mjs (the reminder after every push now says to rewrite the description's Scope, checks, Screenshots and Notes to match the head before the re-review; tested in scripts/hooks/after-push.test.mjs)
+- **Recurrence 3 (2026-11-17, PR #88, found by the review):** after the merge of main was pushed, the description still described the rsync deploy, GDD 0.11.0 and lessons L-075 to L-077. The reminder never showed: the session ran on the user's server, where no `node` was on the PATH that hooks run with, and every hook fails open (L-089).
+- **Recurrence:** 3
+- **Promoted:** scripts/hooks/after-push.mjs (the reminder after every push now says to rewrite the description's Scope, checks, Screenshots and Notes to match the head before the re-review; tested in scripts/hooks/after-push.test.mjs). Guard: `scripts/hooks/after-push.mjs`
 
 ## L-071 The implementer unstaged a deleted file with `git reset`
 
@@ -1023,5 +1024,16 @@ Retired IDs: L-046
 - **What went wrong:** merging main into PR #88 (`git merge --no-commit origin/main`), the gate failed `gdd-one-version` with twelve added versions: main's eleven counted as the branch's. The gate must pass before the merge commit, so it could not be committed by the rules.
 - **Root cause:** the check compared with `git merge-base origin/main HEAD`; until the merge is committed HEAD is the branch's old tip, whose merge base predates everything main added.
 - **Rule:** a gate check that compares with a merge base takes the one the commit being made will have: during a merge, `git merge-base origin/main HEAD MERGE_HEAD`.
+- **Recurrence 2 and 3 (2026-11-09 and 2026-11-10, PR #88):** the same check failed before the merge commits b2af575 and e7923e8; the PR description noted it ("before each merge commit it was the only failing check") and both merges were committed anyway, so nothing changed until this third time (found in the review of PR #88).
+- **Recurrence:** 3
+- **Promoted:** scripts/gdd-version.mjs (reads MERGE_HEAD). Guard: `scripts/gdd-version.test.mjs`
+
+## L-089 Every project hook did nothing on a machine without node on the PATH
+
+- **Date:** 2026-11-17
+- **Area:** harness
+- **What went wrong:** a session on the user's server had no `node` on the PATH Claude Code was started with; node was installed under `~/.local/node` and put on the PATH of each shell command only. Every hook in `.claude/settings.json` runs `node`, so none ran, and since each fails open nothing said so: the after-push reminder to rewrite the PR description never showed, and the description stayed stale (L-070, recurrence 3).
+- **Root cause:** the hooks' fail-open design treats a missing interpreter like any other hook error, silently; nothing checks at session start that the hooks can run.
+- **Rule:** before working in a new environment, check that `node` is on the PATH Claude Code itself runs with (not only in the shell), or restart the session after putting it there.
 - **Recurrence:** 1
-- **Promoted:** scripts/gdd-version.mjs (reads MERGE_HEAD; tested in scripts/gdd-version.test.mjs)
+- **Promoted:** no

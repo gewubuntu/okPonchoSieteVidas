@@ -30,9 +30,10 @@ user wants a Docker deploy that runs on its own, with no changes to the other pr
   passes requests to `web` (`deploy/Caddyfile`). While `web` is swapped (about a second) the edge holds requests for
   up to 10 s instead of failing them. Hashed files are cached for a year, `index.html` is revalidated on every load.
 - The workflow runs `deploy <sha>` over SSH, with its own short-lived `GITHUB_TOKEN` on stdin for the registry pull.
-  `deploy/server-deploy.sh` (installed as `/opt/poncho/deploy.sh`) logs in, pulls, writes the tag to `.env`, swaps
-  `web` and waits for its health check, puts the previous tag back if the new container does not start healthy, logs
-  out, and keeps the newest 5 images for a rollback (`deploy <older sha>`, by hand on the server too).
+  `deploy/server-deploy.sh` (installed as `/opt/poncho/deploy.sh`) logs in (in a Docker config of its own, removed
+  when it ends, so the deploy user's own logins are untouched), pulls, writes the tag to `.env`, swaps `web` and waits
+  for its health check, puts the previous tag back if the new container does not start healthy, and keeps the newest
+  5 images for a rollback (`deploy <older sha>`, by hand on the server too).
 - The deploy SSH key may run only that script (`command=...,restrict` in `authorized_keys`), which accepts `live`,
   `index` and `deploy <40-hex sha>` and nothing else: the deploy user (on the server the existing account `forkfall`)
   is in the `docker` group, which is as strong as root. The server's host key is pinned in a secret (`DEPLOY_KNOWN_HOSTS`), never trusted on first use. The secrets
