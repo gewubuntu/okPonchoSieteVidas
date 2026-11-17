@@ -3,7 +3,8 @@
 // The implementer builds only from a plan in .plans/. Before it starts, the plan must show the main session worked the new rules' own
 // cases through by hand (harness-feature step 5): a "## Worked cases" section with at least two lines that carry numbers, and an
 // "## Existing fixtures" section that says what the new rules do to the fixtures already in the files they land in (L-077, recurrence 4:
-// a new validator rule failed 13 existing fixtures the plan never named). The hook cannot tell whether either is right; it makes the step
+// a new validator rule failed 13 existing fixtures the plan never named), and a "## Families" section that lists the members of each family
+// word its rules use (L-080, recurrence 3: "buttons" narrowed to Jump, "ground" to tile tops). The hook cannot tell whether either is right; it makes the step
 // impossible to skip, which is how L-077 recurred.
 // It denies the launch with the reason, also when the plan it names cannot be read; a launch that names no plan, or a malformed input,
 // prints nothing and exits 0.
@@ -16,6 +17,8 @@ import { pathToFileURL } from 'node:url';
 export const HEADING = '## Worked cases';
 /** The heading of what the plan's new rules do to the existing fixtures of the files they land in ("none newly fail", with why, counts). */
 export const FIXTURES = '## Existing fixtures';
+/** The heading of the family words the plan's rules use and their members from the code (L-080: "ground", "buttons"), or "none". */
+export const FAMILIES = '## Families';
 
 /**
  * The plan path a prompt names: any path with a `.plans` folder in it and a `.md` file, relative or absolute, bare or wrapped in quotes,
@@ -63,6 +66,10 @@ export function workedCasesProblem(input, read = (p) => readFileSync(p, 'utf8'),
   const fixtures = sectionLines(plan, FIXTURES);
   if (fixtures === null || !fixtures.some((l) => l.trim() !== '')) {
     return `L-077: the plan ${path} has no "${FIXTURES}" section with a line in it. Grep the test files each new rule lands in for fixtures it would newly fail (the same world, kind or flag) and say what happens to each, or that none fail and why (harness-feature step 5).`;
+  }
+  const families = sectionLines(plan, FAMILIES);
+  if (families === null || !families.some((l) => l.trim() !== '')) {
+    return `L-080: the plan ${path} has no "${FAMILIES}" section with a line in it. For each word in its rules that names a family (ground, buttons, enemies, a floor), list the members from the code that builds it and say which the rule includes; or write "none" (harness-feature step 5).`;
   }
   return null;
 }

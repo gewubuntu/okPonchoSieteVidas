@@ -934,8 +934,9 @@ Retired IDs: L-046
 - **Root cause:** When the plan turned the GDD's word into a definition, it listed the ground kinds from memory instead of from the code's list of everything Poncho stands on (tiles, crumbling tiles, platforms, carts, blocks, awnings, cordeles).
 - **Rule:** When a plan defines a GDD word that names a family ("ground", "every enemy", "a floor"), list its members from the code that builds the family (for ground, everything `stepRun` lands him on) and name each member it leaves out, with the reason. The validator test then has one fixture per member.
 - **Recurrence 2 (2026-11-17, PR #103, GDD-ENM-04 rule (h), found by the review):** the plan for the cart clear of the phone's buttons narrowed the GDD's "the phone's buttons" to the Jump button and "ground" to tile tops again, and the GDD text was edited to match with no decision of the user's. In the mirrored layout the mode switch covered lab-3k's cart and 3-3's K1, and K1's perch was not read at all. The lesson's rule was in no skill step, so the plan was never checked against it.
-- **Recurrence:** 2
-- **Promoted:** `harness-feature` step 5, "Name every family (L-080)": the plan lists the members of each family word its rule uses, from the code, and the GDD's word is never narrowed without the user.
+- **Recurrence 3 (2026-11-17, PR #103, found by its re-review):** the fix for "every button" added the claw and pause buttons to the rule but no fixture for either, so skipping one stayed green. The skill step promoted in the commit before asked for one fixture per member, and nothing checked that the plan listed the members at all.
+- **Recurrence:** 3
+- **Promoted:** `harness-feature` step 5, "Name every family (L-080)": the plan lists the members of each family word its rule uses, from the code, and the GDD's word is never narrowed without the user. Guard: `scripts/hooks/before-implementer.mjs` denies launching the implementer when the plan has no `## Families` section with a line in it (tested in `scripts/hooks/before-implementer.test.mjs`). It proves the members were written down, not that the list is whole.
 
 ## L-081 Two planned mutants could not be caught as the plan wrote them
 
