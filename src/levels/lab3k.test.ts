@@ -11,8 +11,8 @@ import { validateLevel } from './validate';
 // GDD-ENM-04, GDD-TEC-04: lab-3k, the Cacomixtle's lab, over the real level data (L-014): each claim played in the simulation with a bot's
 // inputs, never a hand-built state past where Poncho stands, and no life lost. The expected numbers are the GDD's: its sight is his hurtbox's
 // centre ahead of it by up to 200 px (the ringtail's middle is at x = 528: the rail starts at x = 544 and the middle is 16 px along), the
-// perch's top is 40 px over the floor (y = 208, so y = 168), and the cart passes 18 px under his feet there (its floor is 8 px over the floor and
-// the ringtail is 14 tall: 208 - 8 - 14 = 186).
+// perch's top is 40 px over the floor (y = 176, so y = 136), and the cart passes 18 px under his feet there (its floor is 8 px over the floor and
+// the ringtail is 14 tall: 176 - 8 - 14 = 154).
 const level = LAB_3K_LEVEL;
 const idle: PlayerInput = { move: 0, jumpHeld: false };
 const entry = (l = level): LevelEntry => ({ id: LAB_3K_ID, world: 3, test: true, level: l, place: 'mina' });
@@ -159,23 +159,23 @@ describe('GDD-ENM-04 lab-3k', () => {
   });
 
   it('GDD-ENM-04 lab-3k Kb is the named exception: its ground rule fails on the shelf and its sentence is the exception', () => {
-    // Kb's start floor is y = 200, the shelf's ground 24 px over it (y = 176) in columns 45 to 52 of its stretch (x 728 to 928): 8 failures.
+    // Kb's start floor is y = 168, the shelf's ground 24 px over it (y = 144) in columns 45 to 52 of its stretch (x 728 to 928): 8 failures.
     const kb = LAB_3K_ENEMIES[1]!;
     expect(kb.sightException).toBe('GDD-WLD-18: K1 meets him uphill, 40 px inside its sight');
     const bare: Enemy = { x: kb.x, y: kb.y, kind: 'cacomixtle', rail: 1 };
     const without = validateLevel(entry({ ...level, enemies: [LAB_3K_ENEMIES[0]!, bare] }));
     const cols = [45, 46, 47, 48, 49, 50, 51, 52];
-    expect(without).toEqual(cols.map((c) => `cacomixtle at 928,200 has ground at column ${c}, row 11, 24 px from its cart's floor in its sight stretch, expected within 8 or over 120`));
+    expect(without).toEqual(cols.map((c) => `cacomixtle at ${kb.x},${kb.y} has ground at column ${c}, row ${LAB_3K_SHELF.row}, 24 px from its cart's floor in its sight stretch, expected within 8 or over 120`));
     expect(validateLevel(entry())).toEqual([]);
   });
 
   it('GDD-ENM-04 lab-3k Ka is a named exception too: its perch is a platform in its sight, 32 px over its floor', () => {
-    // Ka's floor is y = 200 and the perch's top y = 168: 32 px, in (8, 120], over columns 20 and 21 of its stretch (x 328 to 528): one problem.
+    // Ka's floor is y = 168 and the perch's top y = 136: 32 px, in (8, 120], over columns 20 and 21 of its stretch (x 328 to 528): one problem.
     const kaDef = LAB_3K_ENEMIES[0]!;
     expect(kaDef.sightException).toBe('GDD-WLD-18: the perch, the lesson of K1, stands in its sight');
     const bare: Enemy = { x: kaDef.x, y: kaDef.y, kind: 'cacomixtle', rail: 0 };
     const without = validateLevel(entry({ ...level, enemies: [bare, LAB_3K_ENEMIES[1]!] }));
-    expect(without).toEqual(["cacomixtle at 528,200 has a platform at 320,168, 32 px from its cart's floor in its sight stretch, expected within 8 or over 120"]);
+    expect(without).toEqual([`cacomixtle at ${kaDef.x},${kaDef.y} has a platform at ${LAB_3K_PERCH.x0},${LAB_3K_PERCH.y0}, 32 px from its cart's floor in its sight stretch, expected within 8 or over 120`]);
     expect(validateLevel(entry())).toEqual([]);
   });
 
@@ -184,8 +184,9 @@ describe('GDD-ENM-04 lab-3k', () => {
     // a 2-tile wall at column 60, past Kb's start, 3 tiles from every respawn.
     const alacran = LAB_3K_ENEMIES[2]!;
     expect(alacran).toEqual({ x: 1016, y: FLOOR_Y });
-    expect(LAB_3K_CLOSET).toEqual({ wall: 60, row: 11, col0: 61, col1: 65 });
-    expect(level.world.solidTile(60, 11) && level.world.solidTile(60, 12) && !level.world.solidTile(60, 10)).toBe(true);
+    expect(LAB_3K_CLOSET).toEqual({ wall: 60, row: LAB_3K_FLOOR_ROW - 2, col0: 61, col1: 65 });
+    const wall = LAB_3K_CLOSET.row;
+    expect(level.world.solidTile(60, wall) && level.world.solidTile(60, wall + 1) && !level.world.solidTile(60, wall - 1)).toBe(true);
     let r = run(standing(LAB_3K_LEVEL.spawn.x, FLOOR_Y));
     let [lo, hi] = [Infinity, -Infinity];
     for (let i = 0; i < 3000; i++) {
