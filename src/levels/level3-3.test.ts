@@ -238,21 +238,21 @@ describe('GDD-WLD-18 level 3-3 layout', () => {
       for (let col = a!; col <= b!; col++) expect(L.crumbles.some((c) => c.col === col && c.row === 25), `${col}`).toBe(true);
       expect([groundRow(a! - 1), groundRow(b! + 1)]).toEqual([25, 25]);
     }
-    // The raised bottoms, 4 rows under each pit's lower lip but bridge B's, 6 under it; the first pit's would be row 39, past the last row
+    // The raised bottoms, 4 rows under each pit's lower lip but bridge B's, 5 under it; the first pit's would be row 39, past the last row
     // (36), so it has none and is open to the level's last row.
     expect(L.bottoms).toEqual([
       { fromCol: 89, toCol: 98, row: 29 + 4 },
       { fromCol: 120, toCol: 126, row: 25 + 4 },
       { fromCol: 141, toCol: 152, row: 25 + 4 },
-      { fromCol: 160, toCol: 175, row: 25 + 6 },
+      { fromCol: 160, toCol: 175, row: 25 + 5 },
       { fromCol: 226, toCol: 231, row: 15 + 4 },
     ]);
     expect(35 + 4).toBeGreaterThan(world.height - 1);
-    // GDD-UI-04, GDD-ENM-04 (h): bridge B's bottom is 6 rows down so the camera follows him over it. Its floor line is (31 + 1) * 16 = 512 and
-    // the camera's bottom limit at column 165 is 512 - 2 - 270 = 240; his feet on a plank at 400 put it at 400 - 162 = 238, under the limit,
-    // and K2's cart's box (its bottom on the rail's ground, 400) on screen at 146 to 162, clear of the mirrored mode switch (180 to 220). With
-    // the bottom 4 rows down (row 29) the limit is 480 - 2 - 270 = 208, the box at 176 to 192, 12 px into the switch.
-    expect(cameraLimitsAt(L, mid(165)).bottom).toBe(240);
+    // GDD-UI-04, GDD-ENM-04 (h): bridge B's bottom is 5 rows down, the fewest that pass. Its floor line is (30 + 1) * 16 = 496 and the camera's
+    // bottom limit at column 165 is 496 - 2 - 270 = 224; his feet on a plank at 400 want 400 - 162 = 238, clamped to 224, and K2's cart's box
+    // (its bottom on the rail's ground, 400) is on screen at 160 to 176, 4 px clear of the mirrored mode switch (180 to 220). With the bottom
+    // 4 rows down (row 29) the limit is 480 - 2 - 270 = 208, the box at 176 to 192, 12 px into the switch.
+    expect(cameraLimitsAt(L, mid(165)).bottom).toBe(224);
     const at29: Level = { ...L, bottoms: L.bottoms!.map((b) => (b.fromCol === 160 ? { ...b, row: 29 } : b)) };
     expect(cameraLimitsAt(at29, mid(165)).bottom).toBe(208);
     expect(validateLevel(entry(at29))).toEqual([
@@ -785,10 +785,10 @@ describe('GDD-WLD-18 level 3-3 Ten, measured', () => {
       expect(gone - warned, `plank at ${L.crumbles[i]!.col}`).toBe(30);
     }
     expect(bridgeB).toHaveLength(15);
-    // Stopping on a plank (at column 163's middle) he falls into the pit: a life, 123 steps after he set off (117 with the pit's bottom at
-    // row 29: the fall to row 31's floor line is 2 tiles longer).
+    // Stopping on a plank (at column 163's middle) he falls into the pit: a life, 120 steps after he set off (117 with the pit's bottom at
+    // row 29: the fall to row 30's floor line is a tile longer).
     const stop = play(at(mid(156), Y(25), 0, 0, noK2), 400, (r) => (r.player.x < mid(163) ? right : idle), (r) => r.phase !== 'playing', noK2);
-    expect([stop.length, last(stop).lives.lives]).toEqual([123, 6]);
+    expect([stop.length, last(stop).lives.lives]).toEqual([120, 6]);
     // A held glide from Q over the 3 tiles before its lip (x = 2560), standing and running: where he lands, and the planks set off by then.
     // A level glide carries about 8.5 tiles (GDD-MOV-07); from the lip he comes down at column 167.8 standing, 168.5 running, so the pier is
     // reached without a plank from three take-offs of 32: standing 6.4 and 3.2 px before the lip, running 16 px before it.

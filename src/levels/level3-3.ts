@@ -118,15 +118,15 @@ export const LEVEL_3_3_PITS = {
 /**
  * GDD-WLD-03: the raised bottoms, each 4 rows under the lower of its pit's two lips: the chasm (lips at rows 25 and 29), the pit after P3 (22
  * and 25), bridge A's (both lips at 25) and the exit pit (12 and 15); bridge B's (both lips at 25, the pier inside its span solid all the way
- * down) 6 rows under them, so the camera's bottom limit there (31 + 1) * 16 - 2 - 270 = 240 lets it follow him to 238 over the planks and
- * K2's cart is clear of the phone's buttons (GDD-ENM-04 (h), GDD-UI-04). The first pit's lower lip is row 35, so 4 rows under it (row 39)
+ * down) 5 rows under them, the fewest that pass: the camera's bottom limit there is (30 + 1) * 16 - 2 - 270 = 224, so with his feet on a plank
+ * (400) K2's cart is clear of the phone's buttons by 4 px (GDD-ENM-04 (h), GDD-UI-04); 4 rows under, its box is 12 px into the mode switch. The first pit's lower lip is row 35, so 4 rows under it (row 39)
  * is past the level's last row (36): it is open to the level's last row.
  */
 export const LEVEL_3_3_BOTTOMS: readonly Bottom[] = [
   { fromCol: 89, toCol: 98, row: 33 },
   { fromCol: 120, toCol: 126, row: 29 },
   { fromCol: 141, toCol: 152, row: 29 },
-  { fromCol: 160, toCol: 175, row: 31 },
+  { fromCol: 160, toCol: 175, row: 30 },
   { fromCol: 226, toCol: 231, row: 19 },
 ];
 
