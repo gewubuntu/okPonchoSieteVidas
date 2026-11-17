@@ -830,8 +830,9 @@ Retired IDs: L-046
 - **Root cause:** The description was edited when the design changed, not when the scope changed; nothing ties a push to a reread of the description.
 - **Rule:** After every push that changes what the PR does (a phase landed, a GDD version, new playtests), rewrite the description's Scope, checks and Notes to match the head before launching the review.
 - **Recurrence 2 (2026-11-09, PR #89, found by the review):** after the fix commit for the first review the description still said the backdrop stays still and there were no screenshots, and listed 49 mutants; the replies on the threads were updated, the description was not.
-- **Recurrence:** 2
-- **Promoted:** scripts/hooks/after-push.mjs (the reminder after every push now says to rewrite the description's Scope, checks, Screenshots and Notes to match the head before the re-review; tested in scripts/hooks/after-push.test.mjs)
+- **Recurrence 3 (2026-11-17, PR #88, found by the review):** after the merge of main was pushed, the description still described the rsync deploy, GDD 0.11.0 and lessons L-075 to L-077. The reminder never showed: the session ran on the user's server, where no `node` was on the PATH that hooks run with, and every hook fails open (L-089).
+- **Recurrence:** 3
+- **Promoted:** scripts/hooks/after-push.mjs (the reminder after every push now says to rewrite the description's Scope, checks, Screenshots and Notes to match the head before the re-review; tested in scripts/hooks/after-push.test.mjs). Guard: `scripts/hooks/after-push.mjs`
 
 ## L-071 The implementer unstaged a deleted file with `git reset`
 
@@ -957,5 +958,82 @@ Retired IDs: L-046
 - **What went wrong:** The camera look-ahead's phase A plan (PR #102) changed where a fall's look-down catches up, from y 116 to 108. It ran only `e2e/camera.spec.ts`. But `e2e/level3-1.spec.ts` pins the old line after 3-1's long glide, and it failed on desktop and phone. The review found it.
 - **Root cause:** The plan chose the playtests to run by the feature's own spec. It did not search for which specs read the rule's constants or its behaviour.
 - **Rule:** A plan that changes a shared rule (the camera, movement, a tuning constant) greps `e2e/` for the rule's constants and functions (`CAMERA.`, the function names) and runs every spec that names one, or runs the full `npm run test:e2e` before the commit. It lists those specs in its Visible section.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-083 A local dry run of the deploy did not reproduce what differs in CI
+
+- **Date:** 2026-11-09
+- **Area:** harness, process
+- **What went wrong:** the GDD-TEC-08 deploy workflow was dry-run locally seven times against one `dist/`, and the PR said files were hard-linked across releases. In CI every build has new mtimes, so `rsync -a` would have copied every file each time. The dry run also ran deploys one after another, so it missed that `workflow_run` deploys in the order the check runs finish, which can put an older commit live (both found in the review of PR #88).
+- **Root cause:** the dry run reused what was at hand (one build, sequential runs) instead of listing what differs on the runner: a fresh checkout and build each time, runs that overlap and can be re-run.
+- **Rule:** before a dry run of a CI or deploy step, list what differs on the runner (a fresh build with new mtimes, overlapping runs, re-runs, missing secrets) and make the dry run reproduce each of them, or say in the PR which ones it does not cover.
+- **Recurrence 2 (2026-11-09, PR #88):** the fix deployed only `main`'s tip and skipped any other commit, saying the tip's own run would deploy it; but a later deploy run can replace that waiting run in the concurrency queue and then skip, so the newest commit stayed off the site (found in the re-review). The rule was written in the same PR, as a lesson, and the fix was reasoned about one run at a time instead of listing how runs overlap.
+- **Recurrence 3 (2026-11-09, PR #88):** with every run deploying `main`'s newest commit, several check runs could wake deploys of the same commit, and the repeat build pushed out the hashed files kept for tabs opened before it and took a rollback slot (found in the third review). The CLAUDE.md rule landed in the same push as the design it should have guided, and its list named overlapping runs but not several runs for one commit.
+- **Recurrence 4 (2026-11-09, PR #88):** the skip for a commit already live also skipped the smoke test, so re-running a deploy whose smoke test had failed went green without checking the site (found in the fourth review). The convention named re-runs, but it was applied to the check runs that wake a deploy and not to a re-run of the deploy itself.
+- **Recurrence:** 4
+- **Promoted:** CLAUDE.md (Conventions: a dry run of a CI or deploy step reproduces what differs on the runner, naming several runs for one commit and a re-run of the workflow itself). Guard: none (which runner conditions a workflow's design must survive is a judgement about that workflow; no check over the files can tell a covered case from a missed one, and the deploy's steps that need GitHub's runner cannot run in the gate)
+
+## L-084 A changelog said the playtests passed while they were still running
+
+- **Date:** 2026-11-09
+- **Area:** gdd, process
+- **What went wrong:** the GDD 0.11.0 changelog line said the full playtest suite passed for the GDD-TEC-07 dependency review, while the local run was still going (it was then stopped at 30 minutes) and the PR left the e2e box unticked (found in the review of PR #88).
+- **Root cause:** the changelog line was written while the run was planned and committed before its result came back; nothing ties a "passing" claim to a finished run.
+- **Rule:** write that a check passed only after its run has finished, naming where (local or CI); until then write that it is pending.
+- **Recurrence 2 (2026-11-09, PR #88):** the review fix moved vite to 8.3.7 and kept the changelog's "the full playtest suite passing in CI", which held for the earlier head while CI's playtests on the new head were still running (found in the re-review). The lesson was a day old and in no step that a changelog edit goes through.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-gdd-update (step 3: a changelog claim that a check passed names a finished run on the head it describes)
+
+## L-085 A command blocked by a hook was re-run only in part, and its edits were lost
+
+- **Date:** 2026-11-09
+- **Area:** harness, process
+- **What went wrong:** in PR #88 one command held a lessons and CLAUDE.md edit, the gate and the commit. The L-012 hook blocked it as a whole; the next command re-ran only the gate and the commit, so c9fd671 shipped without the edit while its message and the PR description said it was in. The fourth review's fix then showed the lesson text missing.
+- **Root cause:** a blocked command runs none of its parts, but the retry was written from the hook's message, which named only the commit part.
+- **Rule:** after a hook blocks a command, re-run every part of it, or read `git status --short` (it must list each file the command was meant to change) before committing.
+- **Recurrence 2 (2026-11-09, PR #88):** the same slip had happened in PR #67, noted only inside L-010's recurrence 12 ("blocked by the L-012 hook and the rerun left it out"), not as a lesson of its own, so nothing changed after it.
+- **Recurrence:** 2
+- **Promoted:** scripts/hooks/gate-pipe.mjs (its denial now says that none of the command ran and to re-run every part of it; tested in scripts/hooks/gate-pipe.test.mjs)
+
+## L-086 A branch's unmerged lessons took IDs that main gave to other lessons meanwhile
+
+- **Date:** 2026-11-10
+- **Area:** harness, process
+- **What went wrong:** PR #88 stayed open for a day and added L-074 to L-076; main meanwhile merged its own L-074 (PR #87). Merging main gave a conflict in `docs/LESSONS.md`, and the branch's three lessons and their references (CLAUDE.md, the `harness-gdd-update` skill, the gate-pipe hook and its test) had to move to L-075 to L-077.
+- **Root cause:** a lesson takes the next free ID on its own branch; nothing says which side yields when two open branches take the same one, or that the references must move with it.
+- **Rule:** when merging main gives two lessons the same ID, main's keeps it; the branch's unmerged lessons take the next free IDs, and `git grep` for each old ID outside `docs/LESSONS.md` finds every reference to move in the merge commit (an ID on main is never renumbered).
+- **Recurrence 2 (2026-11-17, PR #88):** PR #88 stayed open another week; main took L-075 to L-082, so the branch's L-075 to L-079 moved again, to L-083 to L-087. The rule was in no step a merge goes through, and the first try at the move ran one regex over the branch's lessons, which also rewrote this lesson's own history ("added L-074 to L-076"); it was put back from the branch's text before the commit. The same merge also lost main's L-082 its last two fields: git had moved the lines both sides ended with out of the conflict, and the splice joined them to the branch's last lesson (the gate's `lessons` check found it).
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-feature (step 13: after merging main, the branch's unmerged lessons take the next free IDs, moving only their headings and the references the branch added) and .claude/skills/harness-retro (step 2: the one exception to never renumbering)
+
+## L-087 A deploy plan changed another project on the shared server
+
+- **Date:** 2026-11-10
+- **Area:** process
+- **What went wrong:** the server's ports 80 and 443 were held by another project's Caddy container, and the Docker deploy plan routed the game through it by adding an import folder to that project's Caddyfile and compose file. The user rejected the plan: the two projects must stay independent.
+- **Root cause:** the plan treated what was already running on the host as shared infrastructure to build on, and the question to the user offered only ways of changing the other project, not whether to change it at all.
+- **Rule:** a plan for a shared server never edits another project's files or containers on it; when that project holds something the game needs (a port, a domain), ask the user how to resolve it, with leaving that project untouched among the options.
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-088 The gate could not pass on an uncommitted merge of main
+
+- **Date:** 2026-11-17
+- **Area:** harness
+- **What went wrong:** merging main into PR #88 (`git merge --no-commit origin/main`), the gate failed `gdd-one-version` with twelve added versions: main's eleven counted as the branch's. The gate must pass before the merge commit, so it could not be committed by the rules.
+- **Root cause:** the check compared with `git merge-base origin/main HEAD`; until the merge is committed HEAD is the branch's old tip, whose merge base predates everything main added.
+- **Rule:** a gate check that compares with a merge base takes the one the commit being made will have: during a merge, `git merge-base origin/main HEAD MERGE_HEAD`.
+- **Recurrence 2 and 3 (2026-11-09 and 2026-11-10, PR #88):** the same check failed before the merge commits b2af575 and e7923e8; the PR description noted it ("before each merge commit it was the only failing check") and both merges were committed anyway, so nothing changed until this third time (found in the review of PR #88).
+- **Recurrence:** 3
+- **Promoted:** scripts/gdd-version.mjs (reads MERGE_HEAD). Guard: `scripts/gdd-version.test.mjs`
+
+## L-089 Every project hook did nothing on a machine without node on the PATH
+
+- **Date:** 2026-11-17
+- **Area:** harness
+- **What went wrong:** a session on the user's server had no `node` on the PATH Claude Code was started with; node was installed under `~/.local/node` and put on the PATH of each shell command only. Every hook in `.claude/settings.json` runs `node`, so none ran, and since each fails open nothing said so: the after-push reminder to rewrite the PR description never showed, and the description stayed stale (L-070, recurrence 3).
+- **Root cause:** the hooks' fail-open design treats a missing interpreter like any other hook error, silently; nothing checks at session start that the hooks can run.
+- **Rule:** before working in a new environment, check that `node` is on the PATH Claude Code itself runs with (not only in the shell), or restart the session after putting it there.
 - **Recurrence:** 1
 - **Promoted:** no

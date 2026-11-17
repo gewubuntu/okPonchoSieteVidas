@@ -1,0 +1,18 @@
+# The edge Caddy of the server's `poncho` project (GDD-TEC-08, deploy/compose.yaml): holds ports 80 and 443, fetches
+# and renews the HTTPS certificate itself and passes requests to the game's container. Lives in /opt/poncho on the
+# server; after changing it: `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`.
+poncho.forkfall.xyz {
+	encode zstd gzip
+
+	reverse_proxy web:80 {
+		# While a deploy swaps the game's container (about a second), hold requests instead of failing them.
+		lb_try_duration 10s
+		lb_try_interval 250ms
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
