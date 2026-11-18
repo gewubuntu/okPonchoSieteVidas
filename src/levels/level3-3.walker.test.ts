@@ -204,7 +204,7 @@ describe('GDD-WLD-18 level 3-3 the shelf under pier V and the fall out of C1', (
     // Measured (48 take-offs per jump). Right held or nothing held (the cart's own direction): he comes down back in the cart (the plain one almost always), and on the cap, the shelf or P1
     // from the others; every one goes on to P1. A hop to the left comes down on the shelf, the cap, MP0, P1 or (the held one from the pit's columns) G0b, and from each the walk to MP0
     // (or the pit jump, then MP0) brings him onto P1 with every life, but for two kinds. LOST, a life: the plain left hop from ride steps 40 to 72 (x 181 to 226) and the held
-    // one from 68 to 116 (x 220 to 302) come down in the first pit (x 166 to 207), 9 and 10 of the 48. And one plain left hop (from step 76) lands on the shelf's left edge, 0.07 px
+    // one from 68 to 116 (x 220 to 237 and 274 to 302; between them he lands on the shelf) come down in the first pit (x 166 to 207), 9 and 10 of the 48. And one plain left hop (from step 76) lands on the shelf's left edge, 0.07 px
     // over it, and slides off into the pit as he walks on right (6 lives).
     expect(sweep).toEqual({
       'plain left': {
@@ -247,7 +247,7 @@ interface Collected {
   readonly veladora: Set<boolean>;
   readonly lives: Set<number>;
   readonly secretHilos: Set<string>;
-  /** The most steps any state of the run had one of his carts (C2, C3, C4) other than waiting. */
+  /** The steps, summed over the runs, on which one of his carts (C1, C2, C3, C4) was other than waiting. */
   hisBoarded: number;
 }
 const collected = (): Collected => ({ tally: {}, steps: [], hilos: new Set(), checkpoints: new Set(), moved: new Set(), veladora: new Set(), lives: new Set(), secretHilos: new Set(), hisBoarded: 0 });

@@ -733,7 +733,7 @@ export const RIDER = (): Ctl[] => [...RIDE_KI(), ...RIDE_SHO(), ...RIDE_TEN(), .
 export const CAREFUL = (): Ctl[] => [...CAREFUL_KI(), ...CAREFUL_SHO(), ...RIDE_TEN(), ...CAREFUL_KETSU()];
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
-// Phase B2b: the walker, who boards none of C2, C3 and C4 (`level3-3.walker.test.ts`), and the secret bot.
+// Phase B2b: the walker, who boards none of C1, C2, C3 and C4 (`level3-3.walker.test.ts`), and the secret bot.
 
 /** C1's dip: the plain hop onto G0b taken from x = 70 (inside the sweep's window of take-offs that land on G0b without boarding C1, `level3-3.walker.test.ts`). */
 export const DIP_HOP = 70;
