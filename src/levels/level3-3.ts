@@ -131,12 +131,14 @@ export const LEVEL_3_3_BOTTOMS: readonly Bottom[] = [
 ];
 
 /**
- * GDD-WLD-18: the secret's pier V, a hollow under the rail he rode in on: a wall at column 22 from row 26 down, a floor at 23 and 24 (row 31)
- * and a cap in row 26 over 22 to 25 that carries the rail and hangs 1 tile past the floor. The hollow, rows 27 to 30, opens to the right.
+ * GDD-WLD-18: the secret's pier V, a hollow under the rail he rode in on: a wall at column 22 from row 26 to row 31, a floor at 23 and 24
+ * (row 31) and a cap in row 26 over 22 to 25 that carries the rail and hangs 1 tile past the floor. The hollow, rows 27 to 30, opens to the
+ * right. Under the wall and the floor, rows 32 to 34, is a tunnel 3 tiles tall over the shelf (row 35), so the shelf runs under the hollow to MP0
+ * (user, 2026-11-18: "Tunnel under the pier").
  */
 export const LEVEL_3_3_HOLLOW = {
-  wall: { col0: 22, col1: 22, row0: 26, row1: HEIGHT - 1 },
-  floor: { col0: 23, col1: 24, row0: 31, row1: HEIGHT - 1 },
+  wall: { col0: 22, col1: 22, row0: 26, row1: 31 },
+  floor: { col0: 23, col1: 24, row0: 31, row1: 31 },
   cap: { col0: 22, col1: 25, row0: 26, row1: 26 },
 } as const satisfies Record<string, Piece>;
 
