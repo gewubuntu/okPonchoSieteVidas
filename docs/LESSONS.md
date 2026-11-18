@@ -1065,3 +1065,23 @@ Retired IDs: L-046
 - **Rule:** a CI failure in a test the PR did not touch is looked up in the failure history of the workflow (the runs of the last week, by test name) before any re-run; a test that has failed before gets its own fix PR, measured with `--repeat-each` before and after. A commit pushed after a branch's PR merged goes on the branch restarted from `main`, with a new draft PR (`CLAUDE.md`).
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-092 A clock sweep in steps of 24 met only a tenth of the bats' phases
+
+- **Date:** 2026-11-18
+- **Area:** tests, level
+- **What went wrong:** the plan for 3-3's whole-level bots offered a clock step of 24, 48 or 96, and the bots were swept at 24 over [0, 7200). 24 divides the bats' period (240) and both lifts' rounds (192 and 384 steps), and a bot reaches each place at the same step at every start clock, so the 300 clocks met 10 of the bats' 240 phases and 8 of MP1's 192, while the test said the careful bot keeps every life "at every clock". Re-run at step 29 (249 clocks, shorter), it still did, and the rider's tally changed.
+- **Root cause:** L-090's run-time rule asks for the coarsest step that fits the budget and says nothing about which steps sample the clocks fairly; a round step shares factors with the round periods the level's tuning uses.
+- **Rule:** a sweep over start clocks uses a step that shares no factor with any period it samples (each enemy's walk or flight, each lift's round), so its clocks meet as many phases of each as they can, and names that in the test; a step that shares a factor says which phases it misses.
+- **Recurrence:** 1
+- **Promoted:** .claude/skills/harness-feature (step 5, run time)
+
+## L-093 A cause the plan said to report was pinned, named after a GDD family on an unpinned probe
+
+- **Date:** 2026-11-18
+- **Area:** tests, process
+- **What went wrong:** the plan for 3-3's bots said a rider loss whose cause the GDD does not name is reported and the run stops. The implementer met one ("bat 1 at 111"), pinned it, and wrote in the test that it was GDD-WLD-18's "26 have no answer" family, from a probe over 8 of its 32 clocks that was not in the repository. Checked, every such loss came 1 to 4 steps into the bot's own held jump over the ball, a choice of the bot's, not shown to be the GDD's family.
+- **Root cause:** the report flagged it as a decision, but the stop condition was written as prose in the plan and the pin was already made; a probe's reading went into a test comment as a fact.
+- **Rule:** an outcome the plan's stop condition covers is reported, not pinned, until the main session has checked it against the run (what the bot was doing on the losing step); a test comment never names a GDD family from a probe outside the repository (L-003).
+- **Recurrence:** 1
+- **Promoted:** no
