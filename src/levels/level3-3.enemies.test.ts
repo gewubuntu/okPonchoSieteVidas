@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CACOMIXTLE, CART, RUN, TILE, ZOPILOTE } from '../config/tuning';
-import { enemyBox, enemyPhase } from '../sim/enemy';
-import type { PlayerInput } from '../sim/movement';
+import { CACOMIXTLE, CART, HITBOX, RUN, TILE, ZOPILOTE } from '../config/tuning';
+import { centre, enemyBox, enemyPhase } from '../sim/enemy';
 import { touchesOfrenda, type Level } from '../sim/run';
 import { stepRun, type RunState } from '../sim/run';
 import {
@@ -18,22 +17,27 @@ import {
   idle,
   idleRun,
   jumpFrom,
+  jumper,
   L,
   landedAs,
   last,
   mid,
+  onA,
+  onP5,
   play,
   railOf,
-  reached,
   right,
+  ringtail,
   runsOf,
-  underBat,
   standing,
+  tag,
   tookOf,
+  underBat,
   waited,
   whereIs,
   withParked,
   Y,
+  zopilote,
   type Name,
 } from './level3-3.drive';
 import { idlePeriods } from './sightSweep';
@@ -106,29 +110,6 @@ describe('GDD-WLD-18 level 3-3 the Cacomixtles woken, the first flash to the pla
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
 // K1 on P1.
-
-/** A ringtail in run `r`. */
-const ringtail = (r: RunState, i: number) => r.enemies[i]!;
-
-/**
- * What an answer came to, as a word: a life lost and what took it; or no life lost and, in order, whether the ringtail was stomped and where he stands
- * (`whereIs`) when the drive ends.
- */
-function tag(d: { lost: boolean; cause: string; states: readonly RunState[] }, i: number, cps?: Set<number>, parks?: Set<number>): string {
-  if (cps) {
-    // GDD-WLD-05: the checkpoint he ends with is the last ofrenda any state of the drive touched.
-    expect(last(d.states).checkpointIndex).toBe(reached(d.states));
-    cps.add(last(d.states).checkpointIndex);
-  }
-  if (d.lost) return `lost ${d.cause}`;
-  const end = last(d.states);
-  // A ringtail that is alive when the drive ends is parked at its buffer, where its cart stopped.
-  if (parks && ringtail(end, i).alive) parks.add(ringtail(end, i).x);
-  const where = whereIs(end);
-  // On P1 with the cart parked at x = 688 under the perch (672 to 704): short of it, beside it under the perch, or on its far side.
-  const side = end.player.x < 672 ? 'left of the perch' : end.player.x <= 704 ? 'under the perch' : 'right of the perch';
-  return `${ringtail(end, i).alive ? '' : 'stomp '}${where === 'P1' ? `P1 ${side}` : where}`;
-}
 
 /** The take-off steps `ks` (from `k0`) whose tags are `label`, as "first-last (n)", with a gap shown as two runs. */
 function window(tags: readonly string[], label: string, k0: number): string {
@@ -350,480 +331,80 @@ describe('GDD-WLD-18 level 3-3 K2 on bridge B, driven with K2 live', () => {
 // ---------------------------------------------------------------------------------------------------------------------------------------
 // K3 and the Zopilote on P5, over every clock of the Zopilote (7,200 steps, 1,200 clocks 6 apart).
 
-/** The run `t` steps into the level with K2 already parked on Q (his answer is not this drive's), Poncho standing at (x, y). */
-const onP5 = (x: number, y: number, t: number): RunState => withParked(atT(x, y, t), 'K2');
-
 describe('GDD-WLD-18 level 3-3 K3 and the Zopilote on P5, driven over every clock of the Zopilote', () => {
-  it('GDD-WLD-18 3-3 K3 and the vulture: walking in from column 176 with right held loses a life at every one of the 1,200 clocks, K3 or the vulture', () => {
+  it('GDD-WLD-18 3-3 K3 and the vulture: walking in from column 176 with right held loses a life to K3 alone at every one of the 1,200 clocks, the vulture never sees him', () => {
     const lostTo: Record<string, number> = {};
     const where: Record<string, [number, number]> = {};
     const cps = new Set<number>();
+    let telegraphs = 0;
     for (const t of clocks(7200)) {
       const d = drive(onP5(mid(176), Y(25), t), 300, () => right, (r) => r.phase !== 'playing' || r.lives.lives < 7 || r.player.x > Y(199));
       cps.add(last(d.states).checkpointIndex);
+      if (d.states.some((r) => zopilote(r).flight!.phase === 'telegraph')) telegraphs++;
       const key = d.lost ? d.cause : 'none';
       lostTo[key] = (lostTo[key] ?? 0) + 1;
       const x = d.states[d.states.length - 2]!.player.x;
       where[key] = [Math.min(where[key]?.[0] ?? x, x), Math.max(where[key]?.[1] ?? x, x)];
     }
     // Measured, GDD-WLD-18 "the cart under the vulture, jumping K3 under it" as where a first-time player loses a life: walking in with right held loses
-    // one at every clock, 649 to K3 and 534 to the vulture (17 to both on one step); K3 meets him at x = 3069 (column 191.8, under the vulture's
-    // stretch) and the vulture hits him at x = 2981 to 3067 (columns 186.3 to 191.7) before K3 is there.
+    // one at every clock, all to K3, who meets him at x = 3069 (column 191.8); the vulture, its lowest point 108 px over P5's top, never sees a walker
+    // (V1 had 649 to K3 and 534 to the vulture with it 48 px over, 17 to both).
     // GDD-WLD-05: the third ofrenda (column 203) is past MP2, not reached: no checkpoint.
     expect([...cps]).toEqual([-1]);
-    expect({ lostTo, where }).toEqual({
-      "lostTo": {
-        "K3": 649,
-        "Zopilote": 534,
-        "K3 + Zopilote": 17
-      },
-      "where": {
-        "K3": [
-          3069,
-          3069
-        ],
-        "Zopilote": [
-          2981,
-          3067
-        ],
-        "K3 + Zopilote": [
-          3069,
-          3069
-        ]
-      }
-    });
-  }, 120_000);
+    expect(telegraphs).toBe(0);
+    expect({ lostTo, where }).toEqual({ lostTo: { K3: 1200 }, where: { K3: [3069, 3069] } });
+  }, 20_000);
 });
 
-const k3Done = () => {
-  let parked = -1;
-  return (r: RunState, i: number) => {
-    if (parked < 0 && ringtail(r, E.K3).ride!.phase === 'parked') parked = i;
-    return parked >= 0 && i >= parked + 20;
-  };
-};
-/** The level and runs without the Zopilote (it is the last enemy): a copy only to find where K3's own window is, for the sweep on the real level to go over. */
-const noZopilote: Level = { ...L, enemies: L.enemies.slice(0, E.ZOPILOTE) };
-const withoutZopilote = (r: RunState): RunState => ({ ...r, enemies: r.enemies.slice(0, E.ZOPILOTE) });
-
-/** The places he waits at on P5: where K3 wakes, and a stopping distance short of x = 2992, the column before the vulture's stretch (187.5 to 193.5). */
-type Place = 'wake' | 'edge';
-
-/** From P5's column 176, right held until `place`, then nothing until he stands still: the rest state and, if a life was lost on the way, what took it. */
-function waitAt(t: number, place: Place, level: Level = L): { rest: RunState; lost: boolean; cause: string } {
-  let stop = false;
-  const from = level === L ? onP5(mid(176), Y(25), t) : withoutZopilote(onP5(mid(176), Y(25), t));
-  const d = drive(from, 300, (r) => {
-    if (place === 'wake' ? ringtail(r, E.K3).ride!.phase !== 'waiting' : r.player.x >= 2992 - RUN.maxSpeed ** 2 / (2 * RUN.groundDecel)) stop = true;
-    return stop ? idle : right;
-  }, (r) => r.phase !== 'playing' || (stop && r.player.vx === 0 && r.player.grounded), level);
-  return { rest: d.states.length > 0 && !d.lost ? last(d.states) : from, lost: d.lost, cause: d.cause };
-}
-
-type KDrive = (w: RunState, level: Level) => Drive;
-/** K3's answers, each with the word its drive ends in when it is the answer meant: the jump over its cart, the stomp, the landing in the cart behind it, the claw. */
-const clawOnce: KDrive = (w, level) => drive(w, 500, (_r, i) => ({ move: 0, jumpHeld: false, claw: i === 0 }), k3Done(), level);
-const K3_ANSWERS: readonly (readonly [string, KDrive, string])[] = [
-  ['held jump over', (w, level) => jumpFrom(w, 'held', 0, 500, k3Done(), level), 'P5'],
-  ['plain jump over', (w, level) => jumpFrom(w, 'top', 0, 500, k3Done(), level), 'P5'],
-  ['held jump, stomp', (w, level) => jumpFrom(w, 'held', 0, 500, k3Done(), level), 'stomp P5'],
-  ['plain jump, stomp', (w, level) => jumpFrom(w, 'top', 0, 500, k3Done(), level), 'stomp P5'],
-  ['held jump, in its cart', (w, level) => jumpFrom(w, 'held', 0, 500, k3Done(), level), 'cart R6'],
-  ['plain jump, in its cart', (w, level) => jumpFrom(w, 'top', 0, 500, k3Done(), level), 'cart R6'],
-  ['claw', clawOnce, 'stomp P5'],
-];
-
-/**
- * GDD-WLD-18's answers to K3: wait (`place`), let the cart come, and answer it at step k of the wait. K3's own window of each answer is found on a
- * copy without the vulture (a tool; its tag is the answer meant), then every one of those steps is pressed on the real level at every clock (6 apart).
- * Per answer: clocks with a take-off that lives (`some`), with all (`full`), none. Across answers: clocks with any (`anyAnswer`). Every loss is split
- * with `causeOf`, a wait that the vulture ends before a take-off too. For each clock with an answer, the first take-off of the held jump over its
- * cart, else of the first answer that lives, is followed on: standing 300 steps, and walking right on to the lift's foot (x = 3190) in 300.
- */
-function waitAndAnswer(place: Place) {
-  const KS = 100;
-  const alone = waited(waitAt(0, place, noZopilote).rest, KS, noZopilote);
-  const windows = K3_ANSWERS.map(([, run, label]) => alone.flatMap((w, k) => (tag(run(w, noZopilote), E.K3) === label ? [k] : [])));
-  const out: Record<string, { steps: number; none: number; some: number; full: number; ok: number }> = {};
-  const lostTo: Record<string, Record<string, number>> = {};
-  const waitLost: Record<string, number> = {};
-  let anyAnswer = 0;
-  const after = { stand: { lives: 0, lostTo: {} as Record<string, number>, soonest: 9999 }, walk: { lives: 0, lostTo: {} as Record<string, number>, soonest: 9999 } };
-  let followed = 0;
-  for (const [i, [name]] of K3_ANSWERS.entries()) out[name] = { steps: windows[i]!.length, none: 0, some: 0, full: 0, ok: 0 };
-  for (const t of clocks(7200)) {
-    const w = waitAt(t, place);
-    if (w.lost) {
-      waitLost[w.cause] = (waitLost[w.cause] ?? 0) + 1;
-      continue;
-    }
-    const waits = waited(w.rest, KS);
-    // The wait cut short is a life lost to what takes it, at every later step.
-    const waitCause = waits.length <= KS ? causeOf(last(waits), idle) : '';
-    let first: Drive | undefined;
-    let any = false;
-    for (const [i, [name, run, label]] of K3_ANSWERS.entries()) {
-      let good = 0;
-      for (const k of windows[i]!) {
-        const d = k < waits.length ? run(waits[k]!, L) : undefined;
-        const ok = d !== undefined && !d.lost && tag(d, E.K3) === label;
-        if (ok) {
-          good++;
-          first ??= d;
-        } else {
-          const cause = d ? (d.lost ? d.cause : `no longer ${label}`) : `while waiting: ${waitCause}`;
-          const by = (lostTo[name] ??= {});
-          by[cause] = (by[cause] ?? 0) + 1;
-        }
-      }
-      const o = out[name]!;
-      o.ok += good;
-      if (good > 0) o.some++;
-      if (good === windows[i]!.length) o.full++;
-      if (good > 0) any = true;
-    }
-    if (any) anyAnswer++;
-    if (first) {
-      followed++;
-      const end = last(first.states);
-      for (const [way, input, done] of [['stand', () => idle, () => false], ['walk', () => right, (r: RunState) => r.player.x >= 3190]] as const) {
-        const f = drive(end, 300, input, done);
-        const a = after[way];
-        if (f.lost) {
-          a.lostTo[f.cause] = (a.lostTo[f.cause] ?? 0) + 1;
-          a.soonest = Math.min(a.soonest, f.states.length);
-        } else a.lives++;
-      }
-    }
-  }
-  for (const o of Object.values(out)) o.none = 1200 - Object.values(waitLost).reduce((n, v) => n + v, 0) - o.some;
-  return { out, anyAnswer, waitLost, lostTo, followed, after };
-}
-
-describe('GDD-WLD-18 level 3-3 the vulture sees him wherever K3 is awake', () => {
-  it('GDD-WLD-18 3-3 K3 awake and the vulture cannot see him: no x on P5, only moments at the first tiles of its trigger, 2952 to 3000', () => {
-    // The vulture's trigger box (ZOPILOTE.triggerX 96 across from its middle, triggerY 80 below its cruise line) over its line (x = 3000 to 3096, y 328 to
-    // 352) is x = 2904 to 3192 across, and his hurtbox's centre (feet 16 px up, y = 384) is 32 to 56 below the line at every x on P5: K3 wakes from x = 2952
-    // (to 3152, its sight), inside that, so there is no x where K3 is awake and the vulture can never see him. Short of x = 3000 it sees him only while
-    // its middle is within 96 px (x_v <= x + 96): standing at x, the steps to its first telegraph over every clock.
+describe('GDD-WLD-18 level 3-3 K3 awake and the vulture blind to him on the ground', () => {
+  it('GDD-WLD-18 3-3 K3 awake and the vulture blind to him on the ground: its lowest point 92.0026 px over his centre on P5 and 84.0026 in K3 cart, never a telegraph at any x', () => {
+    // The vulture's trigger box (ZOPILOTE.triggerX 96 across from its middle, triggerY 80 below its y) over its line (x = 2976 to 3072, centred on
+    // x = 3024) is x = 2880 to 3168 across: K3 wakes from x = 2952 (to 3152, its sight), inside that, and the lift MP2 (a rider's centre from x = 3179)
+    // is outside it. Its lowest point, over a whole period of its bob (150 steps), is y = 291.9974
+    // (its line at 280, the bob 12 px either way), so the least gap between its y and his hurtbox's centre is 92.0026 standing on P5 (feet 400, centre
+    // 384) and 84.0026 standing on K3's cart floor (feet 392, centre 376): both over triggerY 80, so it never sees him on the ground (V1 had its line at
+    // 340 and the gap 32.0026 on P5: it saw him wherever K3 was awake). Every 6th clock: these are the exact pins.
     const z = L.enemies[E.ZOPILOTE]!;
-    expect([z.x - ZOPILOTE.range - ZOPILOTE.triggerX, z.x + ZOPILOTE.range + ZOPILOTE.triggerX]).toEqual([2904, 3192]);
+    expect([z.x - ZOPILOTE.range - ZOPILOTE.triggerX, z.x + ZOPILOTE.range + ZOPILOTE.triggerX]).toEqual([2880, 3168]);
+    const lowest = Math.max(...Array.from({ length: ZOPILOTE.periodSteps }, (_, i) => zopilote(idleRun(i + 1)).flight!.y));
+    const gap = (feet: number) => Math.round((centre(standing(3000, feet)).y - lowest) * 1e4) / 1e4;
+    expect([gap(Y(25)), gap(Y(25) - 8)]).toEqual([92.0026, 84.0026]);
+    // Standing at x, 400 steps over every clock (K3 parked at its buffer): the clocks with a telegraph and the clocks that cost the life.
     const sees = [2952, 2968, 2984, 3000, 3040].map((x) => {
-      const steps = clocks(7200).map((t) => {
+      let telegraphs = 0;
+      let lost = 0;
+      for (const t of clocks(7200)) {
         const w = waited(withParked(atT(x, Y(25), t), 'K2', 'K3'), 400);
-        const seen = w.findIndex((r) => zopilote(r).flight!.phase === 'telegraph');
-        return seen < 0 ? Infinity : seen;
-      });
-      return `${x}: first telegraph after ${Math.min(...steps)} to ${Math.max(...steps.filter((n) => n < Infinity))} steps, never in 400 at ${steps.filter((n) => n === Infinity).length} of 1200 clocks`;
+        if (w.some((r) => zopilote(r).flight!.phase === 'telegraph')) telegraphs++;
+        if (w.length <= 400) lost++;
+      }
+      return `${x}: telegraph at ${telegraphs} of 1200 clocks, life lost at ${lost}`;
     });
     expect(sees).toEqual([
-      "2952: first telegraph after 1 to 145 steps, never in 400 at 0 of 1200 clocks",
-      "2968: first telegraph after 1 to 97 steps, never in 400 at 0 of 1200 clocks",
-      "2984: first telegraph after 1 to 49 steps, never in 400 at 0 of 1200 clocks",
-      "3000: first telegraph after 1 to 1 steps, never in 400 at 0 of 1200 clocks",
-      "3040: first telegraph after 1 to 1 steps, never in 400 at 0 of 1200 clocks"
+      "2952: telegraph at 0 of 1200 clocks, life lost at 0",
+      "2968: telegraph at 0 of 1200 clocks, life lost at 0",
+      "2984: telegraph at 0 of 1200 clocks, life lost at 0",
+      "3000: telegraph at 0 of 1200 clocks, life lost at 0",
+      "3040: telegraph at 0 of 1200 clocks, life lost at 0"
     ]);
-  }, 300_000);
+  }, 130_000);
 });
 
-describe('GDD-WLD-18 level 3-3 K3 and the Zopilote, the GDD answers: wait before the vulture, let K3 come, answer it', () => {
-  it('GDD-WLD-18 3-3 K3 and the vulture: waiting where K3 wakes, every answer to its cart at every step of its window, at every one of 1,200 clocks', () => {
-    // Measured, GDD-WLD-18 "the cart is met before the vulture's stretch (wait and jump it there)", waiting where K3 wakes (x = 2962). K3's own window of
-    // each answer (a copy without the vulture): the jump over 38 steps held and 16 plain, the stomp 12 and 10, a landing in its cart behind the ringtail
-    // 4 and 6, the claw 12. On the real level, per answer the clocks with a take-off that lives are 430 and 371 (over), 55 and 101 (stomp), 450 and 430
-    // (in its cart) and 90 (claw); any answer lives at 450 clocks, none at the other 750. Every loss is the vulture's (K3 with it on one step 10 times,
-    // in the plain landing in its cart), at a take-off or while waiting for it. Of the 450, after the answer: standing still keeps the life for 300 steps
-    // at 91 and the vulture takes it at 359 (the soonest 1 step after the drive ends); walking right on to the lift's foot keeps it at 192, the
-    // vulture takes it at 238 and K3 at 20.
-    expect(waitAndAnswer('wake')).toEqual({
-      "out": {
-        "held jump over": {
-          "steps": 38,
-          "none": 770,
-          "some": 430,
-          "full": 181,
-          "ok": 12966
-        },
-        "plain jump over": {
-          "steps": 16,
-          "none": 829,
-          "some": 371,
-          "full": 256,
-          "ok": 5044
-        },
-        "held jump, stomp": {
-          "steps": 12,
-          "none": 1145,
-          "some": 55,
-          "full": 5,
-          "ok": 310
-        },
-        "plain jump, stomp": {
-          "steps": 10,
-          "none": 1099,
-          "some": 101,
-          "full": 73,
-          "ok": 912
-        },
-        "held jump, in its cart": {
-          "steps": 4,
-          "none": 750,
-          "some": 450,
-          "full": 425,
-          "ok": 1739
-        },
-        "plain jump, in its cart": {
-          "steps": 6,
-          "none": 770,
-          "some": 430,
-          "full": 377,
-          "ok": 2483
-        },
-        "claw": {
-          "steps": 12,
-          "none": 1110,
-          "some": 90,
-          "full": 34,
-          "ok": 748
-        }
-      },
-      "anyAnswer": 450,
-      "waitLost": {},
-      "lostTo": {
-        "held jump over": {
-          "Zopilote": 5128,
-          "while waiting: Zopilote": 27506
-        },
-        "plain jump over": {
-          "Zopilote": 1596,
-          "while waiting: Zopilote": 12560
-        },
-        "held jump, stomp": {
-          "Zopilote": 8528,
-          "while waiting: Zopilote": 5562
-        },
-        "plain jump, stomp": {
-          "Zopilote": 3871,
-          "while waiting: Zopilote": 7217
-        },
-        "claw": {
-          "Zopilote": 4101,
-          "while waiting: Zopilote": 9551
-        },
-        "plain jump, in its cart": {
-          "Zopilote": 598,
-          "while waiting: Zopilote": 4109,
-          "K3 + Zopilote": 10
-        },
-        "held jump, in its cart": {
-          "Zopilote": 2197,
-          "while waiting: Zopilote": 864
-        }
-      },
-      "followed": 450,
-      "after": {
-        "stand": {
-          "lives": 91,
-          "lostTo": {
-            "Zopilote": 359
-          },
-          "soonest": 1
-        },
-        "walk": {
-          "lives": 192,
-          "lostTo": {
-            "Zopilote": 238,
-            "K3": 20
-          },
-          "soonest": 1
-        }
-      }
-    });
-  }, 1_800_000);
-
-  it('GDD-WLD-18 3-3 K3 and the vulture: waiting at the stretch edge, every answer to its cart at every step of its window, at every one of 1,200 clocks', () => {
-    // As above, waiting at x = 2992 (column 187, the stretch's edge): the vulture takes the life of the waiting Poncho before any answer at 113 clocks;
-    // any answer lives at 400, none at the other 687. Of those 400, after it: standing still keeps the life for 300 steps at 223 and the vulture takes it
-    // at 177 (as soon as 11 steps on); walking right on to the lift's foot keeps it at 298 and loses it to the vulture at 20, to K3 at 64 (it is in his
-    // way) and to both at 18.
-    expect(waitAndAnswer('edge')).toEqual({
-      "out": {
-        "held jump over": {
-          "steps": 38,
-          "none": 789,
-          "some": 298,
-          "full": 28,
-          "ok": 7499
-        },
-        "plain jump over": {
-          "steps": 16,
-          "none": 870,
-          "some": 217,
-          "full": 71,
-          "ok": 2061
-        },
-        "held jump, stomp": {
-          "steps": 12,
-          "none": 939,
-          "some": 148,
-          "full": 0,
-          "ok": 579
-        },
-        "plain jump, stomp": {
-          "steps": 10,
-          "none": 858,
-          "some": 229,
-          "full": 187,
-          "ok": 2155
-        },
-        "held jump, in its cart": {
-          "steps": 4,
-          "none": 687,
-          "some": 400,
-          "full": 361,
-          "ok": 1520
-        },
-        "plain jump, in its cart": {
-          "steps": 6,
-          "none": 789,
-          "some": 298,
-          "full": 156,
-          "ok": 1531
-        },
-        "claw": {
-          "steps": 12,
-          "none": 896,
-          "some": 191,
-          "full": 64,
-          "ok": 1368
-        }
-      },
-      "anyAnswer": 400,
-      "waitLost": {
-        "Zopilote": 113
-      },
-      "lostTo": {
-        "held jump over": {
-          "Zopilote": 7743,
-          "while waiting: Zopilote": 26064
-        },
-        "plain jump over": {
-          "Zopilote": 1888,
-          "while waiting: Zopilote": 13443
-        },
-        "held jump, stomp": {
-          "Zopilote": 8529,
-          "while waiting: Zopilote": 3936
-        },
-        "plain jump, in its cart": {
-          "Zopilote": 1482,
-          "while waiting: Zopilote": 3499,
-          "K3 + Zopilote": 10
-        },
-        "claw": {
-          "Zopilote": 1157,
-          "while waiting: Zopilote": 10519
-        },
-        "plain jump, stomp": {
-          "Zopilote": 2393,
-          "while waiting: Zopilote": 6322
-        },
-        "held jump, in its cart": {
-          "Zopilote": 2709,
-          "while waiting: Zopilote": 119
-        }
-      },
-      "followed": 400,
-      "after": {
-        "stand": {
-          "lives": 223,
-          "lostTo": {
-            "Zopilote": 177
-          },
-          "soonest": 11
-        },
-        "walk": {
-          "lives": 298,
-          "lostTo": {
-            "Zopilote": 20,
-            "K3": 64,
-            "K3 + Zopilote": 18
-          },
-          "soonest": 8
-        }
-      }
-    });
-  }, 1_800_000);
-});
-
-const zopilote = (r: RunState) => r.enemies[E.ZOPILOTE]!;
-/** Nothing held but the claw, pressed on step `n` of a drive (and let go on the next, L-048). */
-const press = (n: number) => (_r: RunState, i: number): PlayerInput => ({ move: 0, jumpHeld: false, claw: i === n });
-
-describe('GDD-WLD-18 level 3-3 the claw on the vulture, over every clock of the Zopilote', () => {
-  it('GDD-WLD-18 3-3 the claw on the vulture first: a standing swing meeting its dive, and a jump and swing at its telegraph, K3 parked, waiting at the stretch edge', () => {
-    // K3 is left out (parked at its buffer, x = 2928) so the claw's own reach is what is driven; he waits at x = 2992 facing right, in the vulture's
-    // trigger at every clock (it flies x = 3000 to 3096). The standing claw (a swing 20 px long in front of his body, his feet to 32 px up, y 368 to
-    // 400) cannot reach its cruise line (y 328 to 352, its box to 357): it meets the dive. The jump-claw is the other, with its swing at the top of
-    // a jump (his feet 56 px up, y 312 to 344) over the frozen telegraph: the plan does not say which; both are driven.
-    const swings: Record<string, number> = {};
-    const jumping: Record<string, number> = {};
-    const windows: number[] = [];
-    let reachable = 0;
+describe('GDD-WLD-18 level 3-3 the vulture sees a jump under its middle', () => {
+  it('GDD-WLD-18 3-3 the vulture sees a held jump from x 3024, under the middle of its line, at every one of the 1,200 clocks', () => {
+    // A held jump rises his centre past 372 (its lowest point 291.9974 + triggerY 80), 12 px up, early in the jump, while its middle is within 96 px of
+    // him: x = 3024 is under the middle of its line (2976 to 3072), K3 parked, standing, every 6th clock. At 140 px over P5 it sees it at about half.
+    let seen = 0;
     for (const t of clocks(7200)) {
-      const from = withParked(onP5(2992, Y(25), t), 'K2', 'K3');
-      const waits = waited(from, 400);
-      // The step the vulture is first seen telegraphing, and the step it takes his life (a standing Poncho's), if either.
-      const telegraph = waits.findIndex((r) => zopilote(r).flight!.phase === 'telegraph');
-      const hit = waits.length <= 400 ? waits.length : -1;
-      if (hit < 0) {
-        swings['no hit in 400 steps'] = (swings['no hit in 400 steps'] ?? 0) + 1;
-      } else {
-        // A swing pressed on each of the 16 steps before the hit.
-        let defeated = 0;
-        for (let j = Math.max(0, hit - 16); j < hit; j++) {
-          const d = drive(waits[j]!, 120, press(0), (r, i) => !zopilote(r).alive || i >= 100);
-          if (!d.lost && !zopilote(last(d.states)).alive) defeated++;
-        }
-        windows.push(defeated);
-      }
-      // The jump-claw: pressed on each step from 26 before the telegraph to 4 after it (the swing at the top of the jump, 28 steps on), where the
-      // telegraph's frozen box can be reached at all: its near edge within 26 px of his front edge (x = 2998).
-      if (telegraph >= 0) {
-        const box = enemyBox(L.enemies[E.ZOPILOTE]!, zopilote(waits[telegraph]!));
-        if (box.x0 <= 2998 + 26) {
-          reachable++;
-          let defeated = 0;
-          for (let j = Math.max(0, telegraph - 26); j <= Math.min(telegraph + 4, waits.length - 1); j++) {
-            let top = -1;
-            const d = drive(waits[j]!, 120, (r, i) => {
-              if (top < 0 && i > 0 && r.player.vy >= 0) top = i;
-              return { move: 0, jumpHeld: top < 0, claw: top >= 0 && i === top };
-            }, (r, i) => !zopilote(r).alive || i >= 100);
-            if (!d.lost && !zopilote(last(d.states)).alive) defeated++;
-          }
-          jumping[defeated > 0 ? 'a swing defeats it' : 'none does'] = (jumping[defeated > 0 ? 'a swing defeats it' : 'none does'] ?? 0) + 1;
-        }
-      }
+      let air = false;
+      const d = drive(withParked(atT(3024, Y(25), t), 'K2', 'K3'), 400, jumper('held', 0), (r, i) => {
+        if (!r.player.grounded) air = true;
+        return air && r.player.grounded && i > 0;
+      });
+      if (d.states.some((r) => zopilote(r).flight!.phase === 'telegraph')) seen++;
     }
-    // Measured, GDD-WLD-18 "or the vulture is clawed first": waiting at the stretch edge the vulture dives on him at every clock; a standing swing in
-    // the last 16 steps before the hit defeats it from 3 to 13 of them, so at every clock there is one; the jump-claw can be reached at 400 clocks (its
-    // telegraph's box within 26 px of his front edge) and a swing at the top of a jump defeats it at 250 of them.
-    expect({ swings, hits: windows.length, windows: [Math.min(...windows), Math.max(...windows), windows.filter((w) => w === 0).length], reachable, jumping }).toEqual({
-      "swings": {},
-      "hits": 1200,
-      "windows": [
-        3,
-        13,
-        0
-      ],
-      "reachable": 400,
-      "jumping": {
-        "none does": 150,
-        "a swing defeats it": 250
-      }
-    });
-  }, 600_000);
+    expect(seen).toBe(1200);
+  }, 20_000);
 });
 
 describe('GDD-WLD-18 level 3-3 the fall off A onto K3 cart, driven over every clock', () => {
@@ -857,28 +438,58 @@ describe('GDD-WLD-18 level 3-3 the fall off A onto K3 cart, driven over every cl
     }
     // GDD-WLD-05: the third ofrenda (column 203, x = 3256) is 16 px from his start, short of touching it: no checkpoint.
     // Measured, GDD-WLD-18 "at 2 of 12 start times off A he lands on the back edge of K3's cart, beside the ringtail: no life lost in 60 steps, to be
-    // driven with the ringtail riding": K3 waiting, he lands on MP2 at 983 of the 1,200 clocks (868 keep the life for 2 s) and on the back edge of K3's
-    // cart at 217 (18%, as the 2 of 12 were): 100 keep it, 98 lose it to the vulture (the landing at x = 3171 is in its trigger) and 19 to K3 (he slides
-    // left off the cart's back edge into the ringtail). K3 parked, the cart is gone and he lands on P5 at those 217: 96 keep the life, 121 lose it to
-    // the vulture; on MP2 the vulture takes 96 (K3 waiting) and 103 (parked) landings. No ofrenda is reached: no checkpoint.
+    // driven with the ringtail riding": K3 waiting, he lands on MP2 at 983 of the 1,200 clocks (964 keep the life for 2 s) and on the back edge of K3's
+    // cart at 217 (18%, as the 2 of 12 were): 198 keep it and 19 lose it to K3 (he slides left off the cart's back edge into the ringtail); the
+    // vulture takes none (V1, the vulture 48 px over P5: 96 on MP2 and 98 on the cart; at 108 px centred on x 3048: 82 and 26). K3 parked, the cart is
+    // gone and he lands on P5 at those 217: 211 keep the life, 6 lose it to the vulture; on MP2 all 983 keep it (A at 3048: 87 lost on MP2, 38 on P5).
+    // The 6 are the loss family left, a fall through its sight: at 6 clocks (564 and every 1,152 on) he falls past x = 3143 with his centre in the band
+    // its trigger reads (feet 358.9, over x 3168, its sight's end) while its middle is at x 3051, and lands on P5 at x = 3129 as it dives. No ofrenda
+    // is reached: no checkpoint.
     expect([...cps]).toEqual([-1]);
     expect(out).toEqual({
       "K3 waiting": {
-        "MP2 lost Zopilote": 96,
         "MP2 lost K3": 19,
-        "MP2 ok": 868,
+        "MP2 ok": 964,
         "cart R6 lost K3": 19,
-        "cart R6 lost Zopilote": 98,
-        "cart R6 ok": 100
+        "cart R6 ok": 198
       },
       "K3 parked": {
-        "MP2 lost Zopilote": 103,
-        "MP2 ok": 880,
-        "P5 lost Zopilote": 121,
-        "P5 ok": 96
+        "MP2 ok": 983,
+        "P5 lost Zopilote": 6,
+        "P5 ok": 211
       }
     });
-  }, 120_000);
+  }, 20_000);
+});
+
+describe('GDD-WLD-18 level 3-3 the first-time line past K3 under the vulture', () => {
+  it('GDD-WLD-18 3-3 the first-time line reaches A: right held from column 176, a held jump over K3 cart, right held on to A, at every one of the 1,200 clocks', () => {
+    // The first-time line (GDD-WLD-18 "jumping K3 under it"): right held from column 176; when K3's cart is rolling and its front is 32 px or less from his
+    // front edge, a held jump (right held through it); on landing, right held on to A. V1 (the vulture at 48) lost it at every clock; at 108 the jump
+    // is under the vulture, seen, but he is in the air and over the cart before it dives, and A is reached with the life at every clock.
+    const rail = railOf('R6');
+    const outcome: Record<string, number> = {};
+    for (const t of clocks(7200)) {
+      let stage = 0;
+      let j = 0;
+      let air = false;
+      const jump = jumper('held', 1);
+      const d = drive(onP5(mid(176), Y(25), t), 1500, (r) => {
+        if (stage === 0) {
+          const c = r.carts[cartOf('R6')]!;
+          if (c.phase === 'rolling' && rail.x + rail.dir * (c.m + CART.width / 2) - (r.player.x + HITBOX.width / 2) <= 32) stage = 1;
+        }
+        if (stage === 1) {
+          if (!r.player.grounded) air = true;
+          else if (air && j > 0) stage = 2;
+        }
+        return stage === 1 ? jump(r, j++) : right;
+      }, onA);
+      const key = d.lost ? `lost ${d.cause} ${stage === 0 ? 'before the jump' : stage === 1 ? 'in the jump' : 'after it'}` : onA(last(d.states)) ? 'reached A' : 'no A';
+      outcome[key] = (outcome[key] ?? 0) + 1;
+    }
+    expect(outcome).toEqual({ 'reached A': 1200 });
+  }, 40_000);
 });
 
 // ---------------------------------------------------------------------------------------------------------------------------------------

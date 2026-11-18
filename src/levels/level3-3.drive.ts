@@ -1,6 +1,6 @@
 // GDD-WLD-18: the shared drivers of 3-3's tests (`level3-3.test.ts`, `level3-3.enemies.test.ts` and the bots after them): the level's pieces by
 // name, the jumps flown from a take-off, and where a flight ended. Pure, no Phaser; test support only, as `level3-2.drive.ts` is for 3-2.
-import { CART, HITBOX, TILE } from '../config/tuning';
+import { CART, HITBOX, RUN, TILE } from '../config/tuning';
 import { floorUnder, railLength, type CartState, type Rail } from '../sim/cart';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { platformAt, standsOnPlatform } from '../sim/platform';
@@ -281,3 +281,146 @@ export function withParked(run: RunState, ...named: (keyof typeof PARKED)[]): Ru
 
 /** GDD-WLD-05: the place in `ofrendas` of the last ofrenda any of `states` touches (a glide over one reaches it), -1 for none: the checkpoint the drive should end with. */
 export const reached = (states: readonly RunState[]): number => states.reduce((most, r) => L.ofrendas.reduce((m, o, i) => (touchesOfrenda(r.player, o) ? Math.max(m, i) : m), most), -1);
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// Phase V2: K3 and the Zopilote on P5, shared by `level3-3.enemies.test.ts`, `level3-3.vulture.test.ts` and `level3-3.vulture-jump.test.ts`.
+
+/** A ringtail in run `r`. */
+export const ringtail = (r: RunState, i: number) => r.enemies[i]!;
+
+/**
+ * What an answer came to, as a word: a life lost and what took it; or no life lost and, in order, whether the ringtail was stomped and where he stands
+ * (`whereIs`) when the drive ends.
+ */
+export function tag(d: { lost: boolean; cause: string; states: readonly RunState[] }, i: number, cps?: Set<number>, parks?: Set<number>): string {
+  if (cps) {
+    // GDD-WLD-05: the checkpoint he ends with is the last ofrenda any state of the drive touched.
+    if (last(d.states).checkpointIndex !== reached(d.states)) throw new Error(`checkpoint ${last(d.states).checkpointIndex}, the last ofrenda touched is ${reached(d.states)}`);
+    cps.add(last(d.states).checkpointIndex);
+  }
+  if (d.lost) return `lost ${d.cause}`;
+  const end = last(d.states);
+  // A ringtail that is alive when the drive ends is parked at its buffer, where its cart stopped.
+  if (parks && ringtail(end, i).alive) parks.add(ringtail(end, i).x);
+  const where = whereIs(end);
+  // On P1 with the cart parked at x = 688 under the perch (672 to 704): short of it, beside it under the perch, or on its far side.
+  const side = end.player.x < 672 ? 'left of the perch' : end.player.x <= 704 ? 'under the perch' : 'right of the perch';
+  return `${ringtail(end, i).alive ? '' : 'stomp '}${where === 'P1' ? `P1 ${side}` : where}`;
+}
+
+/** The run `t` steps into the level with K2 already parked on Q (his answer is not this drive's), Poncho standing at (x, y). */
+export const onP5 = (x: number, y: number, t: number): RunState => withParked(atT(x, y, t), 'K2');
+
+export const k3Done = () => {
+  let parked = -1;
+  return (r: RunState, i: number) => {
+    if (parked < 0 && ringtail(r, E.K3).ride!.phase === 'parked') parked = i;
+    return parked >= 0 && i >= parked + 20;
+  };
+};
+/** The level and runs without the Zopilote (it is the last enemy): a copy only to find where K3's own window is, for the sweep on the real level to go over. */
+export const noZopilote: Level = { ...L, enemies: L.enemies.slice(0, E.ZOPILOTE) };
+export const withoutZopilote = (r: RunState): RunState => ({ ...r, enemies: r.enemies.slice(0, E.ZOPILOTE) });
+
+/** The places he waits at on P5: where K3 wakes (x = 2962), and a stopping distance short of x = 2992, under the vulture's line (x 2976 to 3072). */
+export type Place = 'wake' | 'edge';
+
+/** From P5's column 176, right held until `place`, then nothing until he stands still: the rest state and, if a life was lost on the way, what took it. */
+export function waitAt(t: number, place: Place, level: Level = L): { rest: RunState; lost: boolean; cause: string } {
+  let stop = false;
+  const from = level === L ? onP5(mid(176), Y(25), t) : withoutZopilote(onP5(mid(176), Y(25), t));
+  const d = drive(from, 300, (r) => {
+    if (place === 'wake' ? ringtail(r, E.K3).ride!.phase !== 'waiting' : r.player.x >= 2992 - RUN.maxSpeed ** 2 / (2 * RUN.groundDecel)) stop = true;
+    return stop ? idle : right;
+  }, (r) => r.phase !== 'playing' || (stop && r.player.vx === 0 && r.player.grounded), level);
+  return { rest: d.states.length > 0 && !d.lost ? last(d.states) : from, lost: d.lost, cause: d.cause };
+}
+
+export type KDrive = (w: RunState, level: Level) => Drive;
+/** K3's answers, each with the word its drive ends in when it is the answer meant: the jump over its cart, the stomp, the landing in the cart behind it, the claw. */
+const clawOnce: KDrive = (w, level) => drive(w, 500, (_r, i) => ({ move: 0, jumpHeld: false, claw: i === 0 }), k3Done(), level);
+export const K3_ANSWERS: readonly (readonly [string, KDrive, string])[] = [
+  ['held jump over', (w, level) => jumpFrom(w, 'held', 0, 500, k3Done(), level), 'P5'],
+  ['plain jump over', (w, level) => jumpFrom(w, 'top', 0, 500, k3Done(), level), 'P5'],
+  ['held jump, stomp', (w, level) => jumpFrom(w, 'held', 0, 500, k3Done(), level), 'stomp P5'],
+  ['plain jump, stomp', (w, level) => jumpFrom(w, 'top', 0, 500, k3Done(), level), 'stomp P5'],
+  ['held jump, in its cart', (w, level) => jumpFrom(w, 'held', 0, 500, k3Done(), level), 'cart R6'],
+  ['plain jump, in its cart', (w, level) => jumpFrom(w, 'top', 0, 500, k3Done(), level), 'cart R6'],
+  ['claw', clawOnce, 'stomp P5'],
+];
+
+/**
+ * GDD-WLD-18's answers to K3: wait (`place`), let the cart come, and answer it at step k of the wait. K3's own window of each answer is found on a
+ * copy without the vulture (a tool; its tag is the answer meant), then every one of those steps is pressed on the real level at every clock (`step` apart).
+ * Per answer: clocks with a take-off that lives (`some`), with all (`full`), none. Across answers: clocks with any (`anyAnswer`). Every loss is split
+ * with `causeOf`, a wait that the vulture ends before a take-off too. For each clock with an answer, the first take-off of the held jump over its
+ * cart, else of the first answer that lives, is followed on: standing 300 steps, and walking right on to the lift's foot (x = 3190) in 300.
+ */
+export function waitAndAnswer(place: Place, step: number) {
+  const KS = 100;
+  const alone = waited(waitAt(0, place, noZopilote).rest, KS, noZopilote);
+  const windows = K3_ANSWERS.map(([, run, label]) => alone.flatMap((w, k) => (tag(run(w, noZopilote), E.K3) === label ? [k] : [])));
+  const out: Record<string, { steps: number; none: number; some: number; full: number; ok: number }> = {};
+  const lostTo: Record<string, Record<string, number>> = {};
+  const waitLost: Record<string, number> = {};
+  let anyAnswer = 0;
+  const after = { stand: { lives: 0, lostTo: {} as Record<string, number>, soonest: 9999 }, walk: { lives: 0, lostTo: {} as Record<string, number>, soonest: 9999 } };
+  let followed = 0;
+  for (const [i, [name]] of K3_ANSWERS.entries()) out[name] = { steps: windows[i]!.length, none: 0, some: 0, full: 0, ok: 0 };
+  for (const t of clocks(7200, step)) {
+    const w = waitAt(t, place);
+    if (w.lost) {
+      waitLost[w.cause] = (waitLost[w.cause] ?? 0) + 1;
+      continue;
+    }
+    const waits = waited(w.rest, KS);
+    // The wait cut short is a life lost to what takes it, at every later step.
+    const waitCause = waits.length <= KS ? causeOf(last(waits), idle) : '';
+    let first: Drive | undefined;
+    let any = false;
+    for (const [i, [name, run, label]] of K3_ANSWERS.entries()) {
+      let good = 0;
+      for (const k of windows[i]!) {
+        const d = k < waits.length ? run(waits[k]!, L) : undefined;
+        const ok = d !== undefined && !d.lost && tag(d, E.K3) === label;
+        if (ok) {
+          good++;
+          first ??= d;
+        } else {
+          const cause = d ? (d.lost ? d.cause : `no longer ${label}`) : `while waiting: ${waitCause}`;
+          const by = (lostTo[name] ??= {});
+          by[cause] = (by[cause] ?? 0) + 1;
+        }
+      }
+      const o = out[name]!;
+      o.ok += good;
+      if (good > 0) o.some++;
+      if (good === windows[i]!.length) o.full++;
+      if (good > 0) any = true;
+    }
+    if (any) anyAnswer++;
+    if (first) {
+      followed++;
+      const end = last(first.states);
+      for (const [way, input, done] of [['stand', () => idle, () => false], ['walk', () => right, (r: RunState) => r.player.x >= 3190]] as const) {
+        const f = drive(end, 300, input, done);
+        const a = after[way];
+        if (f.lost) {
+          a.lostTo[f.cause] = (a.lostTo[f.cause] ?? 0) + 1;
+          a.soonest = Math.min(a.soonest, f.states.length);
+        } else a.lives++;
+      }
+    }
+  }
+  for (const o of Object.values(out)) o.none = clocks(7200, step).length - Object.values(waitLost).reduce((n, v) => n + v, 0) - o.some;
+  return { out, anyAnswer, waitLost, lostTo, followed, after };
+}
+
+
+export const zopilote = (r: RunState) => r.enemies[E.ZOPILOTE]!;
+/** The run `t` steps in with K2 parked and, if named, K3 too (its cart parked at its buffer, x = 2912 to 2944, the ringtail on it), Poncho standing at (x, y) running at `vx`. */
+export const onGroundAt = (x: number, y: number, t: number, vx = 0, ...parked: 'K3'[]): RunState => withParked(atT(x, y, t, vx), 'K2', ...parked);
+export const telegraphed = (states: readonly RunState[]) => states.some((r) => zopilote(r).flight!.phase === 'telegraph');
+export const lostToVulture = (d: Drive) => d.lost && d.cause.includes('Zopilote');
+/** Where a walk ends: A (L-064 bounds the drive), standing on its ground past the lift. */
+export const onA = (r: RunState) => r.phase === 'playing' && r.player.grounded && r.player.y === Y(17) && r.player.x >= 3240;

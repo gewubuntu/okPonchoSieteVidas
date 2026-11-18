@@ -269,8 +269,9 @@ describe('GDD-WLD-18 level 3-3 its things', () => {
       { x: mid(111), y: Y(22) - 48, kind: 'murcielago', ry: 8 },
       { x: mid(116), y: Y(22) - 80, kind: 'murcielago', ry: 8 },
       { x: mid(121), y: Y(22) - 112, kind: 'murcielago', ry: 8 },
-      // Its line from 187.5 to 193.5: 48 px either side of column 190's middle (ZOPILOTE.range).
-      { x: mid(190), y: Y(25) - 48 - 12, kind: 'zopilote' },
+      // Its line from 2976 to 3072: 48 px either side of x = 3024, column 188.5's middle (ZOPILOTE.range), so its sight (96 px more) is x 2880 to 3168,
+      // clear of a rider on MP2 (from x 3179); at y = 280: the lowest point of its cruise 108 px over P5's top (the bob 12 px either way).
+      { x: 189 * TILE, y: Y(25) - 108 - 12, kind: 'zopilote' },
     ]);
     // GDD-ENM-01: 3 tiles (48 px, the validator's rule, which passes); 3-2's own 192 px is not GDD-WLD-18's. The nearest is K1, 122.4 px from
     // the first ofrenda, 120 across and 24 up (GDD says 120).
