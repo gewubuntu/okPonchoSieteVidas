@@ -80,10 +80,14 @@ describe('GDD-WLD-18 level 3-3 the bots, whole', () => {
     // Every start clock t in [0, 7200): the longest idle period is the Zopilote's (7,200 steps), the bats' is 240 and the Armadillo's 1,058. Each bot is run
     // with `stopAtLoss`: a life lost ends the run, and its cause is `causeOf` on the losing step.
     const result: Record<string, Collected> = { rider: collected(), careful: collected() };
+    // The careful bot's wait on L1 for its read of the Armadillo: from standing on L1 (its route's 9th task done) to the read (the 10th).
+    const readWaits: number[] = [];
     for (const [name, make] of Object.entries({ rider: RIDER, careful: CAREFUL })) {
       const out = result[name]!;
       for (const t of clocks(7200, STEP)) {
-        const run = describeRun(bot(make(), startAt(t), 8000, true));
+        const b = bot(make(), startAt(t), 8000, true);
+        const run = describeRun(b);
+        if (name === 'careful' && run.how === 'exit, 0 lost') readWaits.push(b.marks[9]! - b.marks[8]!);
         tally(out.tally, run.how);
         if (run.how !== 'exit, 0 lost') continue;
         out.steps.push(run.steps);
@@ -103,13 +107,15 @@ describe('GDD-WLD-18 level 3-3 the bots, whole', () => {
     );
     // The careful bot exits with every life at every clock driven (the stop condition of the plan: a clock that loses one is reported, never pinned).
     expect(summary.careful!.tally).toEqual({ 'exit, 0 lost': 249 });
-    // Measured over 249 start clocks, GDD-WLD-18 "an expert's line is about 35 s; a careful run ... about 43 s" (a target counted by hand): the rider clears the
+    // Measured over 249 start clocks, GDD-WLD-18's "Played through" (it replaced a hand count of about 35 and 43 s): the rider clears the
     // level in 2,392 to 2,771 steps (39.9 to 46.2 s) at the 146 clocks it keeps every life, the careful bot in 2,721 to 3,886 (45.4 to 64.8 s), its waits (the
     // Armadillo, K1's cart, the lift MP2) all over the lifts' and the enemies' clocks. Each takes 27 (rider) or 29 (careful, the perch's two) of the 50 hilos: neither
     // breaks a piñata nor goes for the secret. Both reach all three ofrendas (checkpoint 2), ride all four of his carts and stop on the pier; the careful bot stands on
     // the perch at every clock. The rider loses its life at 103 clocks, all of them at P3: the Armadillo's ball on the walk onto P3 at 77, where the lift brings him to
     // the face as it rolls (columns 107 and 108; GDD-WLD-18 answers it by waiting on L1, which only the careful bot does), and the first bat at 26, 1 to 4 steps into
     // the rider's own held jump over the ball, taken under the bat (column 111). Whether these are GDD-WLD-18's "26 have no answer" is not checked here.
+    // The careful read waits at most this many steps on L1 (GDD-WLD-18's P3 bullet).
+    expect(Math.max(...readWaits)).toBe(817);
     expect(summary).toEqual({
       rider: {
         tally: { 'exit, 0 lost': 146, 'no exit, 1 lost (Armadillo at 107)': 44, 'no exit, 1 lost (Armadillo at 108)': 33, 'no exit, 1 lost (bat 1 at 111)': 26 },
@@ -201,7 +207,7 @@ describe('GDD-WLD-18 level 3-3 the bots at the start clock 0', () => {
       expect([j.k2Rest, j.k2RestX, j.k2Step >= 52 && j.k2Step <= 89]).toEqual([20, 2680.2, true]);
       expect(j.k3 > 0 && j.k3 <= 32).toBe(true);
     }
-    // Measured, GDD-WLD-18 "an expert's line is about 35 s; a careful run about 43 s" (a target counted by hand): from the start clock 0 the rider clears the level in
+    // Measured, GDD-WLD-18's "Played through": from the start clock 0 the rider clears the level in
     // 2,750 steps (45.8 s) and the careful bot in 2,750 too. The careful read (the Armadillo walking right between x 1776 and 1856) is met at once at this clock, and
     // both ride the same ascent of the lift MP2 (on A at 2503): the rider is at its foot at 2057 and waits there, the careful bot stops short of it at 2205 and steps
     // on at 2286. The take-offs are inside what GDD-WLD-18 measures: K1's at x 801 (a held jump at a walk from 728 to 840 keeps the life, 843.2 and on loses it), K2's
