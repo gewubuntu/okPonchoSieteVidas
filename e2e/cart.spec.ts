@@ -163,7 +163,7 @@ test('GDD-WLD-15 the cart\'s front wall is drawn over Poncho\'s feet', async ({ 
   const viewX = await page.evaluate(() => window.__PONCHO__!.camera().viewX);
   const scrollY = await page.evaluate(() => window.__PONCHO__!.cameraScrollY());
   // The spots of his frame within 3 px over his feet, inside the front wall (GDD-ART-06: from 5 px over the floor to 2 px under it).
-  const feet = spotsIn(SHEET, 48, 48, sprite.frame, FUR, { size: 1 })
+  const feet = spotsIn(SHEET, 48, 48, sprite.frame, FUR, { size: 1 }) // L-017: before the check; no failure in 200 CI runs (2026-11-10 to 18)
     .map((p) => ({ x: sprite.centerX + (sprite.flipX ? -p.dx : p.dx), y: sprite.bottom - 24 + p.dy }))
     .filter((p) => p.y > stopped.s.y - 3 && p.y < stopped.s.y && p.x > stopped.cart.x! + 2 && p.x < stopped.cart.x! + stopped.cart.w! - 2);
   expect(feet.length).toBeGreaterThan(0);
@@ -457,11 +457,22 @@ test('GDD-ART-06 Poncho stands in the cart behind its front wall', async ({ page
   const place = (p: { dx: number; dy: number }) => ({ x: sprite.centerX + (sprite.flipX ? -p.dx : p.dx) - viewX, y: sprite.bottom - 24 + p.dy - scrollY });
   // His shins: spots of his frame in his fur within 2 px over his feet. There the cart's front layer shows, not him: its rust or steel, or
   // the iron of a wheel at his frame's edge (its colour read from the sheet at that spot, the cart drawn level, its top 8 px over his feet).
-  const shins = await clearOfButtons(page, spotsIn(SHEET, 48, 48, sprite.frame, FUR, { size: 1 }).map(place).filter((p) => p.y + scrollY > at.s.y - 2 && p.y + scrollY < at.s.y));
+  // Only spots whose front colour is the same half a game px to each side: on the phone a game px is 1.44 CSS px, so a 1 px
+  // spot on an edge between two colours reads either one (CI flaked on it 12 times, the expected and read colours swapped).
+  const frontAt = (x: number, y: number) => frontColour('rolling0', x + viewX - at.cart.x!, y + scrollY - (at.s.y - CART.height + CART.floorPx));
+  const clearOfEdges = (p: { x: number; y: number }) =>
+    [[0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]].every(([dx, dy]) => frontAt(p.x + dx!, p.y + dy!) === frontAt(p.x, p.y));
+  const shins = await clearOfButtons(
+    page,
+    spotsIn(SHEET, 48, 48, sprite.frame, FUR, { size: 1 }) // L-017: filtered by clearOfEdges below
+      .map(place)
+      .filter((p) => p.y + scrollY > at.s.y - 2 && p.y + scrollY < at.s.y)
+      .filter(clearOfEdges),
+  );
   expect(shins.length).toBeGreaterThan(0);
   const colours = await pixelsAt(page, shins);
   shins.forEach((p, i) => {
-    const want = frontColour('rolling0', p.x + viewX - at.cart.x!, p.y + scrollY - (at.s.y - CART.height + CART.floorPx));
+    const want = frontAt(p.x, p.y);
     expect(['#B0562E', '#93A0AE', '#353A48']).toContain(want);
     expect(nearHex(colours[i]!, want!, 12), `${JSON.stringify(colours[i])} ${want}`).toBe(true);
   });

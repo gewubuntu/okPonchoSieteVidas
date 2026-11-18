@@ -80,10 +80,58 @@ test('GDD-UI-04 in lab-3t the camera follows a drop and shows the landing', asyn
     expect(b.viewY, `frame ${i}`).toBe(b.scrollY);
   }
   for (const s of seen.slice(left, landed + 1)) expect(LANDING_Y - s.scrollY).toBeLessThan(270);
-  // Landed, his feet are in the band.
+  // Landed 10 tiles under where he last stood, so the look-down on the ground pans him up to the 40% line, 3 px a step (measured: his
+  // feet at screen y 125 on the landing step, then 122, 119 ... 108). A frame runs up to 5 steps, so the frame that first sees him
+  // grounded is 0 to 4 steps after the landing: only the range is the rule there (L-042), between the 40% line and the band's bottom.
   const end = seen[landed]!;
-  expect(end.feet - end.scrollY).toBeGreaterThanOrEqual(CAMERA.bandTop - ROUND);
+  expect(end.feet - end.scrollY).toBeGreaterThanOrEqual(CAMERA.downFeet - ROUND);
   expect(end.feet - end.scrollY).toBeLessThanOrEqual(CAMERA.bandBottom + ROUND);
+  // Paused there and stepped: 10 steps on (at least 10 after the landing, fewer than `settleSteps`), the look-down has his feet on the
+  // 40% line; standing still, it ends after `settleSteps` and the camera pans to the band's nearer edge, his feet at its top.
+  const [held, settled] = await page.evaluate((n) => {
+    const d = window.__PONCHO__!;
+    const read = () => ({ feet: d.state().y, grounded: d.state().grounded, scrollY: d.camera().scrollY });
+    d.step(10);
+    const first = read();
+    d.step(n);
+    return [first, read()];
+  }, CAMERA.settleSteps + 30);
+  for (const s of [held, settled]) expect(s).toMatchObject({ feet: LANDING_Y, grounded: true });
+  expect(held.feet - held.scrollY).toBe(CAMERA.downFeet);
+  expect(settled.feet - settled.scrollY).toBe(CAMERA.bandTop);
+  expect(errors).toEqual([]);
+});
+
+test('GDD-UI-04 in lab-3t the drop, paused and stepped: on the step he lands his feet are in the band, then the look-down pans 3 px a step', async ({ page }) => {
+  // The frames test above sees the landing 0 to 4 steps late (L-042); here each step is read where it happens, right held off the lip.
+  const errors = await openAt(page, lastStep.x, lastStep.y);
+  const steps = await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    const out: { feet: number; grounded: boolean; stepY: number }[] = [];
+    let airborne = false;
+    for (let n = 0; n < 600; n++) {
+      d.step(1, { move: airborne ? 0 : 1, jumpHeld: false });
+      const s = d.state();
+      out.push({ feet: s.y, grounded: s.grounded, stepY: d.camera().stepY });
+      if (!s.grounded) airborne = true;
+      if (airborne && s.grounded) {
+        for (let k = 0; k < 4; k++) {
+          d.step(1);
+          out.push({ feet: d.state().y, grounded: d.state().grounded, stepY: d.camera().stepY });
+        }
+        break;
+      }
+    }
+    return out;
+  });
+  const landed = steps.findIndex((s, i) => i > 0 && s.grounded && !steps[i - 1]!.grounded);
+  expect(landed).toBeGreaterThan(0);
+  expect(steps[landed]!.feet).toBe(LANDING_Y);
+  // On the landing step his feet are in the band (measured: 125), and each of the next 4 steps the look-down on the ground takes 3 px off it.
+  const onScreen = steps.slice(landed).map((s) => s.feet - s.stepY);
+  expect(onScreen[0]).toBeGreaterThanOrEqual(CAMERA.bandTop);
+  expect(onScreen[0]).toBeLessThanOrEqual(CAMERA.bandBottom);
+  expect(onScreen).toEqual([125, 122, 119, 116, 113]);
   expect(errors).toEqual([]);
 });
 

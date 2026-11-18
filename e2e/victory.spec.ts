@@ -8,7 +8,7 @@ import { boot, clearOfButtons, nearHex, pixelsAt, readSheet, spotsIn, stepToBoss
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const BLUE = '#3F66B1'; // his poncho's blue (GDD-ART-02); close matches only, so the sky and the mountains do not count
 // Where victory0 has a square of solid blue 1.5 game px across, read from his sheet (game px from the frame's middle).
-const BLUE_SPOTS = spotsIn(readSheet('poncho.png'), 48, 48, PONCHO_LOOKS.indexOf('victory0'), BLUE, { size: 1.5 });
+const BLUE_SPOTS = spotsIn(readSheet('poncho.png'), 48, 48, PONCHO_LOOKS.indexOf('victory0'), BLUE, { size: 1.5 }); // L-017: before the check; no failure in 200 CI runs (2026-11-10 to 18)
 declare global {
   interface Window {
     /** The looks noted frame by frame by the unpaused test, in order, without repeats. */

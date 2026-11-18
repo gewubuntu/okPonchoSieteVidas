@@ -237,7 +237,7 @@ test('GDD-ART-04 the taco pickup floats: its frame follows the run\'s clock', as
   // The sandbox's taco is centred in the tile at column 18, row 13. A spot of lettuce in tacoBob1 (floated 1 px up) where tacoBob3 (1 px
   // down, squashed) is clear, read from the taco's sheet: game px from the frame's middle.
   const tacos = readSheet('poncho/taco.png');
-  const [spot] = spotsIn(tacos, 16, 16, itemFrame('taco', 'tacoBob1'), ['#9CCB4A', '#4B8A34'], { size: 1, not: itemFrame('taco', 'tacoBob3') });
+  const [spot] = spotsIn(tacos, 16, 16, itemFrame('taco', 'tacoBob1'), ['#9CCB4A', '#4B8A34'], { size: 1, not: itemFrame('taco', 'tacoBob3') }); // L-017: before the check; no failure in 200 CI runs (2026-11-10 to 18)
   const at = { x: 18 * 16 + 8 + spot!.dx, y: 13 * 16 + 8 + spot!.dy };
   // The look the clock gives, stepped to in the page with the clock read each step (the pure rule, src/ui/ponchoPose.ts).
   const stepTo = async (look: string) => {

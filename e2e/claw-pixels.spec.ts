@@ -34,7 +34,7 @@ const light = (c: Colour) => c.r + c.g + c.b;
 // GDD-ART-04: where his wind-up frame (clawWind) is painted and the standing frame is clear, and where each swipe frame is pale (its white
 // and cream), squares 1.5 and 2 game px across read from the sheets (game px from each frame's middle, facing right).
 const SHEET = readSheet('poncho.png');
-const WIND = spotsIn(SHEET, 48, 48, ponchoFrame('clawWind'), ['#FBDAB7', '#F1A361', '#B06948', '#070509', '#ECE3D9'], { size: 1.5, not: ponchoFrame('idle') });
+const WIND = spotsIn(SHEET, 48, 48, ponchoFrame('clawWind'), ['#FBDAB7', '#F1A361', '#B06948', '#070509', '#ECE3D9'], { size: 1.5, not: ponchoFrame('idle') }); // L-017: before the check; no failure in 200 CI runs (2026-11-10 to 18)
 const SWIPES = readSheet('poncho/swipe.png');
 const PALE = (look: string) => spotsIn(SWIPES, 32, 32, ['swipe0', 'swipe1', 'swipe2', 'swipe3'].indexOf(look), ['#ECE3D9', '#FBDAB7'], { size: 2 });
 
