@@ -462,34 +462,61 @@ describe('GDD-WLD-18 level 3-3 the fall off A onto K3 cart, driven over every cl
   }, 20_000);
 });
 
+/**
+ * The first-time line (GDD-WLD-18 "jumping K3 under it") at clock `t`: right held from column 176; when K3's cart is rolling and its front is `dist` px or
+ * less from his front edge, a held jump (right held through it); on landing, right held on to A. The distance is the bot's choice, not the GDD's.
+ */
+function firstTimeLine(t: number, dist: number): string {
+  const rail = railOf('R6');
+  let stage = 0;
+  let j = 0;
+  let air = false;
+  const jump = jumper('held', 1);
+  const d = drive(onP5(mid(176), Y(25), t), 1500, (r) => {
+    if (stage === 0) {
+      const c = r.carts[cartOf('R6')]!;
+      if (c.phase === 'rolling' && rail.x + rail.dir * (c.m + CART.width / 2) - (r.player.x + HITBOX.width / 2) <= dist) stage = 1;
+    }
+    if (stage === 1) {
+      if (!r.player.grounded) air = true;
+      else if (air && j > 0) stage = 2;
+    }
+    return stage === 1 ? jump(r, j++) : right;
+  }, onA);
+  return d.lost ? `lost ${d.cause} ${stage === 0 ? 'before the jump' : stage === 1 ? 'in the jump' : 'after it'}` : onA(last(d.states)) ? 'reached A' : 'no A';
+}
+
 describe('GDD-WLD-18 level 3-3 the first-time line past K3 under the vulture', () => {
-  it('GDD-WLD-18 3-3 the first-time line reaches A: right held from column 176, a held jump over K3 cart, right held on to A, at every one of the 1,200 clocks', () => {
-    // The first-time line (GDD-WLD-18 "jumping K3 under it"): right held from column 176; when K3's cart is rolling and its front is 32 px or less from his
-    // front edge, a held jump (right held through it); on landing, right held on to A. V1 (the vulture at 48) lost it at every clock; at 108 the jump
-    // is under the vulture, seen, but he is in the air and over the cart before it dives, and A is reached with the life at every clock.
-    const rail = railOf('R6');
+  it('GDD-WLD-18 3-3 the first-time line reaches A: right held from column 176, a held jump over K3 cart 32 px away, right held on to A, at every one of the 1,200 clocks', () => {
+    // V1 (the vulture at 48) lost it at every clock; at 108 the jump is under the vulture, seen, but he is in the air and over the cart before it dives,
+    // and A is reached with the life at every clock. Then walking on, the dive it started has landed behind him: this line is the named one (32 px).
     const outcome: Record<string, number> = {};
     for (const t of clocks(7200)) {
-      let stage = 0;
-      let j = 0;
-      let air = false;
-      const jump = jumper('held', 1);
-      const d = drive(onP5(mid(176), Y(25), t), 1500, (r) => {
-        if (stage === 0) {
-          const c = r.carts[cartOf('R6')]!;
-          if (c.phase === 'rolling' && rail.x + rail.dir * (c.m + CART.width / 2) - (r.player.x + HITBOX.width / 2) <= 32) stage = 1;
-        }
-        if (stage === 1) {
-          if (!r.player.grounded) air = true;
-          else if (air && j > 0) stage = 2;
-        }
-        return stage === 1 ? jump(r, j++) : right;
-      }, onA);
-      const key = d.lost ? `lost ${d.cause} ${stage === 0 ? 'before the jump' : stage === 1 ? 'in the jump' : 'after it'}` : onA(last(d.states)) ? 'reached A' : 'no A';
+      const key = firstTimeLine(t, 32);
       outcome[key] = (outcome[key] ?? 0) + 1;
     }
     expect(outcome).toEqual({ 'reached A': 1200 });
   }, 40_000);
+
+  it('GDD-WLD-18 3-3 the first-time line, the jump 0 to 96 px from K3 cart front in steps of 8, at every 24th clock (step 24, 300 clocks): the clocks reaching A and what takes the others', () => {
+    // The 32 px of the named line is the bot's choice (GDD-WLD-18 says "jumping K3 under it", no distance): the jump nearer is later, the cart nearer him.
+    const outcomes: Record<string, Record<string, number>> = {};
+    for (let dist = 0; dist <= 96; dist += 8) {
+      const tally: Record<string, number> = {};
+      for (const t of clocks(7200, 24)) {
+        const key = firstTimeLine(t, dist);
+        tally[key] = (tally[key] ?? 0) + 1;
+      }
+      outcomes[`${dist} px`] = tally;
+    }
+    // Measured: from 8 px to 96 px every clock reaches A with the life (300 of 300); at 0 px the jump is pressed when his front edge touches the cart's
+    // and K3 takes the life in the jump at every clock. The named 32 px is not a knife edge: the line holds over 8 to 96 px.
+    const reached = { 'reached A': 300 };
+    expect(outcomes).toEqual({
+      '0 px': { 'lost K3 in the jump': 300 },
+      ...Object.fromEntries([8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96].map((d) => [`${d} px`, reached])),
+    });
+  }, 110_000);
 });
 
 // ---------------------------------------------------------------------------------------------------------------------------------------

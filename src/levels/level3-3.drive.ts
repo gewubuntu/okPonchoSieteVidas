@@ -350,11 +350,30 @@ export const K3_ANSWERS: readonly (readonly [string, KDrive, string])[] = [
 ];
 
 /**
+ * The steps the vulture must cruise (no telegraph, no dive, no climb back) before the standing follow-on ends: one, since once it cruises a
+ * Poncho standing on the ground is out of its sight (the ground test in `level3-3.vulture.test.ts`), so a longer margin changes nothing (L-025).
+ */
+export const COOL_STEPS = 1;
+
+/** One way of following an answer on: take-offs that kept the life (`kept`), the clocks with any (`clocks`), the others by cause, and where a walk ended. */
+interface FollowOn {
+  takeoffs: number;
+  kept: number;
+  clocks: number;
+  lostTo: Record<string, number>;
+  onA: number;
+  short: number;
+}
+
+const freshFollowOn = (): FollowOn => ({ takeoffs: 0, kept: 0, clocks: 0, lostTo: {}, onA: 0, short: 0 });
+
+/**
  * GDD-WLD-18's answers to K3: wait (`place`), let the cart come, and answer it at step k of the wait. K3's own window of each answer is found on a
  * copy without the vulture (a tool; its tag is the answer meant), then every one of those steps is pressed on the real level at every clock (`step` apart).
- * Per answer: clocks with a take-off that lives (`some`), with all (`full`), none. Across answers: clocks with any (`anyAnswer`). Every loss is split
- * with `causeOf`, a wait that the vulture ends before a take-off too. For each clock with an answer, the first take-off of the held jump over its
- * cart, else of the first answer that lives, is followed on: standing 300 steps, and walking right on to the lift's foot (x = 3190) in 300.
+ * Per answer, at K3's buffer (the drive ends 20 steps after its cart parks): clocks with a take-off that lives (`some`), with all (`full`), none. Across
+ * answers: clocks with any (`anyAnswer`). Every loss is split with `causeOf`, a wait that the vulture ends before a take-off too. Then every take-off
+ * that lives is followed on two ways, and kept only if the life holds to the end: (a) standing still until the Zopilote has cruised COOL_STEPS steps
+ * running (no telegraph or dive), 600 steps at most; (b) right held on to A, 600 steps at most, where a walk that keeps the life ends on A or still short.
  */
 export function waitAndAnswer(place: Place, step: number) {
   const KS = 100;
@@ -362,11 +381,13 @@ export function waitAndAnswer(place: Place, step: number) {
   const windows = K3_ANSWERS.map(([, run, label]) => alone.flatMap((w, k) => (tag(run(w, noZopilote), E.K3) === label ? [k] : [])));
   const out: Record<string, { steps: number; none: number; some: number; full: number; ok: number }> = {};
   const lostTo: Record<string, Record<string, number>> = {};
+  const follow: Record<string, { stand: FollowOn; walk: FollowOn }> = {};
   const waitLost: Record<string, number> = {};
   let anyAnswer = 0;
-  const after = { stand: { lives: 0, lostTo: {} as Record<string, number>, soonest: 9999 }, walk: { lives: 0, lostTo: {} as Record<string, number>, soonest: 9999 } };
-  let followed = 0;
-  for (const [i, [name]] of K3_ANSWERS.entries()) out[name] = { steps: windows[i]!.length, none: 0, some: 0, full: 0, ok: 0 };
+  for (const [i, [name]] of K3_ANSWERS.entries()) {
+    out[name] = { steps: windows[i]!.length, none: 0, some: 0, full: 0, ok: 0 };
+    follow[name] = { stand: freshFollowOn(), walk: freshFollowOn() };
+  }
   for (const t of clocks(7200, step)) {
     const w = waitAt(t, place);
     if (w.lost) {
@@ -376,16 +397,35 @@ export function waitAndAnswer(place: Place, step: number) {
     const waits = waited(w.rest, KS);
     // The wait cut short is a life lost to what takes it, at every later step.
     const waitCause = waits.length <= KS ? causeOf(last(waits), idle) : '';
-    let first: Drive | undefined;
     let any = false;
     for (const [i, [name, run, label]] of K3_ANSWERS.entries()) {
       let good = 0;
+      const kept = { stand: false, walk: false };
       for (const k of windows[i]!) {
         const d = k < waits.length ? run(waits[k]!, L) : undefined;
         const ok = d !== undefined && !d.lost && tag(d, E.K3) === label;
         if (ok) {
           good++;
-          first ??= d;
+          const end = last(d.states);
+          let cool = 0;
+          const ways = {
+            stand: drive(end, 600, () => idle, (r) => (cool = zopilote(r).flight!.phase === 'cruise' ? cool + 1 : 0) >= COOL_STEPS),
+            walk: drive(end, 600, () => right, onA),
+          };
+          for (const way of ['stand', 'walk'] as const) {
+            const f = ways[way];
+            const a = follow[name]![way];
+            a.takeoffs++;
+            if (f.lost) a.lostTo[f.cause] = (a.lostTo[f.cause] ?? 0) + 1;
+            else {
+              a.kept++;
+              kept[way] = true;
+              if (way === 'walk') {
+                if (onA(last(f.states))) a.onA++;
+                else a.short++;
+              }
+            }
+          }
         } else {
           const cause = d ? (d.lost ? d.cause : `no longer ${label}`) : `while waiting: ${waitCause}`;
           const by = (lostTo[name] ??= {});
@@ -397,23 +437,13 @@ export function waitAndAnswer(place: Place, step: number) {
       if (good > 0) o.some++;
       if (good === windows[i]!.length) o.full++;
       if (good > 0) any = true;
+      if (kept.stand) follow[name]!.stand.clocks++;
+      if (kept.walk) follow[name]!.walk.clocks++;
     }
     if (any) anyAnswer++;
-    if (first) {
-      followed++;
-      const end = last(first.states);
-      for (const [way, input, done] of [['stand', () => idle, () => false], ['walk', () => right, (r: RunState) => r.player.x >= 3190]] as const) {
-        const f = drive(end, 300, input, done);
-        const a = after[way];
-        if (f.lost) {
-          a.lostTo[f.cause] = (a.lostTo[f.cause] ?? 0) + 1;
-          a.soonest = Math.min(a.soonest, f.states.length);
-        } else a.lives++;
-      }
-    }
   }
   for (const o of Object.values(out)) o.none = clocks(7200, step).length - Object.values(waitLost).reduce((n, v) => n + v, 0) - o.some;
-  return { out, anyAnswer, waitLost, lostTo, followed, after };
+  return { atK3Buffer: out, anyAnswer, waitLost, lostAtK3Buffer: lostTo, follow };
 }
 
 
