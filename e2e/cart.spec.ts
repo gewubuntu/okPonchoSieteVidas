@@ -457,7 +457,7 @@ test('GDD-ART-06 Poncho stands in the cart behind its front wall', async ({ page
   const place = (p: { dx: number; dy: number }) => ({ x: sprite.centerX + (sprite.flipX ? -p.dx : p.dx) - viewX, y: sprite.bottom - 24 + p.dy - scrollY });
   // His shins: spots of his frame in his fur within 2 px over his feet. There the cart's front layer shows, not him: its rust or steel, or
   // the iron of a wheel at his frame's edge (its colour read from the sheet at that spot, the cart drawn level, its top 8 px over his feet).
-  // Only spots whose front colour is the same one art pixel (half a game px) to each side: on the phone a game px is 1.76 CSS px, so a 1 px
+  // Only spots whose front colour is the same half a game px to each side: on the phone a game px is 1.44 CSS px, so a 1 px
   // spot on an edge between two colours reads either one (CI flaked on it 12 times, the expected and read colours swapped).
   const frontAt = (x: number, y: number) => frontColour('rolling0', x + viewX - at.cart.x!, y + scrollY - (at.s.y - CART.height + CART.floorPx));
   const clearOfEdges = (p: { x: number; y: number }) =>
