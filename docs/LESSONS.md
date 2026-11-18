@@ -1087,3 +1087,14 @@ Retired IDs: L-046
 - **Rule:** an outcome the plan's stop condition covers is reported, not pinned, until the main session has checked it against the run (what the bot was doing on the losing step); a test comment never names a GDD family from a probe outside the repository (L-003).
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-094 A design sentence about when to act was not worked against the section's own windows
+
+- **Date:** 2026-11-18
+- **Area:** gdd, process
+- **What went wrong:** In PR #109 (GDD-BOS-04) I wrote that la purga, the steam of La Catorce's telegraph, is the cue for the cart's window in phases 2 and 3. The section's own numbers put a jump made during it about 80 steps before the landing window opens. The `pr-reviewer` found this with arithmetic on the section's own table.
+- **Root cause:** A sentence about timing (a cue, "as she charges", "any time she is parked") was written from the feel of the fight. It was never turned into a step count and checked against the window table beside it. The GDD-update skill asked for measured numbers (L-003) and limits (L-013), not for prose timing claims to be checked against the section's own numbers.
+- **Rule:** A GDD sentence that tells the player when to act (a cue, a rule of thumb, "before", "as", "while") is turned into steps from the section's own numbers before it goes in: the step the cue happens, plus the action's time (a jump's steps, a ride), against the window it claims. Write the worked step counts into the sentence or beside it, and fix a neighbouring cue that fails the same check.
+- **Recurrence 2 (2026-11-18, PR #109, GDD-BOS-04, found by the same review):** phase 3's rule of thumb, "as she charges that way, before she passes under home", was written by the World 3 design swarm on 2026-11-10. Most presses in it land too early (the window allows presses from 109 to 9 steps before the slam, and she passes under home 84 before it). Phase 1's "any time she is parked" fails in the last 14 steps of her rest. Nothing asked for the check then either.
+- **Recurrence:** 2
+- **Promoted:** `harness-gdd-update` step 1, "Work timing claims through (L-094)"
