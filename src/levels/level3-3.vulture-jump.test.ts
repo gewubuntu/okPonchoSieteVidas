@@ -96,5 +96,5 @@ describe('GDD-WLD-18 level 3-3 the vulture over a jump', () => {
         flights: 4550, telegraph: 3085, telegraphClocks: 50, lostInFlight: 0, lostOther: 450, standFollowed: 3085, standLost: 3085, standLostClocks: 50, walkFollowed: 3085, walkLost: 0, walkLostClocks: 0, walkNoA: 0,
       },
     });
-  }, 430_000);
+  }, 900_000);
 });

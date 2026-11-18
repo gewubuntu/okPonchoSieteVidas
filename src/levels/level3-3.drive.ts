@@ -283,7 +283,7 @@ export function withParked(run: RunState, ...named: (keyof typeof PARKED)[]): Ru
 export const reached = (states: readonly RunState[]): number => states.reduce((most, r) => L.ofrendas.reduce((m, o, i) => (touchesOfrenda(r.player, o) ? Math.max(m, i) : m), most), -1);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
-// Phase V2: K3 and the Zopilote on P5, shared by `level3-3.enemies.test.ts`, `level3-3.vulture.test.ts` and `level3-3.vulture-jump.test.ts`.
+// Phase V2: K3 and the Zopilote on P5, shared by `level3-3.enemies.test.ts`, `level3-3.vulture.test.ts`, `level3-3.vulture-answers.test.ts` and `level3-3.vulture-jump.test.ts`.
 
 /** A ringtail in run `r`. */
 export const ringtail = (r: RunState, i: number) => r.enemies[i]!;

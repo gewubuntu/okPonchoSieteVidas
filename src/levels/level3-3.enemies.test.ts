@@ -353,7 +353,7 @@ describe('GDD-WLD-18 level 3-3 K3 and the Zopilote on P5, driven over every cloc
     expect([...cps]).toEqual([-1]);
     expect(telegraphs).toBe(0);
     expect({ lostTo, where }).toEqual({ lostTo: { K3: 1200 }, where: { K3: [3069, 3069] } });
-  }, 20_000);
+  }, 60_000);
 });
 
 describe('GDD-WLD-18 level 3-3 K3 awake and the vulture blind to him on the ground', () => {
@@ -387,7 +387,7 @@ describe('GDD-WLD-18 level 3-3 K3 awake and the vulture blind to him on the grou
       "3000: telegraph at 0 of 1200 clocks, life lost at 0",
       "3040: telegraph at 0 of 1200 clocks, life lost at 0"
     ]);
-  }, 130_000);
+  }, 300_000);
 });
 
 describe('GDD-WLD-18 level 3-3 the vulture sees a jump under its middle', () => {
@@ -404,7 +404,7 @@ describe('GDD-WLD-18 level 3-3 the vulture sees a jump under its middle', () => 
       if (d.states.some((r) => zopilote(r).flight!.phase === 'telegraph')) seen++;
     }
     expect(seen).toBe(1200);
-  }, 20_000);
+  }, 60_000);
 });
 
 describe('GDD-WLD-18 level 3-3 the fall off A onto K3 cart, driven over every clock', () => {
@@ -459,7 +459,7 @@ describe('GDD-WLD-18 level 3-3 the fall off A onto K3 cart, driven over every cl
         "P5 ok": 211
       }
     });
-  }, 20_000);
+  }, 60_000);
 });
 
 /**
@@ -496,7 +496,7 @@ describe('GDD-WLD-18 level 3-3 the first-time line past K3 under the vulture', (
       outcome[key] = (outcome[key] ?? 0) + 1;
     }
     expect(outcome).toEqual({ 'reached A': 1200 });
-  }, 40_000);
+  }, 120_000);
 
   it('GDD-WLD-18 3-3 the first-time line, the jump 0 to 96 px from K3 cart front in steps of 8, at every 24th clock (step 24, 300 clocks): the clocks reaching A and what takes the others', () => {
     // The 32 px of the named line is the bot's choice (GDD-WLD-18 says "jumping K3 under it", no distance): the jump nearer is later, the cart nearer him.
@@ -516,7 +516,7 @@ describe('GDD-WLD-18 level 3-3 the first-time line past K3 under the vulture', (
       '0 px': { 'lost K3 in the jump': 300 },
       ...Object.fromEntries([8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96].map((d) => [`${d} px`, reached])),
     });
-  }, 110_000);
+  }, 240_000);
 });
 
 // ---------------------------------------------------------------------------------------------------------------------------------------

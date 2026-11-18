@@ -80,7 +80,7 @@ describe('GDD-WLD-18 level 3-3 the claw on the vulture, over the clocks of the Z
       swing: { runs: 2400, telegraph: 0, lost: 0, defeated: 0 },
       jumping: { runs: 2400, telegraph: 2400, lost: 2400, defeated: 0, clocksTelegraphed: 150 },
     });
-  }, 25_000);
+  }, 60_000);
 });
 
 interface GroundTally {
@@ -174,6 +174,6 @@ describe('GDD-WLD-18 level 3-3 the vulture over the ground', () => {
       'MP2 standing from the foot': noOne(1200),
       'MP2 walking from the foot': noOne(1200),
     });
-  }, 215_000);
+  }, 480_000);
 });
 

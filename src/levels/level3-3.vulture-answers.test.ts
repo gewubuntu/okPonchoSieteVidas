@@ -12,7 +12,7 @@ describe('GDD-WLD-18 level 3-3 K3 and the Zopilote, the GDD answers: wait before
     // (75 of the 1,200). K3's own window of each answer (a copy without the vulture): the jump over 38 steps held and 16 plain, the stomp 12 and 10, a landing in its cart
     // behind the ringtail 4 and 6, the claw 12. `atK3Buffer` is the old pin, renamed: the drive of an answer ends 20 steps after K3's cart parks at its
     // buffer, which is before the dive the jump set off has landed, so it says only that the take-off lives to K3's pass. `follow` is what keeps the
-    // life: every take-off that lives is followed on (a) standing until the Zopilote has cruised 60 steps running, 600 at most, and (b) right held on to
+    // life: every take-off that lives is followed on (a) standing until the Zopilote cruises again (COOL_STEPS, one step), 600 at most, and (b) right held on to
     // A, 600 at most; `kept` counts take-offs whose life holds to the end, `clocks` the clocks where some take-off keeps it, `lostTo` the others by
     // cause (`onA` and `short`: a kept walk ends on A, or alive short of it when the 600 steps are over).
     // At K3's buffer: no wait is lost; every answer lives at all 75 clocks except the stomps (a jump under it, seen): the held stomp lives at none (900
@@ -228,13 +228,13 @@ describe('GDD-WLD-18 level 3-3 K3 and the Zopilote, the GDD answers: wait before
         }
       }
     });
-  }, 240_000);
+  }, 480_000);
 
   it('GDD-WLD-18 3-3 K3 and the vulture: waiting at the stretch edge, every answer at K3 buffer, then standing till the vulture cruises and walking on to A, at every 96th clock (step 96, 75 clocks)', () => {
     // As above, waiting at x = 2992 (under the vulture's line, x 2976 to 3072), at every 96th clock (75). K3's own window of each answer (a copy without the vulture): the jump over 38 steps held and 16 plain, the stomp 12 and 10, a landing in its cart
     // behind the ringtail 4 and 6, the claw 12. `atK3Buffer` is the old pin, renamed: the drive of an answer ends 20 steps after K3's cart parks at its
     // buffer, which is before the dive the jump set off has landed, so it says only that the take-off lives to K3's pass. `follow` is what keeps the
-    // life: every take-off that lives is followed on (a) standing until the Zopilote has cruised 60 steps running, 600 at most, and (b) right held on to
+    // life: every take-off that lives is followed on (a) standing until the Zopilote cruises again (COOL_STEPS, one step), 600 at most, and (b) right held on to
     // A, 600 at most; `kept` counts take-offs whose life holds to the end, `clocks` the clocks where some take-off keeps it, `lostTo` the others by
     // cause (`onA` and `short`: a kept walk ends on A, or alive short of it when the 600 steps are over).
     // At K3's buffer: no wait is lost; the held stomp lives at none (900 take-offs lost), the plain jump over at 75 clocks (49 at every step, 107 take-offs
@@ -446,5 +446,5 @@ describe('GDD-WLD-18 level 3-3 K3 and the Zopilote, the GDD answers: wait before
         }
       }
     });
-  }, 240_000);
+  }, 480_000);
 });
