@@ -469,6 +469,20 @@ function checkRealtimeWaits() {
   return errors;
 }
 
+// L-017: a pixel read of a feature under 2 px across has no margin on the phone's non-integer scale, so a spot near a colour edge
+// reads either colour. A `spotsIn` call with `size` under 2 says on its line, in an `// L-017:` comment, why its spots are clear of edges.
+function checkSmallSpots() {
+  const errors = [];
+  const small = /\bsize:\s*(0|1)(\.\d+)?\b/;
+  for (const f of textFiles().filter((p) => p.startsWith(join('e2e', '')) && p.endsWith('.ts'))) {
+    read(f).split('\n').forEach((line, i) => {
+      if (/^\s*(\/\/|\*|\/\*)/.test(line) || /\/\/.*\bL-017:/.test(line)) return;
+      if (small.test(line)) errors.push(`${f.split(sep).join('/')}:${i + 1}: pixel spots under 2 px across; read features at least 2 px across, or say on the line in an \`// L-017:\` comment why these spots are clear of colour edges (L-017)`);
+    });
+  }
+  return errors;
+}
+
 // L-054: a playtest that pins the whole saved game, or the whole saved settings, with toEqual breaks on every new field of the
 // save. Read the fields the rule is about with toMatchObject; a test of the save format itself marks its line `// L-054: format`.
 function checkWholeSavePins() {
@@ -518,6 +532,7 @@ const checks = [
   ['no-mutation', checkNoMutation],
   ['key-down-handlers', checkKeyDownHandlers],
   ['realtime-waits', checkRealtimeWaits],
+  ['small-spots', checkSmallSpots],
   ['whole-save-pins', checkWholeSavePins],
   ['phone-shots-by-touch', checkPhoneShotsByTouch],
   ['sprite-fit', checkSpriteFit],

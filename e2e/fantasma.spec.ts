@@ -14,7 +14,7 @@ const GOLD = '#F9D24C'; // the glow's bright gold, Poncho's gold (GDD-ART-03)
 const PALE = '#D3C193'; // the dim glow's pale gold, measured on the user's reference (scripts/art/poncho/items.mjs)
 const FLAME = 2; // the flame's frame in the glow sheet (ITEM_LOOKS.glow)
 // Where the flame frame has a square of solid gold 1.5 game px across (3 x 3 drawing px: 2 px or more across on the phone too, L-017), read from its sheet.
-const FLAME_SPOTS = spotsIn(readSheet('poncho/glow.png'), 8, 8, FLAME, GOLD, { size: 1.5 });
+const FLAME_SPOTS = spotsIn(readSheet('poncho/glow.png'), 8, 8, FLAME, GOLD, { size: 1.5 }); // L-017: before the check; no failure in 200 CI runs (2026-11-10 to 18)
 
 /** Boots the sandbox, pauses it and stands Poncho on the floor at the start (steps the game two steps so he is down). */
 async function standing(page: Page, x = 56, y = 224): Promise<string[]> {

@@ -13,8 +13,8 @@ const blue = (c: { r: number; g: number; b: number }) => nearHex(c, BLUE, 12);
 // Where his frames have a square of solid blue 1.5 game px across (3 x 3 of the drawing's pixels), read from his sheet (game px from the
 // frame's middle, facing right): in flip4 (half a turn) where the standing frame is clear, and in the standing frame where flip4 is clear.
 const SHEET = readSheet('poncho.png');
-const FLIP4_BLUE = spotsIn(SHEET, 48, 48, PONCHO_LOOKS.indexOf('flip4'), BLUE, { size: 1.5, not: PONCHO_LOOKS.indexOf('idle') });
-const IDLE_BLUE = spotsIn(SHEET, 48, 48, PONCHO_LOOKS.indexOf('idle'), BLUE, { size: 1.5, not: PONCHO_LOOKS.indexOf('flip4') });
+const FLIP4_BLUE = spotsIn(SHEET, 48, 48, PONCHO_LOOKS.indexOf('flip4'), BLUE, { size: 1.5, not: PONCHO_LOOKS.indexOf('idle') }); // L-017: before the check; no failure in 200 CI runs (2026-11-10 to 18)
+const IDLE_BLUE = spotsIn(SHEET, 48, 48, PONCHO_LOOKS.indexOf('idle'), BLUE, { size: 1.5, not: PONCHO_LOOKS.indexOf('flip4') }); // L-017: before the check; no failure in 200 CI runs (2026-11-10 to 18)
 /** A spot of his frame on the screen, his feet at (x, y): the frame's middle is 24 px above his feet. */
 const onScreen = (p: { x: number; y: number }, s: { dx: number; dy: number }) => ({ x: p.x + s.dx, y: p.y - 24 + s.dy });
 const step = (page: Page, n: number, input?: { move: number; jumpHeld: boolean }) =>

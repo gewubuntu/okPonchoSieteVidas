@@ -81,7 +81,7 @@ const anyRed = async (page: Page, x: number, y: number) => (await pixelsAt(page,
 const CHILES = readSheet('poncho/chile.png');
 const HELD = readSheet('poncho/held.png');
 const CHILE_RED = (look: PickupLook) => spotsIn(CHILES, 16, 16, itemFrame('chile', look), '#D23F42', { size: 2 });
-const HELD_RED = spotsIn(HELD, 12, 12, itemFrame('held', 'chileHeld'), '#D23F42', { size: 1 });
+const HELD_RED = spotsIn(HELD, 12, 12, itemFrame('held', 'chileHeld'), '#D23F42', { size: 1 }); // L-017: before the check; no failure in 200 CI runs (2026-11-10 to 18)
 
 test('GDD-PWR-03 the chile is painted: on the piñata, in Poncho\'s hand in Fuego (not in Taco), and on the HUD', async ({ page }) => {
   await start(page, 372, 176);
