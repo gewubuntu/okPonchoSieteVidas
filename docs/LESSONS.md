@@ -80,7 +80,8 @@ Retired IDs: L-046
 - **Recurrence 12 (2026-11-12, the sight sweep's commit, GDD-WLD-16, found by the advisor before the commit):** writing the sweep's results into the GDD I added three figures the builder's report did not hold: "1 of its 24 flights" (worked out from the sweep's take-offs), "2 s or more" for a range that starts at 117 steps (1.95 s), and a list of unreached tops that left out the exit's column. They were corrected from the report before the commit. The rule covered it; the slip is writing a sentence around a report from memory of it instead of with it open.
 - **Recurrence 13 (2026-11-13, PR #98, found by the re-review):** GDD-WLD-17's sight sentence said every family is "saved by every reaction the sweep tries"; the pinned `SAVES` table shows letting go of jump saves none of the four walking families (they hold no jump). I wrote the summary from the builder's report ("every reaction saves every flight") and not from the table in the test.
 - **Recurrence 14 (2026-11-15, PR #100):** I wrote the implementer's measured numbers into the GDD (a 15-step and a 37-step jump window, 12 perch landings) while its tests asserted only "at least 1"; the pr-reviewer caught it. The rule says a measured figure needs a test that pins it, but the plan asked only for a lower bound and a report of the count, and I copied the count into the GDD without checking the assertion.
-- **Recurrence:** 14
+- **Recurrence 15 (2026-11-18, PR #107, GDD-WLD-18, found by the review):** I wrote the careful bot's longest read wait (816 steps, from the implementer's report at another clock step) and "the longest waits are the Armadillo's read and MP2's round" into the GDD with no assertion behind either; and I tied the rider's 77 Armadillo losses to B1's start clocks 390 to 768, which the review's probe contradicts (the rider reaches L1 at another clock). The wait is now pinned at 817 in `level3-3.bots.test.ts`, and the other two sentences are gone.
+- **Recurrence:** 15
 - **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test). Guard: none (no script can tell a measured claim from one worked out by hand; the implementer measures every planned number in a test before the GDD takes it, which caught recurrence 8; a figure from a scratch test outside the repository stays a target, recurrence 9)
 
 ## L-004 Debug hook returned the wrong value after landing
@@ -238,7 +239,8 @@ Retired IDs: L-046
 - **Recurrence 26 (2026-11-16, PR #102, found by a re-review):** my fix for the swing-back moved the look-up's fall trigger to y = 194, which let his feet stand lower for a moment. The 46 px figure and the "inside the band" landing sentence, written a commit earlier, went stale.
 - **Recurrence 27 (2026-11-16, PR #102, found by the next re-review):** restating those sentences, I wrote y = 194 as the lowest his feet stand. But a fall can pass the trigger by one step, 6 px, before the look-down reacts, and the review measured 195. I wrote a bound from the rule's line, not from a sweep of the code. The bound is now y = 200, pinned by a sweep test with two mutants.
 - **Recurrence 28 (2026-11-17, PR #103, found by its review):** to keep K2's cart clear of the phone's buttons I put bridge B's raised bottom 6 rows under its lips, and wrote it into GDD-WLD-18, without searching for the rule the number belongs to: GDD-WLD-03 holds a raised bottom to 4 rows. The step's search covers the sections a change edits and its siblings' names, not the other sections that set a limit on the same number. Now 5 rows, the exception written into GDD-WLD-03 and asked in Open Question 38 (e).
-- **Recurrence:** 28
+- **Recurrence 29 (2026-11-18, PR #107, GDD-WLD-18, found by the review):** I put 3-3's measured times into Open Question 43 but left its "so the designs come out shorter" in front of them, which the new figures (up to 46.2 and 64.8 s against about 45) make false. I edited the figures inside the sentence and did not reread the claim they support.
+- **Recurrence:** 29
 - **Promoted:** .claude/skills/harness-feature (Update docs step, which now also searches for the path of every test file or block the feature deletes or moves, and since recurrence 8 for the lists a new member of a family must join and a full re-read of each edited section, since recurrence 10 in `docs/BACKLOG.md` too, with a plain pattern; its Push and pull request step runs the retro on the review's findings) and .claude/skills/harness-gdd-update (step 1, the same hunt for GDD edits made outside a feature, with the same plain list pattern since recurrence 10). Guard: none (which sentences a change makes false takes reading the GDD; the pr-reviewer's consistency audit is the backstop).
 
 ## L-014 A claim about where things are in the sandbox level had no test
@@ -1063,5 +1065,25 @@ Retired IDs: L-046
 - **What went wrong:** `e2e/camera.spec.ts` (the lab-3t drop) and `e2e/cart.spec.ts` (Poncho behind the cart's front wall, phone) failed 11 and 12 of the last 200 CI runs (about one in 17 each); 21 runs failed on them alone, main included. Each time the session re-ran the job or called it unrelated and moved on. A fix for the camera test (d0b9491, L-042 recurrence 11) was pushed to the deploy branch after its PR had merged, without restarting the branch from `main` and without opening a draft PR for the push, so it never reached main.
 - **Root cause:** a flake on a file the PR did not touch was treated as noise to re-run, not as a defect with a history; nothing looked across runs. The stranded fix broke two rules already in `CLAUDE.md` (restart the working branch from `main` after its PR merges; open a draft PR after every push when the branch has no open one), which the `after-push` hook only reminds of.
 - **Rule:** a CI failure in a test the PR did not touch is looked up in the failure history of the workflow (the runs of the last week, by test name) before any re-run; a test that has failed before gets its own fix PR, measured with `--repeat-each` before and after. A commit pushed after a branch's PR merged goes on the branch restarted from `main`, with a new draft PR (`CLAUDE.md`).
+- **Recurrence:** 1
+- **Promoted:** no
+
+## L-092 A clock sweep in steps of 24 met only a tenth of the bats' phases
+
+- **Date:** 2026-11-18
+- **Area:** tests, level
+- **What went wrong:** the plan for 3-3's whole-level bots offered a clock step of 24, 48 or 96, and the bots were swept at 24 over [0, 7200). 24 divides the bats' period (240) and both lifts' rounds (192 and 384 steps), and a bot reaches each place at the same step at every start clock, so the 300 clocks met 10 of the bats' 240 phases and 8 of MP1's 192, while the test said the careful bot keeps every life "at every clock". Re-run at step 29 (249 clocks, shorter), it still did, and the rider's tally changed.
+- **Root cause:** L-090's run-time rule asks for the coarsest step that fits the budget and says nothing about which steps sample the clocks fairly; a round step shares factors with the round periods the level's tuning uses.
+- **Rule:** a sweep over start clocks uses a step that shares no factor with any period it samples (each enemy's walk or flight, each lift's round), so its clocks meet as many phases of each as they can, and names that in the test; a step that shares a factor says which phases it misses.
+- **Recurrence:** 1
+- **Promoted:** .claude/skills/harness-feature (step 5, run time)
+
+## L-093 A cause the plan said to report was pinned, named after a GDD family on an unpinned probe
+
+- **Date:** 2026-11-18
+- **Area:** tests, process
+- **What went wrong:** the plan for 3-3's bots said a rider loss whose cause the GDD does not name is reported and the run stops. The implementer met one ("bat 1 at 111"), pinned it, and wrote in the test that it was GDD-WLD-18's "26 have no answer" family, from a probe over 8 of its 32 clocks that was not in the repository. Checked, every such loss came 1 to 4 steps into the bot's own held jump over the ball, a choice of the bot's, not shown to be the GDD's family.
+- **Root cause:** the report flagged it as a decision, but the stop condition was written as prose in the plan and the pin was already made; a probe's reading went into a test comment as a fact.
+- **Rule:** an outcome the plan's stop condition covers is reported, not pinned, until the main session has checked it against the run (what the bot was doing on the losing step); a test comment never names a GDD family from a probe outside the repository (L-003).
 - **Recurrence:** 1
 - **Promoted:** no

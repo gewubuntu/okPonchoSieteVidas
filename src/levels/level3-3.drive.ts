@@ -1,12 +1,13 @@
 // GDD-WLD-18: the shared drivers of 3-3's tests (`level3-3.test.ts`, `level3-3.enemies.test.ts` and the bots after them): the level's pieces by
 // name, the jumps flown from a take-off, and where a flight ended. Pure, no Phaser; test support only, as `level3-2.drive.ts` is for 3-2.
-import { CART, HITBOX, RUN, TILE } from '../config/tuning';
-import { floorUnder, railLength, type CartState, type Rail } from '../sim/cart';
+import { ARMADILLO, CART, HITBOX, RUN, TILE } from '../config/tuning';
+import { floorUnder, railLength, warningPost, type CartState, type Rail } from '../sim/cart';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { platformAt, standsOnPlatform } from '../sim/platform';
 import { startRun, stepRun, touchesOfrenda, type Level, type RunState } from '../sim/run';
+import { jumpAt, runBot, runUntil, waitFor, type Bot, type Ctl } from './bots';
 import type { LevelEntry } from './index';
-import { LEVEL_3_3, LEVEL_3_3_AT, LEVEL_3_3_PLATFORM, LEVEL_3_3_RAIL } from './level3-3';
+import { LEVEL_3_3, LEVEL_3_3_AT, LEVEL_3_3_PLATFORM, LEVEL_3_3_RAIL, LEVEL_3_3_WALLS } from './level3-3';
 
 export const L = LEVEL_3_3;
 export const world = L.world;
@@ -454,3 +455,284 @@ export const telegraphed = (states: readonly RunState[]) => states.some((r) => z
 export const lostToVulture = (d: Drive) => d.lost && d.cause.includes('Zopilote');
 /** Where a walk ends: A (L-064 bounds the drive), standing on its ground past the lift. */
 export const onA = (r: RunState) => r.phase === 'playing' && r.player.grounded && r.player.y === Y(17) && r.player.x >= 3240;
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// Phase B2a: the whole-level bots (`level3-3.bots.test.ts`), played from `startAt(t)`.
+
+/** The level as he finds it after standing at the spawn for `t` steps: every enemy, lift and cart at that clock, Poncho at the spawn, the step counter at 0. */
+export const startAt = (t: number): RunState => ({ ...idleRun(t), clock: 0 });
+
+/** A bot's run, and the input of its last step (the one a life was lost on, with `stopAtLoss`) for `causeOf`. */
+export interface Played extends Bot {
+  readonly lastInput: PlayerInput;
+}
+/** `runBot` on 3-3. */
+export function bot(tasks: readonly Ctl[], from: RunState, max = 4000, stopAtLoss = false): Played {
+  let lastInput = idle;
+  const seen = tasks.map((task): Ctl => (r) => {
+    const out = task(r);
+    if (!out.done) lastInput = out.input;
+    return out;
+  });
+  return { ...runBot(seen, from, L, max, stopAtLoss), lastInput };
+}
+
+/**
+ * The hop into the cart on rail `name`, as 3-2's: done once it rolls with him in it. He jumps from 20 to `reach` px short of its middle: C3's is 40,
+ * so that the jump is taken past the piñata at column 134, 48 to 64 px short of it, which a jump under it would bump.
+ */
+export function hopInto(name: Name, reach = 60): Ctl {
+  let jumpWas = false;
+  return (r) => {
+    if (r.carts[cartOf(name)]!.phase !== 'waiting' && inCart(r, name)) return { input: idle, done: true };
+    const gap = middleOf(r, name) - r.player.x;
+    const p = r.player;
+    const jump = p.grounded ? !jumpWas && !p.jumpWasHeld && Math.abs(gap) >= 20 && Math.abs(gap) <= reach : jumpWas && p.vy < 0;
+    jumpWas = jump;
+    // Standing under the cart (nearer its middle than 20 px), he first walks back out from under it.
+    const out = p.grounded && Math.abs(gap) < 20;
+    return { input: { move: out ? (gap >= 0 ? -1 : 1) : Math.abs(gap) > 4 ? Math.sign(gap) : 0, jumpHeld: jump }, done: false };
+  };
+}
+/** Riding, nothing held until `when`; then the jump `kind`, with `move` held; done on the landing. */
+export function jumpFromCart(when: (r: RunState) => boolean, kind: Jump, move: -1 | 0 | 1 = 0): Ctl {
+  let i = -1;
+  let input: ((r: RunState, i: number) => PlayerInput) | undefined;
+  let air = false;
+  return (r) => {
+    if (input === undefined) {
+      if (!when(r)) return { input: idle, done: false };
+      input = jumper(kind, move);
+    }
+    i++;
+    if (!r.player.grounded) air = true;
+    if (air && r.player.grounded) return { input: idle, done: true };
+    return { input: input(r, i), done: false };
+  };
+}
+
+/** P3's lip: the left edge of the pit after it (column 120). */
+const P3_LIP = (LEVEL_3_3_AT.P3.col1 + 1) * TILE;
+/** `jumpAt`'s `hold` for a held jump: jump held to the landing, the glide once he falls (GDD-MOV-07). */
+const HELD = Infinity;
+/** On the ground of row `row` (its top), a ground the bots stand on. */
+const onRow = (row: number) => (r: RunState) => r.player.grounded && r.player.y === Y(row);
+/** The wall's left face: his middle stands 6 px short of it (his box's half width). */
+const WALL_FACE = (col: number) => col * TILE - HITBOX.width / 2;
+/** Over a piñata's wall (2 tiles, GDD-WLD-18, L-047) with a plain jump, taken a tile short of its face: the bots break no piñata. */
+const overWall = (col: number): Ctl => jumpAt(WALL_FACE(col) - TILE, 'top');
+/** The cart on rail `name` is at the post of its broken end (or past it). */
+const pastPost = (name: Name) => (r: RunState) => middleOf(r, name) * railOf(name).dir >= warningPost(railOf(name))!.x * railOf(name).dir;
+
+/** Ki: C1 on foot from the spawn, R1 to its buffer, out onto P1, K1 woken and its cart jumped with a held jump at a walk from x 800, T1 and over its wall to the first ofrenda. */
+export const RIDE_KI = (): Ctl[] => [
+  runUntil(1, (r) => inCart(r, 'R1') && r.carts[cartOf('R1')]!.phase !== 'waiting'),
+  waitFor((r) => r.carts[cartOf('R1')]!.phase === 'stopped'),
+  runUntil(1, onRow(LEVEL_3_3_AT.P1.row)),
+  jumpAt(800, HELD),
+  overWall(LEVEL_3_3_WALLS.T1.col0),
+  runUntil(1, (r) => r.checkpointIndex >= 0),
+];
+
+/**
+ * The spring's plain launch and the lift (GDD-WLD-05, GDD-WLD-18): right held onto the spring, no button; nothing held from the launch (right let
+ * go in the air) until he stands on the lift MP1, then right held, against P3's face as it rises, onto P3.
+ */
+export function springBot(): Ctl {
+  let launched = false;
+  let onLift = false;
+  return (r) => {
+    if (r.player.vy < -400) launched = true;
+    if (whereIs(r) === 'MP1') onLift = true;
+    if (r.player.grounded && r.player.y === Y(LEVEL_3_3_AT.P3.row) && r.player.x - HITBOX.width / 2 >= LEVEL_3_3_AT.P3.col0 * TILE) return { input: idle, done: true };
+    return { input: !launched || onLift ? right : idle, done: false };
+  };
+}
+
+/** Shō: C2 hopped into at 68, R3 ridden, a held jump from its post onto L1, the spring and the lift to P3. */
+export const RIDE_SHO = (): Ctl[] => [
+  hopInto('R3'),
+  jumpFromCart(pastPost('R3'), 'held', 1),
+  springBot(),
+  armadilloBot(),
+  // The glide on foot from P3's lip (GDD-WLD-18): a held jump a half tile short of it, over the pit to P4, over the second ofrenda (130).
+  jumpAt(P3_LIP - 8, HELD),
+  overWall(LEVEL_3_3_WALLS.P4.col0),
+];
+
+/** A cart's front edge in run `r`, and its gap in px to his box's edge it faces: positive while the cart (rolling its rail's way) is still short of him. */
+const frontOf = (r: RunState, name: Name) => railOf(name).x + railOf(name).dir * (r.carts[cartOf(name)]!.m + CART.width / 2);
+export const gapTo = (r: RunState, name: Name) => railOf(name).dir * (r.player.x - frontOf(r, name)) - HITBOX.width / 2;
+
+/**
+ * P3's Armadillo (the penBot of 3-2, for the narrow peak): right held until it tucks, then nothing held, he stands; once its ball rolls and its
+ * front is `ARMADILLO_GAP` px or less from his front a held jump in place (GDD-WLD-18: "jump it"), a window of up to 59 of the 61 steps from the tuck (measured
+ * in `level3-3.enemies.test.ts`); done on the landing, or once the ball is gone or dazed.
+ */
+export function armadilloBot(): Ctl {
+  const jump = jumper('held', 0);
+  let i = -1;
+  let air = false;
+  return (r) => {
+    const a = r.enemies[E.ARMADILLO]!;
+    const p = r.player;
+    if (i >= 0) {
+      i++;
+      if (!p.grounded) air = true;
+      if (air && p.grounded) return { input: idle, done: true };
+      return { input: jump(r, i), done: false };
+    }
+    if (!a.alive || a.shell!.phase === 'dazed') return { input: idle, done: true };
+    if (a.shell!.phase === 'walk') return { input: right, done: false };
+    if (a.shell!.phase === 'roll' && p.grounded && !p.jumpWasHeld && a.x - ARMADILLO.width / 2 - (p.x + HITBOX.width / 2) <= ARMADILLO_GAP) {
+      i = 0;
+      return { input: jump(r, 0), done: false };
+    }
+    return { input: idle, done: false };
+  };
+}
+
+/** The ball's front is jumped when it is this far from his: by a probe, not pinned, the gap changed nothing from 8 to 80 px over 150 clocks. */
+const ARMADILLO_GAP = 32;
+/** Right held until his middle is at `x`, then nothing, until he stands still: where he comes to rest is a stopping distance past it. */
+export function runStopAt(x: number): Ctl {
+  let stopped = false;
+  return (r) => {
+    if (r.player.x >= x) stopped = true;
+    if (stopped && r.player.vx === 0 && r.player.grounded) return { input: idle, done: true };
+    return { input: stopped ? idle : right, done: false };
+  };
+}
+
+/**
+ * A rolling cart `gap` px or less from his front (K2's on the pier, K3's on P5): until then `move` held (the walk to it, or nothing on the pier), then a
+ * jump `kind` with `move` held; done on the landing. It reads where the cart is on the screen, never the clock.
+ */
+export function jumpCart(name: Name, gap: number, kind: Jump, move: 0 | 1): Ctl {
+  const jump = jumper(kind, move);
+  let i = -1;
+  let air = false;
+  return (r) => {
+    if (i < 0 && !(r.carts[cartOf(name)]!.phase === 'rolling' && gapTo(r, name) <= gap)) return { input: { move, jumpHeld: false }, done: false };
+    i++;
+    if (!r.player.grounded) air = true;
+    if (air && r.player.grounded) return { input: idle, done: true };
+    return { input: jump(r, i), done: false };
+  };
+}
+
+/** The stone pier's column (GDD-WLD-18: bridge B's one place to stand): he runs to its left edge and lets go of right, to stop on it. */
+export const PIER_COL = 167;
+/** Ten: C3 hopped into at 137, R4 to its buffer on Q, right held over bridge B's planks and let go to stop on the pier (a stopping distance short of its middle), K2's cart jumped held, then across the second span. */
+export const RIDE_TEN = (): Ctl[] => [
+  hopInto('R4', 40),
+  waitFor((r) => r.carts[cartOf('R4')]!.phase === 'stopped'),
+  runStopAt(PIER_COL * TILE),
+  jumpCart('R5', K2_GAP, 'held', 0),
+  runUntil(1, (r) => onRow(LEVEL_3_3_AT.P5.row)(r) && r.player.x - HITBOX.width / 2 >= LEVEL_3_3_AT.P5.col0 * TILE),
+];
+/** K2's cart is jumped when its front is this far from his: inside the held jump's window of 37 or 38 steps (GDD-WLD-18), which `level3-3.bots.test.ts` checks at the arrival it measures. */
+const K2_GAP = 40;
+
+/** The first-time line past K3 (GDD-WLD-18, `firstTimeLine` of `level3-3.enemies.test.ts`): right held; K3's cart once 32 px or less from his front, a held jump with right held; right held on. */
+export const K3_GAP = 32;
+
+/** The stairs (GDD-WLD-18): right held, and a jump on each landing (let go for a step before the next press, L-048), held while he rises; done in C4, which rolls. */
+export function stairsBot(): Ctl {
+  let was = false;
+  return (r) => {
+    if (inCart(r, 'R7') && r.carts[cartOf('R7')]!.phase !== 'waiting') return { input: idle, done: true };
+    const jump = r.player.grounded ? !was : was && r.player.vy < 0;
+    was = jump;
+    return { input: { move: 1, jumpHeld: jump }, done: false };
+  };
+}
+
+/** Ketsu: K3's cart jumped, right held on to the lift MP2 and up it onto A (the third ofrenda), the stairs into C4, and R7 to a held jump from its post into the exit. */
+export const RIDE_KETSU = (): Ctl[] => [
+  jumpCart('R6', K3_GAP, 'held', 1),
+  runUntil(1, (r) => r.player.x >= LEVEL_3_3_AT.mp2Foot.col0 * TILE),
+  runUntil(1, (r) => onRow(LEVEL_3_3_AT.A.row)(r) && r.player.x >= LEVEL_3_3_AT.A.col0 * TILE),
+  stairsBot(),
+  jumpFromCart(pastPost('R7'), 'held', 1),
+];
+
+// The careful bot (GDD-WLD-18's "careful run"): the rider with K1 answered from the perch, the Armadillo waited for, K3 met standing and MP2 waited for.
+
+/** K1 woken from P1, then a held jump back with left held for `left` steps (24 or more lands on the perch, GDD-WLD-18); done on the landing. */
+export function perchBot(left = 30): Ctl {
+  let i = -1;
+  let air = false;
+  return (r) => {
+    if (i < 0 && ringtail(r, E.K1).ride!.phase === 'waiting') return { input: right, done: false };
+    i++;
+    if (!r.player.grounded) air = true;
+    if (air && r.player.grounded) return { input: idle, done: true };
+    return { input: { move: i < left ? -1 : 0, jumpHeld: true }, done: false };
+  };
+}
+
+/**
+ * The careful read of P3's Armadillo, from L1 (found by a probe, not pinned: the spring, the lift, the answer to the Armadillo and the glide driven from
+ * L1 at x 1682 at every 6th clock of 7,200, binned by where the Armadillo was when he started for the spring): it walks right, between x 1776 and 1856.
+ * Every start in those bins kept the life. Heading left the walk onto P3 met the ball at the lift for most starts from x 1728 to 1856; from 1856 right on, and from
+ * 1888 left, the first bat took the life at some. Its clock is not read, nor the lift's, nor the bats'.
+ */
+export const CAREFUL_ARMADILLO = { heading: 1, from: 1776, before: 1856 } as const;
+/** Does the careful read let him start for the spring now? */
+export const armadilloReads = (r: RunState): boolean => {
+  const a = r.enemies[E.ARMADILLO]!;
+  return a.alive && a.shell!.phase === 'walk' && a.dir === CAREFUL_ARMADILLO.heading && a.x >= CAREFUL_ARMADILLO.from && a.x < CAREFUL_ARMADILLO.before;
+};
+
+/** MP2's foot at its lowest: the lift's top is within this many px of its foot, going down or up, when he steps on. */
+const MP2_NEAR = 12;
+/** Waits on P5 short of the lift's left edge until its top is `MP2_NEAR` px or less over its foot, then right held onto it and up onto A. */
+export const mp2Wait = (): Ctl[] => {
+  const mp2 = LEVEL_3_3_PLATFORM.MP2;
+  return [
+    runStopAt(mp2.x0 - 24),
+    waitFor((r) => platformAt(mp2, r.platformTick).y >= mp2.y0 - MP2_NEAR),
+    runUntil(1, (r) => onRow(LEVEL_3_3_AT.A.row)(r) && r.player.x >= LEVEL_3_3_AT.A.col0 * TILE),
+  ];
+};
+
+/** Ki, careful: K1 woken from P1 and answered from the perch; he waits there until its cart has stopped at its buffer, then walks off over it to T1. */
+export const CAREFUL_KI = (): Ctl[] => [
+  runUntil(1, (r) => inCart(r, 'R1') && r.carts[cartOf('R1')]!.phase !== 'waiting'),
+  waitFor((r) => r.carts[cartOf('R1')]!.phase === 'stopped'),
+  runUntil(1, onRow(LEVEL_3_3_AT.P1.row)),
+  perchBot(),
+  waitFor((r) => r.carts[cartOf('R2')]!.phase === 'stopped'),
+  overWall(LEVEL_3_3_WALLS.T1.col0),
+  runUntil(1, (r) => r.checkpointIndex >= 0),
+];
+/** Shō, careful: as the rider's, but he waits on L1 for the careful read of the Armadillo before the spring. */
+export const CAREFUL_SHO = (): Ctl[] => [
+  hopInto('R3'),
+  jumpFromCart(pastPost('R3'), 'held', 1),
+  waitFor(armadilloReads),
+  springBot(),
+  armadilloBot(),
+  jumpAt(P3_LIP - 8, HELD),
+  overWall(LEVEL_3_3_WALLS.P4.col0),
+];
+/** Ketsu, careful: he stops where K3 wakes (short of the vulture's stretch), jumps its cart when it comes, then waits for the lift at MP2's foot. */
+export const CAREFUL_KETSU = (): Ctl[] => [
+  runUntil(1, (r) => ringtail(r, E.K3).ride!.phase !== 'waiting'),
+  jumpCart('R6', K3_GAP, 'held', 0),
+  ...mp2Wait(),
+  stairsBot(),
+  jumpFromCart(pastPost('R7'), 'held', 1),
+];
+
+/** The rider (GDD-WLD-18's expert's line) and the careful bot, whole: Ki, Shō, Ten, Ketsu. */
+export const RIDER = (): Ctl[] => [...RIDE_KI(), ...RIDE_SHO(), ...RIDE_TEN(), ...RIDE_KETSU()];
+export const CAREFUL = (): Ctl[] => [...CAREFUL_KI(), ...CAREFUL_SHO(), ...RIDE_TEN(), ...CAREFUL_KETSU()];
+
+/** How a bot ended, as the tests tally it: `exit, 0 lost`; or `no exit, 1 lost (<cause> at <column>)` (`causeOf` on the losing step); or out of steps. */
+export function outcomeOf(b: Played): string {
+  const column = Math.floor(b.end.player.x / TILE);
+  if (b.lost.length > 0) return `no exit, ${b.lost.length} lost (${causeOf(b.states[Math.max(0, b.states.length - 2)]!, b.lastInput)} at ${column})`;
+  return b.end.phase === 'clear' ? 'exit, 0 lost' : `no exit, 0 lost (out of steps at ${column})`;
+}

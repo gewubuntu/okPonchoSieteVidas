@@ -8,6 +8,8 @@ import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { standsOnPlatform } from '../sim/platform';
 import { groundTop } from '../sim/slope';
 import { startRun, stepRun, type RunState } from '../sim/run';
+import { jumpAt, runBot, runUntil, waitFor, type Bot, type Ctl } from './bots';
+export { jumpAt, runUntil, span, tally, waitFor, type Bot, type Ctl } from './bots';
 import { levelById } from './index';
 import {
   LEVEL_3_2,
@@ -539,29 +541,6 @@ export const LEVEL_3_2_RAMPS_F_TOP = 165 * TILE;
 
 
 
-export type Ctl = (r: RunState) => { input: PlayerInput; done: boolean };
-/** Holds nothing until `until`. */
-export const waitFor = (until: (r: RunState) => boolean): Ctl => (r) => ({ input: idle, done: until(r) });
-/** Runs the way `dir` says until `until`. */
-export const runUntil = (dir: 1 | -1, until: (r: RunState) => boolean): Ctl => (r) => ({ input: { move: dir, jumpHeld: false }, done: until(r) });
-/**
- * Runs the way `dir` says and, standing with his middle past `x` (that way) and jump up for a step (L-048), presses jump and holds it
- * while he rises (`top`) or until his middle is past `until` (that way); done on the landing.
- */
-export function jumpAt(x: number, hold: 'top' | number, dir: 1 | -1 = 1): Ctl {
-  let pressed = false;
-  let air = false;
-  return (r) => {
-    const p = r.player;
-    if (!pressed) {
-      pressed = p.grounded && dir * (p.x - x) >= 0 && !p.jumpWasHeld;
-      return { input: { move: dir, jumpHeld: pressed }, done: false };
-    }
-    if (!p.grounded) air = true;
-    if (air && p.grounded) return { input: { move: dir, jumpHeld: false }, done: true };
-    return { input: { move: dir, jumpHeld: hold === 'top' ? p.vy < 0 : dir * (p.x - hold) < 0 }, done: false };
-  };
-}
 /** The hop into the cart on rail `letter`, as `hopIn`; done once it rolls with him in it. */
 export function hopInto(letter: Letter): Ctl {
   let jumpWas = false;
@@ -637,44 +616,8 @@ export const TEN_TO_ISLAND = (): Ctl[] => [
   jumpAt(2184, 'top'),
 ];
 
-export interface Bot {
-  readonly states: readonly RunState[];
-  /** The steps on which a life was lost. */
-  readonly lost: readonly number[];
-  /** The step each task was done on. */
-  readonly marks: readonly number[];
-  readonly end: RunState;
-}
-/**
- * Plays `tasks` in turn from `from` (at most `max` steps); while he waits to respawn it holds nothing, and it stops at the level's clear,
- * and with `stopAtLoss` at the first life lost.
- */
-export function bot(tasks: readonly Ctl[], from: RunState, max = 4000, stopAtLoss = false): Bot {
-  const states: RunState[] = [];
-  const lost: number[] = [];
-  const marks: number[] = [];
-  let r = from;
-  let k = 0;
-  while (k < tasks.length && states.length < max && r.phase !== 'clear' && r.phase !== 'gameover') {
-    if (r.phase !== 'playing') {
-      r = stepRun(r, idle, L);
-      states.push(r);
-      continue;
-    }
-    const { input, done } = tasks[k]!(r);
-    if (done) {
-      marks.push(states.length);
-      k++;
-      continue;
-    }
-    const before = r.lives.lives;
-    r = stepRun(r, input, L);
-    if (r.lives.lives < before) lost.push(states.length);
-    states.push(r);
-    if (stopAtLoss && lost.length > 0) break;
-  }
-  return { states, lost, marks, end: r };
-}
+/** `runBot` on 3-2. */
+export const bot = (tasks: readonly Ctl[], from: RunState, max = 4000, stopAtLoss = false): Bot => runBot(tasks, from, L, max, stopAtLoss);
 export const OFRENDA_2 = L.ofrendas[1]!;
 
 
@@ -832,15 +775,6 @@ export const WALK_KETSU = (): Ctl[] => [
   jumpAt(3640, K_LIP + TILE),
   runUntil(1, (r) => r.phase === 'clear'),
 ];
-
-/**
- * A whole-level bot with the enemies `t` steps into their walks: Ki and Shō (no enemy there) are played once from the start, and the rest
- * from the ofrenda at 110 with every enemy as it would be then (`enemiesAt(t + steps)`: none of them has seen him before that).
- */
-export const tally = (into: Record<string, number>, key: string) => (into[key] = (into[key] ?? 0) + 1);
-/** A list's least and greatest, or `none`. */
-export const span = (a: readonly number[]) => (a.length === 0 ? 'none' : `${Math.min(...a)} to ${Math.max(...a)}`);
-
 
 /**
  * The careful read from the seat, found by sweeping every step of the pen ball's walk (`level3-2.sweeps.test.ts`): drop in when the ball
