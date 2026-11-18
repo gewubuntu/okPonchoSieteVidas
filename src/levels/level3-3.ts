@@ -265,9 +265,9 @@ const cacomixtle = (rail: number): Enemy => {
  * GDD-ENM-02, GDD-ENM-04, GDD-WLD-18: where the enemies start, in this order: the three Cacomixtles K1 (x = 928), K2 (2848) and K3 (3152),
  * each in its cart on R2, R5 and R6; the Armadillo on P3 from column 114; the row of three Murciélagos climbing to the right over P3
  * (columns 111, 116 and 121, their loops' middles 48, 80 and 112 px over P3's top), each a row bat (`rx` 0, `ry` 8, GDD-ENM-04) in step
- * with the others (phase 0: GDD-WLD-18 gives none); the Zopilote over P5, flying its line from column 190 (187.5 to 193.5), the lowest
- * point of its cruise line 48 px over P5's top (its line at y = 340, the bob 12 px either way). No Cacomixtle names an exception to the sight
- * stretch's ground rule: K1's cart waits on T1's step, its floor 8 px under P1's top.
+ * with the others (phase 0: GDD-WLD-18 gives none); the Zopilote over P5, flying its line from x = 3024 (column 188.5; 2976 to 3072), its
+ * sight reaching 2880 to 3168, clear of a rider on MP2 (from x 3179); the lowest point of its cruise 108 px over P5's top (its line at y = 280,
+ * the bob 12 px either way). No Cacomixtle names an exception to the sight stretch's ground rule: K1's cart waits on T1's step, its floor 8 px under P1's top.
  */
 export const LEVEL_3_3_ENEMIES: readonly Enemy[] = [
   cacomixtle(1),
@@ -277,7 +277,7 @@ export const LEVEL_3_3_ENEMIES: readonly Enemy[] = [
   { x: mid(111), y: LEVEL_3_3_AT.P3.row * TILE - 48, kind: 'murcielago', ry: 8 },
   { x: mid(116), y: LEVEL_3_3_AT.P3.row * TILE - 80, kind: 'murcielago', ry: 8 },
   { x: mid(121), y: LEVEL_3_3_AT.P3.row * TILE - 112, kind: 'murcielago', ry: 8 },
-  { x: mid(190), y: LEVEL_3_3_AT.P5.row * TILE - 48 - 12, kind: 'zopilote' },
+  { x: 189 * TILE, y: LEVEL_3_3_AT.P5.row * TILE - 108 - 12, kind: 'zopilote' },
 ];
 
 /** GDD-WLD-04, GDD-WLD-18: 50 hilos as (column, row) tiles, in the GDD's order. */

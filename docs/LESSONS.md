@@ -252,7 +252,8 @@ Retired IDs: L-046
 - **Recurrence 4 (2026-11-12, PR #97, GDD-WLD-16, found by the re-review):** the same fault one bat earlier: the held stomp on 3-1's first bat, a move the level rewards with two hilos, bounced him over the second chasm into its bat (29 of 32 stomps from one take-off), with that bat off screen at the take-off. The test did drive it on the real level, as the rule now asks, but asserted only the stomps and the hilos, never the lives or where he lands, and from one take-off. The bat was moved under every crossing flight, which a sweep of take-offs now pins. The skill's sentence now also asks for the lives and the landing over a range of take-offs.
 - **Recurrence 5 (2026-11-12, PR #97, GDD-WLD-16, found by the next re-review):** the fix's own test asserted the held stomp's lives at three take-offs a tile apart with one run-up; from a standstill on the first tile of the stretch every stomp fell short into the chasm. The skill's sentence of the same day asked for a sweep of take-offs and the plan to the builder named three columns. The bat moved two columns, chosen from a table over every candidate column, and the test sweeps the stretch standing and running.
 - **Recurrence 6 (2026-11-17, GDD-WLD-18, 3-3's enemy drives, found by the main session before commit):** the plan worded K1's take-off sweep as "from where he wakes it to 3 tiles further", which ends 24 walking steps in, before the cart has left its 30-step telegraph: "a plain jump at a walk is lost at every take-off" was the sweep's range, not the layout. Two more findings (K3 answered by one move of four, the Armadillo met by placing him on P3 at each clock) came the same way. The skill's sentence names a lip's stretch; for an enemy the stretch runs to where it meets him. Re-driven to past the meeting point, with every answer, before anything was pinned. Unregistered levels are outside the sight sweep's guard until they are registered.
-- **Recurrence:** 6
+- **Recurrence 7 (2026-11-18, PR #105, GDD-WLD-18, found by the review):** the answers to K3 under the raised vulture were each driven to 20 steps after K3's cart parked, while the vulture a jump had set off was still in its telegraph or dive: "the plain jump over keeps the life at every clock" was the drive's end, not the stretch's (followed on, 25 of 75 clocks standing, 62 walking). The rule asks for the lives and where he ends; the plan's follow-on covered the first held jump only. The sight sweep did not run: 3-3 is not registered yet; it joins the guard when it is (GDD-WLD-18's registration).
+- **Recurrence:** 7
 - **Promoted:** src/levels/sandbox.test.ts (the Zopilote's reach); .claude/skills/harness-feature (step 5: a placement rule is run over every real level before it goes into the GDD or a plan). Second time (2026-10-27, GDD-ART-06): I wrote the plants' kind rule as (7 x column + row) mod 7 into the GDD and the plan without running it; a coefficient equal to the modulus cancels, so it was just row mod 7 and every plant on a row was the same kind, and 0-1 got 5 plants and the sandbox none. The rule was rerun over both levels and the counts (12 and 4) went into the GDD and a test. Third time: .claude/skills/harness-feature (step 5, Placement rules: a claim about what a path costs is driven on the level with every enemy in it). Fourth and fifth time (2026-11-12): the same step, a sweep of take-offs that asserts the lives and the landing, worded as a sweep in the plan. Sixth time (2026-11-17): .claude/skills/harness-feature (step 5, Placement rules: for an enemy the take-off stretch runs to where it meets him, and every answer in the plan's family is swept, not one). Guard: `src/levels/sight.test.ts` (2026-11-12, after Recurrence 5; `npm run test:sight` in the gate, with `src/levels/sightSweep.ts`), the reviewer's probe as a test: it flies every flight a World 3 level invites from every place he can stand, on the real level, and fails on a life lost to something off screen at the take-off; put back, each of PR #97's three faults turns it red
 
 ## L-015 An e2e test picked an enemy out by where it is, and a new enemy matched
@@ -883,8 +884,9 @@ Retired IDs: L-046
 - **What went wrong:** The cart's first build (GDD-WLD-15, PR #94) gave it a floor flat under its middle, and every test and bot stood within 4 px of the middle. The review swept riders across the cart and found that one standing behind the middle was left on the plateau where the rail turns down (175 of 503 hops into the lab's descending cart); a second sweep found that hopping in with forward held walked him out of the front. Both were rule faults, fixed by a floor that follows the rail and walls that hold a rider.
 - **Root cause:** The plan's tests each placed Poncho at one convenient spot on the thing he stands on, so the rule was only ever exercised there; nothing swept where he can stand, how he can arrive, or what he can be holding.
 - **Rule:** A rule about something Poncho stands on or rides (a cart, a platform, a block, an awning) is tested over the range of where he can stand on it (its ends and its middle), at every join or turn of its path, and with each direction held and nothing held; and over the real level by a sweep of the ways he can arrive (takeoff positions and jump lengths), which asserts what every arrival that boards ends in.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-18, PR #105, GDD-WLD-18, found by the builder):** the main session's probe for the vulture over 3-3's P5 stood him on the lift MP2 at one x (3200), so "MP2 is never seen" held there only: its left part, x 3179 to 3192, rode up into the vulture's sight and lost the life at up to 104 of 300 clocks. The rule was in this file only, not in a skill the plan is written from.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-feature (step 5, placement rules: a claim about what he stands on or rides sweeps where he stands on it, across each seam 1 px apart)
 
 ## L-076 CI's playtests never ran because the runner could not reach its package mirror
 
@@ -927,9 +929,10 @@ Retired IDs: L-046
 - **Area:** harness
 - **What went wrong:** With four builders running at once (the main checkout and three worktrees), the gate failed five times across two of them on test timeouts only: at a load of 11 to 24 on 4 cores a level test that takes 4 s alone took 8 or 9 s, a different set of 3 to 8 tests each run, in files the builder had not touched, and `test:glide` failed too. Each failure cost a full gate rerun and a check that the change was not the cause.
 - **Root cause:** Vitest's default limit of 5 s per test was left as it was while the level tests grew to seconds each; the limit guarded nothing (a hung test is caught at any limit) and measured the machine's load.
-- **Rule:** The unit test runs set `testTimeout` to 30 s (`vite.config.ts`, `vitest.abilities.config.ts`, `vitest.glide.config.ts`); a test that needs more gives its own. A timeout under load is re-run alone before it is called a failure.
-- **Recurrence:** 1
-- **Promoted:** vite.config.ts, vitest.abilities.config.ts, vitest.glide.config.ts (`testTimeout: 30000`)
+- **Rule:** The unit test runs set `testTimeout` to 30 s (`vite.config.ts`, `vitest.abilities.config.ts`, `vitest.glide.config.ts`); a test that needs more gives its own, at least 4 times its time run alone. A timeout under load is re-run alone before it is called a failure.
+- **Recurrence 2 (2026-11-18, PR #105, GDD-WLD-18, found by the review in CI):** 3-3's vulture tests gave their own limits at 2 times their local time alone, and CI ran the heavy 3-3 files in parallel on a slower runner: the ground test took 235.6 s against 215, the blind pin 159.9 against 130, and four more timed out. The rule said only that a test gives its own limit, not how much over its time.
+- **Recurrence:** 2
+- **Promoted:** vite.config.ts, vitest.abilities.config.ts, vitest.glide.config.ts (`testTimeout: 30000`); .claude/skills/harness-feature (step 5, plan size: a test's own limit is at least 4 times its time alone)
 
 ## L-080 A plan narrowed the GDD's "every ground" to tile tops, and the lab's perch broke the rule unseen
 
@@ -1039,3 +1042,13 @@ Retired IDs: L-046
 - **Rule:** before working in a new environment, check that `node` is on the PATH Claude Code itself runs with (not only in the shell), or restart the session after putting it there.
 - **Recurrence:** 1
 - **Promoted:** no
+
+## L-090 A plan for level drives had no run-time budget, and the gate would have taken an hour
+
+- **Date:** 2026-11-18
+- **Area:** harness, tests, level
+- **What went wrong:** the plan for the vulture's re-measure asked for every sweep at clock step 6 in one test file; built, the file ran about an hour as one process (the jump test alone 23 minutes), and `npm test`, which the gate runs, would have gone from minutes to an hour. The builder ran the tests split across processes, so nobody saw the whole.
+- **Root cause:** the plan budgeted clocks and take-offs, not time; vitest runs the tests of one file in series, so a file's time is the sum of its tests.
+- **Rule:** a plan with level drives states a time budget per test file (at most 300 s run alone) and asks for each file's time and `npm test`'s total in the report; long sweeps go in their own files at the coarsest clock step that fits, named in the test, and exact pins stay fine.
+- **Recurrence:** 1
+- **Promoted:** .claude/skills/harness-feature (step 5, run time)
