@@ -815,3 +815,226 @@ export function outcomeOf(b: Played): string {
   if (b.lost.length > 0) return `no exit, ${b.lost.length} lost (${causeOf(b.states[Math.max(0, b.states.length - 2)]!, b.lastInput)} at ${column})`;
   return b.end.phase === 'clear' ? 'exit, 0 lost' : `no exit, 0 lost (out of steps at ${column})`;
 }
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// Phase B2c: the first-time player's losses, each followed by the respawn and on to the exit (`level3-3.losses.test.ts`).
+
+/** The tasks `tasks` in turn as one task: a task that is done hands the same step to the next; done when the last is. */
+export function chain(tasks: readonly Ctl[]): Ctl {
+  let k = 0;
+  return (r) => {
+    while (k < tasks.length) {
+      const out = tasks[k]!(r);
+      if (!out.done) return out;
+      k++;
+    }
+    return { input: idle, done: true };
+  };
+}
+
+/**
+ * Plays `mistake` and then nothing held, until a life is lost: done on the first call after it (`runBot` holds nothing while he waits to respawn and calls no
+ * task then). With `stand` set, done after that many steps of standing since `mistake` was done, a life or not (L-064).
+ */
+export function untilLost(mistake: Ctl, stand = Infinity): Ctl {
+  let lives = -1;
+  let over = false;
+  let stood = 0;
+  return (r) => {
+    if (lives < 0) lives = r.lives.lives;
+    if (r.lives.lives < lives || stood >= stand) return { input: idle, done: true };
+    if (!over) {
+      const out = mistake(r);
+      if (!out.done) return out;
+      over = true;
+    }
+    stood++;
+    return { input: idle, done: false };
+  };
+}
+
+/** Right held until his middle is at `x`, then nothing: he comes to rest a stopping distance past it. Never done. */
+export const stopAfter = (x: number): Ctl => (r) => ({ input: r.player.x >= x ? idle : right, done: false });
+
+const never = () => false;
+/** What follows a respawn at the first ofrenda (T1's, column 65): Shō from the hop into C2, then Ten and Ketsu. */
+const FROM_OFRENDA_1 = (): Ctl[] => [...CAREFUL_SHO(), ...RIDE_TEN(), ...CAREFUL_KETSU()];
+/** What follows a respawn at the second ofrenda (P4's, column 130): over P4's wall, the ride over bridge B and the careful run to the exit. */
+const FROM_OFRENDA_2 = (): Ctl[] => [overWall(LEVEL_3_3_WALLS.P4.col0), ...RIDE_TEN(), ...CAREFUL_KETSU()];
+/** The careful route to Q: Ki and Shō, then C3 hopped into and ridden to its buffer on Q. */
+const TO_Q = (): Ctl[] => [...CAREFUL_KI(), ...CAREFUL_SHO(), ...RIDE_TEN().slice(0, 2)];
+/** The careful route to P5 with K2 answered: the whole of Ten. */
+const TO_P5 = (): Ctl[] => [...CAREFUL_KI(), ...CAREFUL_SHO(), ...RIDE_TEN()];
+
+/**
+ * GDD-WLD-18's "Where a first-time player loses a life": the careful route up to the place, the mistake until a life is lost, then the careful route from the
+ * ofrenda he respawns at (GDD-LIFE-03) to the exit. R3's broken end: staying in (nothing held), or a plain jump from the post (it comes back down in the cart).
+ * Respawn at the first ofrenda.
+ */
+export const LOSS_R3_STAY = (): Ctl[] => [...CAREFUL_KI(), hopInto('R3'), untilLost(waitFor(never)), ...FROM_OFRENDA_1()];
+export const LOSS_R3_PLAIN = (): Ctl[] => [...CAREFUL_KI(), hopInto('R3'), untilLost(jumpFromCart(pastPost('R3'), 'top', 1)), ...FROM_OFRENDA_1()];
+/** Bridge B stopped on its second plank (column 161): right held to the plank's left edge (x = 2576), then nothing: he comes to rest on it, and it falls. */
+export const LOSS_PLANK_STOP = (): Ctl[] => [...TO_Q(), untilLost(stopAfter(161 * TILE)), ...FROM_OFRENDA_2()];
+/** Bridge B run across with right held and no stop on the pier: K2 meets him on the second span. */
+export const LOSS_K2_RUN = (): Ctl[] => [...TO_Q(), untilLost(runUntil(1, never)), ...FROM_OFRENDA_2()];
+/** K3's cart met on P5 with right held and no jump. */
+export const LOSS_K3_WALK = (): Ctl[] => [...TO_P5(), untilLost(runUntil(1, never)), ...FROM_OFRENDA_2()];
+
+/**
+ * `mistake` and then standing until a life is lost (`untilLost`), at most `stand` steps; then `whenLost` (the careful route from the ofrenda he respawned at) if a
+ * life was lost and `whenKept` if not. One task, for a mistake that the clock decides.
+ */
+export function mistakeThen(mistake: Ctl, stand: number, whenLost: () => Ctl[], whenKept: () => Ctl[]): Ctl {
+  const until = untilLost(mistake, stand);
+  let lives = -1;
+  let rest: Ctl | undefined;
+  return (r) => {
+    if (lives < 0) lives = r.lives.lives;
+    if (rest === undefined) {
+      const out = until(r);
+      if (!out.done) return out;
+      rest = chain(r.lives.lives < lives ? whenLost() : whenKept());
+    }
+    return rest(r);
+  };
+}
+
+/** The middle of the vulture's line (x = 2976 to 3072, GDD-WLD-18): he walks to under it. */
+const VULTURE_X = 3024;
+/** How long he stands where he lands after the plain jump under the vulture before the bot walks on: 10 s. */
+export const VULTURE_STAND = 600;
+/**
+ * The cart under the vulture, standing still after a jump: the careful route onto P5 with K3's cart jumped (the careful bot's), a walk to under the vulture's
+ * middle, a plain jump with right let go on the press step, and standing where he lands until a life is lost (at most `VULTURE_STAND` steps). A life lost: the
+ * careful route from the second ofrenda. None: on to MP2 and the careful run to the exit.
+ */
+export const LOSS_VULTURE_STAND = (): Ctl[] => [
+  ...TO_P5(),
+  runUntil(1, (r) => ringtail(r, E.K3).ride!.phase !== 'waiting'),
+  jumpCart('R6', K3_GAP, 'held', 0),
+  mistakeThen(chain([runUntil(1, (r) => r.player.x >= VULTURE_X), jumpFromCart(() => true, 'top', 0)]), VULTURE_STAND, FROM_OFRENDA_2, () => [...mp2Wait(), stairsBot(), jumpFromCart(pastPost('R7'), 'held', 1)]),
+];
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// The power run: the taco from the first piñata, the chile from the second, K2 burned from the pier and K3's hit taken by the power.
+
+/** Under a piñata's column a tile short of its middle, a plain jump bumps it (GDD-PWR-05: his head flush against its underside while he rises). */
+export const bumpUnder = (pinata: number): Ctl => jumpAt(mid(L.pinatas[pinata]!.col) - 4, 'top');
+/**
+ * Brakes to a stand with his middle at `x`: right or left held as the place he would come to rest at without it (`vx` over twice the ground deceleration) falls short
+ * of or past `x`, nothing within 1 px of it; done on the first step he stands still on the ground (that is the place: a position check as well would only repeat
+ * the control, L-025).
+ */
+export function standAt(x: number): Ctl {
+  return (r) => {
+    const p = r.player;
+    if (p.grounded && p.vx === 0) return { input: idle, done: true };
+    const off = x - (p.x + (p.vx * Math.abs(p.vx)) / (2 * RUN.groundDecel));
+    return { input: { move: Math.abs(off) < 1 ? 0 : off > 0 ? 1 : -1, jumpHeld: false }, done: false };
+  };
+}
+/** Is the power `power`? */
+const powerIs = (power: RunState['power']) => (r: RunState) => r.power === power;
+
+/**
+ * The taco (GDD-PWR-05, GDD-PWR-02): after T1's wall a plain jump under the first piñata (column 64) bumps it; the taco walks right on its top at 40 px/s and
+ * falls off its edge onto T1. He runs right to the first ofrenda's middle (x = 1048, and on a stopping distance, to about 1061), where it falls past his front
+ * and he takes it as it comes down; he waits there if it does not.
+ */
+const TACO_FROM_PINATA = (): Ctl[] => [bumpUnder(0), runUntil(1, (r) => r.player.x >= L.ofrendas[0]!.x), waitFor(powerIs('taco'))];
+
+/** P4's wall (column 132): its left face (x = 2112) and its right face, where his middle stands 6 px off it. */
+const WALL_P4 = { left: LEVEL_3_3_WALLS.P4.col0 * TILE, right: (LEVEL_3_3_WALLS.P4.col1 + 1) * TILE };
+
+/**
+ * The chile (GDD-PWR-05, GDD-PWR-03), in Taco: a plain jump under the second piñata (column 134, a wall at 132 between it and the glide's landing), which leaves a
+ * chile on its top; back over the wall to its left with a plain jump left held, a run-up, and a plain jump right held at a run from 3 tiles short of the wall that
+ * lands on its top (x = 2121.8; the take-offs from 2052 to 2076 do, probed); there he brakes to a stand at 2 px over its left face (x = 2114) and takes a plain
+ * jump right held, which reaches the piñata's top and the chile (L-047: from a stand the take-offs from 2106 to 2122 do, `level3-3.losses.test.ts`), taking it in the air.
+ */
+const CHILE_FROM_PINATA = (): Ctl[] => [
+  bumpUnder(1),
+  runUntil(-1, (r) => r.player.x <= WALL_P4.right + HITBOX.width / 2 + 1),
+  jumpAt(WALL_P4.right + HITBOX.width / 2 + 1, 'top', -1),
+  runUntil(-1, (r) => r.player.x <= WALL_P4.left - 4.5 * TILE),
+  waitFor((r) => r.player.vx === 0 && r.player.grounded),
+  jumpAt(WALL_P4.left - 3 * TILE, 'top'),
+  standAt(WALL_P4.left + 2),
+  jumpAt(WALL_P4.left - 8, 'top'),
+];
+
+/** The power run to P4's wall: the careful route with the taco taken on the way, over the wall of P4 from the glide's landing. */
+export const POWER_TO_P4_WALL = (): Ctl[] => [
+  ...CAREFUL_KI().slice(0, 6),
+  ...TACO_FROM_PINATA(),
+  runUntil(1, (r) => r.checkpointIndex >= 0),
+  ...CAREFUL_SHO().slice(0, -1),
+  overWall(LEVEL_3_3_WALLS.P4.col0),
+];
+/** The power run so far: the taco and the chile taken on the way, to the chile's jump's landing on the piñata's top. */
+export const POWER_TO_CHILE = (): Ctl[] => [...POWER_TO_P4_WALL(), ...CHILE_FROM_PINATA()];
+
+/** One press of the Fuego button (it spits one fireball on the press, GDD-PWR-03) on the first step `when` holds, and nothing the step after; done then. */
+export function spit(when: (r: RunState) => boolean): Ctl {
+  let pressed = false;
+  return (r) => {
+    if (pressed) return { input: idle, done: true };
+    if (!when(r)) return { input: idle, done: false };
+    pressed = true;
+    return { input: { move: 0, jumpHeld: false, fuego: true }, done: false };
+  };
+}
+/** K2's cart is burned from the pier once it rolls and its front is this far from his: inside the presses that defeat it (`level3-3.losses.test.ts`). */
+export const K2_BURN_GAP = 120;
+
+/** Ten with the chile: as the careful bot's, and on the pier a press of Fuego when K2's cart rolls within `K2_BURN_GAP`; its empty cart is then jumped as before. */
+export const POWER_TEN = (): Ctl[] => {
+  const ten = RIDE_TEN();
+  return [...ten.slice(0, 3), spit((r) => r.carts[cartOf('R5')]!.phase === 'rolling' && gapTo(r, 'R5') <= K2_BURN_GAP), ...ten.slice(3)];
+};
+/**
+ * Ketsu with a hit: right held on past K3's wake to MP2 with no jump, so K3's cart is met on the way (the hit the power takes, Fuego to Taco, with the
+ * invulnerability after it), and the careful run from MP2 to the exit. No task of its own for the hit: the walk to MP2 is it (L-025).
+ */
+export const POWER_KETSU = (): Ctl[] => [...mp2Wait(), stairsBot(), jumpFromCart(pastPost('R7'), 'held', 1)];
+/** The power run (the careful route with both piñatas opened, K2 burned and K3's hit taken by the power). */
+export const POWER = (): Ctl[] => [...POWER_TO_CHILE(), ...POWER_TEN(), ...POWER_KETSU()];
+
+/** What one loss bot's run left, for the tests (`playLoss`). */
+export interface LossRun {
+  readonly bot: Bot;
+  /** Each life lost: the index of the losing state in `bot.states`, what took it (`causeOf` on the step before it, with the input it was taken with) and his column. */
+  readonly losses: readonly { readonly step: number; readonly cause: string; readonly column: number }[];
+  /** The first state of play after the first loss: its index, his x and the ofrenda he is at (`checkpointIndex`); null if no life was lost. */
+  readonly respawn: { readonly step: number; readonly x: number; readonly checkpoint: number } | null;
+  /** The first step a life came back (an ofrenda's first activation, GDD-LIFE-03), and the ofrenda he stood at then; null for none. */
+  readonly restored: { readonly step: number; readonly checkpoint: number } | null;
+}
+
+/**
+ * `runBot` on 3-3 with no stop at a loss (at most `max` steps, L-064), and the tasks' last input before each life lost kept for `causeOf`: a task's call on a
+ * state with fewer lives than the last non-done call's state is the first call after the respawn, and that last call was the losing step.
+ */
+export function playLoss(tasks: readonly Ctl[], from: RunState, max = 8000): LossRun {
+  const causes: string[] = [];
+  let prev: { r: RunState; input: PlayerInput } | undefined;
+  const seen = tasks.map((task): Ctl => (r) => {
+    if (prev && r.lives.lives < prev.r.lives.lives) {
+      causes.push(causeOf(prev.r, prev.input));
+      prev = undefined;
+    }
+    const out = task(r);
+    if (!out.done) prev = { r, input: out.input };
+    return out;
+  });
+  const b = runBot(seen, from, L, max, false);
+  const losses = b.lost.map((step, i) => ({ step, cause: causes[i] ?? 'none', column: Math.floor(b.states[Math.max(0, step - 1)]!.player.x / TILE) }));
+  const flip = losses.length === 0 ? -1 : b.states.findIndex((r, k) => k > losses[0]!.step && r.phase === 'playing');
+  const back = b.states.findIndex((r, k) => k > 0 && r.lives.lives > b.states[k - 1]!.lives.lives);
+  return {
+    bot: b,
+    losses,
+    respawn: flip < 0 ? null : { step: flip, x: b.states[flip]!.player.x, checkpoint: b.states[flip]!.checkpointIndex },
+    restored: back < 0 ? null : { step: back, checkpoint: b.states[back]!.checkpointIndex },
+  };
+}
