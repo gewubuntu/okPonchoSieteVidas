@@ -163,6 +163,18 @@ describe('GDD-BOS-04 level 3-4', () => {
     expect(after[80]!.catorce!.hits).toBe(1);
   });
 
+  it('GDD-BOS-04 3-4 a cart that broke on her keeps its count and is back 180 steps after it left the rail', () => {
+    // GDD-BOS-04: "a cart is back at its start, standing, 3.0 s (180 steps) after the step it left its rail, ridden off or not". It left on
+    // the board's 32nd step and broke on her on the 55th; the count runs from the step it left, so it stands again on step 32 + 180.
+    const slam = record(fresh(), SECOND_LEFT_SLAM)[SECOND_LEFT_SLAM]!;
+    const after = record(boarded(slam, 0), 220);
+    expect(after[31]!.carts[0]!.phase).toBe('rolling');
+    expect(after[32]!.carts[0]!.phase).toBe('falling');
+    expect(after[55]!.carts[0]!.phase).toBe('gone');
+    expect(after[211]!.carts[0]!.phase).toBe('gone');
+    expect(after[212]!.carts[0]).toEqual({ phase: 'waiting', m: CART.width / 2 });
+  });
+
   it('GDD-BOS-04 3-4 a ridden-off cart breaks on her and does not count', () => {
     const slam = record(fresh(), SECOND_LEFT_SLAM)[SECOND_LEFT_SLAM]!;
     const cart: CartState = { phase: 'rolling', m: CART.width / 2 };

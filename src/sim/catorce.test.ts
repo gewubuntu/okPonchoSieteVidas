@@ -140,6 +140,17 @@ describe('GDD-BOS-04 La Catorce', () => {
     expect(gone.catorce.home).toEqual([{ phase: 'gone', steps: 49 }, { phase: 'idle', steps: 0 }]);
   });
 
+  it('GDD-BOS-04 catorce settled before her touch: the step a cart scores, Poncho inside her box is not touched', () => {
+    // GDD-BOS-04: "A hit on her is settled before her touch." Poncho standing on the floor at her middle overlaps her box: with no cart it
+    // is a touch; with a scoring cart on the same step she is hurt first, and a hurt engine touches nobody.
+    const her = posed('rest', 80, 0);
+    const inside = { ...spawn(80, 224), grounded: true };
+    expect(step(her, { player: inside }).touch).toBe(80);
+    const scored = step(her, { player: inside, carts: [cartAt(54.5)] });
+    expect(scored.hit).toBe(true);
+    expect(scored.touch).toBeUndefined();
+  });
+
   it('GDD-BOS-04 catorce hit: a falling cart not ridden off on her unarmoured is a hit', () => {
     const r = step(posed('rest', 80, 0), { carts: [{ box: cartBox, ridden: false }] });
     expect(r.hit).toBe(true);

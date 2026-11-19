@@ -39,7 +39,7 @@ export const LEVEL_3_4_RAILS: readonly Rail[] = [
 
 /**
  * GDD-BOS-04: the perches, four crumbling tiles at each wall (columns 0 to 3 and 26 to 29), 3 tiles beyond each broken end. Row 6 (top
- * y = 96, not the GDD's row 7): a cart's box on its rail is y 112 to 128, and rolling off the end it would hit a perch at row 7 (the
+ * y = 96, moved up from the first design's row 7, GDD-BOS-04): a cart's box on its rail is y 112 to 128, and rolling off the end it would hit a perch at row 7 (the
  * same rows) and break before it reached her.
  */
 export const LEVEL_3_4_PERCHES: readonly Crumble[] = [0, 1, 2, 3, 26, 27, 28, 29].map((col) => ({ col, row: 6 }));
