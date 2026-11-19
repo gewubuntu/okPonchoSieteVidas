@@ -687,6 +687,28 @@ export const ESTRELLA_ART = { frame: 72, columns: 8, looks: 15, tejocoteFrame: 8
 export const TEJOCOTE = { size: 8, rollSpeed: 90, secondPairSteps: Math.round(0.4 * TICK_HZ), pairs: [1, 1, 2] } as const;
 
 /**
+ * GDD-BOS-04: La Catorce, World 3's boss, a `width` x `height` px box on the shed floor that ignores tiles. Each array has one entry per
+ * phase. She runs between `stops` (her middle, x: left, then right) at `speed` px/s, rests `restSteps` at each, then telegraphs for
+ * `telegraphSteps` (0.5 s, GDD-ENM-01) before she charges; `shakesHome` says whether her slam starts the home tile on her side. A hit
+ * leaves her hurt for `hurtSteps` (1.0 s); the last of her `hits` defeats her, and the level is clear `defeatSteps` (1.0 s) after that
+ * hit. The arena's carts come back `cartReturnSteps` (3.0 s) after they leave their rail (a boss's own rule, GDD-BOS-01; the levels'
+ * `CART.returnSteps` is 2.0 s).
+ */
+export const CATORCE = {
+  width: 64,
+  height: 32,
+  stops: [[80, 400], [80, 400], [32, 448]],
+  speed: [80, 110, 150],
+  restSteps: [Math.round(3.0 * TICK_HZ), Math.round(1.0 * TICK_HZ), 0],
+  telegraphSteps: Math.round(0.5 * TICK_HZ),
+  shakesHome: [false, true, true],
+  hurtSteps: Math.round(1.0 * TICK_HZ),
+  defeatSteps: Math.round(1.0 * TICK_HZ),
+  hits: 3,
+  cartReturnSteps: Math.round(3.0 * TICK_HZ),
+} as const;
+
+/**
  * GDD-BOS-01: the hit-stop. On the step a hit lands on a boss the scene's loop runs no step for `hurtSteps` (67 ms) after a hit that
  * leaves him hurt and `defeatSteps` (200 ms) after the hit that defeats him, so everything waits and the hit's frame stays on screen.
  */

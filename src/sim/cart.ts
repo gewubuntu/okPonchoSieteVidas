@@ -45,6 +45,11 @@ export interface CartState {
   readonly fall?: { readonly y: number; readonly vy: number; readonly vx: number };
   /** Stopped, falling or gone: the steps counted towards its return to its start (CART.returnSteps). Left out means 0. */
   readonly empty?: number;
+  /**
+   * Falling: Poncho was standing in it, carried by it, on the last step before it left the rail (GDD-BOS-04's ridden-off rule, set by
+   * `rideOffCarts` on the step it leaves). Left out otherwise.
+   */
+  readonly ridden?: boolean;
 }
 
 const HALF = CART.width / 2;
@@ -194,19 +199,27 @@ export function breakCarts(rails: readonly Rail[], carts: readonly CartState[], 
 /**
  * An empty cart comes back: at a step's start, a cart stopped at its buffer counts the step if Poncho does not stand on its floor (`player`,
  * as the last step ended him) and holds its count at 0 while he does; a cart that has left a broken end counts every step from the one it
- * left. On the step the count reaches CART.returnSteps it is back at its start, standing. Not in a boss level (`boss`): there a cart stays
- * at its rail's end until a life is lost (GDD-BOS-04). Nor does the cart of a Cacomixtle's rail (`cacomixtleRails`), with its rider or
- * emptied: it stays where it stops until a life is lost (GDD-ENM-04).
+ * left. On the step the count reaches `returnSteps` (CART.returnSteps in a level, CATORCE.cartReturnSteps in La Catorce's arena, GDD-BOS-04)
+ * it is back at its start, standing. Nor does the cart of a Cacomixtle's rail (`cacomixtleRails`), with its rider or emptied: it stays where
+ * it stops until a life is lost (GDD-ENM-04).
  */
-export function returnCarts(rails: readonly Rail[], carts: readonly CartState[], player: PlayerState, boss: boolean, cacomixtleRails: ReadonlySet<number>): CartState[] {
-  if (boss) return [...carts];
+export function returnCarts(rails: readonly Rail[], carts: readonly CartState[], player: PlayerState, returnSteps: number, cacomixtleRails: ReadonlySet<number>): CartState[] {
   return carts.map((c, i) => {
     if (cacomixtleRails.has(i)) return c;
     if (c.phase !== 'stopped' && c.phase !== 'falling' && c.phase !== 'gone') return c;
     if (c.phase === 'stopped' && standsIn(player, rails[i]!, c)) return { phase: c.phase, m: c.m };
     const empty = (c.empty ?? 0) + 1;
-    return empty >= CART.returnSteps ? { phase: 'waiting', m: HALF } : { ...c, empty };
+    return empty >= returnSteps ? { phase: 'waiting', m: HALF } : { ...c, empty };
   });
+}
+
+/**
+ * GDD-BOS-04's ridden-off rule: a cart that is rolling in `before` and falling in `after` (it left its rail on this step) is marked
+ * `ridden` if Poncho (`player`, as the last step ended him) stood in it, carried by it, standing on its floor in `before`; else
+ * `ridden: false`. Every other cart is unchanged, so a cart already falling keeps its mark.
+ */
+export function rideOffCarts(rails: readonly Rail[], before: readonly CartState[], after: readonly CartState[], player: PlayerState): CartState[] {
+  return after.map((c, i) => (before[i]!.phase === 'rolling' && c.phase === 'falling' ? { ...c, ridden: standsIn(player, rails[i]!, before[i]!) } : c));
 }
 
 /**
