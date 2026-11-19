@@ -171,6 +171,8 @@ describe('GDD-BOS-04 3-4 moves', () => {
       return r.ground;
     };
     // Per start, the rel values that land on home (y 160), on the floor, and in each cart (rel 100 to 260), the left side's; the right is the same mirrored.
+    // The earliest home landings (rel 100 to about 112-124) are not the glide's own: let go that early he falls onto the left spring, which throws him
+    // onto home (a change to the spring shows here too).
     const EXPECTED: Record<number, { home: number[][]; floor: number[][]; left: number[][]; right: number[][] }> = {
       8: { home: [[100, 124], [192, 228]], floor: [[128, 132], [232, 260]], left: [[136, 188]], right: [] },
       24: { home: [[100, 120], [192, 220]], floor: [[124, 132], [224, 260]], left: [[136, 188]], right: [] },
@@ -288,7 +290,14 @@ describe('GDD-BOS-04 3-4 moves', () => {
       expect(r.rise, `x ${r.x}: a held jump's rise`).toBe(56.4375);
     }
     expect([rows[0]!.C, rows[2]!.C], 'the step she would touch him standing, at x 120 and 360').toEqual([147, 51]);
-    // At x 240 nothing clears her: (the free held jump there rises only 16 px): a gap in the GDD's claim.
+    // At x 240 nothing clears her: the free held jump there rises only 16 px, his head meeting the gantry (accepted, user, 2026-11-19: "Accept it").
     expect([rows[1]!.C, rows[1]!.glide, rows[1]!.plain, rows[1]!.rise], 'x 240').toEqual([99, [], [], 16]);
+    // The whole floor, every 10 px from 40 to 440: how many presses of the held jump clear her. The full 8 from 70 to 180 and from 300 to 410;
+    // fewer around home (the gantry over 224 to 256 caps the jump: 3 at 190 and 290, 6 at 200, 7 at 260, none from 230 to 250 and at 280);
+    // more on the springs (210 and 270, which throw him); none where she parks at the walls (40 to 60, 420 to 440).
+    const sweep = Object.fromEntries(Array.from({ length: 41 }, (_, i) => 40 + 10 * i).map((x) => [x, result(x).glide.length]));
+    out(`GDD-BOS-04 phase 3 jump over her, presses that clear by x: ${JSON.stringify(sweep)}`);
+    const EIGHT = Object.fromEntries([...Array.from({ length: 12 }, (_, i) => 70 + 10 * i), ...Array.from({ length: 12 }, (_, i) => 300 + 10 * i)].map((x) => [x, 8]));
+    expect(sweep, 'presses that clear her, by x').toEqual({ ...EIGHT, 40: 0, 50: 0, 60: 0, 190: 3, 200: 6, 210: 27, 220: 8, 230: 0, 240: 0, 250: 0, 260: 7, 270: 41, 280: 0, 290: 3, 420: 0, 430: 0, 440: 0 });
   });
 });
