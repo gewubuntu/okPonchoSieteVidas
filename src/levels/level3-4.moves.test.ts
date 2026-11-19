@@ -292,9 +292,10 @@ describe('GDD-BOS-04 3-4 moves', () => {
     expect([rows[0]!.C, rows[2]!.C], 'the step she would touch him standing, at x 120 and 360').toEqual([147, 51]);
     // At x 240 nothing clears her: the free held jump there rises only 16 px, his head meeting the gantry (accepted, user, 2026-11-19: "Accept it").
     expect([rows[1]!.C, rows[1]!.glide, rows[1]!.plain, rows[1]!.rise], 'x 240').toEqual([99, [], [], 16]);
-    // The whole floor, every 10 px from 40 to 440: how many presses of the held jump clear her. The full 8 from 70 to 180 and from 300 to 410;
-    // fewer around home (the gantry over 224 to 256 caps the jump: 3 at 190 and 290, 6 at 200, 7 at 260, none from 230 to 250 and at 280);
-    // more on the springs (210 and 270, which throw him); none where she parks at the walls (40 to 60, 420 to 440).
+    // The whole floor, every 10 px from 40 to 440: how many presses of the held jump clear her. Where he can stand: the full 8 from 70 to 180, at
+    // 220 and from 300 to 410; none under the gantry (230 to 250, which caps the jump) and 7 at 260 beside it; none where she parks at the walls
+    // (40 to 60, 420 to 440). At 190 to 210 and 270 to 290 he stands on a spring (columns 12 and 17, `standsOn` within 14 px of its middle),
+    // which throws him at once: those counts depend on where he is in the bounce, and the search's start at C - 40 bounds them (41 = every press).
     const sweep = Object.fromEntries(Array.from({ length: 41 }, (_, i) => 40 + 10 * i).map((x) => [x, result(x).glide.length]));
     out(`GDD-BOS-04 phase 3 jump over her, presses that clear by x: ${JSON.stringify(sweep)}`);
     const EIGHT = Object.fromEntries([...Array.from({ length: 12 }, (_, i) => 70 + 10 * i), ...Array.from({ length: 12 }, (_, i) => 300 + 10 * i)].map((x) => [x, 8]));

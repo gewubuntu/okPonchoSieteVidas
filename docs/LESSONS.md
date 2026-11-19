@@ -1096,8 +1096,9 @@ Retired IDs: L-046
 - **What went wrong:** the plan for 3-3's bots said a rider loss whose cause the GDD does not name is reported and the run stops. The implementer met one ("bat 1 at 111"), pinned it, and wrote in the test that it was GDD-WLD-18's "26 have no answer" family, from a probe over 8 of its 32 clocks that was not in the repository. Checked, every such loss came 1 to 4 steps into the bot's own held jump over the ball, a choice of the bot's, not shown to be the GDD's family.
 - **Root cause:** the report flagged it as a decision, but the stop condition was written as prose in the plan and the pin was already made; a probe's reading went into a test comment as a fact.
 - **Rule:** an outcome the plan's stop condition covers is reported, not pinned, until the main session has checked it against the run (what the bot was doing on the losing step); a test comment never names a GDD family from a probe outside the repository (L-003).
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-19, PR #112, GDD-BOS-04, found by the review):** writing the phase 3 floor sweep into the GDD, I put every short window around home down to the gantry and placed the springs at x 210 and 270. At x 190, 200, 280 and 290 too Poncho stood on a spring, which threw him from step 1; the counts there came from the bounce, not the gantry. The user accepted the strip on that account, and had to be asked again on the corrected figures. I read the cause off the shape of the numbers, not off what he was doing on the steps that made them.
+- **Recurrence:** 2
+- **Promoted:** `harness-gdd-update` step 1, "Check a measured figure's cause against the run (L-093)"
 
 ## L-094 A design sentence about when to act was not worked against the section's own windows
 
