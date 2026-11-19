@@ -9,7 +9,7 @@ import { parseTiles } from '../sim/tilemap';
 import { cameraLimitsAt } from '../ui/camera';
 import { LEVEL_3_3_AT, LEVEL_3_3_PITS, LEVEL_3_3_PLATFORM, LEVEL_3_3_RAILS, LEVEL_3_3_ROWS } from './level3-3';
 import {
-  at, apart, bounced, cartOf, colOf, endOf, entry, faceOf, fly, idle, inCart, L, landedAs, last, middleOf, mid, NAMES, play, railOf, rideOn, right, standsOnTile, took, tookOf, underBat, whereIs, world, Y,
+  at, apart, bounced, cartOf, colOf, endOf, entry, faceOf, fly, idle, inCart, L, landedAs, last, middleOf, mid, NAMES, play, railOf, rideOn, right, standsOnTile, took, tookOf, underBat, velaTaken, whereIs, world, Y,
   type Flight, type Name,
 } from './level3-3.drive';
 import { gaps, openGaps, validateLevel } from './validate';
@@ -18,9 +18,6 @@ import { gaps, openGaps, validateLevel } from './validate';
 // out by the World 3 design swarm before any code, its tables re-typed here); where the real simulation gives another, the test pins the
 // measured value with a comment "GDD says N" (L-003). Part 1 is the layout; Part 2 measures the layout's reaches on the real level with
 // every enemy in it, asserting the lives and where he ends (L-014); a test that measures a reach alone on a copy without an enemy says so.
-
-const velaTaken = (r: RunState) => r.lives.used.has(`veladora:${L.veladora!.col},${L.veladora!.row}`);
-
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
 // Part 1: the layout, from GDD-WLD-18's bullets.
@@ -34,8 +31,8 @@ const GROUND: readonly (readonly [number, number, number])[] = [
 const PITS: readonly (readonly [number, number])[] = [[10, 13], [89, 98], [120, 126], [141, 152], [160, 166], [168, 175], [226, 231]];
 /** The slopes: [from, to, row of the first slope tile, its character]: down to the right, one row a column, or up. */
 const SLOPES: readonly (readonly [number, number, number, '\\' | '/'])[] = [[7, 7, 34, '/'], [53, 53, 26, '\\'], [72, 74, 27, '/'], [216, 218, 9, '\\']];
-/** Pier V's hollow (its wall, floor and cap) and the piñatas' walls: [from, to, first row, last row]. */
-const PIECES: readonly (readonly [number, number, number, number])[] = [[22, 22, 26, 36], [23, 24, 31, 36], [22, 25, 26, 26], [62, 62, 26, 27], [132, 132, 23, 24]];
+/** Pier V's hollow (its wall to row 31, its floor in row 31 and its cap; the shelf runs under it, rows 32 to 34 open)  and the piñatas' walls: [from, to, first row, last row]. */
+const PIECES: readonly (readonly [number, number, number, number])[] = [[22, 22, 26, 31], [23, 24, 31, 31], [22, 25, 26, 26], [62, 62, 26, 27], [132, 132, 23, 24]];
 
 const slopeRow = ([a, , row, ch]: (typeof SLOPES)[number], col: number) => (ch === '\\' ? row + col - a : row - (col - a));
 /** Is tile (col, row) solid by the tables? The spring's tile at (106, 29) is an empty tile in the rows. */
@@ -109,6 +106,9 @@ describe('GDD-WLD-18 level 3-3 layout', () => {
     expect(SLOPES.map(([a, b, row, ch]) => (ch === '\\' ? [row, row + b - a + 1] : [row + 1, row - (b - a)]))).toEqual([[35, 34], [26, 27], [28, 25], [9, 12]]);
     // The hollow: rows 27 to 30 of columns 23 and 24 are empty, under the cap and over the floor, and open to the right (25, under the cap).
     for (let row = 27; row <= 30; row++) for (const col of [23, 24, 25]) expect(world.solidTile(col, row), `${col},${row}`).toBe(false);
+    // The tunnel under pier V (user, 2026-11-18): the wall (column 22) and the floor (23 and 24) stop at row 31, rows 32 to 34 are open under them and row 35, the shelf's top, is solid.
+    for (let row = 32; row <= 34; row++) for (const col of [22, 23, 24]) expect(world.solidTile(col, row), `${col},${row}`).toBe(false);
+    for (const col of [22, 23, 24]) expect([world.solidTile(col, 31), world.solidTile(col, 35)], `${col}`).toEqual([true, true]);
     // The gable: solid from row 4 down, over the exit bank's 11 rows.
     expect(Y(15) - Y(4)).toBe(176);
   });

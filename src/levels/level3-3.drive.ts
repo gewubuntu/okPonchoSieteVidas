@@ -7,7 +7,7 @@ import { platformAt, standsOnPlatform } from '../sim/platform';
 import { startRun, stepRun, touchesOfrenda, type Level, type RunState } from '../sim/run';
 import { jumpAt, runBot, runUntil, waitFor, type Bot, type Ctl } from './bots';
 import type { LevelEntry } from './index';
-import { LEVEL_3_3, LEVEL_3_3_AT, LEVEL_3_3_PLATFORM, LEVEL_3_3_RAIL, LEVEL_3_3_WALLS } from './level3-3';
+import { LEVEL_3_3, LEVEL_3_3_AT, LEVEL_3_3_PLANKS, LEVEL_3_3_PLATFORM, LEVEL_3_3_RAIL, LEVEL_3_3_WALLS } from './level3-3';
 
 export const L = LEVEL_3_3;
 export const world = L.world;
@@ -36,6 +36,8 @@ export function inCart(r: RunState, name: Name): boolean {
 }
 export const hiloIndex = (col: number, row: number) => L.hilos!.findIndex((h) => h.col === col && h.row === row);
 export const took = (r: RunState, col: number, row: number) => r.hilosTaken[hiloIndex(col, row)] === true;
+/** GDD-LIFE-03: the veladora is used up (taken, whether or not it restored a life). */
+export const velaTaken = (r: RunState) => r.lives.used.has(`veladora:${L.veladora!.col},${L.veladora!.row}`);
 export const lost = (r: RunState, from: RunState) => r.lives.lives < from.lives.lives || r.phase === 'respawning' || r.phase === 'gameover';
 /** Which of `hilos` run `r` has taken, as "col,row". */
 export const tookOf = (r: RunState, hilos: readonly (readonly [number, number])[]) => hilos.filter(([c, w]) => took(r, c, w)).map(([c, w]) => `${c},${w}`);
@@ -697,38 +699,115 @@ export const mp2Wait = (): Ctl[] => {
   ];
 };
 
-/** Ki, careful: K1 woken from P1 and answered from the perch; he waits there until its cart has stopped at its buffer, then walks off over it to T1. */
-export const CAREFUL_KI = (): Ctl[] => [
-  runUntil(1, (r) => inCart(r, 'R1') && r.carts[cartOf('R1')]!.phase !== 'waiting'),
-  waitFor((r) => r.carts[cartOf('R1')]!.phase === 'stopped'),
-  runUntil(1, onRow(LEVEL_3_3_AT.P1.row)),
+/** K1 woken from P1 and answered from the perch; he waits there until its cart has stopped at its buffer, then walks off over it to T1. */
+const K1_ANSWER = (): Ctl[] => [
   perchBot(),
   waitFor((r) => r.carts[cartOf('R2')]!.phase === 'stopped'),
   overWall(LEVEL_3_3_WALLS.T1.col0),
   runUntil(1, (r) => r.checkpointIndex >= 0),
 ];
-/** Shō, careful: as the rider's, but he waits on L1 for the careful read of the Armadillo before the spring. */
-export const CAREFUL_SHO = (): Ctl[] => [
-  hopInto('R3'),
-  jumpFromCart(pastPost('R3'), 'held', 1),
+/** Ki, careful: C1 on foot from the spawn, R1 to its buffer, out onto P1, then K1's answer. */
+export const CAREFUL_KI = (): Ctl[] => [
+  runUntil(1, (r) => inCart(r, 'R1') && r.carts[cartOf('R1')]!.phase !== 'waiting'),
+  waitFor((r) => r.carts[cartOf('R1')]!.phase === 'stopped'),
+  runUntil(1, onRow(LEVEL_3_3_AT.P1.row)),
+  ...K1_ANSWER(),
+];
+/** Shō, careful, from L1: he waits there for the careful read of the Armadillo before the spring. */
+const CAREFUL_FROM_L1 = (): Ctl[] => [
   waitFor(armadilloReads),
   springBot(),
   armadilloBot(),
   jumpAt(P3_LIP - 8, HELD),
   overWall(LEVEL_3_3_WALLS.P4.col0),
 ];
-/** Ketsu, careful: he stops where K3 wakes (short of the vulture's stretch), jumps its cart when it comes, then waits for the lift at MP2's foot. */
-export const CAREFUL_KETSU = (): Ctl[] => [
-  runUntil(1, (r) => ringtail(r, E.K3).ride!.phase !== 'waiting'),
-  jumpCart('R6', K3_GAP, 'held', 0),
-  ...mp2Wait(),
-  stairsBot(),
-  jumpFromCart(pastPost('R7'), 'held', 1),
-];
+/** Shō, careful: as the rider's, but he waits on L1 for the careful read of the Armadillo before the spring. */
+export const CAREFUL_SHO = (): Ctl[] => [hopInto('R3'), jumpFromCart(pastPost('R3'), 'held', 1), ...CAREFUL_FROM_L1()];
+/** Ketsu, careful, to A: he stops where K3 wakes (short of the vulture's stretch), jumps its cart when it comes, then waits for the lift at MP2's foot. */
+const CAREFUL_TO_A = (): Ctl[] => [runUntil(1, (r) => ringtail(r, E.K3).ride!.phase !== 'waiting'), jumpCart('R6', K3_GAP, 'held', 0), ...mp2Wait()];
+/** Ketsu, careful: to A, then the stairs into C4 and R7 to a held jump from its post into the exit. */
+export const CAREFUL_KETSU = (): Ctl[] => [...CAREFUL_TO_A(), stairsBot(), jumpFromCart(pastPost('R7'), 'held', 1)];
 
 /** The rider (GDD-WLD-18's expert's line) and the careful bot, whole: Ki, Shō, Ten, Ketsu. */
 export const RIDER = (): Ctl[] => [...RIDE_KI(), ...RIDE_SHO(), ...RIDE_TEN(), ...RIDE_KETSU()];
 export const CAREFUL = (): Ctl[] => [...CAREFUL_KI(), ...CAREFUL_SHO(), ...RIDE_TEN(), ...CAREFUL_KETSU()];
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// Phase B2b: the walker, who boards none of C1, C2, C3 and C4 (`level3-3.walker.test.ts`), and the secret bot.
+
+/** C1's dip: the plain hop onto G0b taken from x = 70 (inside the sweep's window of take-offs that land on G0b without boarding C1, `level3-3.walker.test.ts`). */
+export const DIP_HOP = 70;
+/** The first pit: the held jump from G0b taken from x = 152 (a held jump from any take-off on G0b reaches the shelf, standing or at a run). */
+export const PIT_JUMP = 152;
+/** P2's lip: the left edge of the chasm after it (column 89). */
+const P2_LIP = (LEVEL_3_3_AT.P2.col1 + 1) * TILE;
+/** The shelf under R7's lip: the left edge of the exit pit after it (column 226). */
+const SHELF7_LIP = (LEVEL_3_3_AT.shelf7.col1 + 1) * TILE;
+/** The secret's take-off: a held jump back at x = 568, 1.5 tiles in from P1's left lip (x = 544); the measured window is 16 px and more in at a run, up to 3 tiles (`level3-3.test.ts`). */
+export const SECRET_JUMP = LEVEL_3_3_AT.P1.col0 * TILE + 1.5 * TILE;
+
+/** Up the lift MP0 from the shelf: he stops short of its left edge, waits until its top is `MP2_NEAR` px or less over its foot, then right held up onto P1. */
+export const mp0Up = (): Ctl[] => {
+  const mp0 = LEVEL_3_3_PLATFORM.MP0;
+  return [
+    runStopAt(mp0.x0 - 24),
+    waitFor((r) => platformAt(mp0, r.platformTick).y >= mp0.y0 - MP2_NEAR),
+    runUntil(1, (r) => onRow(LEVEL_3_3_AT.P1.row)(r) && r.player.x >= LEVEL_3_3_AT.P1.col0 * TILE),
+  ];
+};
+
+/** Shō on foot: right through C2 (T1's ground) and up its slope to P2's row (first reached at the slope's top), a held jump from P2's lip onto L1, then the careful bot's own. */
+export const WALKER_SHO = (): Ctl[] => [
+  runUntil(1, onRow(LEVEL_3_3_AT.P2.row)),
+  jumpAt(P2_LIP, HELD),
+  ...CAREFUL_FROM_L1(),
+];
+/** Ten on foot: right through C3 and over bridge A's planks, no stop, onto Q; then the rider's from the pier on. */
+export const WALKER_TEN = (): Ctl[] => [runUntil(1, (r) => onRow(LEVEL_3_3_AT.Q.row)(r) && r.player.x >= LEVEL_3_3_AT.Q.col0 * TILE), ...RIDE_TEN().slice(2)];
+
+/**
+ * The stairs with the last jump kept out of C4: right held and a jump on each landing as `stairsBot`'s, but the jump from the third pair is a plain one
+ * with right let go (the sweep of `level3-3.walker.test.ts`); done on P6.
+ */
+export function stairsOnFoot(): Ctl {
+  let was = false;
+  let release = false;
+  return (r) => {
+    const p = r.player;
+    if (p.grounded && p.y === Y(LEVEL_3_3_AT.P6.row)) return { input: idle, done: true };
+    const jump = p.grounded ? !was : was && p.vy < 0;
+    if (jump && p.grounded && p.y === Y(LEVEL_3_3_PLANKS.stair3.row)) release = true;
+    was = jump;
+    return { input: { move: release ? 0 : 1, jumpHeld: jump }, done: false };
+  };
+}
+/** Ketsu on foot: to A as the careful bot's, the stairs onto P6 outside C4, right through C4 and down R7's slope onto the shelf, a held jump from its lip into the exit. */
+export const WALKER_KETSU = (): Ctl[] => [
+  ...CAREFUL_TO_A(),
+  stairsOnFoot(),
+  runUntil(1, (r) => onRow(LEVEL_3_3_AT.shelf7.row)(r) && r.player.x >= LEVEL_3_3_AT.shelf7.col0 * TILE),
+  jumpAt(SHELF7_LIP, HELD),
+];
+/**
+ * The walker (GDD-WLD-18's "No cart is needed"): the careful run with none of his carts boarded, C1 to C4 waiting on every step. Ki on foot: C1's dip hopped
+ * (a plain jump) onto G0b, the first pit jumped (held) onto the shelf, the shelf under pier V (the tunnel) walked to MP0, MP0 up onto P1, then K1's answer.
+ */
+export const WALKER_KI = (): Ctl[] => [jumpAt(DIP_HOP, 'top'), jumpAt(PIT_JUMP, HELD), ...mp0Up(), ...K1_ANSWER()];
+export const WALKER = (): Ctl[] => [...WALKER_KI(), ...WALKER_SHO(), ...WALKER_TEN(), ...WALKER_KETSU()];
+
+/**
+ * The secret bot's Ki: C1 as the careful bot's, then a held jump back over P1's lip into the hollow, which takes the veladora in the air (the test pins the
+ * step; a walk left on the hollow's floor to take it after landing is never needed from this take-off), off onto the shelf and MP0 up.
+ */
+export const SECRET_KI = (): Ctl[] => [
+  ...CAREFUL_KI().slice(0, 3),
+  jumpAt(SECRET_JUMP, -Infinity, -1),
+  runUntil(1, onRow(LEVEL_3_3_AT.shelf.row)),
+  ...mp0Up(),
+  ...K1_ANSWER(),
+];
+/** The secret bot: the careful run with the secret in Ki. */
+export const SECRET = (): Ctl[] => [...SECRET_KI(), ...CAREFUL_SHO(), ...RIDE_TEN(), ...CAREFUL_KETSU()];
 
 /** How a bot ended, as the tests tally it: `exit, 0 lost`; or `no exit, 1 lost (<cause> at <column>)` (`causeOf` on the losing step); or out of steps. */
 export function outcomeOf(b: Played): string {
