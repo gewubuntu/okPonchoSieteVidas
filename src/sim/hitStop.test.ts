@@ -3,7 +3,9 @@ import { HIT_STOP } from '../config/tuning';
 import { LEVEL_1_1 } from '../levels/level1-1';
 import { LEVEL_1_4 } from '../levels/level1-4';
 import { LEVEL_2_4 } from '../levels/level2-4';
+import { LEVEL_3_4 } from '../levels/level3-4';
 import { bossStart, type BossState } from './boss';
+import { catorceStart } from './catorce';
 import { estrellaStart, type EstrellaMode, type EstrellaState } from './estrella';
 import { hitStopSteps } from './hitStop';
 import { spawn, type PlayerInput } from './movement';
@@ -102,6 +104,15 @@ describe('GDD-BOS-01 hit-stop', () => {
     expect(after).toMatchObject({ phase: 'respawning', lives: { lives: 6 } });
     expect(after.estrella!.hits).toBe(0);
     expect(hitStopSteps(run, after)).toBe(0);
+  });
+
+  it('GDD-BOS-04 hit-stop: a hit that leaves La Catorce hurt holds 4 steps, the one that defeats her 12', () => {
+    const run = startRun(LEVEL_3_4);
+    const def = LEVEL_3_4.catorce!;
+    expect(hitStopSteps(run, { ...run, catorce: { ...catorceStart(def, 1), mode: 'hurt' } })).toBe(4);
+    expect(hitStopSteps({ ...run, catorce: catorceStart(def, 2) }, { ...run, catorce: { ...catorceStart(def, 2), hits: 3, mode: 'defeated' } })).toBe(12);
+    // No more hits, no hold: her hurt time and defeat steps hold nothing.
+    expect(hitStopSteps({ ...run, catorce: { ...catorceStart(def, 1), mode: 'hurt' } }, { ...run, catorce: { ...catorceStart(def, 1), mode: 'hurt', age: 1 } })).toBe(0);
   });
 
   it('GDD-BOS-01 HIT_STOP is 4 and 12 steps, as GDD-BOS-01 says', () => {

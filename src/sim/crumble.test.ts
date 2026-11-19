@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CRUMBLE, FORGIVENESS, RESPAWN, TILE } from '../config/tuning';
-import { freshCrumbles, standsOn, stepCrumbles, withCrumbles, type Crumble } from './crumble';
+import { freshCrumbles, standsOn, stepCrumbles, withCrumbles, type Crumble, type CrumbleState } from './crumble';
 import { spawn, type PlayerInput, type PlayerState } from './movement';
 import { startRun, stepRun, type Level, type RunState } from './run';
 import { parseTiles } from './tilemap';
@@ -228,5 +228,24 @@ describe('GDD-WLD-05 a crumbled ledge in World 3', () => {
     }
     expect(r.phase).toBe('playing');
     expect(r.crumbles).toEqual(freshCrumbles(crumbles));
+  });
+
+  it('GDD-BOS-04 crumble byWeight false: his weight never starts a tile', () => {
+    // Standing on the first tile for 100 steps: it stays idle (La Catorce's home tiles, which only her slam starts).
+    let idleStates = freshCrumbles(crumbles);
+    for (let i = 0; i < 100; i++) idleStates = stepCrumbles(crumbles, idleStates, onTile(2), true, false);
+    expect(idleStates.map((c) => c.phase)).toEqual(['idle', 'idle']);
+    // The same standing starts it with the default.
+    expect(stepCrumbles(crumbles, freshCrumbles(crumbles), onTile(2), true).map((c) => c.phase)).toEqual(['warning', 'idle']);
+    // A tile set to warning counts down on its own, goes after 30 steps and is whole after 120 more.
+    let s: CrumbleState[] = [{ phase: 'warning', steps: CRUMBLE.warningSteps }, { phase: 'idle', steps: 0 }];
+    const history: CrumbleState['phase'][] = [];
+    for (let i = 1; i <= 160; i++) {
+      s = stepCrumbles(crumbles, s, onTile(2), true, false);
+      history.push(s[0]!.phase);
+    }
+    expect(history.indexOf('gone') + 1).toBe(30);
+    expect(history.indexOf('idle') + 1).toBe(30 + 120);
+    expect(s[1]!.phase).toBe('idle');
   });
 });
