@@ -17,6 +17,7 @@ import {
   last,
   mp0Up,
   NAMES,
+  PIER_COL,
   PIT_JUMP,
   play,
   right,
@@ -251,18 +252,35 @@ interface Collected {
   /** No piñata opened and no item out at the clear, and never in a Cacomixtle's cart (R2, R5, R6). */
   readonly clean: Set<boolean>;
   readonly ringtailCart: Set<boolean>;
+  /** Stood still on the stone pier at some step (GDD-WLD-18's "stops on the pier for K2"). */
+  readonly pier: Set<boolean>;
   /** The steps, summed over the runs, on which one of his carts (C1, C2, C3, C4) was other than waiting. */
   hisBoarded: number;
 }
-const collected = (): Collected => ({ tally: {}, steps: [], hilos: new Set(), checkpoints: new Set(), moved: new Set(), veladora: new Set(), lives: new Set(), secretHilos: new Set(), clean: new Set(), ringtailCart: new Set(), hisBoarded: 0 });
+const collected = (): Collected => ({ tally: {}, steps: [], hilos: new Set(), checkpoints: new Set(), moved: new Set(), veladora: new Set(), lives: new Set(), secretHilos: new Set(), clean: new Set(), ringtailCart: new Set(), pier: new Set(), hisBoarded: 0 });
 
 /** Shares no factor with the bats' period (240), the lifts' rounds (432, 192 and 384 steps) or the Armadillo's (1,058): 249 start clocks meet every phase of the bats and MP1, and 249 different ones of MP0, MP2 and the Armadillo. */
 const STEP = 29;
 /** His carts, which the walker leaves alone: C1 on R1, C2 on R3, C3 on R4 and C4 on R7. */
 const WALKED = ['R1', 'R3', 'R4', 'R7'] as const;
 const waiting = (r: RunState, name: (typeof NAMES)[number]) => r.carts[cartOf(name)]!.phase === 'waiting';
+/** Standing still on the stone pier (GDD-WLD-18's column 167): grounded on row 25, not moving, with his middle over it (a run across is not a stop). */
+const onPier = (r: RunState) => r.player.grounded && r.player.vx === 0 && r.player.y === Y(25) && r.player.x >= PIER_COL * TILE && r.player.x < (PIER_COL + 1) * TILE;
+
+/** `n` steps from `from` with `move` held and no jump, every state kept. */
+const steps = (from: RunState, move: 0 | 1, n: number) => {
+  const out = [from];
+  for (let i = 0; i < n; i++) out.push(stepRun(out[out.length - 1]!, { move, jumpHeld: false }, L));
+  return out;
+};
 
 describe('GDD-WLD-18 level 3-3 the walker and the secret bot, whole', () => {
+  it('GDD-WLD-18 3-3 the pier check counts a stand on the pier, not a run across it', () => {
+    // Right held over the pier at a run (from 24 px short of it, at 120 px/s) never counts; standing on its middle does.
+    const run = steps(at(PIER_COL * TILE - 24, Y(25), 120), 1, 20);
+    expect([run.some((r) => r.player.x >= PIER_COL * TILE && r.player.x < (PIER_COL + 1) * TILE && r.player.grounded), run.some(onPier), steps(at(PIER_COL * TILE + 8, Y(25)), 0, 2).every(onPier)]).toEqual([true, false, true]);
+  });
+
   it(`GDD-WLD-18 3-3 the walker and the secret bot, from the start at every ${STEP}th clock (step ${STEP}, ${clocks(7200, STEP).length} clocks)`, () => {
     const result: Record<string, Collected> = { walker: collected(), secret: collected() };
     const lostAt: string[] = [];
@@ -285,6 +303,7 @@ describe('GDD-WLD-18 level 3-3 the walker and the secret bot, whole', () => {
         out.secretHilos.add(tookOf(b.end, [[30, 27], [27, 28]]).join(' ') || 'none');
         out.clean.add(b.end.pinatasOpen.every((open) => !open) && b.end.items.length === 0);
         out.ringtailCart.add(b.states.some((r) => (['R2', 'R5', 'R6'] as const).some((n) => inCart(r, n))));
+        out.pier.add(b.states.some(onPier));
         if (name === 'walker') out.hisBoarded += b.states.filter((r) => WALKED.some((n) => !waiting(r, n))).length;
       }
     }
@@ -293,17 +312,17 @@ describe('GDD-WLD-18 level 3-3 the walker and the secret bot, whole', () => {
     const summary = Object.fromEntries(
       Object.entries(result).map(([name, o]) => [
         name,
-        { tally: o.tally, steps: span(o.steps), seconds: `${(Math.min(...o.steps) / 60).toFixed(1)} to ${(Math.max(...o.steps) / 60).toFixed(1)}`, hilos: [...o.hilos], checkpoints: [...o.checkpoints], moved: [...o.moved], veladora: [...o.veladora], lives: [...o.lives], secretHilos: [...o.secretHilos], clean: [...o.clean], ringtailCart: [...o.ringtailCart] },
+        { tally: o.tally, steps: span(o.steps), seconds: `${(Math.min(...o.steps) / 60).toFixed(1)} to ${(Math.max(...o.steps) / 60).toFixed(1)}`, hilos: [...o.hilos], checkpoints: [...o.checkpoints], moved: [...o.moved], veladora: [...o.veladora], lives: [...o.lives], secretHilos: [...o.secretHilos], clean: [...o.clean], ringtailCart: [...o.ringtailCart], pier: [...o.pier] },
       ]),
     );
     // The walker's four carts (C1 to C4, R1, R3, R4, R7) stay waiting on every step of every run (the check of "No cart is needed"); the carts that moved are
     // the Cacomixtles' (R2, R5, R6). The secret bot rides all four of his, as the careful bot, and takes the veladora at every clock with
     // every life (it restores nothing at 7 and is used up, GDD-LIFE-03); neither bot takes the secret's two hilos (30,27) and (27,28): the jump back
-    // from P1 takes none (`level3-3.test.ts`). The walker takes 30 of the 50 hilos and the secret bot 29. Neither opens a piñata or carries an item, and neither ever stands in a Cacomixtle's cart (GDD-WLD-18's "Played through").
+    // from P1 takes none (`level3-3.test.ts`). The walker takes 30 of the 50 hilos and the secret bot 29. Neither opens a piñata or carries an item, and neither ever stands in a Cacomixtle's cart; both stand still on the pier for K2 at every clock (GDD-WLD-18's "Played through").
     expect(result.walker!.hisBoarded).toBe(0);
     expect(summary).toEqual({
-      walker: { tally: { 'exit, 0 lost': 249 }, steps: '3131 to 4475', seconds: '52.2 to 74.6', hilos: [30], checkpoints: [2], moved: ['R2 R5 R6'], veladora: [false], lives: [7], secretHilos: ['none'], clean: [true], ringtailCart: [false] },
-      secret: { tally: { 'exit, 0 lost': 249 }, steps: '3391 to 4735', seconds: '56.5 to 78.9', hilos: [29], checkpoints: [2], moved: ['R1 R2 R3 R4 R5 R6 R7'], veladora: [true], lives: [7], secretHilos: ['none'], clean: [true], ringtailCart: [false] },
+      walker: { tally: { 'exit, 0 lost': 249 }, steps: '3131 to 4475', seconds: '52.2 to 74.6', hilos: [30], checkpoints: [2], moved: ['R2 R5 R6'], veladora: [false], lives: [7], secretHilos: ['none'], clean: [true], ringtailCart: [false], pier: [true] },
+      secret: { tally: { 'exit, 0 lost': 249 }, steps: '3391 to 4735', seconds: '56.5 to 78.9', hilos: [29], checkpoints: [2], moved: ['R1 R2 R3 R4 R5 R6 R7'], veladora: [true], lives: [7], secretHilos: ['none'], clean: [true], ringtailCart: [false], pier: [true] },
     });
   }, 300_000);
 });
