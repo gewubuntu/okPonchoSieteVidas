@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { CART, FANTASMA, HIT, RESPAWN, SPIKE, TILE } from '../config/tuning';
 import { LEVEL_1_4 } from '../levels/level1-4';
+import { LEVEL_3_4 } from '../levels/level3-4';
 import { bossBox, bossStart } from './boss';
-import { cartFloor, fallingBox, floorUnder, railLength, ridingCart, rollCarts, warningPost, type CartState, type Rail, type RailSegment } from './cart';
+import { cartFloor, fallingBox, floorUnder, railLength, rideOffCarts, ridingCart, rollCarts, warningPost, type CartState, type Rail, type RailSegment } from './cart';
 import { clawBox } from './claw';
 import { enemyBox, freshEnemies, type Box, type Enemy, type EnemyState } from './enemy';
 import { spawnFireball } from './fireball';
@@ -1297,8 +1298,9 @@ describe('GDD-WLD-15 an empty cart comes back', () => {
     expect(states.slice(S + 120).every((s) => s.carts[0]!.phase === 'waiting')).toBe(true);
   });
 
-  it('GDD-WLD-15 in a boss level a cart at its rail\'s end does not come back', () => {
-    // 1-4 with a rail added on its floor (as the hit-stop test does), Poncho at its spawn under the Chile Fantasma so nothing hurts him.
+  it('GDD-WLD-15 GDD-BOS-04 a cart comes back after returnSteps: 120 in a level, 180 in La Catorce\'s arena', () => {
+    // 1-4 with a rail added on its floor (as the hit-stop test does), Poncho at its spawn under the Chile Fantasma so nothing hurts him. A boss
+    // level's cart comes back like any: 120 steps (2.0 s) after it stopped at its buffer or left its broken end.
     for (const end of ['buffer', 'broken'] as const) {
       const l: Level = { ...LEVEL_1_4, rails: [rail(16, level(26), { y: 14 * TILE, end })] };
       const r: RunState = { ...startRun(l), fantasma: 10_000, carts: [{ phase: 'rolling', m: 26 * TILE - 30 }] };
@@ -1306,10 +1308,40 @@ describe('GDD-WLD-15 an empty cart comes back', () => {
       expect(states.every((s) => s.phase === 'playing'), end).toBe(true);
       const at = states.findIndex((s) => s.carts[0]!.phase !== 'rolling');
       expect(at, end).toBeGreaterThanOrEqual(0);
-      const last = end === 'buffer' ? 'stopped' : 'gone';
-      expect(states[at + 200]!.carts[0]!.phase, end).toBe(last);
-      expect(states[states.length - 1]!.carts[0]!.phase, end).toBe(last);
+      // (A cart that leaves 1-4's floor-level rail breaks on the ground at once: 'gone' on the step it left.)
+      expect(states[at]!.carts[0]!.phase, end).toBe(end === 'buffer' ? 'stopped' : 'gone');
+      expect(states[at + 119]!.carts[0]!.phase, end).not.toBe('waiting');
+      expect(states[at + 120]!.carts[0], end).toEqual({ phase: 'waiting', m: 16 });
     }
+    // La Catorce's arena: 180 steps (3.0 s) from the step the cart left its rail, ridden off or not.
+    const arena: RunState = { ...startRun(LEVEL_3_4), fantasma: 10_000, carts: [{ phase: 'rolling', m: 90 }, { phase: 'waiting', m: 16 }] };
+    const states = play(LEVEL_3_4, arena, 300);
+    const gone = states.findIndex((s) => s.carts[0]!.phase !== 'rolling');
+    expect(states[gone]!.carts[0]!.phase).toBe('falling');
+    for (let i = gone; i < gone + 180; i++) expect(['falling', 'gone'], `step ${i - gone}`).toContain(states[i]!.carts[0]!.phase);
+    expect(states[gone + 180]!.carts[0]).toEqual({ phase: 'waiting', m: 16 });
+  });
+
+  it('GDD-BOS-04 rideOffCarts: ridden when he stood in it on the last step before it left', () => {
+    // A cart rolling at m 93.5: its next roll reaches 96, the rail's length (6 tiles), and it leaves.
+    const l = levelOf([rail(16, level(6), { end: 'broken' })]);
+    const rails = l.rails!;
+    const r = riding(l, 93.5);
+    const before = r.carts;
+    const after = rollCarts(rails, before);
+    expect(after[0]!.phase).toBe('falling');
+    expect(rideOffCarts(rails, before, after, r.player)[0]).toMatchObject({ phase: 'falling', ridden: true });
+    // He jumped: 1 px above its floor, not grounded.
+    expect(rideOffCarts(rails, before, after, { ...r.player, y: r.player.y - 1, grounded: false })[0]!.ridden).toBe(false);
+    // Standing on the ground beside it.
+    expect(rideOffCarts(rails, before, after, spawn(300, FLOOR))[0]!.ridden).toBe(false);
+    // A cart that was already falling keeps its mark, and one that stays rolling gets none.
+    const falling: CartState = { ...after[0]!, ridden: true };
+    expect(rideOffCarts(rails, [falling], rollCarts(rails, [falling]), spawn(300, FLOOR))[0]!.ridden).toBe(true);
+    const staying = rollCarts(rails, [{ phase: 'rolling', m: 50 }]);
+    const marked = rideOffCarts(rails, [{ phase: 'rolling', m: 50 }], staying, r.player)[0]!;
+    expect(marked.phase).toBe('rolling');
+    expect('ridden' in marked).toBe(false);
   });
 
   it('GDD-WLD-15 a lost life puts a falling, a gone and a returning cart back at once', () => {

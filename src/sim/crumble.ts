@@ -50,12 +50,12 @@ function inTile(player: PlayerState, c: Crumble): boolean {
  * Advances every tile one step. Landing on an idle tile starts its warning with the full 0.5 s; from then on it counts
  * down on its own, even if Poncho walks off, and the tile is gone when it reaches 0. Where the ledges come back (`returns`, World 3),
  * a gone tile is whole (idle) again CRUMBLE.returnSteps after the step it went, or, if Poncho's body box is in its tile then, on the
- * first step it is clear of it.
+ * first step it is clear of it. Where his weight starts none (`byWeight` false: La Catorce's home tiles, GDD-BOS-04), an idle tile stays idle.
  */
-export function stepCrumbles(crumbles: readonly Crumble[], states: readonly CrumbleState[], player: PlayerState, returns = false): CrumbleState[] {
+export function stepCrumbles(crumbles: readonly Crumble[], states: readonly CrumbleState[], player: PlayerState, returns = false, byWeight = true): CrumbleState[] {
   return crumbles.map((c, i) => {
     const s = states[i] ?? IDLE;
-    if (s.phase === 'idle') return standsOn(player, c) ? { phase: 'warning', steps: CRUMBLE.warningSteps } : s;
+    if (s.phase === 'idle') return byWeight && standsOn(player, c) ? { phase: 'warning', steps: CRUMBLE.warningSteps } : s;
     if (s.phase === 'warning') return s.steps <= 1 ? { phase: 'gone', steps: returns ? CRUMBLE.returnSteps : 0 } : { phase: 'warning', steps: s.steps - 1 };
     if (!returns) return s;
     if (s.steps > 1) return { phase: 'gone', steps: s.steps - 1 };

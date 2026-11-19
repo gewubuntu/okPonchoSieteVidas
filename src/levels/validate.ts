@@ -1,10 +1,11 @@
 // GDD-TEC-04: the level validator. Pure, no Phaser. It checks what the GDD says every level must have (GDD-MOV-09: its sand slopes
 // have ground under them and hold nothing else), so a level that breaks a rule fails a test instead of being found in play.
-import { ARMADILLO, AWNING, BASE_WIDTH, CACOMIXTLE, CAMERA, CART, COVER, ESTRELLA, LEVEL_RULES, MURCIELAGO, RAIL_RULES, ROLLO, TILE, TOUCH } from '../config/tuning';
+import { ARMADILLO, AWNING, BASE_WIDTH, CACOMIXTLE, CAMERA, CART, CATORCE, COVER, ESTRELLA, LEVEL_RULES, MURCIELAGO, RAIL_RULES, ROLLO, TILE, TOUCH } from '../config/tuning';
 import { rollPath } from '../sim/armadillo';
 import { bossStart } from '../sim/boss';
 import { bottomRowAt, type Bottom } from '../sim/bottoms';
 import { cartFloor, railGround, railLength, type Rail } from '../sim/cart';
+import { catorceStart } from '../sim/catorce';
 import { estrellaStart } from '../sim/estrella';
 import { isBossLevel } from '../sim/bossLevel';
 import { freshCrumbles, withCrumbles } from '../sim/crumble';
@@ -581,6 +582,14 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
       const start = estrellaStart(level.estrella, hits);
       const d = Math.hypot(start.x - level.spawn.x, start.y - ESTRELLA.height / 2 - level.spawn.y);
       if (d < LEVEL_RULES.enemyClearance) problems.push(`La Estrella starts phase ${hits + 1} ${Math.floor(d)} px from the spawn, under ${LEVEL_RULES.enemyClearance}`);
+    }
+  }
+  // GDD-BOS-04: and La Catorce, by her box's middle, at the start of each phase.
+  if (level.catorce) {
+    for (const hits of [0, 1, 2]) {
+      const start = catorceStart(level.catorce, hits);
+      const d = Math.hypot(start.x - level.spawn.x, level.catorce.floor - CATORCE.height / 2 - level.spawn.y);
+      if (d < LEVEL_RULES.enemyClearance) problems.push(`La Catorce starts phase ${hits + 1} ${Math.floor(d)} px from the spawn, under ${LEVEL_RULES.enemyClearance}`);
     }
   }
 

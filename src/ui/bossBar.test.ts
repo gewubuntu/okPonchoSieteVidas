@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { LEVEL_1_1 } from '../levels/level1-1';
 import { LEVEL_1_4 } from '../levels/level1-4';
 import { LEVEL_2_4 } from '../levels/level2-4';
+import { LEVEL_3_4 } from '../levels/level3-4';
 import { bossStart } from '../sim/boss';
+import { catorceStart } from '../sim/catorce';
 import { estrellaStart } from '../sim/estrella';
 import { startRun } from '../sim/run';
 import { BOSS_NAMES, bossBar } from './bossBar';
@@ -26,6 +28,13 @@ describe('GDD-UI-01 boss bar per boss', () => {
     expect(bossBar(LEVEL_2_4, { ...run, estrella: { ...estrellaStart(LEVEL_2_4.estrella!, 2), hits: 3, mode: 'defeated' } })).toEqual({ name: 'estrella', pips: 3, left: 0 });
   });
 
+  it('GDD-UI-01 GDD-BOS-04 bossbar in 3-4: La Catorce, three pips, one fewer filled per hit she has taken', () => {
+    const run = startRun(LEVEL_3_4);
+    expect(bossBar(LEVEL_3_4, run)).toEqual({ name: 'catorce', pips: 3, left: 3 });
+    expect(bossBar(LEVEL_3_4, { ...run, catorce: catorceStart(LEVEL_3_4.catorce!, 1) })).toEqual({ name: 'catorce', pips: 3, left: 2 });
+    expect(bossBar(LEVEL_3_4, { ...run, catorce: { ...catorceStart(LEVEL_3_4.catorce!, 2), hits: 3, mode: 'defeated' } })).toEqual({ name: 'catorce', pips: 3, left: 0 });
+  });
+
   it('GDD-UI-01 bossbar: none in a level without a boss', () => {
     expect(bossBar(LEVEL_1_1, startRun(LEVEL_1_1))).toBeNull();
   });
@@ -33,5 +42,6 @@ describe('GDD-UI-01 boss bar per boss', () => {
   it('GDD-UI-02 bossbar names: Don Zopilote in every language', () => {
     for (const lang of ['en', 'es', 'de'] as const) expect(TEXT[lang][BOSS_NAMES.zopilote], lang).toBe('Don Zopilote');
     for (const lang of ['en', 'es', 'de'] as const) expect(TEXT[lang][BOSS_NAMES.estrella], lang).toBe('La Estrella');
+    for (const lang of ['en', 'es', 'de'] as const) expect(TEXT[lang][BOSS_NAMES.catorce], lang).toBe('La Catorce');
   });
 });

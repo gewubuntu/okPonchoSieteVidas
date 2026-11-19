@@ -48,6 +48,8 @@ export interface UiText {
   readonly zopilote: string;
   /** GDD-BOS-03, GDD-UI-01: La Estrella's name on the boss bar, the same in every language. */
   readonly estrella: string;
+  /** GDD-BOS-04, GDD-UI-01: La Catorce's name on the boss bar, the same in every language. */
+  readonly catorce: string;
 }
 
 /** GDD-UI-02: the table of texts. The Spanish and German are Proposed. */
@@ -88,6 +90,7 @@ export const TEXT: Record<Language, UiText> = {
     gold: 'Gold medal',
     zopilote: 'Don Zopilote',
     estrella: 'La Estrella',
+    catorce: 'La Catorce',
   },
   es: {
     continue: 'Continuar',
@@ -125,6 +128,7 @@ export const TEXT: Record<Language, UiText> = {
     gold: 'Medalla de oro',
     zopilote: 'Don Zopilote',
     estrella: 'La Estrella',
+    catorce: 'La Catorce',
   },
   de: {
     continue: 'Weiter',
@@ -162,6 +166,7 @@ export const TEXT: Record<Language, UiText> = {
     gold: 'Goldmedaille',
     zopilote: 'Don Zopilote',
     estrella: 'La Estrella',
+    catorce: 'La Catorce',
   },
 };
 
