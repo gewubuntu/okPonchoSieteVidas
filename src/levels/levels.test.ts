@@ -132,8 +132,8 @@ describe('GDD-UI-02 which level', () => {
   it('GDD-WLD-01 World 1 levels are 1-1, 1-2, 1-3 and the boss arena 1-4 in order, the test levels left out', () => {
     expect(worldLevels(1).map((x) => x.id)).toEqual(['1-1', '1-2', '1-3', '1-4']);
     expect(worldLevels(0).map((x) => x.id)).toEqual(['0-1']);
-    // World 3's labs lab-3c, lab-3t, lab-3m, lab-3a and lab-3k are test levels: 3-1 and 3-2 are its levels, in that order.
-    expect(worldLevels(3).map((x) => x.id)).toEqual(['3-1', '3-2']);
+    // World 3's labs lab-3c, lab-3t, lab-3m, lab-3a and lab-3k are test levels: 3-1, 3-2 and the boss arena 3-4 are its levels, in that order.
+    expect(worldLevels(3).map((x) => x.id)).toEqual(['3-1', '3-2', '3-4']);
   });
 
   it('GDD-WLD-01 World 2 levels are 2-1, 2-2, 2-3 and the boss arena 2-4 in order', () => {
@@ -142,10 +142,10 @@ describe('GDD-UI-02 which level', () => {
 
   it('GDD-LIFE-05 the save keeps the lives of Worlds 1, 2 and 3, the worlds with a real level', () => {
     expect(SAVED_WORLDS).toEqual([1, 2, 3]);
-    expect(SAVED_WORLD_LEVELS).toEqual({ '1': ['1-1', '1-2', '1-3', '1-4'], '2': ['2-1', '2-2', '2-3', '2-4'], '3': ['3-1', '3-2'] });
+    expect(SAVED_WORLD_LEVELS).toEqual({ '1': ['1-1', '1-2', '1-3', '1-4'], '2': ['2-1', '2-2', '2-3', '2-4'], '3': ['3-1', '3-2', '3-4'] });
   });
 
-  it('GDD-UI-02 the level after 0-1 is 1-1, after 1-1 is 1-2, after 1-2 is 1-3, after 1-3 is the boss arena 1-4, after 1-4 is 2-1 and so on to 2-4, 3-1 and 3-2, after which none comes, nor after a test level', () => {
+  it('GDD-UI-02 the level after 0-1 is 1-1, after 1-1 is 1-2, after 1-2 is 1-3, after 1-3 is the boss arena 1-4, after 1-4 is 2-1 and so on to 2-4, 3-1 and 3-2, after which none comes, nor after 3-4 or a test level', () => {
     expect(levelById('0-1')!.next).toBe('1-1');
     expect(levelById('1-1')!.next).toBe('1-2');
     expect(levelById('1-2')!.next).toBe('1-3');
@@ -157,6 +157,7 @@ describe('GDD-UI-02 which level', () => {
     expect(levelById('2-4')!.next).toBe('3-1');
     expect(levelById('3-1')!.next).toBe('3-2');
     expect(levelById('3-2')!.next).toBeUndefined();
+    expect(levelById('3-4')!.next).toBeUndefined();
     expect(levelById('sandbox')!.next).toBeUndefined();
     expect(levelById('slopes')!.next).toBeUndefined();
     expect(levelById('nope')).toBeUndefined();
@@ -247,15 +248,15 @@ describe('GDD-TEC-04 level 0-1', () => {
 });
 
 describe('GDD-PRG-02 which levels are saved', () => {
-  it('GDD-PRG-02 0-1, 1-1, 1-2, 1-3, 1-4, 2-1 to 2-4, 3-1 and 3-2 are saved, with their hilo counts, and the test levels are not', () => {
+  it('GDD-PRG-02 0-1, 1-1, 1-2, 1-3, 1-4, 2-1 to 2-4, 3-1, 3-2 and 3-4 are saved, with their hilo counts, and the test levels are not', () => {
     // Real levels keep 50 hilos (GDD-WLD-04), the boss arenas 1-4 and 2-4 none (GDD-BOS-01). The sandbox and the slopes level, test levels, are never saved.
-    expect(SAVED_LEVELS).toEqual({ '0-1': 50, '1-1': 50, '1-2': 50, '1-3': 50, '1-4': 0, '2-1': 50, '2-2': 50, '2-3': 50, '2-4': 0, '3-1': 50, '3-2': 50 });
+    expect(SAVED_LEVELS).toEqual({ '0-1': 50, '1-1': 50, '1-2': 50, '1-3': 50, '1-4': 0, '2-1': 50, '2-2': 50, '2-3': 50, '2-4': 0, '3-1': 50, '3-2': 50, '3-4': 0 });
   });
 });
 
 describe('GDD-PRG-02 saved run: the ofrendas of the saved levels', () => {
-  it('GDD-PRG-02 0-1, 1-1, 1-2, 1-3, 2-1 to 2-3, 3-1 and 3-2 have three ofrendas each, 1-4 and 2-4 none, and the test levels are not saved', () => {
-    expect(SAVED_OFRENDAS).toEqual({ '0-1': 3, '1-1': 3, '1-2': 3, '1-3': 3, '1-4': 0, '2-1': 3, '2-2': 3, '2-3': 3, '2-4': 0, '3-1': 3, '3-2': 3 });
+  it('GDD-PRG-02 0-1, 1-1, 1-2, 1-3, 2-1 to 2-3, 3-1 and 3-2 have three ofrendas each, 1-4, 2-4 and 3-4 none, and the test levels are not saved', () => {
+    expect(SAVED_OFRENDAS).toEqual({ '0-1': 3, '1-1': 3, '1-2': 3, '1-3': 3, '1-4': 0, '2-1': 3, '2-2': 3, '2-3': 3, '2-4': 0, '3-1': 3, '3-2': 3, '3-4': 0 });
   });
 });
 
@@ -378,6 +379,8 @@ describe('GDD-UI-02 Start frontier', () => {
     // 3-1 names 3-2, in the same world, and 3-2, the last level built, names no next level: World 3 stays the latest.
     expect(frontierWorld({ ...WORLD_1, ...WORLD_2, '3-1': c })).toBe(3);
     expect(frontierWorld({ ...WORLD_1, ...WORLD_2, '3-1': c, '3-2': c })).toBe(3);
+    // 3-4, World 3's last level now, names no next level either: World 3 stays the latest once it is cleared.
+    expect(frontierWorld({ ...WORLD_1, ...WORLD_2, '3-1': c, '3-2': c, '3-4': c })).toBe(3);
   });
 
   it('GDD-UI-02 frontier old save: 1-4 cleared and nothing of World 2 plays 2-1 with seven, whatever World 1 keeps', () => {
@@ -410,12 +413,20 @@ describe('GDD-UI-02 Start frontier', () => {
   });
 
   it('GDD-UI-02 frontier all cleared: with every level of the latest world cleared Start plays its first level with seven', () => {
-    // World 3, the latest world, holds 3-1 and 3-2 so far.
+    // World 3, the latest world, holds 3-1 and 3-2 in its order so far (3-4 is reached only by its address).
     const world3 = { ...WORLD_1, ...WORLD_2, '3-1': c, '3-2': c };
     expect(pick('', true, world3, { '2': 3, '3': 3 })).toMatchObject({ entry: { id: '3-1' }, lives: 7 });
     expect(pick('', true, world3, { '3': 3 }, { '3': '3-1' })).toMatchObject({ entry: { id: '3-1' }, lives: 7 });
     // With 3-1 cleared and 3-2 not, and no run kept, its first level not cleared, with the lives World 3 keeps.
     expect(pick('', true, { ...WORLD_1, ...WORLD_2, '3-1': c }, { '2': 3, '3': 3 })).toMatchObject({ entry: { id: '3-2' }, lives: 3 });
+  });
+
+  it('GDD-BOS-04 frontier skips 3-4: without a run Start never picks a level only its address reaches', () => {
+    // 3-4 is registered but 3-2 names no next, so with 3-1 and 3-2 cleared Start plays 3-1 with seven, not 3-4 with the saved 3.
+    const world3 = { ...WORLD_1, ...WORLD_2, '3-1': c, '3-2': c };
+    expect(pick('', true, world3, { '3': 3 })).toMatchObject({ entry: { id: '3-1' }, lives: 7 });
+    // Nor when 3-4 alone is cleared, by its address: 3-2 is still the first level in the world's order not cleared.
+    expect(pick('', true, { ...WORLD_1, ...WORLD_2, '3-1': c, '3-4': c }, { '3': 5 })).toMatchObject({ entry: { id: '3-2' }, lives: 5 });
   });
 
   it('GDD-UI-02 frontier stays: before 1-4 is cleared World 2 entries change nothing', () => {
@@ -456,17 +467,21 @@ describe('GDD-UI-02 World 3 after 2-4', () => {
   it("GDD-LIFE-05 the restart after the last life in 3-1 or 3-2 plays 3-1, and World 3's lives are kept in the save", () => {
     expect(worldStart(entryOf('3-1')).id).toBe('3-1');
     expect(worldStart(entryOf('3-2')).id).toBe('3-1');
+    // The boss arena 3-4, out of lives: back to 3-1 with seven (GDD-LIFE-05).
+    expect(worldStart(entryOf('3-4')).id).toBe('3-1');
     expect(worldLivesAfter({ '2': 3 }, entryOf('3-1'), 5)).toEqual({ '2': 3, '3': 5 });
     expect(worldLivesAfter({ '2': 3, '3': 5 }, entryOf('3-1'), 0)).toEqual({ '2': 3, '3': 0 });
     // A clear of 3-1 moves World 3's run to 3-2; a clear of 3-2, the last level built, and a game over in either put it at 3-1.
     expect(worldAtAfter({ '2': '2-4' }, entryOf('3-1'), 'clear')).toEqual({ '2': '2-4', '3': '3-2' });
     expect(worldAtAfter({}, entryOf('3-2'), 'clear')).toEqual({ '3': '3-1' });
+    expect(worldAtAfter({}, entryOf('3-4'), 'clear')).toEqual({ '3': '3-1' });
+    expect(worldAtAfter({}, entryOf('3-4'), 'gameover')).toEqual({ '3': '3-1' });
     expect(worldAtAfter({}, entryOf('3-1'), 'gameover')).toEqual({ '3': '3-1' });
     expect(worldAtAfter({}, entryOf('3-2'), 'gameover')).toEqual({ '3': '3-1' });
     // A clear of 2-4 starts World 2's run again at 2-1: its next level is in World 3.
     expect(worldAtAfter({ '2': '2-4' }, entryOf('2-4'), 'clear')).toEqual({ '2': '2-1' });
     expect(SAVED_WORLDS).toEqual([1, 2, 3]);
-    expect(SAVED_WORLD_LEVELS['3']).toEqual(['3-1', '3-2']);
+    expect(SAVED_WORLD_LEVELS['3']).toEqual(['3-1', '3-2', '3-4']);
   });
 
   it("GDD-PRG-02 3-1's and 3-2's progress is saved: their 50 hilos and three ofrendas", () => {

@@ -11,6 +11,7 @@ import { hitStopSteps } from '../sim/hitStop';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { startRun, stepRun, type Level, type RunState } from '../sim/run';
 import { LEVEL_3_4, LEVEL_3_4_HOME, LEVEL_3_4_PERCHES, LEVEL_3_4_RAILS, LEVEL_3_4_ROWS, LEVEL_3_4_SPRINGS } from './level3-4';
+import { frontierWorld, levelById, LEVELS, livesInto, SAVED_LEVELS, startLevel, worldAtAfter, worldLevels, worldStart } from './index';
 import { validateLevel } from './validate';
 
 // GDD-BOS-04: the arena 3-4 and La Catorce's fight in it, measured over the real level data and `stepRun` (L-003, L-014). Expected values
@@ -61,6 +62,32 @@ describe('GDD-BOS-04 level 3-4', () => {
     expect([LEVEL_3_4.world.width, LEVEL_3_4.world.height]).toEqual([30, 17]);
     expect(levelBoss(LEVEL_3_4)).toBe('catorce');
     expect(validateLevel({ id: '3-4', world: 3, test: false, level: LEVEL_3_4 })).toEqual([]);
+  });
+
+  it('GDD-BOS-04 3-4 registered: World 3, after 3-2, reached only by its address', () => {
+    const entry = levelById('3-4')!;
+    expect(entry).toMatchObject({ id: '3-4', world: 3, test: false });
+    expect(entry.level).toBe(LEVEL_3_4);
+    // After 3-2, in World 3's order; no next level of its own, and 3-2 still names none: no level leads to it (user, 2026-11-19: "Address only for now").
+    expect(worldLevels(3).map((e) => e.id)).toEqual(['3-1', '3-2', '3-4']);
+    expect(LEVELS.filter((e) => e.next === '3-4')).toEqual([]);
+    expect(entry.next).toBeUndefined();
+    expect(levelById('3-2')!.next).toBeUndefined();
+    // Out of lives in it, back to World 3's first level with seven (GDD-LIFE-05); a clear of it writes the run back at 3-1 and names no next level.
+    expect(worldStart(entry).id).toBe('3-1');
+    expect(worldAtAfter({}, entry, 'clear')).toEqual({ '3': '3-1' });
+    expect(worldAtAfter({ '3': '3-2' }, levelById('3-2')!, 'clear')).toEqual({ '3': '3-1' });
+    // Retry keeps the lives he has (the same world), a boss arena has no hilo to save, and World 3 stays the latest world once it is cleared.
+    expect(livesInto(entry, entry, 4)).toBe(4);
+    expect(SAVED_LEVELS['3-4']).toBe(0);
+    const c = { cleared: true };
+    expect(frontierWorld({ '1-4': c, '2-4': c, '3-4': c })).toBe(3);
+    // The address gives it with seven lives, whatever was played.
+    const save = { tutorialPlayed: true, levels: { '1-4': c, '2-4': c }, worldLives: { '3': 2 }, worldAt: { '3': '3-2' } };
+    expect(startLevel('?level=3-4', save)).toMatchObject({ entry: { id: '3-4' }, lives: 7 });
+    // "Start" never picks it from a saved run: 3-2's clear writes 3-1, and the run kept at 3-1 or 3-2 plays there.
+    expect(startLevel('', { ...save, levels: { ...save.levels, '3-1': c, '3-2': c }, worldAt: { '3': '3-1' } })).toMatchObject({ entry: { id: '3-1' }, lives: 7 });
+    expect(startLevel('', save)).toMatchObject({ entry: { id: '3-2' }, lives: 2 });
   });
 
   it('GDD-BOS-04 3-4 layout', () => {

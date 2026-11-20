@@ -1115,3 +1115,13 @@ Retired IDs: L-046
 - **Recurrence 5 (2026-11-19, PR #112, GDD-BOS-04, found by the review):** moving every press window from the 26-step jump to the measured 27, I changed the table, the rest cue, the derrumbe row and the windows' reading, but not the phase 2 paragraph's "93 before to 21 after" further down. I searched for the old numbers I remembered changing instead of reading the section top to bottom, as the skill step says since Recurrence 4. Guard: none, as before.
 - **Recurrence:** 5
 - **Promoted:** `harness-gdd-update` step 1, "Work timing claims through (L-094)", which since Recurrence 3 says to check every timing sentence in the section, not only those edited. Guard: none (a timing claim is prose about when the player acts; telling a true one from a false one needs the arithmetic of each fight, which no pattern match can do; the `pr-reviewer` audits it)
+
+## L-095 A level registered off the world's order reached "Start" through a rule the plan never read
+
+- **Date:** 2026-11-20
+- **Area:** process, level
+- **What went wrong:** The plan for GDD-BOS-04 phase C registered 3-4 with no level leading to it ("Address only for now"). It listed the readers of the registry that use a saved run (`worldAt`), but not `startLevel`'s older rule for a save without one. That rule picked "the first level not cleared", which became 3-4, and `levels.test.ts` went red. The plan also missed `scripts/art/poncho.levels.test.mjs`, a list of registered levels outside `src/`. The implementer stopped on the first one, as it should.
+- **Root cause:** I listed the readers of `LEVELS` from memory of the code paths I had changed before, and searched only `src/` and `e2e/` for pinned lists of level ids.
+- **Rule:** A plan that registers a level, or changes `LEVELS` or a level's `next`, lists every reader of `LEVELS`, `worldLevels` and `next` from a search (`grep -rn "worldLevels\|LEVELS\b\|\.next\b" src scripts e2e`), reads each branch of each one, and searches `src`, `e2e` and `scripts` for the ids of the level's neighbours (`'3-2'`) to find the pinned lists.
+- **Recurrence:** 1
+- **Promoted:** no. Guard: the gate's tests, which caught both before the commit.

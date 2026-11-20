@@ -136,7 +136,7 @@ describe('GDD-WLD-17 level 3-2 layout', () => {
     const e = entry();
     expect(e).toMatchObject({ world: 3, test: false });
     expect(e.level).toBe(L);
-    expect(worldLevels(3).map((x) => x.id)).toEqual(['3-1', '3-2']);
+    expect(worldLevels(3).map((x) => x.id)).toEqual(['3-1', '3-2', '3-4']);
     expect(levelById('3-1')!.next).toBe('3-2');
     expect([world.width, world.height]).toEqual([240, 17]);
     // GDD-PRG-01: the glide on, the wall cling off, as 3-1.
