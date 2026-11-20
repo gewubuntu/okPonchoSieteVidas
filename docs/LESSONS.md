@@ -1115,3 +1115,13 @@ Retired IDs: L-046
 - **Recurrence 5 (2026-11-19, PR #112, GDD-BOS-04, found by the review):** moving every press window from the 26-step jump to the measured 27, I changed the table, the rest cue, the derrumbe row and the windows' reading, but not the phase 2 paragraph's "93 before to 21 after" further down. I searched for the old numbers I remembered changing instead of reading the section top to bottom, as the skill step says since Recurrence 4. Guard: none, as before.
 - **Recurrence:** 5
 - **Promoted:** `harness-gdd-update` step 1, "Work timing claims through (L-094)", which since Recurrence 3 says to check every timing sentence in the section, not only those edited. Guard: none (a timing claim is prose about when the player acts; telling a true one from a false one needs the arithmetic of each fight, which no pattern match can do; the `pr-reviewer` audits it)
+
+## L-095 A general rule in one new section decided a question the user said to leave open
+
+- **Date:** 2026-11-20
+- **Area:** gdd, process
+- **What went wrong:** In PR #115 (the Poncho on Base proposal, GDD 0.13.0) the user asked that whether league attempts cost lives stay an "OPEN QUESTION, do not decide". GDD-CHAIN-05 and Open Question 56 left it open, but GDD-TEC-10's start-token bullet said the server takes a ledger life for every token and listed the league week among what a token is for, which decided it. The same sentence contradicted GDD-LIFE-06 and Conflict C2 (a run that clears its world goes on at no cost) and let a guest's token carry a server save. The review called it blocking.
+- **Root cause:** The token rule was written in the proposal's general words ("each attempt") before the league section existed, and the hunt after the edit (L-013) searches for sentences the change makes false in the old text, not for sentences in the new text that presuppose an answer to something left open. Nothing listed which kinds of attempt the general rule covers.
+- **Rule:** When the user leaves a question open, or a conflict is listed as unresolved, search every new and edited GDD section for that thing's words before the gate (here "league", "token", "ledger life") and read each hit for a presupposed answer. A rule stated for a whole family ("each attempt", "every token") names its members and says which ones it does not settle.
+- **Recurrence:** 1
+- **Promoted:** no
