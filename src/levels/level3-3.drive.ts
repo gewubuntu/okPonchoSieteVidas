@@ -1,13 +1,16 @@
 // GDD-WLD-18: the shared drivers of 3-3's tests (`level3-3.test.ts`, `level3-3.enemies.test.ts` and the bots after them): the level's pieces by
 // name, the jumps flown from a take-off, and where a flight ended. Pure, no Phaser; test support only, as `level3-2.drive.ts` is for 3-2.
-import { ARMADILLO, CART, HITBOX, RUN, TILE } from '../config/tuning';
+import { ARMADILLO, BASE_HEIGHT, BASE_WIDTH, CART, HITBOX, RUN, TILE } from '../config/tuning';
 import { floorUnder, railLength, warningPost, type CartState, type Rail } from '../sim/cart';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { platformAt, standsOnPlatform } from '../sim/platform';
 import { startRun, stepRun, touchesOfrenda, type Level, type RunState } from '../sim/run';
+import { cutCameraY, followCamera } from '../ui/camera';
+import type { Box } from '../sim/enemy';
 import { jumpAt, runBot, runUntil, waitFor, type Bot, type Ctl } from './bots';
 import type { LevelEntry } from './index';
 import { LEVEL_3_3, LEVEL_3_3_AT, LEVEL_3_3_PLANKS, LEVEL_3_3_PLATFORM, LEVEL_3_3_RAIL, LEVEL_3_3_WALLS } from './level3-3';
+import { stepSightCamera, type SightCamera, type View } from './sightSweep';
 
 export const L = LEVEL_3_3;
 export const world = L.world;
@@ -1038,3 +1041,25 @@ export function playLoss(tasks: readonly Ctl[], from: RunState, max = 8000): Los
     restored: back < 0 ? null : { step: back, checkpoint: b.states[back]!.checkpointIndex },
   };
 }
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// Phase B2d: the camera along the bots' runs (`level3-3.camera.test.ts`).
+
+/**
+ * The camera after each of `states`, one run: at `states[0]` the level start's cut (his middle at the screen's middle, `cutCameraY`, no lead), then stepped as the
+ * scene steps it (`stepSightCamera`) from each state to the next. `runBot`'s states leave the state it started from out, so a bot's run is `[from, ...bot.states]`
+ * (index `k` of the bot's states is `k + 1` there).
+ */
+export function camerasOf(states: readonly RunState[]): SightCamera[] {
+  let camera: SightCamera = { scrollX: followCamera(0, states[0]!.player.x, L.world.width * TILE), lead: 0, y: cutCameraY(states[0]!, L) };
+  return states.map((r, k) => {
+    if (k > 0) camera = stepSightCamera(camera, states[k - 1]!, r, L);
+    return camera;
+  });
+}
+
+/** Whether `box` is inside the view on all four sides (`onScreen` is the overlap). */
+export const whollyOnScreen = (box: Box, view: View): boolean => box.x0 >= view.x && box.x1 <= view.x + BASE_WIDTH && box.y0 >= view.y && box.y1 <= view.y + BASE_HEIGHT;
+
+/** His body box in run `r`: `HITBOX` wide and high, his middle at `x` and his feet at `y`. */
+export const bodyBox = (r: RunState): Box => ({ x0: r.player.x - HITBOX.width / 2, x1: r.player.x + HITBOX.width / 2, y0: r.player.y - HITBOX.height, y1: r.player.y });
