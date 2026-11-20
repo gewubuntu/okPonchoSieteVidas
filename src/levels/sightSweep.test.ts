@@ -480,6 +480,8 @@ describe('GDD-WLD-03 GDD-ENM-04 the sight sweep\'s jump reaction', () => {
     const landed = air.findIndex((r, i) => i > 60 && r.player.grounded);
     expect(landed).toBe(63);
     expect([air[landed]!.player.jumpWasHeld, air[landed + 1]!.player.vy < 0, air[landed + 1]!.player.grounded]).toEqual([false, true, false]);
+    // Until the press he holds the way he flew (GDD-WLD-03: "the way he flew held"): his speed and where he lands, measured.
+    expect([air[landed]!.player.vx, Math.round(air[landed]!.player.x * 100) / 100]).toEqual([120, 416.61]);
     // Standing at step 80 (since step 67): the step at 80 lets go and stays on the ground, the press is on 81 and he leaves the ground on it.
     const stand = flyTakeoff(level, glide, JUMPS(80)).states;
     expect([stand[79]!.player.grounded, stand[80]!.player.grounded, stand[80]!.player.vy, stand[80]!.player.jumpWasHeld]).toEqual([true, true, 0, false]);
@@ -488,7 +490,7 @@ describe('GDD-WLD-03 GDD-ENM-04 the sight sweep\'s jump reaction', () => {
 
   it('GDD-WLD-03 the jump reaction leaves every flight without it unchanged', () => {
     const level = cartFlat();
-    // Measured with the sweep as it was before the jump reaction (`git show HEAD:src/levels/sightSweep.ts`): [lives, x, y, phase, steps, loss step] of the flight with no reaction and of each of
+    // Measured with the sweep as it was before the jump reaction (the sweep at fbd8c2d, before this test was added): [lives, x, y, phase, steps, loss step] of the flight with no reaction and of each of
     // the four reactions from step 60 (in the air) and 100 (standing).
     const sum = (rx?: Reaction) => {
       const f = flyTakeoff(level, glide, rx);
