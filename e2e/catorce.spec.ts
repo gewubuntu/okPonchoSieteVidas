@@ -52,13 +52,16 @@ test('GDD-BOS-04 3-4 opens by its address and plays La Catorce: bar, pips, her s
 });
 
 test('GDD-BOS-04 3-4 she telegraphs red, then charges left in real time', async ({ page }) => {
-  const errors = await boot(page, '/?level=3-4');
+  const errors = await arena(page);
   // Her first 30 steps are her telegraph, then she charges: every frame of the game's own loop is read in one evaluate (L-073), her state and what
-  // was drawn together (L-033), until she has charged for 20 steps.
+  // was drawn together (L-033), until she has charged for 20 steps. Her phase 1 is started afresh and the game resumed in the same evaluate, so
+  // the read starts at her telegraph's first step however long the boot took (CI's slow runner had played most of it before the read).
   const frames = await page.evaluate(
     () =>
       new Promise<{ mode: string; age: number; x: number; flash: string | null }[]>((resolve) => {
         const d = window.__PONCHO__!;
+        d.setCatorce(0);
+        d.pause(false);
         const out: { mode: string; age: number; x: number; flash: string | null }[] = [];
         const tick = () => {
           const c = d.catorce()!;

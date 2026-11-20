@@ -129,8 +129,8 @@ export interface StartSave {
  * the tutorial, with seven, until it has started (GDD-PRG-02); then the latest world reached (`frontierWorld`) where its run is: the
  * level `worldAt` names for that world, if it is a real level of it, with the saved lives (seven when none are saved), but the world's
  * first level always with seven. Without a run saved (a save from before it, or a value naming nothing) the older rule stands: at 0 lives
- * (the Siete vidas gastadas screen came up in it) the world's first level with seven; else its first level not cleared, with the saved
- * lives, the first level with seven, and the first level once every level of the world is cleared. The cleared levels still count for
+ * (the Siete vidas gastadas screen came up in it) the world's first level with seven; else the first level not cleared among those the world's order leads to
+ * from its first (by `next`, so a level reached only by its address is never picked; GDD-BOS-04), with the saved lives, the first level with seven, and the first level once every level of the world is cleared. The cleared levels still count for
  * medals, best times and hilos; they decide "Start" only without a run, and in which world it plays.
  */
 export function startLevel(search: string, save: StartSave): StartPick {

@@ -73,6 +73,10 @@ describe('GDD-ART-06 the railway as drawn (railLook)', () => {
     // Nothing else is left out: the six tiles, the broken end and the trestle under them are drawn the same.
     expect(railLook(world, [rail], 17, false)).toEqual(railLook(world, [rail], 17).filter((im) => im.part !== 'post'));
     expect(railLook(world, [rail], 17, false).filter((im) => im.part === 'rail')).toHaveLength(6);
+    // A rail ending in a buffer keeps its buffer with the posts left out (L-028).
+    const buffered: Rail = { ...rail, end: 'buffer' };
+    expect(railLook(world, [buffered], 17, false)).toEqual(railLook(world, [buffered], 17));
+    expect(railLook(world, [buffered], 17, false).filter((im) => im.part === 'buffer')).toHaveLength(1);
   });
 
   it('GDD-ART-06 a trestle under every rail tile with no ground under it: a stringer, and a bent every 32 px down to the ground', () => {
