@@ -10,7 +10,7 @@ import { parseTiles } from '../sim/tilemap';
 import { cameraLimits } from '../ui/camera';
 import { LAB_3C_LEVEL } from './lab3c';
 import { LAB_3K_FLOOR_ROW, LAB_3K_LEVEL } from './lab3k';
-import { approachCamera, camerasAlong, describeLoss, flySight, onScreen, rideRun, rideSaves, sightSweep, tileBox, viewsAlong, type Loss, type SightReport, type Takeoff } from './sightSweep';
+import { approachCamera, camerasAlong, describeLoss, flySight, flyTakeoff, onScreen, REACT_STEPS, rideRun, rideSaves, sightSweep, tileBox, viewsAlong, type Loss, type Reaction, type SightReport, type Takeoff } from './sightSweep';
 
 // GDD-WLD-03's sight rule as a sweep (`src/levels/sightSweep.ts`), on small fixture levels. The screen is 480 x 270; flying right from a
 // settled camera he stands 256 px from its left edge, so it shows 224 px ahead of him (GDD-UI-04).
@@ -418,5 +418,118 @@ describe('GDD-UI-04 the sight sweep with the lead in a rolling cart', () => {
       expect(onScreenX(states[k]!.player.x, c), `step ${k}`).toBe(192);
     });
     expect(cameras[39]!.scrollX).toBeGreaterThan(approachCamera(lab, from, 1).scrollX + 90);
+  });
+});
+
+/** The four reactions of GDD-WLD-03 (`REACTIONS` in `sight.test.ts`) from step `at`, flying right. */
+const OLD = (at: number): Reaction[] => [
+  { at, input: { move: 1, jumpHeld: false } },
+  { at, input: { move: 0, jumpHeld: false } },
+  { at, input: { move: -1, jumpHeld: false } },
+  { at, input: { move: -1, jumpHeld: true } },
+];
+/** The fifth: lets go of jump, and jumps where he lands. */
+const JUMPS = (at: number): Reaction => ({ at, input: { move: 1, jumpHeld: false }, jump: true });
+
+describe('GDD-WLD-03 GDD-ENM-04 the sight sweep\'s jump reaction', () => {
+  /**
+   * A flat at row 14, 80 columns, with the glide; a rail on it rolling left from x = 608 (column 38), 36 tiles to a buffer at x = 32, under the
+   * whole flight, its Cacomixtle at its cart's start (x 592, its floor at y = 216). He starts at column 3.
+   */
+  const cartFlat = (): Level =>
+    fixture((_c, r) => r >= 14, [{ x: 592, y: 216, kind: 'cacomixtle', rail: 0 }], 17, undefined, {
+      width: 80,
+      rails: [{ x: 38 * TILE, y: Y(14), dir: -1, segments: [{ kind: 'level', tiles: 36 }], end: 'buffer' }],
+    });
+  /** A held jump to the right from a standstill at x = 300 (column 18): measured, he lands 125 px on at x 424.6 on step 67 and stands. */
+  const glide: Takeoff = { place: { col: 18, y: Y(14) }, x: 300, dir: 1, speed: 'stand', input: 'held', start: 0 };
+
+  it('GDD-WLD-03 the jump reaction: a glide that lands in front of a Cacomixtle\'s cart rolling at him is saved by jumping it and by none of the other four', () => {
+    const level = cartFlat();
+    const lost = flyTakeoff(level, glide).loss!;
+    // Measured: the cart is past the screen's edge at the take-off (the screen shows 224 px ahead of him, to x 524; the cart's box starts at x 585),
+    // wakes as he glides on, and hits him on step 141 where he stands, 105 steps after it first showed (step 36). He lands on step 67 (125 px
+    // on, at x 424.6): the cart reaches him 74 steps, 1.23 s, after he lands.
+    expect([lost.cause, lost.blind, lost.takeoffStep, lost.lossStep, lost.seenBefore]).toEqual(['cacomixtle at 37', true, 0, 141, 105]);
+    const from = lost.lossStep - lost.seenBefore! + REACT_STEPS;
+    expect(from).toBe(48);
+    // None of the four saves it from any step on: 0.2 s after it first showed to the loss.
+    const stillLost: number[] = [];
+    for (let at = from; at < lost.lossStep; at++) for (const [k, rx] of OLD(at).entries()) if (flyTakeoff(level, glide, rx).loss === null) stillLost.push(k);
+    expect(stillLost).toEqual([]);
+    // Jumping where he lands saves it from steps 51 to 136, all of them (not from 48 to 50, nor from 137 to 140): pressed on the step after he
+    // lands, he is over the cart when it passes.
+    const saving: number[] = [];
+    for (let at = from; at < lost.lossStep; at++) {
+      const f = flyTakeoff(level, glide, JUMPS(at));
+      if (f.loss !== null) continue;
+      saving.push(at);
+      // He ends standing, past the cart, which has rolled on under him.
+      const end = f.states.at(-1)!;
+      const cart = cartFloor(level.rails![0]!, end.carts[0]!);
+      expect([end.lives.lives, end.player.grounded, end.player.x > cart.x + cart.w / 2]).toEqual([7, true, true]);
+    }
+    expect({ first: saving[0], last: saving.at(-1), count: saving.length }).toEqual({ first: 51, last: 136, count: 86 });
+  });
+
+  it('GDD-WLD-03 the jump reaction presses jump anew: a press on the step he lands, after jump was held, is a jump', () => {
+    const level = cartFlat();
+    // In the air at step 60 (the glide's jump held to there): he lets go, lands on step 63 and presses on 64, a fresh press (jump was up on 63).
+    const air = flyTakeoff(level, glide, JUMPS(60)).states;
+    expect([air[59]!.player.jumpWasHeld, air[60]!.player.jumpWasHeld, air[60]!.player.grounded]).toEqual([true, false, false]);
+    const landed = air.findIndex((r, i) => i > 60 && r.player.grounded);
+    expect(landed).toBe(63);
+    expect([air[landed]!.player.jumpWasHeld, air[landed + 1]!.player.vy < 0, air[landed + 1]!.player.grounded]).toEqual([false, true, false]);
+    // Standing at step 80 (since step 67): the step at 80 lets go and stays on the ground, the press is on 81 and he leaves the ground on it.
+    const stand = flyTakeoff(level, glide, JUMPS(80)).states;
+    expect([stand[79]!.player.grounded, stand[80]!.player.grounded, stand[80]!.player.vy, stand[80]!.player.jumpWasHeld]).toEqual([true, true, 0, false]);
+    expect([stand[81]!.player.vy < 0, stand[81]!.player.grounded]).toEqual([true, false]);
+  });
+
+  it('GDD-WLD-03 the jump reaction leaves every flight without it unchanged', () => {
+    const level = cartFlat();
+    // Measured with the sweep as it was before the jump reaction (`git show HEAD:src/levels/sightSweep.ts`): [lives, x, y, phase, steps, loss step] of the flight with no reaction and of each of
+    // the four reactions from step 60 (in the air) and 100 (standing).
+    const sum = (rx?: Reaction) => {
+      const f = flyTakeoff(level, glide, rx);
+      const end = f.states.at(-1)!;
+      return [end.lives.lives, Math.round(end.player.x * 100) / 100, end.player.y, end.phase, f.states.length, f.loss?.lossStep];
+    };
+    expect([sum(), ...OLD(60).map(sum), ...OLD(100).map(sum)]).toEqual([
+      [6, 431.83, 224, 'respawning', 142, 141],
+      [6, 423.83, 224, 'respawning', 145, 144],
+      [6, 420.94, 224, 'respawning', 146, 145],
+      [6, 418.5, 224, 'respawning', 147, 146],
+      [6, 420.11, 224, 'respawning', 146, 145],
+      [6, 431.83, 224, 'respawning', 142, 141],
+      [6, 431.83, 224, 'respawning', 142, 141],
+      [6, 431.83, 224, 'respawning', 142, 141],
+      [6, 431.83, 224, 'respawning', 142, 141],
+    ]);
+  });
+
+  it('GDD-WLD-03 the jump reaction counts its own landing: the flight ends 30 steps after the jump lands, and he holds nothing from there', () => {
+    // No enemy to keep the flight going: letting go in the air on step 41 he lands on step 49 and presses on 50; the held glide lands on step
+    // 117 (measured), 68 steps after the first landing, and the flight ends 30 steps (SIGHT_FLIGHT.idleSteps) after it, not after the first.
+    const calm = fixture((_c, r) => r >= 14, [], 17, undefined, { width: 80 });
+    const f = flySight(calm, glide, undefined, JUMPS(41));
+    const grounded = f.states.map((r) => r.player.grounded);
+    const [first, second] = [grounded.findIndex((g, i) => i > 41 && g), grounded.findIndex((g, i) => i > 50 && g)];
+    expect([first, second, f.states.length]).toEqual([49, 117, 148]);
+    // He stands there with nothing held: he slides to a stop within a few steps, and the last 10 states are one at rest (the way held, he would walk on).
+    const last = f.states.slice(-10).map((r) => [r.player.vx, r.player.jumpWasHeld]);
+    expect(last.every(([vx, held]) => vx === 0 && held === false)).toBe(true);
+  });
+
+  it('GDD-WLD-03 the jump reaction does not press in a rolling cart he comes down into: it waits until the cart has stopped', () => {
+    // A plain cart (no Cacomixtle) from column 24 rolling right, 20 tiles to a buffer; the glide lands in it. Letting go on step 41, he comes
+    // down on its floor on step 47 (the cart rolls from that step: a boarding, which is no standing) and rides on, nothing pressed, until the
+    // cart has stopped at its buffer; he presses on step 164, the step after (measured).
+    const level = fixture((_c, r) => r >= 14, [], 17, undefined, { width: 80, rails: [rail(24, 14, 20, 'buffer')] });
+    const f = flySight(level, glide, undefined, JUMPS(41));
+    const aboard = f.states.findIndex((r, i) => i > 41 && r.player.grounded && r.carts[0]!.phase === 'rolling');
+    const up = f.states.findIndex((r, i) => i > aboard && !r.player.grounded);
+    expect([aboard, up, f.states[aboard]!.carts[0]!.phase, f.states[up - 1]!.carts[0]!.phase, f.states[up]!.player.vy < 0]).toEqual([47, 164, 'rolling', 'stopped', true]);
+    expect(f.states.slice(aboard, up).every((r) => r.player.grounded)).toBe(true);
   });
 });

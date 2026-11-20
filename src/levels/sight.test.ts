@@ -221,11 +221,13 @@ const EXPECTED: Readonly<Record<string, { places: number; flights: number; rides
 };
 
 /** GDD-WLD-03: what a player does when he sees it, the flight's direction being `dir`; one of them must save the flight. */
-const REACTIONS: readonly { name: string; input: (dir: 1 | -1) => PlayerInput }[] = [
+const REACTIONS: readonly { name: string; input: (dir: 1 | -1) => PlayerInput; jump?: true }[] = [
   { name: 'lets go of jump', input: (dir) => ({ move: dir, jumpHeld: false }) },
   { name: 'lets go of everything', input: () => ({ move: 0, jumpHeld: false }) },
   { name: 'lets go of jump and steers back', input: (dir) => ({ move: -dir, jumpHeld: false }) },
   { name: 'holds jump and steers back', input: (dir) => ({ move: -dir, jumpHeld: true }) },
+  // GDD-ENM-04: the answer to a Cacomixtle's cart is to jump it: where he lands he jumps, holding the way he flew.
+  { name: 'lets go of jump and jumps where he lands', input: (dir) => ({ move: dir, jumpHeld: false }), jump: true },
 ];
 
 /**
@@ -233,31 +235,31 @@ const REACTIONS: readonly { name: string; input: (dir: 1 | -1) => PlayerInput }[
  * least REACT_STEPS after its cause first came on screen up to the loss, as a rider's reactions are judged (`rideSaves`): each such step is
  * tried in turn, and the first that saves him decides.
  */
-function savedBy(level: Parameters<typeof sightSweep>[0], l: Loss, input: PlayerInput): boolean {
+function savedBy(level: Parameters<typeof sightSweep>[0], l: Loss, input: PlayerInput, jump?: true): boolean {
   if (l.seenBefore === null) return false;
-  for (let at = l.lossStep - l.seenBefore + REACT_STEPS; at < l.lossStep; at++) if (flyTakeoff(level, l.takeoff, { at, input }).loss === null) return true;
+  for (let at = l.lossStep - l.seenBefore + REACT_STEPS; at < l.lossStep; at++) if (flyTakeoff(level, l.takeoff, jump ? { at, input, jump } : { at, input }).loss === null) return true;
   return false;
 }
 
 /** Measured: per accepted family, its blind flights (or its flights that stay in a ride) and how many each reaction saves. */
 const SAVES: Record<string, Record<string, number>> = {
-  '3-1 murcielago at 225, columns 207 to 210, held': { flights: 19, 'lets go of jump': 19, 'lets go of everything': 19, 'lets go of jump and steers back': 19, 'holds jump and steers back': 19 },
-  '3-1 murcielago at 225, columns 210 to 210, again': { flights: 2, 'lets go of jump': 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2 },
-  '3-1 alacran at 82, columns 99 to 101, held': { flights: 8, 'lets go of jump': 8, 'lets go of everything': 8, 'lets go of jump and steers back': 8, 'holds jump and steers back': 8 },
-  '3-1 pit 169-186, columns 153 to 153, held': { flights: 1, 'lets go of jump': 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1 },
-  '3-2 armadillo at 153, columns 170 to 172, walk-glide': { flights: 11, 'lets go of jump': 11, 'lets go of everything': 11, 'lets go of jump and steers back': 11, 'holds jump and steers back': 11 },
-  '3-2 alacran at 149, columns 163 to 164, held': { flights: 10, 'lets go of jump': 10, 'lets go of everything': 10, 'lets go of jump and steers back': 10, 'holds jump and steers back': 10 },
-  '3-2 alacran at 149, columns 156 to 159, held': { flights: 16, 'lets go of jump': 16, 'lets go of everything': 16, 'lets go of jump and steers back': 16, 'holds jump and steers back': 16 },
-  '3-2 alacran at 149, columns 165 to 165, again': { flights: 2, 'lets go of jump': 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2 },
-  '3-2 armadillo at 153, columns 153 to 154, again': { flights: 6, 'lets go of jump': 6, 'lets go of everything': 6, 'lets go of jump and steers back': 6, 'holds jump and steers back': 6 },
-  '3-2 pit 144-146, columns 161 to 162, held': { flights: 12, 'lets go of jump': 12, 'lets go of everything': 12, 'lets go of jump and steers back': 12, 'holds jump and steers back': 12 },
-  '3-2 alacran at 157, columns 171 to 172, walk': { flights: 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2 },
-  '3-2 alacran at 157, columns 171 to 172, walk-glide': { flights: 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2 },
-  '3-2 armadillo at 153, columns 149 to 150, held': { flights: 9, 'lets go of jump': 9, 'lets go of everything': 9, 'lets go of jump and steers back': 9, 'holds jump and steers back': 9 },
-  '3-2 alacran at 157, columns 150 to 150, walk': { flights: 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1 },
-  '3-2 alacran at 157, columns 150 to 150, walk-glide': { flights: 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1 },
-  '3-2 armadillo at 153, columns 143 to 143, held': { flights: 1, 'lets go of jump': 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1 },
-  '3-2 armadillo at 153, columns 139 to 140, walk-glide': { flights: 15, 'lets go of jump': 15, 'lets go of everything': 15, 'lets go of jump and steers back': 15, 'holds jump and steers back': 15 },
+  '3-1 murcielago at 225, columns 207 to 210, held': { flights: 19, 'lets go of jump': 19, 'lets go of everything': 19, 'lets go of jump and steers back': 19, 'holds jump and steers back': 19, 'lets go of jump and jumps where he lands': 19 },
+  '3-1 murcielago at 225, columns 210 to 210, again': { flights: 2, 'lets go of jump': 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2, 'lets go of jump and jumps where he lands': 2 },
+  '3-1 alacran at 82, columns 99 to 101, held': { flights: 8, 'lets go of jump': 8, 'lets go of everything': 8, 'lets go of jump and steers back': 8, 'holds jump and steers back': 8, 'lets go of jump and jumps where he lands': 8 },
+  '3-1 pit 169-186, columns 153 to 153, held': { flights: 1, 'lets go of jump': 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1, 'lets go of jump and jumps where he lands': 1 },
+  '3-2 armadillo at 153, columns 170 to 172, walk-glide': { flights: 11, 'lets go of jump': 11, 'lets go of everything': 11, 'lets go of jump and steers back': 11, 'holds jump and steers back': 11, 'lets go of jump and jumps where he lands': 11 },
+  '3-2 alacran at 149, columns 163 to 164, held': { flights: 10, 'lets go of jump': 10, 'lets go of everything': 10, 'lets go of jump and steers back': 10, 'holds jump and steers back': 10, 'lets go of jump and jumps where he lands': 10 },
+  '3-2 alacran at 149, columns 156 to 159, held': { flights: 16, 'lets go of jump': 16, 'lets go of everything': 16, 'lets go of jump and steers back': 16, 'holds jump and steers back': 16, 'lets go of jump and jumps where he lands': 16 },
+  '3-2 alacran at 149, columns 165 to 165, again': { flights: 2, 'lets go of jump': 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2, 'lets go of jump and jumps where he lands': 2 },
+  '3-2 armadillo at 153, columns 153 to 154, again': { flights: 6, 'lets go of jump': 6, 'lets go of everything': 6, 'lets go of jump and steers back': 6, 'holds jump and steers back': 6, 'lets go of jump and jumps where he lands': 6 },
+  '3-2 pit 144-146, columns 161 to 162, held': { flights: 12, 'lets go of jump': 12, 'lets go of everything': 12, 'lets go of jump and steers back': 12, 'holds jump and steers back': 12, 'lets go of jump and jumps where he lands': 12 },
+  '3-2 alacran at 157, columns 171 to 172, walk': { flights: 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2, 'lets go of jump and jumps where he lands': 2 },
+  '3-2 alacran at 157, columns 171 to 172, walk-glide': { flights: 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2, 'lets go of jump and jumps where he lands': 2 },
+  '3-2 armadillo at 153, columns 149 to 150, held': { flights: 9, 'lets go of jump': 9, 'lets go of everything': 9, 'lets go of jump and steers back': 9, 'holds jump and steers back': 9, 'lets go of jump and jumps where he lands': 9 },
+  '3-2 alacran at 157, columns 150 to 150, walk': { flights: 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1, 'lets go of jump and jumps where he lands': 1 },
+  '3-2 alacran at 157, columns 150 to 150, walk-glide': { flights: 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1, 'lets go of jump and jumps where he lands': 1 },
+  '3-2 armadillo at 153, columns 143 to 143, held': { flights: 1, 'lets go of jump': 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1, 'lets go of jump and jumps where he lands': 1 },
+  '3-2 armadillo at 153, columns 139 to 140, walk-glide': { flights: 15, 'lets go of jump': 15, 'lets go of everything': 15, 'lets go of jump and steers back': 15, 'holds jump and steers back': 15, 'lets go of jump and jumps where he lands': 15 },
   '3-2 pit 80-84, columns 69 to 69, ride, rail 3': { flights: 12, 'a held jump, its way held': 12, 'a held jump, nothing held': 12, 'a tapped jump': 12 },
   '3-2 pit 196-200, columns 185 to 185, ride, rail 6': { flights: 12, 'a held jump, its way held': 12, 'a held jump, nothing held': 12, 'a tapped jump': 12 },
   '3-2 spike 177,15, columns 141 to 141, ride, rail 5': { flights: 12, 'a held jump, its way held': 12, 'a held jump, nothing held': 12, 'a tapped jump': 12 },
@@ -329,7 +331,7 @@ describe('GDD-WLD-03 the sight sweep of World 3', () => {
       for (const l of [...report.blind, ...report.rideLosses]) {
         const fam = SIGHT_ACCEPTED.find((a) => a.level === id && inFamily(l, a));
         const key = fam ? `${id} ${family(fam)}` : `${id} ${describeLoss(l)}`;
-        const saved = l.takeoff.input === 'ride' ? rideSaves(level, l) : REACTIONS.filter((r) => savedBy(level, l, r.input(l.takeoff.dir))).map((r) => r.name);
+        const saved = l.takeoff.input === 'ride' ? rideSaves(level, l) : REACTIONS.filter((r) => savedBy(level, l, r.input(l.takeoff.dir), r.jump)).map((r) => r.name);
         const tally = (saves[key] ??= { flights: 0 });
         tally['flights']!++;
         for (const name of saved) tally[name] = (tally[name] ?? 0) + 1;
