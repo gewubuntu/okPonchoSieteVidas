@@ -313,7 +313,7 @@ const HILOS: readonly Hilo[] = [
 /** GDD-LIFE-03, GDD-WLD-18: the secret, the veladora in pier V's hollow at column 23, row 30, in plain view. */
 const VELADORA: Veladora = { col: 23, row: 30 };
 
-/** GDD-WLD-18: 3-3 as a level, the data the scene will play and the validator checks (GDD-TEC-04). The exit stands at column 234 on the bank. */
+/** GDD-WLD-18: 3-3 as a level, the data the scene plays and the validator checks (GDD-TEC-04). The exit stands at column 234 on the bank. */
 export const LEVEL_3_3: Level = {
   world: parseTiles(LEVEL_3_3_ROWS),
   spawn: LEVEL_3_3_SPAWN,
