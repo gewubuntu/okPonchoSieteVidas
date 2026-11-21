@@ -65,11 +65,11 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: '2-3', world: 2, test: false, level: LEVEL_2_3, next: '2-4' },
   { id: '2-4', world: 2, test: false, level: LEVEL_2_4, next: '3-1' },
   // GDD-WLD-01: World 3, the Sierra: 3-1 (GDD-WLD-16), with its tip (GDD-UI-05), 3-2 (GDD-WLD-17), 3-3 (GDD-WLD-18), drawn as the
-  // canyon (GDD-ART-06), and the boss arena 3-4 (GDD-BOS-04). 3-3 names no next and 3-4 none: 3-4 opens from its address only (user,
-  // 2026-11-19: "Address only for now").
+  // canyon (GDD-ART-06), and the boss arena 3-4 (GDD-BOS-04), World 3's last level: 3-3 leads into it (user, 2026-11-21: "Link 3-3 to 3-4
+  // now") and it names no next.
   { id: '3-1', world: 3, test: false, level: LEVEL_3_1, tips: TIPS_3_1, next: '3-2' },
   { id: '3-2', world: 3, test: false, level: LEVEL_3_2, place: 'mina', next: '3-3' },
-  { id: '3-3', world: 3, test: false, level: LEVEL_3_3 },
+  { id: '3-3', world: 3, test: false, level: LEVEL_3_3, next: '3-4' },
   { id: '3-4', world: 3, test: false, level: LEVEL_3_4 },
   SANDBOX,
   { id: 'slopes', world: 1, test: true, level: SLOPES_LEVEL },
@@ -132,8 +132,8 @@ export interface StartSave {
  * the tutorial, with seven, until it has started (GDD-PRG-02); then the latest world reached (`frontierWorld`) where its run is: the
  * level `worldAt` names for that world, if it is a real level of it, with the saved lives (seven when none are saved), but the world's
  * first level always with seven. Without a run saved (a save from before it, or a value naming nothing) the older rule stands: at 0 lives
- * (the Siete vidas gastadas screen came up in it) the world's first level with seven; else the first level not cleared among those the world's order leads to
- * from its first (by `next`, so a level reached only by its address is never picked; GDD-BOS-04), with the saved lives, the first level with seven, and the first level once every level of the world is cleared. The cleared levels still count for
+ * (the Siete vidas gastadas screen came up in it) the world's first level with seven; else its first level not cleared, with the saved
+ * lives, the first level with seven, and the first level once every level of the world is cleared. The cleared levels still count for
  * medals, best times and hilos; they decide "Start" only without a run, and in which world it plays.
  */
 export function startLevel(search: string, save: StartSave): StartPick {
@@ -148,22 +148,8 @@ export function startLevel(search: string, save: StartSave): StartPick {
   // A run kept with no lives (only a damaged save holds one: a game over moves the run back to the first level) is a game over: the
   // first level with seven.
   if (at) return lives === 0 || at === inWorld[0] ? { entry: inWorld[0]!, lives: LIVES_MAX } : { entry: at, lives };
-  // GDD-BOS-04: only the levels the world's order leads to from its first level, so a level reached only by its address (3-4 while
-  // 3-3 is not registered) is never picked.
-  const next = lives === 0 ? undefined : inOrder(inWorld).find((e) => save.levels[e.id]?.cleared !== true);
+  const next = lives === 0 ? undefined : inWorld.find((e) => save.levels[e.id]?.cleared !== true);
   return next === undefined || next === inWorld[0] ? { entry: inWorld[0]!, lives: LIVES_MAX } : { entry: next, lives };
-}
-
-/** GDD-UI-02, GDD-BOS-04: a world's levels the game's order leads to from its first, each by the `next` of the one before. */
-function inOrder(inWorld: readonly LevelEntry[]): readonly LevelEntry[] {
-  const order: LevelEntry[] = [];
-  let e = inWorld[0];
-  while (e !== undefined && !order.includes(e)) {
-    order.push(e);
-    const next = e.next;
-    e = inWorld.find((f) => f.id === next);
-  }
-  return order;
 }
 
 /**

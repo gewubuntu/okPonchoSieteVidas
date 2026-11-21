@@ -41,9 +41,15 @@ test('GDD-WLD-18 3-3 opens at its spawn on G0, drawn as the canyon, the camera a
   expect(errors).toEqual([]);
 });
 
-test('GDD-UI-02 3-3 the exit clears the level; its results menu greys Next level, as the last level built', async ({ page, isMobile }) => {
+test("GDD-UI-02 3-3 the exit clears the level; its results menu offers Next level, which starts La Catorce's arena 3-4 with 3-3's lives carried", async ({ page, isMobile }) => {
   await open(page, isMobile);
   await api(page, () => window.__PONCHO__!.pause(true));
+  // Two lives taken first by the debug hook (the count only), each followed by the respawn: 5 left, so the carry into 3-4 shows (GDD-LIFE-05).
+  for (let k = 0; k < 2; k++) {
+    await api(page, () => window.__PONCHO__!.loseLife());
+    expect(await stepUntil(page, { phase: 'playing' }, 300)).toBeLessThan(300);
+  }
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
   // No enemy starts within 12 columns of the bank (the Zopilote at 189, the ringtails at 58, 178 and 197), so the walk onto the exit meets none.
   const bank = LEVEL_3_3_AT.bank;
   for (const e of LEVEL_3_3.enemies) expect(Math.abs(Math.floor(e.x / TILE) - bank.col0), `enemy at x ${e.x}`).toBeGreaterThan(12);
@@ -59,26 +65,22 @@ test('GDD-UI-02 3-3 the exit clears the level; its results menu greys Next level
   );
   expect(grounded).toBe(true);
   expect(await stepUntil(page, { phase: 'clear' }, 120, { move: 1, jumpHeld: false })).toBeLessThan(120);
-  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
   await api(page, () => window.__PONCHO__!.step(61));
   await waitForResults(page);
-  // 3-3 names no next: Next level is greyed and the menu opens on Retry (GDD-UI-02).
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
-  // World 3's run ends there: a new one at 3-1.
-  const progress: { worldAt: Record<string, string> } = JSON.parse((await page.evaluate((key) => localStorage.getItem(key), SAVE_KEY))!).progress;
-  expect(progress).toMatchObject({ worldAt: { '3': '3-1' } });
+  // 3-3 names 3-4 (GDD-BOS-04; user, 2026-11-21: "Link 3-3 to 3-4 now"): Next level is offered and chosen.
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'next', colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'] });
+  // World 3's run goes on at 3-4 with the lives at the clear.
+  const progress: { worldAt: Record<string, string>; worldLives: Record<string, number> } = JSON.parse((await page.evaluate((key) => localStorage.getItem(key), SAVE_KEY))!).progress;
+  expect(progress).toMatchObject({ worldAt: { '3': '3-4' }, worldLives: { '3': 5 } });
   await api(page, () => window.__PONCHO__!.pause(false));
-  // Up from Retry stays there, and a tap or click on the greyed row does nothing.
-  await page.keyboard.press('ArrowUp');
-  const t0 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 10, t0);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
-  const row = await resultsRowCentre(page, 'next');
-  if (isMobile) await page.touchscreen.tap(row.x, row.y);
-  else await page.mouse.click(row.x, row.y);
-  const t1 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 20, t1);
-  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
-  expect(await api(page, () => window.__PONCHO__!.level())).toBe('3-3');
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
+  if (isMobile) {
+    const row = await resultsRowCentre(page, 'next');
+    await page.touchscreen.tap(row.x, row.y);
+  } else await page.keyboard.press('Enter', { delay: 30 });
+  // 3-4, a level of the same world, starts at once with them: her fight, with the boss bar.
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '3-4' && window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(5);
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false);
+  expect(await api(page, () => window.__PONCHO__!.bossBar())).toMatchObject({ shown: true, name: 'La Catorce' });
 });
