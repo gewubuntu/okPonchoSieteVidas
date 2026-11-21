@@ -23,7 +23,7 @@ import { LEVEL_3_3_PLATFORM } from './level3-3';
 // GDD-WLD-18, phase B2a: level 3-3 played whole by two bots, from the start with every enemy, lift and cart at the clock `t` it is stood at
 // (`startAt`, L-014): the rider, GDD-WLD-18's "expert's line", and the careful bot, its "careful run". Every answer is one GDD-WLD-18 measures
 // (`level3-3.test.ts`, `level3-3.enemies.test.ts`), taken at a place inside the measured window; both read the screen (where a cart, a ringtail or the
-// Armadillo is), never the clock `t`. The level is unregistered. The other bots (the walker, the first-time player's losses, the piñatas, the
+// Armadillo is), never the clock `t`. The level is registered after 3-2 (`src/levels/index.ts`). The other bots (the walker, the first-time player's losses, the piñatas, the
 // secret) are phase B2b.
 
 

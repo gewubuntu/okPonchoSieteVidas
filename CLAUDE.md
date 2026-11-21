@@ -49,7 +49,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `npm test` | Vitest unit tests (`src/**/*.test.ts`, `scripts/**/*.test.mjs`). |
 | `npm run test:abilities` | The simulation tests again with every progression ability on (L-024); opt-outs with reasons in `src/sim/all-abilities.setup.ts`. |
 | `npm run test:glide` | The level tests of Worlds 0 to 2 again with the glide unlocked, as after clearing 2-4 (GDD-PRG-01); opt-outs with reasons in `src/levels/glide-unlocked.setup.ts`. |
-| `npm run test:sight` | The sight sweep of World 3's levels (GDD-WLD-03, L-014): every flight a level invites, failing on a life lost to something off screen at the take-off; accepted families with their GDD sentence in `src/levels/sight.test.ts`. About 2.5 minutes for 3-1. |
+| `npm run test:sight` | The sight sweep of World 3's levels (GDD-WLD-03, L-014): every flight a level invites, failing on a life lost to something off screen at the take-off; accepted families with their GDD sentence in `src/levels/sight.test.ts`. About 9 minutes for 3-1 to 3-3. |
 | `npm run shots` | Screenshots for visual review: desktop and phone viewport, into `shots/` (not committed). Scenarios live in `e2e/shots/`. |
 | `node scripts/overview.mjs docs/screenshots/<slug>` | Compose the approved screenshots in that folder into its `overview.png` sheet (L-031). |
 | `node scripts/art-lineup.mjs <out.png> <folder or file>...` | New art beside its neighbours and the user's references on one image: sheets at one scale, references at one height, to judge it before the user sees it (L-066). |

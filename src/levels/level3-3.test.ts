@@ -14,7 +14,7 @@ import {
 } from './level3-3.drive';
 import { gaps, openGaps, validateLevel } from './validate';
 
-// GDD-WLD-18: level 3-3, "Las Cumbres", built and not yet registered (phases A2 and A3). Every expected number is the design's (GDD-WLD-18, laid
+// GDD-WLD-18: level 3-3, "Las Cumbres", built and registered after 3-2 in `index.ts`. Every expected number is the design's (GDD-WLD-18, laid
 // out by the World 3 design swarm before any code, its tables re-typed here); where the real simulation gives another, the test pins the
 // measured value with a comment "GDD says N" (L-003). Part 1 is the layout; Part 2 measures the layout's reaches on the real level with
 // every enemy in it, asserting the lives and where he ends (L-014); a test that measures a reach alone on a copy without an enemy says so.

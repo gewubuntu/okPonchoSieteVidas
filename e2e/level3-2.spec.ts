@@ -14,6 +14,7 @@ import {
   LEVEL_3_2_SEAT,
   LEVEL_3_2_SUNKEN,
 } from '../src/levels/level3-2';
+import { LEVEL_3_3 } from '../src/levels/level3-3';
 import type { PonchoDebug } from '../src/scenes/PlayScene';
 import { railLength } from '../src/sim/cart';
 import { kindOf } from '../src/sim/enemy';
@@ -31,6 +32,8 @@ const Y = (row: number) => row * TILE;
 const mid = (col: number) => col * TILE + TILE / 2;
 const L = LEVEL_3_2;
 const SAVE_KEY = 'poncho-siete-vidas';
+/** The lives at the clear of the rider's route from 3 (the run's number, measured): its three ofrendas give one each (GDD-LIFE-03), the veladora is not on it. */
+const LIVES_AT_CLEAR = 6;
 
 /** The place in the level's list of the enemy of `kind` that starts in column `col` (GDD-WLD-17's enemies). */
 const enemyAt = (kind: 'alacran' | 'armadillo', col: number): number => L.enemies.findIndex((e) => kindOf(e) === kind && Math.floor(e.x / TILE) === col);
@@ -640,9 +643,21 @@ test('GDD-WLD-17 3-2 the chain: from K1 into K2, over its beam, into K3, and sta
   expect(out.at).toMatchObject({ phase: 'clear', lives: 7 });
 });
 
-test('GDD-WLD-17 3-2 the exit clears the level; its results menu greys Next level, as the last level built', async ({ page, isMobile }) => {
+/** The progress the game saved, parsed (L-054). */
+const storedProgress = async (page: Page): Promise<{ worldLives: Record<string, number>; worldAt: Record<string, string> }> =>
+  JSON.parse((await page.evaluate((key) => localStorage.getItem(key), SAVE_KEY))!).progress;
+
+test("GDD-LIFE-05 3-2's results menu offers Next level, which starts 3-3 with 3-2's lives carried", async ({ page, isMobile }) => {
   test.setTimeout(60_000);
   await play(page, isMobile);
+  // Four lives taken first by the debug hook (the count only), each followed by the respawn at the spawn (the checkpoint, so the rider's route
+  // still starts there): 3 left. The route's three ofrendas give one back each (GDD-LIFE-03), so 3 left makes 6 at the clear; from 4 or more
+  // left it would be 7, and the carry would not show.
+  for (let i = 0; i < 4; i++) {
+    await api(page, () => window.__PONCHO__!.loseLife());
+    expect(await stepUntil(page, { phase: 'playing' }, 300)).toBeLessThan(300);
+  }
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(3);
   // The rider's whole route, from the start to the exit.
   const run = await page.evaluate(() => {
     const m = window.mina!;
@@ -650,25 +665,26 @@ test('GDD-WLD-17 3-2 the exit clears the level; its results menu greys Next leve
     return { r, at: m.view() };
   });
   expect(run.r.lost).toEqual([]);
-  expect(run.at).toMatchObject({ phase: 'clear', lives: 7 });
+  expect(run.at.phase).toBe('clear');
+  // The number the run gives is carried, short of a new world's seven.
+  const lives = run.at.lives;
+  expect(lives).toBe(LIVES_AT_CLEAR);
+  expect(lives).toBeLessThan(7);
   await api(page, () => window.__PONCHO__!.step(61));
   await waitForResults(page);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
-  // World 3's run ends there: a new one at 3-1.
-  const progress: { worldAt: Record<string, string> } = JSON.parse((await page.evaluate((key) => localStorage.getItem(key), SAVE_KEY))!).progress;
-  expect(progress).toMatchObject({ worldAt: { '3': '3-1' } });
+  // 3-2 names 3-3 (GDD-WLD-18): Next level is offered and chosen.
+  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu).toMatchObject({ chosen: 'next', colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'] });
+  // World 3's run goes on at 3-3 with the lives at the clear.
+  expect(await storedProgress(page)).toMatchObject({ worldLives: { '3': lives }, worldAt: { '3': '3-3' } });
   await api(page, () => window.__PONCHO__!.pause(false));
-  // Up from Retry stays there, and a tap or click on the greyed row does nothing.
-  await page.keyboard.press('ArrowUp');
-  const t0 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 10, t0);
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
-  const row = await resultsRowCentre(page, 'next');
-  if (isMobile) await page.touchscreen.tap(row.x, row.y);
-  else await page.mouse.click(row.x, row.y);
-  const t1 = await api(page, () => window.__PONCHO__!.ticks());
-  await page.waitForFunction((t) => window.__PONCHO__!.ticks() >= t + 20, t1);
-  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
-  expect(await api(page, () => window.__PONCHO__!.level())).toBe('3-2');
-  expect((await api(page, () => window.__PONCHO__!.clearDrawn())).menu.chosen).toBe('retry');
+  if (isMobile) {
+    const row = await resultsRowCentre(page, 'next');
+    await page.touchscreen.tap(row.x, row.y);
+  } else await page.keyboard.press('Enter', { delay: 30 });
+  // 3-3, a level of the same world, starts at once with them, at its spawn, drawn as the canyon (GDD-ART-06).
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '3-3' && window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(lives);
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(false);
+  expect(await api(page, () => window.__PONCHO__!.scenery())).toEqual({ set: 'sierra', midKey: 'sierra:mid', place: 'barranca' });
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: LEVEL_3_3.spawn.x });
 });

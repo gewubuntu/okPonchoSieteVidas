@@ -40,7 +40,7 @@ import { LEVEL_3_3_AT, LEVEL_3_3_PITS, LEVEL_3_3_PLATFORM } from './level3-3';
 import { onScreen, tileBox, viewOf, type View } from './sightSweep';
 
 // GDD-WLD-18, phase B2d: the camera (GDD-UI-04, `src/ui/camera.ts`) along the four whole-level bots of B2a and B2b, as the scene steps it (`stepSightCamera`, at
-// alpha 1), over the real level with every enemy, lift and cart at the start clock they are stood at (`startAt`, L-014). The level is unregistered. "On screen" is
+// alpha 1), over the real level with every enemy, lift and cart at the start clock they are stood at (`startAt`, L-014). The level is registered after 3-2 (`src/levels/index.ts`). "On screen" is
 // measured both ways, a box that overlaps the view (`onScreen`) and one wholly inside it (`whollyOnScreen`). A step n is the state after n steps from the start
 // (`[from, ...bot.states]`, so the state `k` of the other files' bots is step k + 1 here).
 

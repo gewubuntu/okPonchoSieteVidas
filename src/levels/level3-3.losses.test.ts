@@ -44,7 +44,7 @@ import { LEVEL_3_3_PITS } from './level3-3';
 
 // GDD-WLD-18, phase B2c: 3-3's first-time losses (the GDD's "Where a first-time player loses a life") and the power run (the taco, the chile, K2 burned
 // from the pier, K3's hit taken by the power), over the real level from the start with every enemy, lift and cart at the start clock they are stood at
-// (`startAt`, L-014). The level is unregistered. A loss bot plays the careful route up to the place, makes the mistake until a life is lost, then plays the
+// (`startAt`, L-014). The level is registered after 3-2 (`src/levels/index.ts`). A loss bot plays the careful route up to the place, makes the mistake until a life is lost, then plays the
 // careful route from the ofrenda he respawns at to the exit; every enemy, cart, plank and lift is at its start after the respawn (GDD-WLD-18: "A lost life puts
 // carts, planks and enemies back"), so the run after it is the same at every start clock and the sweeps pin that.
 
