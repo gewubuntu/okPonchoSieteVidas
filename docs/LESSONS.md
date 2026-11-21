@@ -1134,3 +1134,13 @@ Retired IDs: L-046
 - **Rule:** A plan that registers a level, or changes `LEVELS` or a level's `next`, lists every reader of `LEVELS`, `worldLevels` and `next` from a search (`grep -rn "worldLevels\|LEVELS\b\|\.next\b" src scripts e2e`), reads each branch of each one, and searches `src`, `e2e` and `scripts` for the ids of the level's neighbours (`'3-2'`) to find the pinned lists.
 - **Recurrence:** 1
 - **Promoted:** no. Guard: the gate's tests, which caught both before the commit.
+
+## L-096 A general rule in one new section decided a question the user said to leave open
+
+- **Date:** 2026-11-20
+- **Area:** gdd, process
+- **What went wrong:** In PR #115 (the Poncho on Base proposal, GDD 0.13.0) the user asked that whether league attempts cost lives stay an "OPEN QUESTION, do not decide". GDD-CHAIN-05 and Open Question 57 left it open, but GDD-TEC-10's start-token bullet said the server takes a ledger life for every token and listed the league week among what a token is for, which decided it. The same sentence contradicted GDD-LIFE-06 and Conflict C2 (a run that clears its world goes on at no cost) and let a guest's token carry a server save. The review called it blocking.
+- **Root cause:** The token rule was written in the proposal's general words ("each attempt") before the league section existed, and the hunt after the edit (L-013) searches for sentences the change makes false in the old text, not for sentences in the new text that presuppose an answer to something left open. Nothing listed which kinds of attempt the general rule covers.
+- **Rule:** When the user leaves a question open, or a conflict is listed as unresolved, search every new and edited GDD section for that thing's words before the gate (here "league", "token", "ledger life") and read each hit for a presupposed answer. A rule stated for a whole family ("each attempt", "every token") names its members and says which ones it does not settle.
+- **Recurrence:** 1
+- **Promoted:** no
