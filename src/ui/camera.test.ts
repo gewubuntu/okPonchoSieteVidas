@@ -335,9 +335,9 @@ describe('GDD-UI-04 the camera follows up and down', () => {
   });
 
   it('GDD-UI-04 a level 17 rows tall never moves it: every level in the game today', () => {
-    // Every level but 3-1 (51 rows, GDD-WLD-16) and the tall lab is 17 rows (272 px): its camera has no room to move (the approved
-    // screenshots hold).
-    expect(LEVELS.filter((e) => e.level.world.height !== 17).map((e) => e.id)).toEqual(['3-1', 'lab-3t']);
+    // Every level but 3-1 (51 rows, GDD-WLD-16), 3-3 (37 rows, GDD-WLD-18) and the tall lab is 17 rows (272 px): its camera has no room to
+    // move (the approved screenshots hold).
+    expect(LEVELS.filter((e) => e.level.world.height !== 17).map((e) => e.id)).toEqual(['3-1', '3-3', 'lab-3t']);
     for (const e of LEVELS.filter((l) => l.level.world.height === 17)) expect(cameraLimits(e.level.world.height * TILE), e.id).toEqual({ top: 0, bottom: 0 });
     // Any inputs at all: it stays at 0.
     const limits = cameraLimits(17 * TILE);
@@ -464,19 +464,23 @@ describe('GDD-UI-04 the camera follows up and down', () => {
     expect(cutCameraY({ ...waiting, checkpoint: { x: 20 * TILE, y: 480 }, player: spawn(12 * TILE, 900) }, level)).toEqual(stood(344, 480));
   });
 
-  it('GDD-UI-04 the level start is a cut to his feet at 136, which in every level built but 3-1 is the camera at 0', () => {
+  it('GDD-UI-04 the level start is a cut to his feet at 136, which in every level built but 3-1 and 3-3 is the camera at 0', () => {
     // A start low in a tall level: the cut puts his feet at 136.
     const level = { ...levelOf(rowsOf(30, () => 30)), spawn: { x: 200, y: 480 } };
     expect(cutCameraY(startRun(level), level)).toEqual(stood(344, 480));
-    // Every level built but 3-1 starts where the cut puts the camera at 0, where it is before the first cut: the scene's start cut changes
-    // nothing there (lab-3t's start is on its plateau at row 8, his feet at y 128). 3-1 starts on its rim at row 9 (GDD-WLD-16), his feet at
-    // y 144: the cut puts them at 136, the camera at 8.
-    for (const e of LEVELS.filter((l) => l.id !== '3-1')) {
+    // Every level built but 3-1 and 3-3 starts where the cut puts the camera at 0, where it is before the first cut: the scene's start cut
+    // changes nothing there (lab-3t's start is on its plateau at row 8, his feet at y 128). 3-1 starts on its rim at row 9 (GDD-WLD-16), his
+    // feet at y 144: the cut puts them at 136, the camera at 8. 3-3 starts on G0 at row 34 (GDD-WLD-18), his feet at y 544, 37 rows down:
+    // the cut would put the camera at 408, and the level's bottom holds it at 320 (592 - 272), his feet at 224, as
+    // `level3-3.camera.test.ts` measures at the start clock 0.
+    for (const e of LEVELS.filter((l) => l.id !== '3-1' && l.id !== '3-3')) {
       const run = startRun(e.level);
       expect(cutCameraY(run, e.level), e.id).toEqual(stood(0, run.player.y));
     }
     const rim = levelById('3-1')!.level;
     expect(cutCameraY(startRun(rim), rim)).toEqual(stood(8, 144));
+    const peaks = levelById('3-3')!.level;
+    expect(cutCameraY(startRun(peaks), peaks)).toEqual(stood(320, 544));
   });
 
   it('GDD-BOS-01 a screen shake is drawn on top of the camera y', () => {

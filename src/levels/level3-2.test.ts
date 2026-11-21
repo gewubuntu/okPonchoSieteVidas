@@ -132,12 +132,13 @@ const solid = (col: number, row: number) => {
 };
 
 describe('GDD-WLD-17 level 3-2 layout', () => {
-  it('GDD-WLD-17 3-2 is 240 by 17 tiles, World 3 after 3-1, glides, and passes the validator', () => {
+  it('GDD-WLD-17 3-2 is 240 by 17 tiles, World 3 after 3-1 and before 3-3, glides, and passes the validator', () => {
     const e = entry();
     expect(e).toMatchObject({ world: 3, test: false });
     expect(e.level).toBe(L);
-    expect(worldLevels(3).map((x) => x.id)).toEqual(['3-1', '3-2', '3-4']);
+    expect(worldLevels(3).map((x) => x.id)).toEqual(['3-1', '3-2', '3-3', '3-4']);
     expect(levelById('3-1')!.next).toBe('3-2');
+    expect(levelById('3-2')!.next).toBe('3-3');
     expect([world.width, world.height]).toEqual([240, 17]);
     // GDD-PRG-01: the glide on, the wall cling off, as 3-1.
     expect(L.abilities).toEqual({ glide: true });
