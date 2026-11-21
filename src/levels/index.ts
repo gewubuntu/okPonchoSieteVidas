@@ -1,5 +1,5 @@
 // GDD-TEC-04: every level in the game, for the validator. A test level (the sandbox, the slopes level) skips the exit and length checks;
-// a boss level (1-4, 2-4) is held to the boss-level rule instead (GDD-BOS-01).
+// a boss level (1-4, 2-4, 3-4) is held to the boss-level rule instead (GDD-BOS-01).
 // GDD-UI-02: which one is played, and which one comes after it. GDD-LIFE-05: the lives a level starts with, the lives each world keeps
 // in the save, the level each world's run has reached, and where the restart after the last life plays.
 import { LIVES_MAX } from '../config/tuning';
@@ -18,6 +18,7 @@ import { LEVEL_2_4 } from './level2-4';
 import { LEVEL_3_1, TIPS_3_1 } from './level3-1';
 import { LEVEL_3_2 } from './level3-2';
 import { LEVEL_3_3 } from './level3-3';
+import { LEVEL_3_4 } from './level3-4';
 import { SANDBOX_LEVEL } from './sandbox';
 import { SLOPES_LEVEL } from './slopes';
 import { LAB_2M_LEVEL } from './lab2m';
@@ -63,11 +64,13 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: '2-2', world: 2, test: false, level: LEVEL_2_2, next: '2-3' },
   { id: '2-3', world: 2, test: false, level: LEVEL_2_3, next: '2-4' },
   { id: '2-4', world: 2, test: false, level: LEVEL_2_4, next: '3-1' },
-  // GDD-WLD-01: World 3, the Sierra: 3-1 (GDD-WLD-16), with its tip (GDD-UI-05), 3-2 (GDD-WLD-17) and 3-3 (GDD-WLD-18), drawn as the
-  // canyon (GDD-ART-06); 3-3, the last level built, names no next.
+  // GDD-WLD-01: World 3, the Sierra: 3-1 (GDD-WLD-16), with its tip (GDD-UI-05), 3-2 (GDD-WLD-17), 3-3 (GDD-WLD-18), drawn as the
+  // canyon (GDD-ART-06), and the boss arena 3-4 (GDD-BOS-04), World 3's last level: 3-3 leads into it (user, 2026-11-21: "Link 3-3 to 3-4
+  // now") and it names no next.
   { id: '3-1', world: 3, test: false, level: LEVEL_3_1, tips: TIPS_3_1, next: '3-2' },
   { id: '3-2', world: 3, test: false, level: LEVEL_3_2, place: 'mina', next: '3-3' },
-  { id: '3-3', world: 3, test: false, level: LEVEL_3_3 },
+  { id: '3-3', world: 3, test: false, level: LEVEL_3_3, next: '3-4' },
+  { id: '3-4', world: 3, test: false, level: LEVEL_3_4 },
   SANDBOX,
   { id: 'slopes', world: 1, test: true, level: SLOPES_LEVEL },
   // GDD-WLD-10, GDD-WLD-11: the Mercado lab, a World 2 test level.
