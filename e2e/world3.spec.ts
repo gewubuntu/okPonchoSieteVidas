@@ -7,7 +7,8 @@ import { boot, openGame, stepUntil, tapAt } from './helpers';
 
 // World 3, the Sierra (GDD-WLD-16): "Start" playing World 3's run once 2-4 is cleared (GDD-UI-02), the restart at 3-1 with seven after the
 // last life (GDD-LIFE-05) and a run in 3-1, 3-2 and 3-3 saved at an ofrenda and resumed (GDD-PRG-02). 2-4's Next level into 3-1 is in
-// `e2e/world2.spec.ts`, 3-1's into 3-2 in `e2e/level3-1.spec.ts`, 3-2's into 3-3 in `e2e/level3-2.spec.ts`. Where things are is read from
+// `e2e/world2.spec.ts`, 3-1's into 3-2 in `e2e/level3-1.spec.ts`, 3-2's into 3-3 in `e2e/level3-2.spec.ts`, 3-3's into
+// La Catorce's arena 3-4 in `e2e/level3-3.spec.ts`. Where things are is read from
 // `src/levels/level3-1.ts`, `src/levels/level3-2.ts` and `src/levels/level3-3.ts` (L-062); time in steps (L-042).
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const SAVE_KEY = 'poncho-siete-vidas';

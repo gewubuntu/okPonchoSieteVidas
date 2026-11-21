@@ -3,7 +3,8 @@ import { LEVEL_3_4, LEVEL_3_4_HOME } from '../src/levels/level3-4';
 import { catorceBox, catorceStart } from '../src/sim/catorce';
 import { boot, openGame, stepUntil, tapAt, waitForResults } from './helpers';
 
-// GDD-BOS-04: La Catorce in her arena, level 3-4, opened by its address only (GDD-UI-02, user, 2026-11-19: "Address only for now"), drawn as a
+// GDD-BOS-04: La Catorce in her arena, level 3-4, World 3's last level after 3-3 (GDD-UI-02, user, 2026-11-21: "Link 3-3 to 3-4 now"; 3-3's
+// Next level into it is played in `e2e/level3-3.spec.ts`), opened here by its address, drawn as a
 // stand-in of rectangles (her art is a later phase). Timed in simulation steps, never by polling around an event (L-042): the stepped tests pause
 // the game and step it in the page; two run through the game's own frames (L-021). What is drawn is read back through `catorceDrawn()`,
 // `homeDrawn()` and `rails()`, always in the same callback as the state it must agree with (L-033). Where things are comes from the GDD's numbers
@@ -29,10 +30,17 @@ test('GDD-BOS-04 3-4 opens by its address and plays La Catorce: bar, pips, her s
   expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(true);
   if (isMobile) await tapAt(page, 240, 60, true);
   else await page.keyboard.press('Enter');
-  // Read together (L-033): the run's state, her drawn box and the bar, on one frame.
-  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5 && window.__PONCHO__!.catorceDrawn() !== null && window.__PONCHO__!.bossBar().pips === 3);
-  expect(await api(page, () => window.__PONCHO__!.bossBar())).toMatchObject({ shown: true, name: 'La Catorce', nameY: 10, pips: 3, outlines: 0 });
-  const seen = await api(page, () => ({ run: window.__PONCHO__!.catorce()!, drawn: window.__PONCHO__!.catorceDrawn()! }));
+  await page.waitForFunction(() => !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.ticks() > 5 && window.__PONCHO__!.catorceDrawn() !== null);
+  // Her phase 1 is started afresh and stepped once in the same call that reads (L-042: a slow frame after the wait could take her past her
+  // 30-step telegraph at x 400), and the run's state, her drawn box and the bar are read together (L-033).
+  const seen = await api(page, () => {
+    const d = window.__PONCHO__!;
+    d.pause(true);
+    d.setCatorce(0);
+    d.step(1);
+    return { run: d.catorce()!, drawn: d.catorceDrawn()!, bar: d.bossBar() };
+  });
+  expect(seen.bar).toMatchObject({ shown: true, name: 'La Catorce', nameY: 10, pips: 3, outlines: 0 });
   // She starts phase 1 at the right stop (x 400), armoured, facing left: her drawn body is her box, 64 x 32 on the floor (y 192 to 224), to 0.5 px.
   expect(seen.run).toMatchObject({ x: 400, hits: 0, armoured: true, dir: -1 });
   expect(seen.drawn.body.x0).toBeCloseTo(368, 0);
@@ -162,7 +170,7 @@ test('GDD-BOS-04 3-4 her defeat clears the level 1.0 s later, 3-4 saved, Next le
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
   await api(page, () => window.__PONCHO__!.pause(false));
   await waitForResults(page);
-  // 3-4 names no next level (user, 2026-11-19: "Address only for now"): Next level is greyed and the menu opens on Retry.
+  // 3-4, World 3's last level, names no next level: Next level is greyed and the menu opens on Retry.
   const clear = await api(page, () => window.__PONCHO__!.clearDrawn());
   expect(clear).toMatchObject({ shown: true, hilos: 'Hilos 0/0', medal: 'Gold medal' });
   expect(clear.menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });

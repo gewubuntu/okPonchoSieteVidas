@@ -3094,7 +3094,7 @@ export class PlayScene extends Phaser.Scene {
     this.drawOfrendas();
   }
 
-  /** GDD-UI-02: the level after this one (1-1 after 0-1, GDD-WLD-07, 1-2 after 1-1, GDD-WLD-08, 1-3 after 1-2, GDD-WLD-09, 1-4 after 1-3, GDD-BOS-02, 2-1 after 1-4 and on through World 2 to 2-4), or undefined where the level names none (2-4, a test level). */
+  /** GDD-UI-02: the level after this one (1-1 after 0-1, GDD-WLD-07, 1-2 after 1-1, GDD-WLD-08, 1-3 after 1-2, GDD-WLD-09, 1-4 after 1-3, GDD-BOS-02, 2-1 after 1-4 and on through World 2 and World 3 to 3-4), or undefined where the level names none (3-4, World 3's last level, or a test level). */
   private nextLevel(): LevelEntry | undefined {
     return this.entry.next === undefined ? undefined : levelById(this.entry.next);
   }
