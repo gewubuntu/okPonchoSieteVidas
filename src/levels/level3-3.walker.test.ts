@@ -35,7 +35,7 @@ import {
 } from './level3-3.drive';
 
 // GDD-WLD-18, phase B2b: 3-3's walker (the sentence "No cart is needed") and the secret bot, over the real level with every enemy, lift and cart
-// at the start clock they are stood at (`startAt`, L-014). The level is unregistered. Part 1 sweeps the two places the walker's take-off has no
+// at the start clock they are stood at (`startAt`, L-014). The level is registered after 3-2 (`src/levels/index.ts`). Part 1 sweeps the two places the walker's take-off has no
 // measured window yet (C1's dip and the first pit, the last stair jump); part 2 plays the whole level.
 
 const R = (n: number) => Math.round(n * 10) / 10;
