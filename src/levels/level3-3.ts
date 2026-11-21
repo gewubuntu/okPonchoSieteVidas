@@ -10,7 +10,7 @@
 //   the exit glide to the bank under the shed's gable.
 // A ground stretch is solid from its top row down to the level's last row. The pits are open to their raised bottoms (GDD-WLD-03), the
 // first one to the level's last row. A rail lies on the ground line y = 16 r of its row r and is scenery to Poncho; each rail's cart stands
-// at its start, its back edge on the rail's start. Not registered in `index.ts` yet (phase B), as lab-3k was before its art.
+// at its start, its back edge on the rail's start. Registered in `index.ts` after 3-2.
 import { CART, TILE } from '../config/tuning';
 import type { Bottom } from '../sim/bottoms';
 import type { Rail } from '../sim/cart';
@@ -313,7 +313,7 @@ const HILOS: readonly Hilo[] = [
 /** GDD-LIFE-03, GDD-WLD-18: the secret, the veladora in pier V's hollow at column 23, row 30, in plain view. */
 const VELADORA: Veladora = { col: 23, row: 30 };
 
-/** GDD-WLD-18: 3-3 as a level, the data the scene will play and the validator checks (GDD-TEC-04). The exit stands at column 234 on the bank. */
+/** GDD-WLD-18: 3-3 as a level, the data the scene plays and the validator checks (GDD-TEC-04). The exit stands at column 234 on the bank. */
 export const LEVEL_3_3: Level = {
   world: parseTiles(LEVEL_3_3_ROWS),
   spawn: LEVEL_3_3_SPAWN,

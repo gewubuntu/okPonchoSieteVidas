@@ -12,6 +12,8 @@ const LOOK = railLook(LAB_3C_LEVEL.world, LAB_3C_RAILS, 17);
 const of = (rail: number, part: RailImage['part']) => LOOK.filter((im) => im.rail === rail && im.part === part);
 const cols = (ims: readonly RailImage[]) => ims.map((im) => im.x / TILE);
 const FLOOR = 224;
+/** The middle and foot of each warning post in `look`. */
+const posts = (look: RailImage[]) => look.filter((im) => im.part === 'post').map((im) => [im.x + 4, im.y + 24]);
 
 describe('GDD-ART-06 the railway as drawn (railLook)', () => {
   it('GDD-ART-06 every rail tile has its frame: level, slope up and slope down, at its place, also at each join', () => {
@@ -52,12 +54,29 @@ describe('GDD-ART-06 the railway as drawn (railLook)', () => {
 
   it('GDD-ART-06 a warning post stands 6 tiles before each broken end, and a buffer at each buffer end', () => {
     // The post's frame is 8 x 24, its pole's foot on the rail's ground at its middle.
-    const posts = LOOK.filter((im) => im.part === 'post');
+    const postImages = LOOK.filter((im) => im.part === 'post');
     const ends = [4, 5].map((r) => LAB_3C_RAILS[r]!.x + railLength(LAB_3C_RAILS[r]!));
-    expect(posts.map((im) => [im.rail, im.x + 4, im.y + 24])).toEqual(ends.map((end, i) => [4 + i, end - CART.postTiles * TILE, FLOOR]));
+    expect(postImages.map((im) => [im.rail, im.x + 4, im.y + 24])).toEqual(ends.map((end, i) => [4 + i, end - CART.postTiles * TILE, FLOOR]));
     // A buffer, 16 x 16, on the ground past the rail's end, its plate toward the cart (mirrored for R4, which rolls left).
     const buffers = LOOK.filter((im) => im.part === 'buffer');
     expect(buffers.map((im) => [im.rail, im.x, im.y + 16, im.flip])).toEqual([[0, 25 * TILE, FLOOR, false], [1, 39 * TILE, 160, false], [2, 50 * TILE, FLOOR, false], [3, 50 * TILE, FLOOR, true]]);
+  });
+
+  it('GDD-WLD-15 the boss arena is exempt from the post: a broken end draws no post when the posts are left out, one otherwise', () => {
+    // 3-4's own rail, 6 tiles from x 208 to a broken end at x 112, over air (the world below is empty to row 16): the post of any other
+    // broken end stands 6 tiles before it, here at the rail's start (208), its pole's foot on the rail's ground (128).
+    const world = parseTiles(Array.from({ length: 17 }, (_, r) => (r >= 14 ? '#'.repeat(30) : '.'.repeat(30))));
+    const rail: Rail = { x: 208, y: 128, dir: -1, segments: [{ kind: 'level', tiles: 6 }], end: 'broken' };
+    expect(posts(railLook(world, [rail], 17))).toEqual([[208, 128]]);
+    expect(posts(railLook(world, [rail], 17, true))).toEqual([[208, 128]]);
+    expect(posts(railLook(world, [rail], 17, false))).toEqual([]);
+    // Nothing else is left out: the six tiles, the broken end and the trestle under them are drawn the same.
+    expect(railLook(world, [rail], 17, false)).toEqual(railLook(world, [rail], 17).filter((im) => im.part !== 'post'));
+    expect(railLook(world, [rail], 17, false).filter((im) => im.part === 'rail')).toHaveLength(6);
+    // A rail ending in a buffer keeps its buffer with the posts left out (L-028).
+    const buffered: Rail = { ...rail, end: 'buffer' };
+    expect(railLook(world, [buffered], 17, false)).toEqual(railLook(world, [buffered], 17));
+    expect(railLook(world, [buffered], 17, false).filter((im) => im.part === 'buffer')).toHaveLength(1);
   });
 
   it('GDD-ART-06 a trestle under every rail tile with no ground under it: a stringer, and a bent every 32 px down to the ground', () => {

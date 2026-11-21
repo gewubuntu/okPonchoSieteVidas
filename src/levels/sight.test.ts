@@ -18,6 +18,12 @@ import { boardingAt, describeLoss, flySight, flyTakeoff, idlePeriods, inFamily, 
 export interface Accepted extends SightFamily {
   readonly level: string;
   readonly why: string;
+  /**
+   * GDD-WLD-03: the name of the one `REACTIONS` entry that saves every flight of the family, where the level's section names one (3-3's
+   * families, too many flights to fly with every reaction); the test flies only that one. Left out, every reaction is flown (and a ride
+   * loss is judged by `rideSaves`).
+   */
+  readonly reaction?: string;
 }
 
 export const SIGHT_ACCEPTED: readonly Accepted[] = [
@@ -193,6 +199,423 @@ export const SIGHT_ACCEPTED: readonly Accepted[] = [
     rail: 7,
     why: "GDD-WLD-17 (Where a first-time player loses a life): K2's 4-tile jump to K3 straight after the beam hop (both pieces were done alone on safe ground, and a miss of the beam is harmless)",
   },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 58',
+    from: 6,
+    to: 6,
+    input: 'held',
+    rail: 0,
+    why: "GDD-WLD-18 (The sight sweep, family 1): K1's cart (cacomixtle at 58), a flight to the right toward its cart on R2, which is past the screen's edge at the take-off and wakes as he comes: column 6, a held jump out of C1 on R1; lets go of jump",
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 58',
+    from: 36,
+    to: 37,
+    input: 'held',
+    why: "GDD-WLD-18 (The sight sweep, family 2): K1's cart (cacomixtle at 58), a flight to the right toward its cart on R2, which is past the screen's edge at the take-off and wakes as he comes: 36 to 37, held; lets go of jump and jumps where he lands",
+    reaction: 'lets go of jump and jumps where he lands',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 58',
+    from: 40,
+    to: 43,
+    input: 'held',
+    why: "GDD-WLD-18 (The sight sweep, family 3): K1's cart (cacomixtle at 58), a flight to the right toward its cart on R2, which is past the screen's edge at the take-off and wakes as he comes: 40 to 43, held; lets go of jump and jumps where he lands",
+    reaction: 'lets go of jump and jumps where he lands',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 58',
+    from: 41,
+    to: 43,
+    input: 'again',
+    why: "GDD-WLD-18 (The sight sweep, family 4): K1's cart (cacomixtle at 58), a flight to the right toward its cart on R2, which is past the screen's edge at the take-off and wakes as he comes: 41 to 43, let go and pressed again; lets go of jump and jumps where he lands",
+    reaction: 'lets go of jump and jumps where he lands',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 58',
+    from: 41,
+    to: 43,
+    input: 'walk',
+    why: "GDD-WLD-18 (The sight sweep, family 5): K1's cart (cacomixtle at 58), a flight to the right toward its cart on R2, which is past the screen's edge at the take-off and wakes as he comes: 41 to 43, a walk; lets go of everything",
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 58',
+    from: 41,
+    to: 43,
+    input: 'walk-glide',
+    why: "GDD-WLD-18 (The sight sweep, family 6): K1's cart (cacomixtle at 58), a flight to the right toward its cart on R2, which is past the screen's edge at the take-off and wakes as he comes: 41 to 43, a walk with jump held; lets go of everything",
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 58',
+    from: 42,
+    to: 43,
+    input: 'tap',
+    why: "GDD-WLD-18 (The sight sweep, family 7): K1's cart (cacomixtle at 58), a flight to the right toward its cart on R2, which is past the screen's edge at the take-off and wakes as he comes: 42 to 43, tapped; lets go of jump and jumps where he lands",
+    reaction: 'lets go of jump and jumps where he lands',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 178',
+    from: 138,
+    to: 138,
+    input: 'held',
+    rail: 3,
+    why: "GDD-WLD-18 (The sight sweep, family 8): K2's cart (cacomixtle at 178): 138, a held jump out of C3; lets go of jump",
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 178',
+    from: 157,
+    to: 163,
+    input: 'held',
+    why: "GDD-WLD-18 (The sight sweep, family 9): K2's cart (cacomixtle at 178), to the right over bridge B: 157 to 163, held; lets go of jump and jumps where he lands",
+    reaction: 'lets go of jump and jumps where he lands',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 178',
+    from: 161,
+    to: 163,
+    input: 'walk',
+    why: "GDD-WLD-18 (The sight sweep, family 10): K2's cart (cacomixtle at 178), to the right over bridge B: 161 to 163, a walk; lets go of everything",
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 178',
+    from: 161,
+    to: 163,
+    input: 'walk-glide',
+    why: "GDD-WLD-18 (The sight sweep, family 11): K2's cart (cacomixtle at 178), to the right over bridge B: 161 to 163, a walk with jump held; lets go of everything",
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 178',
+    from: 162,
+    to: 163,
+    input: 'again',
+    why: "GDD-WLD-18 (The sight sweep, family 12): K2's cart (cacomixtle at 178), to the right over bridge B: 162 to 163, let go and pressed again; lets go of jump and jumps where he lands",
+    reaction: 'lets go of jump and jumps where he lands',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 178',
+    from: 204,
+    to: 204,
+    input: 'held',
+    why: "GDD-WLD-18 (The sight sweep, family 13): K2's cart (cacomixtle at 178), to the left, back from shelf A and the columns past it: 204, held; lets go of jump",
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 178',
+    from: 205,
+    to: 205,
+    input: 'walk-glide',
+    why: "GDD-WLD-18 (The sight sweep, family 14): K2's cart (cacomixtle at 178), to the left, back from shelf A and the columns past it: 205, a walk with jump held; lets go of jump",
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 178',
+    from: 206,
+    to: 209,
+    input: 'held',
+    why: "GDD-WLD-18 (The sight sweep, family 15): K2's cart (cacomixtle at 178), to the left, back from shelf A and the columns past it: 206 to 209, held; lets go of jump",
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 178',
+    from: 211,
+    to: 217,
+    input: 'walk-glide',
+    why: "GDD-WLD-18 (The sight sweep, family 16): K2's cart (cacomixtle at 178), to the left, back from shelf A and the columns past it: 211 to 217, a walk with jump held; lets go of jump",
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 178',
+    from: 213,
+    to: 215,
+    input: 'held',
+    why: "GDD-WLD-18 (The sight sweep, family 17): K2's cart (cacomixtle at 178), to the left, back from shelf A and the columns past it: 213 to 215, held; lets go of jump",
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 178',
+    from: 219,
+    to: 221,
+    input: 'walk-glide',
+    why: "GDD-WLD-18 (The sight sweep, family 18): K2's cart (cacomixtle at 178), to the left, back from shelf A and the columns past it: 219 to 221, a walk with jump held; lets go of jump",
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 197',
+    from: 167,
+    to: 169,
+    input: 'held',
+    why: "GDD-WLD-18 (The sight sweep, family 19): K3's cart (cacomixtle at 197), to the right onto P5: 167 to 169, held; lets go of jump and jumps where he lands",
+    reaction: 'lets go of jump and jumps where he lands',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 197',
+    from: 173,
+    to: 175,
+    input: 'again',
+    why: "GDD-WLD-18 (The sight sweep, family 20): K3's cart (cacomixtle at 197), to the right onto P5: 173 to 175, let go and pressed again; lets go of jump and jumps where he lands",
+    reaction: 'lets go of jump and jumps where he lands',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 197',
+    from: 175,
+    to: 182,
+    input: 'held',
+    why: "GDD-WLD-18 (The sight sweep, family 21): K3's cart (cacomixtle at 197), to the right onto P5: 175 to 182, held; lets go of jump and jumps where he lands",
+    reaction: 'lets go of jump and jumps where he lands',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 197',
+    from: 179,
+    to: 181,
+    input: 'again',
+    why: "GDD-WLD-18 (The sight sweep, family 22): K3's cart (cacomixtle at 197), to the right onto P5: 179 to 181, let go and pressed again; lets go of jump and jumps where he lands",
+    reaction: 'lets go of jump and jumps where he lands',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 197',
+    from: 180,
+    to: 182,
+    input: 'walk',
+    why: "GDD-WLD-18 (The sight sweep, family 23): K3's cart (cacomixtle at 197), to the right onto P5: 180 to 182, a walk; lets go of everything",
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 197',
+    from: 180,
+    to: 182,
+    input: 'walk-glide',
+    why: "GDD-WLD-18 (The sight sweep, family 24): K3's cart (cacomixtle at 197), to the right onto P5: 180 to 182, a walk with jump held; lets go of everything",
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 197',
+    from: 181,
+    to: 182,
+    input: 'tap',
+    why: "GDD-WLD-18 (The sight sweep, family 25): K3's cart (cacomixtle at 197), to the right onto P5: 181 to 182, tapped; lets go of jump and jumps where he lands",
+    reaction: 'lets go of jump and jumps where he lands',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 197',
+    from: 204,
+    to: 207,
+    input: 'again',
+    why: "GDD-WLD-18 (The sight sweep, family 26): K3's cart (cacomixtle at 197), to the left, back from A: 204 to 207, let go and pressed again; lets go of jump and steers back",
+    reaction: 'lets go of jump and steers back',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 197',
+    from: 209,
+    to: 209,
+    input: 'again',
+    why: "GDD-WLD-18 (The sight sweep, family 27): K3's cart (cacomixtle at 197), to the left, back from A: 209, let go and pressed again; lets go of everything",
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 197',
+    from: 212,
+    to: 214,
+    input: 'again',
+    why: "GDD-WLD-18 (The sight sweep, family 28): K3's cart (cacomixtle at 197), to the left, back from A: 212 to 214, let go and pressed again; lets go of everything",
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'cacomixtle at 197',
+    from: 216,
+    to: 217,
+    input: 'held',
+    why: "GDD-WLD-18 (The sight sweep, family 29): K3's cart (cacomixtle at 197), to the left, back from A: 216 to 217, held; lets go of everything",
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'zopilote at 189',
+    from: 167,
+    to: 169,
+    input: 'held',
+    why: 'GDD-WLD-18 (The sight sweep, family 30): the vulture (zopilote at 189) over P5, to the right: 167 to 169, held; lets go of jump',
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'zopilote at 189',
+    from: 173,
+    to: 174,
+    input: 'again',
+    why: 'GDD-WLD-18 (The sight sweep, family 31): the vulture (zopilote at 189) over P5, to the right: 173 to 174, let go and pressed again; lets go of jump',
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'zopilote at 189',
+    from: 202,
+    to: 209,
+    input: 'held',
+    why: 'GDD-WLD-18 (The sight sweep, family 32): the vulture (zopilote at 189) over P5, to the left, back from A: 202 to 209, held; lets go of everything',
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'zopilote at 189',
+    from: 202,
+    to: 209,
+    input: 'walk-glide',
+    why: 'GDD-WLD-18 (The sight sweep, family 33): the vulture (zopilote at 189) over P5, to the left, back from A: 202 to 209, a walk with jump held; lets go of everything',
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'zopilote at 189',
+    from: 206,
+    to: 209,
+    input: 'again',
+    why: 'GDD-WLD-18 (The sight sweep, family 34): the vulture (zopilote at 189) over P5, to the left, back from A: 206 to 209, let go and pressed again; lets go of everything',
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'zopilote at 189',
+    from: 211,
+    to: 214,
+    input: 'again',
+    why: 'GDD-WLD-18 (The sight sweep, family 35): the vulture (zopilote at 189) over P5, to the left, back from A: 211 to 214, let go and pressed again; lets go of everything',
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'zopilote at 189',
+    from: 211,
+    to: 216,
+    input: 'held',
+    why: 'GDD-WLD-18 (The sight sweep, family 36): the vulture (zopilote at 189) over P5, to the left, back from A: 211 to 216, held; lets go of everything',
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'zopilote at 189',
+    from: 211,
+    to: 217,
+    input: 'walk-glide',
+    why: 'GDD-WLD-18 (The sight sweep, family 37): the vulture (zopilote at 189) over P5, to the left, back from A: 211 to 217, a walk with jump held; lets go of everything',
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'zopilote at 189',
+    from: 216,
+    to: 217,
+    input: 'again',
+    why: 'GDD-WLD-18 (The sight sweep, family 38): the vulture (zopilote at 189) over P5, to the left, back from A: 216 to 217, let go and pressed again; lets go of everything',
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'zopilote at 189',
+    from: 219,
+    to: 221,
+    input: 'walk-glide',
+    why: 'GDD-WLD-18 (The sight sweep, family 39): the vulture (zopilote at 189) over P5, to the left, back from A: 219 to 221, a walk with jump held; lets go of everything',
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'armadillo at 114',
+    from: 69,
+    to: 69,
+    input: 'held',
+    rail: 2,
+    why: 'GDD-WLD-18 (The sight sweep, family 40): the Armadillo (from 114): 69, a held jump out of C2 on R3; lets go of jump',
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'pit 89-98',
+    from: 69,
+    to: 69,
+    input: 'ride',
+    rail: 2,
+    why: 'GDD-WLD-18 (The sight sweep, family 41): the chasm (pit 89 to 98): staying in C2 on R3 to its broken end (a ride loss, saved by each of the three jumps out)',
+  },
+  {
+    level: '3-3',
+    cause: 'pit 89-98',
+    from: 72,
+    to: 74,
+    input: 'held',
+    why: 'GDD-WLD-18 (The sight sweep, family 42): the chasm (pit 89 to 98): 72 to 74, held, toward the chasm; lets go of everything',
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'pit 89-98',
+    from: 72,
+    to: 74,
+    input: 'tap',
+    why: 'GDD-WLD-18 (The sight sweep, family 43): the chasm (pit 89 to 98): 72 to 74, tapped, toward the chasm; lets go of everything',
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'pit 89-98',
+    from: 113,
+    to: 115,
+    input: 'again',
+    why: 'GDD-WLD-18 (The sight sweep, family 44): the chasm (pit 89 to 98), back to the left from P3: 113 to 115, let go and pressed again; lets go of everything',
+    reaction: 'lets go of everything',
+  },
+  {
+    level: '3-3',
+    cause: 'pit 89-98',
+    from: 113,
+    to: 116,
+    input: 'held',
+    why: 'GDD-WLD-18 (The sight sweep, family 45): the chasm (pit 89 to 98), back to the left from P3: 113 to 116, held; lets go of jump',
+    reaction: 'lets go of jump',
+  },
+  {
+    level: '3-3',
+    cause: 'pit 226-231',
+    from: 213,
+    to: 213,
+    input: 'ride',
+    rail: 6,
+    why: 'GDD-WLD-18 (The sight sweep, family 46): pit 226 to 231: staying in C4 on R7 to its broken end (a ride loss, saved by each of the three jumps out)',
+  },
 ];
 
 /** The World 3 levels the sweep flies: every registered one that is not a test level or a boss level. */
@@ -218,14 +641,17 @@ const family = (f: SightFamily) => `${f.cause}, columns ${f.from} to ${f.to}, ${
 const EXPECTED: Readonly<Record<string, { places: number; flights: number; rides: number }>> = {
   '3-1': { places: 249, flights: 116880, rides: 0 },
   '3-2': { places: 229, flights: 138612, rides: 9 },
+  '3-3': { places: 217, flights: 112392, rides: 4 },
 };
 
 /** GDD-WLD-03: what a player does when he sees it, the flight's direction being `dir`; one of them must save the flight. */
-const REACTIONS: readonly { name: string; input: (dir: 1 | -1) => PlayerInput }[] = [
+const REACTIONS: readonly { name: string; input: (dir: 1 | -1) => PlayerInput; jump?: true }[] = [
   { name: 'lets go of jump', input: (dir) => ({ move: dir, jumpHeld: false }) },
   { name: 'lets go of everything', input: () => ({ move: 0, jumpHeld: false }) },
   { name: 'lets go of jump and steers back', input: (dir) => ({ move: -dir, jumpHeld: false }) },
   { name: 'holds jump and steers back', input: (dir) => ({ move: -dir, jumpHeld: true }) },
+  // GDD-ENM-04: the answer to a Cacomixtle's cart is to jump it: where he lands he jumps, holding the way he flew.
+  { name: 'lets go of jump and jumps where he lands', input: (dir) => ({ move: dir, jumpHeld: false }), jump: true },
 ];
 
 /**
@@ -233,35 +659,82 @@ const REACTIONS: readonly { name: string; input: (dir: 1 | -1) => PlayerInput }[
  * least REACT_STEPS after its cause first came on screen up to the loss, as a rider's reactions are judged (`rideSaves`): each such step is
  * tried in turn, and the first that saves him decides.
  */
-function savedBy(level: Parameters<typeof sightSweep>[0], l: Loss, input: PlayerInput): boolean {
+function savedBy(level: Parameters<typeof sightSweep>[0], l: Loss, input: PlayerInput, jump?: true): boolean {
   if (l.seenBefore === null) return false;
-  for (let at = l.lossStep - l.seenBefore + REACT_STEPS; at < l.lossStep; at++) if (flyTakeoff(level, l.takeoff, { at, input }).loss === null) return true;
+  for (let at = l.lossStep - l.seenBefore + REACT_STEPS; at < l.lossStep; at++) if (flyTakeoff(level, l.takeoff, jump ? { at, input, jump } : { at, input }).loss === null) return true;
   return false;
 }
 
 /** Measured: per accepted family, its blind flights (or its flights that stay in a ride) and how many each reaction saves. */
 const SAVES: Record<string, Record<string, number>> = {
-  '3-1 murcielago at 225, columns 207 to 210, held': { flights: 19, 'lets go of jump': 19, 'lets go of everything': 19, 'lets go of jump and steers back': 19, 'holds jump and steers back': 19 },
-  '3-1 murcielago at 225, columns 210 to 210, again': { flights: 2, 'lets go of jump': 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2 },
-  '3-1 alacran at 82, columns 99 to 101, held': { flights: 8, 'lets go of jump': 8, 'lets go of everything': 8, 'lets go of jump and steers back': 8, 'holds jump and steers back': 8 },
-  '3-1 pit 169-186, columns 153 to 153, held': { flights: 1, 'lets go of jump': 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1 },
-  '3-2 armadillo at 153, columns 170 to 172, walk-glide': { flights: 11, 'lets go of jump': 11, 'lets go of everything': 11, 'lets go of jump and steers back': 11, 'holds jump and steers back': 11 },
-  '3-2 alacran at 149, columns 163 to 164, held': { flights: 10, 'lets go of jump': 10, 'lets go of everything': 10, 'lets go of jump and steers back': 10, 'holds jump and steers back': 10 },
-  '3-2 alacran at 149, columns 156 to 159, held': { flights: 16, 'lets go of jump': 16, 'lets go of everything': 16, 'lets go of jump and steers back': 16, 'holds jump and steers back': 16 },
-  '3-2 alacran at 149, columns 165 to 165, again': { flights: 2, 'lets go of jump': 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2 },
-  '3-2 armadillo at 153, columns 153 to 154, again': { flights: 6, 'lets go of jump': 6, 'lets go of everything': 6, 'lets go of jump and steers back': 6, 'holds jump and steers back': 6 },
-  '3-2 pit 144-146, columns 161 to 162, held': { flights: 12, 'lets go of jump': 12, 'lets go of everything': 12, 'lets go of jump and steers back': 12, 'holds jump and steers back': 12 },
-  '3-2 alacran at 157, columns 171 to 172, walk': { flights: 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2 },
-  '3-2 alacran at 157, columns 171 to 172, walk-glide': { flights: 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2 },
-  '3-2 armadillo at 153, columns 149 to 150, held': { flights: 9, 'lets go of jump': 9, 'lets go of everything': 9, 'lets go of jump and steers back': 9, 'holds jump and steers back': 9 },
-  '3-2 alacran at 157, columns 150 to 150, walk': { flights: 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1 },
-  '3-2 alacran at 157, columns 150 to 150, walk-glide': { flights: 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1 },
-  '3-2 armadillo at 153, columns 143 to 143, held': { flights: 1, 'lets go of jump': 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1 },
-  '3-2 armadillo at 153, columns 139 to 140, walk-glide': { flights: 15, 'lets go of jump': 15, 'lets go of everything': 15, 'lets go of jump and steers back': 15, 'holds jump and steers back': 15 },
+  '3-1 murcielago at 225, columns 207 to 210, held': { flights: 19, 'lets go of jump': 19, 'lets go of everything': 19, 'lets go of jump and steers back': 19, 'holds jump and steers back': 19, 'lets go of jump and jumps where he lands': 19 },
+  '3-1 murcielago at 225, columns 210 to 210, again': { flights: 2, 'lets go of jump': 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2, 'lets go of jump and jumps where he lands': 2 },
+  '3-1 alacran at 82, columns 99 to 101, held': { flights: 8, 'lets go of jump': 8, 'lets go of everything': 8, 'lets go of jump and steers back': 8, 'holds jump and steers back': 8, 'lets go of jump and jumps where he lands': 8 },
+  '3-1 pit 169-186, columns 153 to 153, held': { flights: 1, 'lets go of jump': 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1, 'lets go of jump and jumps where he lands': 1 },
+  '3-2 armadillo at 153, columns 170 to 172, walk-glide': { flights: 11, 'lets go of jump': 11, 'lets go of everything': 11, 'lets go of jump and steers back': 11, 'holds jump and steers back': 11, 'lets go of jump and jumps where he lands': 11 },
+  '3-2 alacran at 149, columns 163 to 164, held': { flights: 10, 'lets go of jump': 10, 'lets go of everything': 10, 'lets go of jump and steers back': 10, 'holds jump and steers back': 10, 'lets go of jump and jumps where he lands': 10 },
+  '3-2 alacran at 149, columns 156 to 159, held': { flights: 16, 'lets go of jump': 16, 'lets go of everything': 16, 'lets go of jump and steers back': 16, 'holds jump and steers back': 16, 'lets go of jump and jumps where he lands': 16 },
+  '3-2 alacran at 149, columns 165 to 165, again': { flights: 2, 'lets go of jump': 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2, 'lets go of jump and jumps where he lands': 2 },
+  '3-2 armadillo at 153, columns 153 to 154, again': { flights: 6, 'lets go of jump': 6, 'lets go of everything': 6, 'lets go of jump and steers back': 6, 'holds jump and steers back': 6, 'lets go of jump and jumps where he lands': 6 },
+  '3-2 pit 144-146, columns 161 to 162, held': { flights: 12, 'lets go of jump': 12, 'lets go of everything': 12, 'lets go of jump and steers back': 12, 'holds jump and steers back': 12, 'lets go of jump and jumps where he lands': 12 },
+  '3-2 alacran at 157, columns 171 to 172, walk': { flights: 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2, 'lets go of jump and jumps where he lands': 2 },
+  '3-2 alacran at 157, columns 171 to 172, walk-glide': { flights: 2, 'lets go of everything': 2, 'lets go of jump and steers back': 2, 'holds jump and steers back': 2, 'lets go of jump and jumps where he lands': 2 },
+  '3-2 armadillo at 153, columns 149 to 150, held': { flights: 9, 'lets go of jump': 9, 'lets go of everything': 9, 'lets go of jump and steers back': 9, 'holds jump and steers back': 9, 'lets go of jump and jumps where he lands': 9 },
+  '3-2 alacran at 157, columns 150 to 150, walk': { flights: 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1, 'lets go of jump and jumps where he lands': 1 },
+  '3-2 alacran at 157, columns 150 to 150, walk-glide': { flights: 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1, 'lets go of jump and jumps where he lands': 1 },
+  '3-2 armadillo at 153, columns 143 to 143, held': { flights: 1, 'lets go of jump': 1, 'lets go of everything': 1, 'lets go of jump and steers back': 1, 'holds jump and steers back': 1, 'lets go of jump and jumps where he lands': 1 },
+  '3-2 armadillo at 153, columns 139 to 140, walk-glide': { flights: 15, 'lets go of jump': 15, 'lets go of everything': 15, 'lets go of jump and steers back': 15, 'holds jump and steers back': 15, 'lets go of jump and jumps where he lands': 15 },
   '3-2 pit 80-84, columns 69 to 69, ride, rail 3': { flights: 12, 'a held jump, its way held': 12, 'a held jump, nothing held': 12, 'a tapped jump': 12 },
   '3-2 pit 196-200, columns 185 to 185, ride, rail 6': { flights: 12, 'a held jump, its way held': 12, 'a held jump, nothing held': 12, 'a tapped jump': 12 },
   '3-2 spike 177,15, columns 141 to 141, ride, rail 5': { flights: 12, 'a held jump, its way held': 12, 'a held jump, nothing held': 12, 'a tapped jump': 12 },
   '3-2 pit 216-221, columns 202 to 202, ride, rail 7': { flights: 156, 'a held jump, its way held': 156, 'a held jump, nothing held': 156, 'a tapped jump': 156 },
+  // 3-3's families name their one reaction (GDD-WLD-18), the only one flown.
+  '3-3 cacomixtle at 58, columns 6 to 6, held, rail 0': { flights: 96, 'lets go of jump': 96 },
+  '3-3 cacomixtle at 58, columns 36 to 37, held': { flights: 42, 'lets go of jump and jumps where he lands': 42 },
+  '3-3 cacomixtle at 58, columns 40 to 43, held': { flights: 150, 'lets go of jump and jumps where he lands': 150 },
+  '3-3 cacomixtle at 58, columns 41 to 43, again': { flights: 102, 'lets go of jump and jumps where he lands': 102 },
+  '3-3 cacomixtle at 58, columns 41 to 43, walk': { flights: 72, 'lets go of everything': 72 },
+  '3-3 cacomixtle at 58, columns 41 to 43, walk-glide': { flights: 72, 'lets go of everything': 72 },
+  '3-3 cacomixtle at 58, columns 42 to 43, tap': { flights: 42, 'lets go of jump and jumps where he lands': 42 },
+  '3-3 cacomixtle at 178, columns 138 to 138, held, rail 3': { flights: 36, 'lets go of jump': 36 },
+  '3-3 cacomixtle at 178, columns 157 to 163, held': { flights: 162, 'lets go of jump and jumps where he lands': 162 },
+  '3-3 cacomixtle at 178, columns 161 to 163, walk': { flights: 78, 'lets go of everything': 78 },
+  '3-3 cacomixtle at 178, columns 161 to 163, walk-glide': { flights: 78, 'lets go of everything': 78 },
+  '3-3 cacomixtle at 178, columns 162 to 163, again': { flights: 54, 'lets go of jump and jumps where he lands': 54 },
+  '3-3 cacomixtle at 178, columns 204 to 204, held': { flights: 4, 'lets go of jump': 4 },
+  '3-3 cacomixtle at 178, columns 205 to 205, walk-glide': { flights: 8, 'lets go of jump': 8 },
+  '3-3 cacomixtle at 178, columns 206 to 209, held': { flights: 27, 'lets go of jump': 27 },
+  '3-3 cacomixtle at 178, columns 211 to 217, walk-glide': { flights: 177, 'lets go of jump': 177 },
+  '3-3 cacomixtle at 178, columns 213 to 215, held': { flights: 8, 'lets go of jump': 8 },
+  '3-3 cacomixtle at 178, columns 219 to 221, walk-glide': { flights: 52, 'lets go of jump': 52 },
+  '3-3 cacomixtle at 197, columns 167 to 169, held': { flights: 94, 'lets go of jump and jumps where he lands': 94 },
+  '3-3 cacomixtle at 197, columns 173 to 175, again': { flights: 80, 'lets go of jump and jumps where he lands': 80 },
+  '3-3 cacomixtle at 197, columns 175 to 182, held': { flights: 184, 'lets go of jump and jumps where he lands': 184 },
+  '3-3 cacomixtle at 197, columns 179 to 181, again': { flights: 20, 'lets go of jump and jumps where he lands': 20 },
+  '3-3 cacomixtle at 197, columns 180 to 182, walk': { flights: 78, 'lets go of everything': 78 },
+  '3-3 cacomixtle at 197, columns 180 to 182, walk-glide': { flights: 78, 'lets go of everything': 78 },
+  '3-3 cacomixtle at 197, columns 181 to 182, tap': { flights: 23, 'lets go of jump and jumps where he lands': 23 },
+  '3-3 cacomixtle at 197, columns 204 to 207, again': { flights: 143, 'lets go of jump and steers back': 143 },
+  '3-3 cacomixtle at 197, columns 209 to 209, again': { flights: 10, 'lets go of everything': 10 },
+  '3-3 cacomixtle at 197, columns 212 to 214, again': { flights: 40, 'lets go of everything': 40 },
+  '3-3 cacomixtle at 197, columns 216 to 217, held': { flights: 36, 'lets go of everything': 36 },
+  '3-3 zopilote at 189, columns 167 to 169, held': { flights: 14, 'lets go of jump': 14 },
+  '3-3 zopilote at 189, columns 173 to 174, again': { flights: 2, 'lets go of jump': 2 },
+  '3-3 zopilote at 189, columns 202 to 209, held': { flights: 237, 'lets go of everything': 237 },
+  '3-3 zopilote at 189, columns 202 to 209, walk-glide': { flights: 184, 'lets go of everything': 184 },
+  '3-3 zopilote at 189, columns 206 to 209, again': { flights: 70, 'lets go of everything': 70 },
+  '3-3 zopilote at 189, columns 211 to 214, again': { flights: 66, 'lets go of everything': 66 },
+  '3-3 zopilote at 189, columns 211 to 216, held': { flights: 208, 'lets go of everything': 208 },
+  '3-3 zopilote at 189, columns 211 to 217, walk-glide': { flights: 135, 'lets go of everything': 135 },
+  '3-3 zopilote at 189, columns 216 to 217, again': { flights: 16, 'lets go of everything': 16 },
+  '3-3 zopilote at 189, columns 219 to 221, walk-glide': { flights: 74, 'lets go of everything': 74 },
+  '3-3 armadillo at 114, columns 69 to 69, held, rail 2': { flights: 4, 'lets go of jump': 4 },
+  '3-3 pit 89-98, columns 69 to 69, ride, rail 2': { flights: 12, 'a held jump, its way held': 12, 'a held jump, nothing held': 12, 'a tapped jump': 12 },
+  '3-3 pit 89-98, columns 72 to 74, held': { flights: 36, 'lets go of everything': 36 },
+  '3-3 pit 89-98, columns 72 to 74, tap': { flights: 36, 'lets go of everything': 36 },
+  '3-3 pit 89-98, columns 113 to 115, again': { flights: 48, 'lets go of everything': 48 },
+  '3-3 pit 89-98, columns 113 to 116, held': { flights: 75, 'lets go of jump': 75 },
+  '3-3 pit 226-231, columns 213 to 213, ride, rail 6': { flights: 12, 'a held jump, its way held': 12, 'a held jump, nothing held': 12, 'a tapped jump': 12 },
 };
 
 describe('GDD-WLD-03 the sight sweep of World 3', () => {
@@ -313,11 +786,23 @@ describe('GDD-WLD-03 the sight sweep of World 3', () => {
     expect(got).toEqual({
       '3-1': { periods: [330, 120, 120, 394, 240, 120, 120], starts: [0, 65, 131, 197, 262, 328] },
       '3-2': { periods: [962, 1802, 2690, 1802, 266], starts: [0, 448, 896, 1345, 1793, 2241] },
+      '3-3': { periods: [1, 1, 1, 1058, 120, 120, 120, 3000], starts: [0, 500, 1000, 1500, 2000, 2500] },
     });
   });
 
   it('GDD-WLD-03 every accepted family of blind losses is one the GDD names, none unreviewed', () => {
     expect(SIGHT_ACCEPTED.filter((a) => a.why === 'unreviewed').map((a) => `${a.level} ${family(a)}`)).toEqual([]);
+  });
+
+  it("GDD-WLD-03 a family's named reaction is one of the five, and 3-1's and 3-2's families name none", () => {
+    const names = REACTIONS.map((r) => r.name);
+    expect(SIGHT_ACCEPTED.filter((a) => a.reaction !== undefined && !names.includes(a.reaction)).map((a) => `${a.level} ${family(a)}: ${a.reaction}`)).toEqual([]);
+    // GDD-WLD-18: each of 3-3's families that is not a ride loss names the one reaction that saves every flight of it.
+    expect(SIGHT_ACCEPTED.filter((a) => a.level === '3-3' && a.input !== 'ride' && a.reaction === undefined).map((a) => `${a.level} ${family(a)}`)).toEqual([]);
+    // A ride loss is judged by `rideSaves`, never by a reaction: it names none.
+    expect(SIGHT_ACCEPTED.filter((a) => a.input === 'ride' && a.reaction !== undefined).map((a) => `${a.level} ${family(a)}`)).toEqual([]);
+    // 3-1 and 3-2 keep the full table (the GDD quotes each reaction's count).
+    expect(SIGHT_ACCEPTED.filter((a) => (a.level === '3-1' || a.level === '3-2') && a.reaction !== undefined).map((a) => `${a.level} ${family(a)}`)).toEqual([]);
   });
 
   it('GDD-WLD-03 every accepted blind loss and ride loss can still be avoided 0.2 s after what takes the life comes on screen', { timeout: 1800000 }, () => {
@@ -329,7 +814,9 @@ describe('GDD-WLD-03 the sight sweep of World 3', () => {
       for (const l of [...report.blind, ...report.rideLosses]) {
         const fam = SIGHT_ACCEPTED.find((a) => a.level === id && inFamily(l, a));
         const key = fam ? `${id} ${family(fam)}` : `${id} ${describeLoss(l)}`;
-        const saved = l.takeoff.input === 'ride' ? rideSaves(level, l) : REACTIONS.filter((r) => savedBy(level, l, r.input(l.takeoff.dir))).map((r) => r.name);
+        // A family that names its one reaction (GDD-WLD-18) is flown with that one only.
+        const tried = fam?.reaction === undefined ? REACTIONS : REACTIONS.filter((r) => r.name === fam.reaction);
+        const saved = l.takeoff.input === 'ride' ? rideSaves(level, l) : tried.filter((r) => savedBy(level, l, r.input(l.takeoff.dir), r.jump)).map((r) => r.name);
         const tally = (saves[key] ??= { flights: 0 });
         tally['flights']!++;
         for (const name of saved) tally[name] = (tally[name] ?? 0) + 1;

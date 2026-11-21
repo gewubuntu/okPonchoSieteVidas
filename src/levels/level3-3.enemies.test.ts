@@ -44,7 +44,7 @@ import { idlePeriods } from './sightSweep';
 
 // GDD-WLD-18, phase B1: level 3-3's enemies driven over their clocks (L-014), the Cacomixtles with their ringtails riding. Every expected number
 // is what the real `stepRun` gives on the real level with every enemy in it (L-003); where GDD-WLD-18 names a figure, the comment says "GDD says"
-// and where a drive contradicts a sentence of it the test pins what happens and says so, the layout left as it is. The level is unregistered.
+// and where a drive contradicts a sentence of it the test pins what happens and says so, the layout left as it is. The level is registered after 3-2 (`src/levels/index.ts`).
 
 /** Enemy `i`'s state at clock `t` as `idlePeriods` reads it, with the box one step on too, so a bat going the other way is another state. */
 function periodState(t: number, i: number): string {

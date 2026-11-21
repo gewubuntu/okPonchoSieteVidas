@@ -2,12 +2,14 @@ import { expect, test, type Page } from '@playwright/test';
 import { TILE } from '../src/config/tuning';
 import { LEVEL_3_1, LEVEL_3_1_GROUND, LEVEL_3_1_PITS } from '../src/levels/level3-1';
 import { LEVEL_3_2, LEVEL_3_2_FLOOR } from '../src/levels/level3-2';
+import { LEVEL_3_3, LEVEL_3_3_AT, LEVEL_3_3_PITS, LEVEL_3_3_WALLS } from '../src/levels/level3-3';
 import { boot, openGame, stepUntil, tapAt } from './helpers';
 
 // World 3, the Sierra (GDD-WLD-16): "Start" playing World 3's run once 2-4 is cleared (GDD-UI-02), the restart at 3-1 with seven after the
-// last life (GDD-LIFE-05) and a run in 3-1 and in 3-2 saved at an ofrenda and resumed (GDD-PRG-02). 2-4's Next level into 3-1 is in
-// `e2e/world2.spec.ts`, 3-1's into 3-2 in `e2e/level3-1.spec.ts`. Where things are is read from `src/levels/level3-1.ts` and
-// `src/levels/level3-2.ts` (L-062); time in steps (L-042).
+// last life (GDD-LIFE-05) and a run in 3-1, 3-2 and 3-3 saved at an ofrenda and resumed (GDD-PRG-02). 2-4's Next level into 3-1 is in
+// `e2e/world2.spec.ts`, 3-1's into 3-2 in `e2e/level3-1.spec.ts`, 3-2's into 3-3 in `e2e/level3-2.spec.ts`, 3-3's into
+// La Catorce's arena 3-4 in `e2e/level3-3.spec.ts`. Where things are is read from
+// `src/levels/level3-1.ts`, `src/levels/level3-2.ts` and `src/levels/level3-3.ts` (L-062); time in steps (L-042).
 const api = <T>(page: Page, fn: () => T) => page.evaluate(fn);
 const SAVE_KEY = 'poncho-siete-vidas';
 /** The middle of tile column `col`, in px. */
@@ -56,6 +58,34 @@ test('GDD-LIFE-05 the Siete vidas gastadas screen in 3-1 restarts 3-1 with seven
   await page.waitForFunction(() => window.__PONCHO__!.level() === '3-1' && window.__PONCHO__!.phase() !== 'gameover');
   await stepUntil(page, { phase: 'playing' }, 300);
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('playing');
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: LEVEL_3_1.spawn.x, y: LEVEL_3_1.spawn.y });
+});
+
+test('GDD-LIFE-05 the Siete vidas gastadas screen in 3-3 restarts 3-1 with seven', async ({ page }) => {
+  await boot(page, '/?level=3-3');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await api(page, () => window.__PONCHO__!.pause(true));
+  for (let i = 0; i < 6; i++) await api(page, () => window.__PONCHO__!.loseLife());
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(1);
+  // Dropped over the middle of the chasm (no enemy within 8 columns of it), from one row above the higher lip (P2's, row 25): the last life
+  // is lost at its raised bottom.
+  const chasm = LEVEL_3_3_PITS.chasm;
+  const middle = Math.floor((chasm.col0 + chasm.col1) / 2);
+  for (const e of LEVEL_3_3.enemies) expect(Math.abs(Math.floor(e.x / TILE) - middle), `enemy at x ${e.x}`).toBeGreaterThan(8);
+  await page.evaluate(([x, y]) => window.__PONCHO__!.teleport(x!, y!), [mid(middle), 24 * TILE]);
+  expect(await stepUntil(page, { phase: 'respawning' }, 200)).toBeLessThan(200);
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(0);
+  await stepUntil(page, { phase: 'gameover' }, 60);
+  expect(await api(page, () => window.__PONCHO__!.phase())).toBe('gameover');
+  // Saved as the screen comes up: World 3's lives spent and its run back at 3-1, not at 3-3.
+  expect(await storedProgress(page)).toMatchObject({ worldLives: { '3': 0 }, worldAt: { '3': '3-1' } });
+  // The press after the screen's 1.0 s restarts World 3 at 3-1, at its start, with seven.
+  await api(page, () => window.__PONCHO__!.step(61));
+  await api(page, () => window.__PONCHO__!.step(1, { move: 0, jumpHeld: true }));
+  // A different level: its scene starts afresh and unpaused, so it is paused where it plays.
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '3-1' && window.__PONCHO__!.phase() === 'playing' && window.__PONCHO__!.ticks() > 2);
+  await api(page, () => window.__PONCHO__!.pause(true));
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: LEVEL_3_1.spawn.x, y: LEVEL_3_1.spawn.y });
 });
@@ -127,4 +157,39 @@ test('GDD-PRG-02 a run in 3-2 is saved and resumed at its ofrenda', async ({ pag
   expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: ofrenda.x, y: ofrenda.y });
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
   expect(await api(page, () => window.__PONCHO__!.scenery())).toMatchObject({ place: 'mina' });
+});
+
+test('GDD-PRG-02 a run in 3-3 is saved and resumed at its ofrenda', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard test');
+  await boot(page, '/?level=3-3');
+  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 5);
+  await api(page, () => window.__PONCHO__!.pause(true));
+  // A life taken, then a walk over the first ofrenda (column 65, on T1) from the first column past the piñata's wall (62, 2 tiles high, which
+  // a walk from further back cannot pass), 2 columns before it. The checkpoint moves, and the run is saved.
+  await api(page, () => window.__PONCHO__!.loseLife());
+  expect(await stepUntil(page, { phase: 'playing' }, 300)).toBeLessThan(300);
+  const ofrenda = LEVEL_3_3.ofrendas[0]!;
+  const col = LEVEL_3_3_WALLS.T1.col1 + 1;
+  expect(col).toBeLessThan(Math.floor(ofrenda.x / TILE));
+  expect(LEVEL_3_3_AT.T1.row * TILE).toBe(ofrenda.y);
+  await page.evaluate(
+    ([x, y, to]) => {
+      const d = window.__PONCHO__!;
+      d.teleport(x!, y! - 1);
+      for (let i = 0; i < 120 && d.checkpoint().x !== to; i++) d.step(1, { move: d.state().grounded ? 1 : 0, jumpHeld: false });
+      d.step(1);
+    },
+    [mid(col), LEVEL_3_3_AT.T1.row * TILE, ofrenda.x],
+  );
+  expect(await api(page, () => window.__PONCHO__!.checkpoint())).toEqual({ x: ofrenda.x, y: ofrenda.y });
+  const saved: { run: { level: string; checkpoint: number; lives: number } } = JSON.parse((await api(page, () => localStorage.getItem('poncho-siete-vidas')))!);
+  // The touch gives back the life lost.
+  expect(saved.run).toMatchObject({ level: '3-3', checkpoint: 0, lives: 7 });
+  // A new visit to the game: Continue, chosen on the title, resumes it at that ofrenda.
+  await openGame(page, '/');
+  expect((await api(page, () => window.__PONCHO__!.titleDrawn())).menu.chosen).toBe('continue');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__PONCHO__!.level() === '3-3' && !window.__PONCHO__!.titleDrawn().shown && window.__PONCHO__!.phase() === 'playing');
+  expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: ofrenda.x, y: ofrenda.y });
+  expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
 });

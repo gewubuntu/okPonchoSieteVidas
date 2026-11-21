@@ -58,9 +58,10 @@ const groundAt = (world: World, tx: number, ty: number): boolean => world.solidT
  * apart) down to the top of the first ground tile under it or the level's bottom (`rows` tiles down): its top, then legs as far as it goes,
  * and where it meets ground, a sill at its foot over them.
  * A buffer stands on the ground past the rail's end, its plate toward the cart; a broken rail's warning post 6 tiles before its end
- * (`warningPost`). The crumbling tiles are not ground here: no level lays a rail on them yet.
+ * (`warningPost`), unless `posts` is false: the boss arena is exempt from the post (GDD-WLD-15, GDD-BOS-04). The crumbling tiles are not ground
+ * here: no level lays a rail on them yet.
  */
-export function railLook(world: World, rails: readonly Rail[], rows: number): RailImage[] {
+export function railLook(world: World, rails: readonly Rail[], rows: number, posts = true): RailImage[] {
   const out: RailImage[] = [];
   const bottom = rows * TILE;
   rails.forEach((r, rail) => {
@@ -98,7 +99,7 @@ export function railLook(world: World, rails: readonly Rail[], rows: number): Ra
         if (ty < rows) out.push({ part: 'sill', frame: 'sill', x: col * TILE, y: foot - SILL_ROWS, flip: false, height: SILL_ROWS, rail });
       });
     }
-    const post = warningPost(r);
+    const post = posts ? warningPost(r) : null;
     if (post) out.push({ part: 'post', frame: 'post', x: post.x - POST_SIZE.w / 2, y: post.y - POST_SIZE.h, flip: false, height: POST_SIZE.h, rail });
     if (r.end === 'buffer') {
       const end = r.x + r.dir * railLength(r);
