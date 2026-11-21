@@ -96,7 +96,7 @@ test('GDD-WLD-18 3-3: on the exit bank, the exit 2 tiles ahead', async ({ page, 
   await shot(page, info, 'level3-3-exit');
 });
 
-test('GDD-UI-02 3-3: the results menu after the exit, Next level greyed', async ({ page, isMobile }, info) => {
+test('GDD-UI-02 3-3: the results menu after the exit, Next level offered into 3-4', async ({ page, isMobile }, info) => {
   await open(page, isMobile);
   // A few steps right from the spawn take its first hilo in play, so the screen shows a count a player could see (L-045); then the bank.
   const taken = await page.evaluate(() => {
@@ -116,7 +116,7 @@ test('GDD-UI-02 3-3: the results menu after the exit, Next level greyed', async 
   const clear = await page.evaluate(() => ({ ...window.__PONCHO__!.clearDrawn(), taken: window.__PONCHO__!.hilos().taken }));
   expect(clear.taken).toBeGreaterThanOrEqual(taken);
   expect(clear.hilos).toBe(`Hilos ${clear.taken}/50`);
-  // 3-3 names no next: Next level is greyed and the menu opens on Retry.
-  expect(clear.menu).toMatchObject({ chosen: 'retry', colors: ['#5c6178', '#fff3dc', '#9ba3c4'] });
+  // 3-3 names 3-4 (GDD-BOS-04): Next level is offered and the menu opens on it.
+  expect(clear.menu).toMatchObject({ chosen: 'next', colors: ['#fff3dc', '#9ba3c4', '#9ba3c4'] });
   await shot(page, info, 'level3-3-results');
 });

@@ -3,6 +3,7 @@ import { CAMERA, CART, TILE } from '../src/config/tuning';
 import { LAB_3C_BEAM, LAB_3C_RAILS } from '../src/levels/lab3c';
 import { LEVEL_1_1 } from '../src/levels/level1-1';
 import { LEVEL_2_4 } from '../src/levels/level2-4';
+import { LEVEL_3_4 } from '../src/levels/level3-4';
 import { LAB_3T_DROP, LAB_3T_HIGH_BOTTOM, LAB_3T_HIGH_PIT, LAB_3T_LOWEST, LAB_3T_OFRENDAS, LAB_3T_TOP } from '../src/levels/lab3t';
 import { railLength } from '../src/sim/cart';
 import { gaps } from '../src/levels/validate';
@@ -388,6 +389,7 @@ test('GDD-UI-04 the picture never jumps when the bottom limit changes', async ({
 for (const [id, level] of [
   ['1-1', LEVEL_1_1],
   ['2-4', LEVEL_2_4],
+  ['3-4', LEVEL_3_4],
 ] as const) {
   test(`GDD-UI-04, GDD-BOS-01 one-screen levels do not scroll up or down: ${id}`, async ({ page }) => {
     const errors = await boot(page, `/?level=${id}`);

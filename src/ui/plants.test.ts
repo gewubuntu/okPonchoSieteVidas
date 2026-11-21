@@ -9,6 +9,7 @@ import { LEVEL_2_2 } from '../levels/level2-2';
 import { LEVEL_2_3 } from '../levels/level2-3';
 import { LEVEL_2_4 } from '../levels/level2-4';
 import { LAB_3C_LEVEL } from '../levels/lab3c';
+import { LEVEL_3_4 } from '../levels/level3-4';
 import { SANDBOX_LEVEL } from '../levels/sandbox';
 import { SLOPES_LEVEL } from '../levels/slopes';
 import { railGround, railLength, warningPost, type Rail } from '../sim/cart';
@@ -356,6 +357,14 @@ describe('GDD-ART-06 World 2 decor', () => {
       expect(new Set(spots.map((s) => s.kind))).toEqual(new Set(kindsOf));
     });
   }
+
+  // GDD-ART-06, L-014: World 3's boss arena, drawn with the Sierra's decor (SIERRA.decor). A top tile at (column, row 14) qualifies when
+  // (column + 2 x 14) mod 9 is 0 or 1: columns 0, 8, 9, 17, 18, 26, 27 (and 35, off the level); 17 is the right spring's cell (no ground top)
+  // and 18, within 2 columns of that spring on its row, is kept clear of it. Kinds, (3 x column + 5 x 14) mod 7: 0, 3, 6, 1 and 4.
+  it('GDD-ART-06 decor in 3-4: 5 items at columns 0, 8, 9, 26 and 27 of the floor, none on the right spring cell (column 17) or beside it (18)', () => {
+    const spots = plantSpots(LEVEL_3_4, SIERRA.decor);
+    expect(spots.map((s) => [s.col, s.row, s.kind])).toEqual([[0, 14, 0], [8, 14, 3], [9, 14, 6], [26, 14, 1], [27, 14, 4]]);
+  });
 
   it('GDD-ART-06 decor and awnings: no item within 2 columns of an end of an awning, where its poles stand', () => {
     const base = decorCols(level(14));
