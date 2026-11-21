@@ -10,7 +10,7 @@
 //   the exit glide to the bank under the shed's gable.
 // A ground stretch is solid from its top row down to the level's last row. The pits are open to their raised bottoms (GDD-WLD-03), the
 // first one to the level's last row. A rail lies on the ground line y = 16 r of its row r and is scenery to Poncho; each rail's cart stands
-// at its start, its back edge on the rail's start. Not registered in `index.ts` yet (phase B), as lab-3k was before its art.
+// at its start, its back edge on the rail's start. Registered in `index.ts` after 3-2.
 import { CART, TILE } from '../config/tuning';
 import type { Bottom } from '../sim/bottoms';
 import type { Rail } from '../sim/cart';
