@@ -349,10 +349,16 @@ function pitLip(level: Level, from: Place, dir: 1 | -1, x: number): { cause: str
   return { cause: `pit ${a}-${b}`, where: tileBox(lip, row) };
 }
 
-/** A player's reaction during a flight: from step `at` on he holds `input` in place of the take-off's own, until he stands. */
+/**
+ * A player's reaction during a flight: from step `at` on he holds `input` in place of the take-off's own, until he stands. With `jump`
+ * (GDD-WLD-03, GDD-ENM-04: jumping a Cacomixtle's cart) he then presses jump on the first step he stands (on the step after the one he is
+ * first seen standing: he stands at `at` already, the step at `at` lets go and the press is on `at + 1`), holds it with `input.move` until
+ * he stands again, and after that holds nothing.
+ */
 export interface Reaction {
   readonly at: number;
   readonly input: PlayerInput;
+  readonly jump?: true;
 }
 
 /** How a flight is flown besides its take-off: where its camera starts, the states it has already flown, and whether it rides on in a cart. */
@@ -389,6 +395,8 @@ export function flySight(level: Level, t: Takeoff, from: RunState = takeoffRun(l
   let [rider, back] = [t.ride !== undefined, false];
   let r = states[states.length - 1] ?? from;
   let [left, landed, top] = [-1, -1, -1];
+  // A reaction with `jump`: the step he presses on (none yet), and whether his jump has landed.
+  let [pressed, jumped] = [-1, false];
   for (let i = states.length; i < F.maxSteps && r.phase === 'playing'; i++) {
     // An enemy he set off goes on until it is back in its idle phase, however long after he stood.
     if (landed >= 0 && i > landed + F.idleSteps && !reacting(level, r)) break;
@@ -404,7 +412,18 @@ export function flySight(level: Level, t: Takeoff, from: RunState = takeoffRun(l
     const own: PlayerInput = { move, jumpHeld: !stay && !back && i >= press && jump };
     // Standing, he lets go of everything; but a rider who stays in with the cart's way held walks off it where it stopped.
     const standing: PlayerInput = stay && cartUnder(level, r, false) >= 0 ? { move, jumpHeld: false } : { move: 0, jumpHeld: false };
-    const input: PlayerInput = landed >= 0 ? standing : reaction && i >= reaction.at ? reaction.input : own;
+    // Reacting with a jump he stands at the same test as `landed` (on anything but a rolling cart, which is a boarding).
+    const jumping = reaction?.jump === true && i >= reaction.at;
+    if (jumping) {
+      const stands = r.player.grounded && cartUnder(level, r, true) < 0;
+      if (pressed < 0 && i > reaction.at && stands) [pressed, landed] = [i, -1];
+      else if (pressed >= 0 && stands) jumped = true;
+    }
+    const input: PlayerInput =
+      jumping && !jumped ? (pressed >= 0 ? { move: reaction.input.move, jumpHeld: true } : reaction.input)
+      : landed >= 0 ? standing
+      : reaction && i >= reaction.at ? reaction.input
+      : own;
     const before = r;
     r = stepRun(r, input, level);
     states.push(r);
