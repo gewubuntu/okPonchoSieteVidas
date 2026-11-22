@@ -46,7 +46,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `npm install` | Install dependencies (needed once; CI runs `npm ci`). |
 | `npm run dev` | Dev server on port 5173. |
 | `npm run build` | Typecheck and production build into `dist/`. |
-| `npm test` | Vitest unit tests (`src/**/*.test.ts`, `scripts/**/*.test.mjs`). |
+| `npm test` | Vitest unit tests (`src/**/*.test.ts`, `server/**/*.test.ts`, `scripts/**/*.test.mjs`). |
 | `npm run test:abilities` | The simulation tests again with every progression ability on (L-024); opt-outs with reasons in `src/sim/all-abilities.setup.ts`. |
 | `npm run test:glide` | The level tests of Worlds 0 to 2 again with the glide unlocked, as after clearing 2-4 (GDD-PRG-01); opt-outs with reasons in `src/levels/glide-unlocked.setup.ts`. |
 | `npm run test:sight` | The sight sweep of World 3's levels (GDD-WLD-03, L-014): every flight a level invites, failing on a life lost to something off screen at the take-off; accepted families with their GDD sentence in `src/levels/sight.test.ts`. About 9 minutes for 3-1 to 3-3. |
@@ -74,6 +74,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - `src/config/tuning.ts` every gameplay number, tagged with its GDD ID
 - `src/sim/` pure game logic (movement, fixed-step loop), no Phaser imports
 - `src/scenes/` Phaser scenes: wiring only (input, rendering, audio)
+- `server/` the game server (GDD-TEC-10, `docs/decisions/0004-game-server.md`): Node and TypeScript with no browser types, not deployed; it may import `src/`, and nothing under `src/` imports it
 - `e2e/` Playwright playtests; `e2e/shots/` screenshot scenarios for visual review
 - `docs/screenshots/<slug>/` screenshots the user approved, embedded in PR descriptions
 - `assets/` art and audio. `assets/characters/poncho/` holds Poncho's reference images (`reference.jpg`, `sprite-*.jpg`); `assets/worlds/<world>/` the world references
