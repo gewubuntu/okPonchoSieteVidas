@@ -3,8 +3,14 @@
 - **Status:** Decided: a Node and TypeScript server in this repository that runs the game's own simulation
   code, written up in an ADR first, built and tested against a mock chain while no contract address exists, and
   deployed only as a later step the user approves (user, 2026-11-21: "In this repo, TypeScript (Recommended)";
-  Conflict C14), and the stack below as proposed (user, 2026-11-22: "Approve as proposed (Recommended)"). What is
-  listed under "Not decided here" stays open.
+  Conflict C14), and four points of the stack (user, 2026-11-22: "Approve as proposed (Recommended)"): Node's own
+  HTTP server; Node's own SQLite behind a storage interface; one library, viem, for the wallet sign-in and the
+  chain's events; and start tokens signed with Ed25519, the key from the environment. Every other detail below (the
+  folder, the scripts, the session cookie, where the config lives, the chain interface and its dev routes, the Node
+  version) is the main session's proposal, built as a placeholder (GDD-CHAIN-01) where the GDD holds the point open.
+  What is listed under "Not decided here" stays open.
+- **Built:** nothing when this record was written. The files, scripts and line counts it names are the plan's; "is
+  written" and "built as" say what the plan builds.
 - **GDD:** GDD-TEC-10, GDD-LIFE-06, GDD-CHAIN-02, GDD-CHAIN-03, GDD-CHAIN-04, GDD-TEC-09, GDD-TEC-07
 
 ## Context
@@ -89,6 +95,12 @@ What was checked for this record (2026-11-21, in a throwaway copy of the reposit
   (Open Question 53 (c); the server only refuses a write based on an older revision), what is kept about a player
   and for how long (Open Question 54 (d); nothing is deleted but expired nonces and sessions), and league tokens
   (Open Question 57; none is issued).
+- Where the config values live (Conflict C13, Open Question 54 (f)): `server/config.ts` with one endpoint is the
+  recommended resolution, built as a placeholder.
+- How a Pal's owner is known (Open Question 54 (c)): the chain interface's `ownerOf` and `palsOf`, read as a token is
+  asked for, are a placeholder; following transfers is the other way.
+- That the API is served from the game's own origin: an assumption of the cookie's design, since where the server
+  runs is not decided. Another origin needs cross-origin rules and another cookie.
 - Where it is deployed and how (below).
 
 ## Alternatives
