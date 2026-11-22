@@ -15,6 +15,10 @@ describe('GDD-TEC-03 only the played level files are loaded', () => {
     expect(canyon.filter((n) => mine.includes(n))).toEqual([]);
   });
 
+  it('GDD-TEC-03 a shed level loads the canyon sky, clouds and far strip, its own back wall and the mine ground and decor', () => {
+    expect(names(artFiles('sierra', 'casa'))).toEqual(['sky-strips.png', 'cloud-0.png', 'cloud-1.png', 'cloud-2.png', 'far-barranca.png', 'mid-casa.png', 'ground-mina.png', 'decor-mina.png']);
+  });
+
   it('GDD-TEC-03 the other worlds load their own files whatever place is asked', () => {
     expect(names(artFiles('mercado', null))).toContain('plaza.png');
     expect(names(artFiles('desierto', null))).toContain('sun.png');

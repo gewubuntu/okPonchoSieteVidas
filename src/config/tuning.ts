@@ -970,3 +970,10 @@ export const SIERRA_MINA = {
     { name: 'costales', w: 14, h: 10 },
   ],
 } as const;
+
+/**
+ * GDD-ART-06: the engine shed's back wall (3-4 La Casa de Máquinas, La Catorce's arena), from `scripts/art/sierra-casa.mjs`: one image the
+ * screen's width in the mid band, from game y `midTop` (0) down to the floor's top at 224 (`midBandArt`, 896 art px), see-through in its
+ * three arches. The sky, the clouds and the far strip are the canyon's (`SIERRA`), the ground sheet and the decor the mine's (`SIERRA_MINA`).
+ */
+export const SIERRA_CASA = { midTop: 0, midBandArt: 896 } as const;

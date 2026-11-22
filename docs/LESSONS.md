@@ -889,8 +889,9 @@ Retired IDs: L-046
 - **What went wrong:** the GDD-ENM-03 plan's art tests said the Chapulín's leaf green is the most-painted colour in its crouch frame, and that the Paloma's flight frames leave the bottom row empty. On the approved drawings, iron outnumbers the leaf (its shadow), and the glide frame's dangling feet reach the bottom row. Neither test could pass without changing art the user had approved, so the implementer had to stop and choose its own reading.
 - **Root cause:** the main session wrote the expected values from what the art was meant to be, not from the drawing the user approved, which was already in the tree.
 - **Rule:** before a plan pins a property of an approved drawing (a dominant colour, a size, an edge, a reach), measure it on the drawing (a few lines over `drawFrames()`) and write the measured value, or a rule the drawing meets, into the plan.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-22, GDD-BOS-04 phase D2, found by the implementer):** the plan for the engine shed's wall said a pixel is see-through "exactly where `inArch` holds" and that the shed's ground rule differs from the canyon's in row 14. On the approved drawing 1071 pixels inside the arches are painted (the reveal's shade and the gantry's rods), and row 14 takes the same frames by both rules; the implementer pinned what it measured. I had measured the count of see-through pixels and the colours, and wrote the two other claims from how the drawing was meant to work.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-feature (step 5, Approved art: every property a plan pins of an approved drawing or of a level's frames is measured first, each claim with its figure)
 
 ## L-073 A playtest loop of many page round trips ran close to the 30 s limit
 

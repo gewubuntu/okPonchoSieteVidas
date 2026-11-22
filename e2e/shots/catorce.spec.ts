@@ -27,6 +27,8 @@ async function fight(page: Page, isMobile: boolean, hits: number): Promise<void>
     d.setCatorce(h);
   }, hits);
   expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ x: 240, y: 160, grounded: true });
+  // GDD-ART-06: in the engine shed.
+  expect(await page.evaluate(() => window.__PONCHO__!.scenery())).toMatchObject({ place: 'casa' });
 }
 
 /** Steps the paused game until her mode is `mode` (checked before each step) or `max` steps have run; the steps it took. */
@@ -65,15 +67,20 @@ async function hitHer(page: Page, hits: number): Promise<number> {
 
 test('GDD-BOS-04 catorce: the arena at the start, she telegraphs at the right stop, Poncho on home, no warning posts', async ({ page, isMobile }, info) => {
   await start(page, isMobile, '/?level=3-4');
-  await page.waitForFunction(() => window.__PONCHO__!.ticks() > 10);
-  await page.evaluate(() => window.__PONCHO__!.pause(true));
-  expect(await page.evaluate(() => window.__PONCHO__!.catorce())).toMatchObject({ x: 400, mode: 'telegraph', hits: 0, armoured: true });
+  // At a fixed age, whatever the boot took (L-042): her phase 1 started afresh and stepped 5 steps in one call.
+  await page.evaluate(() => {
+    const d = window.__PONCHO__!;
+    d.pause(true);
+    d.setCatorce(0);
+    d.step(5);
+  });
+  expect(await page.evaluate(() => window.__PONCHO__!.catorce())).toMatchObject({ x: 400, mode: 'telegraph', age: 5, hits: 0, armoured: true });
   expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ x: 240, y: 160, grounded: true });
   expect(await page.evaluate(() => window.__PONCHO__!.rails())).toMatchObject({ posts: 0, brokenEnds: 2 });
   expect(await page.evaluate(() => window.__PONCHO__!.bossBar())).toMatchObject({ shown: true, name: 'La Catorce', pips: 3, outlines: 0 });
-  // Her telegraph at the age the boot left her in: red where floor(age / 4) is even, her wheels a quarter turn every 2 steps; facing left.
-  const { age } = (await page.evaluate(() => window.__PONCHO__!.catorce()))!;
-  await drawnAs(page, { look: `${Math.floor(age / 4) % 2 === 0 ? 'spinRed3_' : 'spin3_'}${Math.floor(age / 2) % 4}`, lamps: 3, left: true });
+  expect(await page.evaluate(() => window.__PONCHO__!.scenery())).toMatchObject({ place: 'casa' });
+  // Age 5: plain (floor(5 / 4) % 2 = 1), her wheels' third quarter (floor(5 / 2) % 4 = 2); facing left.
+  await drawnAs(page, { look: 'spin3_2', flash: null, lamps: 3, left: true });
   await shot(page, info, 'catorce-arena');
 });
 
@@ -154,6 +161,17 @@ test('GDD-BOS-04 catorce: phase 3, charging wall to wall, one lamp lit', async (
   // x 448 - 30 x 150 / 60 = 373: q = floor(373 / 2 pi) = 59, facing left the turn ((-59 % 4) + 4) % 4 = 1.
   await drawnAs(page, { look: 'run1_1', flash: null, lamps: 1, left: true });
   await shot(page, info, 'catorce-phase3');
+});
+
+test('GDD-BOS-04 catorce: phase 3, the step after her slam at the left wall, squashed and red', async ({ page, isMobile }, info) => {
+  await fight(page, isMobile, 2);
+  // Phase 3's first slam, at the left wall buffer (x 32), is step 197 of the phase (30 of telegraph, 167 of charge): one step on, the
+  // telegraph that follows it with no rest, age 1, squashed and red. Poncho stays on home: the left tile her slam starts is still whole.
+  await page.evaluate(() => window.__PONCHO__!.step(198));
+  expect(await page.evaluate(() => window.__PONCHO__!.catorce())).toMatchObject({ x: 32, hits: 2, mode: 'telegraph', age: 1, dir: 1 });
+  expect(await page.evaluate(() => window.__PONCHO__!.state())).toMatchObject({ x: 240, y: 160, grounded: true });
+  await drawnAs(page, { look: 'slamRed1', flash: 'red', lamps: 1, left: false });
+  await shot(page, info, 'catorce-phase3-slam');
 });
 
 test('GDD-BOS-04 catorce: defeated, no lamp lit, three outlines on the bar', async ({ page, isMobile }, info) => {

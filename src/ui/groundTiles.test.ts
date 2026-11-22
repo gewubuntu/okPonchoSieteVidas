@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LEVELS } from '../levels';
 import { LEVEL_0_1 } from '../levels/level0-1';
 import { LAB_3M_FLOOR_ROW, LAB_3M_LEVEL, LAB_3M_LOW_ROOF } from '../levels/lab3m';
+import { LEVEL_3_4 } from '../levels/level3-4';
 import { parseTiles, type SlopeChar, type TileGrid } from '../sim/tilemap';
 import { groundFrame, groundFrameFor, mineGroundFrame, mineTileKind, type MineTile } from './groundTiles';
 import { placeFor } from './scenery/looks';
@@ -175,11 +176,12 @@ describe('GDD-ART-06 mine ground tiles', () => {
     for (const t of tiles) if (t.kind === 'rock') expect([2, 34], `${t.tx},${t.ty}`).toContain(t.frame);
   });
 
-  it('GDD-ART-06 mine rule only in the mine: every other level keeps groundFrame and asks for no frame past the 28', () => {
+  it('GDD-ART-06 mine rule only in the mine and the shed: every other level keeps groundFrame and asks for no frame past the 28', () => {
     let canyon = 0;
     for (const entry of LEVELS) {
       const place = placeFor(entry.world, entry.place);
-      if (place === 'mina') continue;
+      // The shed's floor is the mine's (the casa ground test).
+      if (place === 'mina' || place === 'casa') continue;
       const { world } = entry.level;
       for (let ty = 0; ty < world.height; ty++) {
         for (let tx = 0; tx < world.width; tx++) {
@@ -194,5 +196,21 @@ describe('GDD-ART-06 mine ground tiles', () => {
     // The canyon levels (3-1 and its labs) were checked, not skipped.
     expect(canyon).toBeGreaterThan(1000);
     expect(groundFrameFor('mina', LAB, 0, 0)).toBe(mineGroundFrame(LAB, 0, 0));
+  });
+
+  it('GDD-ART-06 casa ground: the shed floor of 3-4 takes the mine rule on every solid tile', () => {
+    const grid = LEVEL_3_4.world;
+    let tiles = 0;
+    for (let ty = 0; ty < grid.height; ty++) {
+      for (let tx = 0; tx < grid.width; tx++) {
+        if (!grid.solidTile(tx, ty)) continue;
+        tiles++;
+        expect(groundFrameFor('casa', grid, tx, ty), `${tx},${ty}`).toBe(mineGroundFrame(grid, tx, ty));
+      }
+    }
+    // Measured: 88 solid tiles, rows 14 to 16. The floor's top row 14 takes the same top frames (0 and 1) by both rules, on their own
+    // sheets; the rule shows under it: tile (0, 15) is deep rock in the shed, frame 31, and the canyon's rock tile, frame 3.
+    expect(tiles).toBe(88);
+    expect([groundFrameFor('casa', grid, 0, 15), groundFrameFor('barranca', grid, 0, 15)]).toEqual([31, 3]);
   });
 });

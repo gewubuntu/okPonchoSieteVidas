@@ -150,11 +150,11 @@ describe('GDD-ART-06 a look per world', () => {
 });
 
 describe('GDD-ART-06 a World 3 level chooses its place', () => {
-  it('GDD-ART-06 place of every World 3 level: 3-1, 3-3, 3-4 and the canyon labs the barranca, 3-2, lab-3m, lab-3a and lab-3k the mine, none outside World 3', () => {
+  it('GDD-ART-06 place of every World 3 level: 3-1, 3-3 and the canyon labs the barranca, 3-2, lab-3m, lab-3a and lab-3k the mine, 3-4 the casa, none outside World 3', () => {
     const places = Object.fromEntries(LEVELS.map((e) => [e.id, placeFor(e.world, e.place)]));
-    expect(Object.fromEntries(Object.entries(places).filter(([, p]) => p !== null))).toEqual({ '3-1': 'barranca', '3-2': 'mina', '3-3': 'barranca', '3-4': 'barranca', 'lab-3c': 'barranca', 'lab-3t': 'barranca', 'lab-3m': 'mina', 'lab-3a': 'mina', 'lab-3k': 'mina' });
+    expect(Object.fromEntries(Object.entries(places).filter(([, p]) => p !== null))).toEqual({ '3-1': 'barranca', '3-2': 'mina', '3-3': 'barranca', '3-4': 'casa', 'lab-3c': 'barranca', 'lab-3t': 'barranca', 'lab-3m': 'mina', 'lab-3a': 'mina', 'lab-3k': 'mina' });
     // Left out, a World 3 level's place is the barranca; outside World 3 there is none, whatever is asked.
-    expect([placeFor(3), placeFor(3, 'mina'), placeFor(2), placeFor(2, 'mina'), placeFor(1, 'barranca')]).toEqual(['barranca', 'mina', null, null, null]);
+    expect([placeFor(3), placeFor(3, 'mina'), placeFor(3, 'casa'), placeFor(2), placeFor(2, 'mina'), placeFor(2, 'casa'), placeFor(1, 'barranca')]).toEqual(['barranca', 'mina', 'casa', null, null, null, null]);
   });
 
   it('GDD-ART-06 the canyon look is the Sierra look, every other set keeps its own', () => {
@@ -186,6 +186,28 @@ describe('GDD-ART-06 a World 3 level chooses its place', () => {
     expect(images.map((i) => imageKey('sierra', 'barranca', i))).toEqual(['sierra:sky-strips', 'sierra:far', 'sierra:mid', 'sierra:ground', 'sierra:decor']);
     expect(images.map((i) => imageKey('sierra', 'mina', i))).toEqual(['sierra:sky-strips-mina', 'sierra:far-mina', 'sierra:mid-mina', 'sierra:ground-mina', 'sierra:decor-mina']);
     expect(imageKey('mercado', null, 'plaza')).toBe('mercado:plaza');
+  });
+
+  it('GDD-ART-06 casa look: the canyon look with the shed back wall from the screen top to the floor, the mine decor', () => {
+    const c = lookFor('sierra', 'casa');
+    const s = LOOKS.sierra;
+    // The back wall from y 0 down to the floor's top at 224 (row 14), the mine's seven decor kinds.
+    expect([c.midTop, c.midTop + c.midBandArt / 4]).toEqual([0, 224]);
+    expect(c.decor).toBe(SIERRA_MINA.decor);
+    // Everything else is the canyon's: its sky bands, their ends and strips, its clouds, no sun, its shares, its far strip and foot.
+    expect([c.skyBands, c.skyEnds, c.stripArt, c.sun, c.clouds]).toEqual([s.skyBands, s.skyEnds, s.stripArt, s.sun, s.clouds]);
+    expect([c.cloudFactor, c.farFactor, c.midFactor]).toEqual([s.cloudFactor, s.farFactor, s.midFactor]);
+    expect([c.farTop, c.farBandArt, c.footColour]).toEqual([s.farTop, s.farBandArt, s.footColour]);
+  });
+
+  it('GDD-ART-06 casa keys: its own mid, the mine ground and decor, the canyon sky, clouds and far strip', () => {
+    const images = ['sky-strips', 'cloud-0', 'far', 'mid', 'ground', 'decor'];
+    expect(images.map((i) => imageKey('sierra', 'casa', i))).toEqual(['sierra:sky-strips', 'sierra:cloud-0', 'sierra:far', 'sierra:mid-casa', 'sierra:ground-mina', 'sierra:decor-mina']);
+  });
+
+  it('GDD-ART-06 casa file size: the back wall is the size the scene loads', () => {
+    expect(pngSize('sierra', 'mid-casa.png')).toEqual([1920, 896]);
+    expect(pngSize('sierra', 'mid-casa.png')).toEqual([1920, lookFor('sierra', 'casa').midBandArt]);
   });
 
   it('GDD-ART-06 mine files are the sizes the scene loads', () => {

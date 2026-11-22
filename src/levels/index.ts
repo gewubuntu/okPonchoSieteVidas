@@ -5,6 +5,7 @@
 import { LIVES_MAX } from '../config/tuning';
 import type { Abilities } from '../sim/movement';
 import type { Level } from '../sim/run';
+import type { Place } from '../ui/scenery/looks';
 import type { Tip } from '../ui/tips';
 import { LEVEL_0_1, TIPS_0_1 } from './level0-1';
 import { LEVEL_1_1 } from './level1-1';
@@ -40,10 +41,11 @@ export interface LevelEntry {
   /** GDD-UI-02: the id of the level the press that ends its level clear screen starts. Left out, that press brings back the title screen. */
   readonly next?: string;
   /**
-   * GDD-ART-06: a World 3 level's place, which chooses its backdrop, ground sheet and decor sheet: the canyon (`barranca`) or the mine
-   * (`mina`). Left out, the canyon. Only World 3 levels choose one (the validator refuses it elsewhere).
+   * GDD-ART-06: a World 3 level's place, which chooses its backdrop, ground sheet and decor sheet: the canyon (`barranca`), the mine
+   * (`mina`) or the engine shed (`casa`, La Catorce's arena). Left out, the canyon. Only World 3 levels choose one (the validator refuses
+   * it elsewhere).
    */
-  readonly place?: 'barranca' | 'mina';
+  readonly place?: Place;
 }
 
 /** GDD-UI-02: the tutorial level's id. */
@@ -65,12 +67,12 @@ export const LEVELS: readonly LevelEntry[] = [
   { id: '2-3', world: 2, test: false, level: LEVEL_2_3, next: '2-4' },
   { id: '2-4', world: 2, test: false, level: LEVEL_2_4, next: '3-1' },
   // GDD-WLD-01: World 3, the Sierra: 3-1 (GDD-WLD-16), with its tip (GDD-UI-05), 3-2 (GDD-WLD-17), 3-3 (GDD-WLD-18), drawn as the
-  // canyon (GDD-ART-06), and the boss arena 3-4 (GDD-BOS-04), World 3's last level: 3-3 leads into it (user, 2026-11-21: "Link 3-3 to 3-4
-  // now") and it names no next.
+  // canyon (GDD-ART-06), and the boss arena 3-4 (GDD-BOS-04), drawn as the engine shed, World 3's last level: 3-3 leads into it (user,
+  // 2026-11-21: "Link 3-3 to 3-4 now") and it names no next.
   { id: '3-1', world: 3, test: false, level: LEVEL_3_1, tips: TIPS_3_1, next: '3-2' },
   { id: '3-2', world: 3, test: false, level: LEVEL_3_2, place: 'mina', next: '3-3' },
   { id: '3-3', world: 3, test: false, level: LEVEL_3_3, next: '3-4' },
-  { id: '3-4', world: 3, test: false, level: LEVEL_3_4 },
+  { id: '3-4', world: 3, test: false, level: LEVEL_3_4, place: 'casa' },
   SANDBOX,
   { id: 'slopes', world: 1, test: true, level: SLOPES_LEVEL },
   // GDD-WLD-10, GDD-WLD-11: the Mercado lab, a World 2 test level.

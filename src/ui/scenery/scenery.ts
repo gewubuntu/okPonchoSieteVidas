@@ -40,8 +40,8 @@ export interface Scenery {
    */
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number };
   /**
-   * The art set chosen, the texture key of the drawn mid band (`mercado:plaza` in World 2's arena, `sierra:mid-mina` in the mine) and, in
-   * World 3 only, the level's place (`barranca` or `mina`).
+   * The art set chosen, the texture key of the drawn mid band (`mercado:plaza` in World 2's arena, `sierra:mid-mina` in the mine,
+   * `sierra:mid-casa` in the engine shed) and, in World 3 only, the level's place (`barranca`, `mina` or `casa`).
    */
   drawn(): { set: ArtSet; midKey: string; place?: Place };
   /** The ground sheet's frame drawn at tile (tx, ty), or null where no ground image is, whether the image is shown or not. */

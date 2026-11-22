@@ -236,7 +236,8 @@ export interface PonchoDebug {
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number };
   /**
    * The art set the scenery is drawn from (`desierto`, `mercado`, `sierra`), the texture key of the drawn mid band (`mercado:plaza` in World
-   * 2's arena, `sierra:mid-mina` in the mine) and, in a World 3 level only, its place (`barranca` or `mina`) (GDD-ART-06).
+   * 2's arena, `sierra:mid-mina` in the mine, `sierra:mid-casa` in the engine shed) and, in a World 3 level only, its place (`barranca`,
+   * `mina` or `casa`) (GDD-ART-06).
    */
   scenery(): { set: string; midKey: string; place?: string };
   /** The frame of the ground sheet drawn at tile (tx, ty), or null where no ground image is (GDD-ART-06), whether the image is shown or not. Read from the drawn image. */
