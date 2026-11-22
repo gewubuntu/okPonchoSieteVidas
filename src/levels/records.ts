@@ -31,7 +31,8 @@ function startsHere(header: RecordHeader, entry: LevelEntry): boolean {
  * another version, a level that is not registered, a header the level cannot start.
  */
 export function replayRecord(record: RunRecord, version: string): Replayed | { error: 'version' | 'level' | 'header' } {
-  if (record.header.sim !== version) return { error: 'version' };
+  // 'unbuilt' is what a process without the build's define calls itself (`SIM_VERSION`): no version to replay on.
+  if (record.header.sim !== version || version === 'unbuilt') return { error: 'version' };
   const entry = levelById(record.header.level);
   if (entry === undefined) return { error: 'level' };
   if (!startsHere(record.header, entry)) return { error: 'header' };

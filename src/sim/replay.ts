@@ -116,9 +116,10 @@ function abilitiesOf(value: unknown): Abilities | null {
   if (typeof value !== 'object' || value === null) return null;
   const { glide, wallCling } = value as { glide?: unknown; wallCling?: unknown };
   const out: { glide?: boolean; wallCling?: boolean } = {};
-  if (typeof glide === 'boolean') out.glide = glide;
+  // An ability a record names is one it adds (an unlock): `true` or left out. A `false` could only take away what the level has itself.
+  if (glide === true) out.glide = true;
   else if (glide !== undefined) return null;
-  if (typeof wallCling === 'boolean') out.wallCling = wallCling;
+  if (wallCling === true) out.wallCling = true;
   else if (wallCling !== undefined) return null;
   return out;
 }
@@ -138,7 +139,7 @@ function resumeOf(value: unknown): Omit<SavedRun, 'level'> | null | undefined {
  */
 function headerOf(data: object): RecordHeader | null {
   const { format, sim, level, seed, token, start, lives, hilos, abilities, resume } = data as { format?: unknown; sim?: unknown; level?: unknown; seed?: unknown; token?: unknown; start?: unknown; lives?: unknown; hilos?: unknown; abilities?: unknown; resume?: unknown };
-  if (format !== RECORD_FORMAT || typeof sim !== 'string' || typeof level !== 'string' || typeof seed !== 'number' || (token !== null && typeof token !== 'string')) return null;
+  if (format !== RECORD_FORMAT || typeof sim !== 'string' || typeof level !== 'string' || typeof seed !== 'number' || !Number.isSafeInteger(seed) || seed < 0 || (token !== null && typeof token !== 'string')) return null;
   if ((start !== 'start' && start !== 'restart' && start !== 'resume') || typeof lives !== 'number' || typeof hilos !== 'string' || !/^[01]*$/.test(hilos)) return null;
   const powers = abilitiesOf(abilities);
   const saved = resumeOf(resume);
@@ -166,6 +167,9 @@ export function readRecord(text: string, maxSteps: number): RunRecord | null {
   if (typeof inputs !== 'string' || header === null) return null;
   const runs: { input: PlayerInput; held: boolean; count: number }[] = [];
   let steps = 0;
+  // The code of the run of steps just before, '' after a held mark or at the start: `writeRecord` never writes two runs of one code
+  // side by side, nor a count of 1, so neither is read.
+  let before = '';
   for (const token of inputs === '' ? [] : inputs.split(' ')) {
     const held = token.startsWith('h');
     const star = token.indexOf('*');
@@ -174,6 +178,9 @@ export function readRecord(text: string, maxSteps: number): RunRecord | null {
     // A count is a whole number from 1, in digits, and a safe integer.
     const count = Number(prefix);
     if (input === null || !/^[1-9][0-9]*$/.test(prefix) || !Number.isSafeInteger(count)) return null;
+    const code = token.slice(held ? 1 : star + 1);
+    if (!held && (code === before || (star >= 0 && count === 1))) return null;
+    before = held ? '' : code;
     if (!held) steps += count;
     if (steps > maxSteps) return null;
     runs.push({ input, held, count });
@@ -209,7 +216,9 @@ export class RunRecorder {
  * as `withUnlocks` adds them (written here, so that `src/sim/` imports nothing of `src/levels/`). With none, it plays as the level does.
  */
 export function startOf(header: RecordHeader, level: Level): { run: RunState; level: Level } {
-  const played: Level = { ...level, abilities: { ...level.abilities, ...header.abilities } };
+  // Added, never taken away: an ability the level has itself stays on whatever the header says (`withUnlocks` only adds too).
+  const added = { ...(header.abilities.glide === true ? { glide: true } : {}), ...(header.abilities.wallCling === true ? { wallCling: true } : {}) };
+  const played: Level = { ...level, abilities: { ...level.abilities, ...added } };
   const hilos = Array.from(header.hilos, (c) => c === '1');
   const run =
     header.start === 'resume'

@@ -17,17 +17,23 @@ function hashes(): string[] {
 
 describe('GDD-TEC-09 state hash', () => {
   it('GDD-TEC-09 stateText writes plain data one way', () => {
-    expect(stateText({ b: 1, a: [true, null, undefined, -0, 'x'], c: new Set(['q']) })).toBe('{a:[T,N,U,n8000000000000000,"x"],b:n3ff0000000000000,c:S["q"]}');
+    expect(stateText({ b: 1, a: [true, null, undefined, -0, 'x'], c: new Set(['q']) })).toBe('{"a":[T,N,U,n8000000000000000,"x"],"b":n3ff0000000000000,"c":S["q"]}');
   });
 
   it('GDD-TEC-09 stateText is the same whatever order the keys were written in', () => {
     expect(stateText({ a: 1, b: 2 })).toBe(stateText({ b: 2, a: 1 }));
-    expect(stateText({ b: 2, a: 1 })).toBe('{a:n3ff0000000000000,b:n4000000000000000}');
+    expect(stateText({ b: 2, a: 1 })).toBe('{"a":n3ff0000000000000,"b":n4000000000000000}');
   });
 
   it('GDD-TEC-09 stateText: a key left out and a key that is undefined are different', () => {
     expect(stateText({})).toBe('{}');
-    expect(stateText({ a: undefined })).toBe('{a:U}');
+    expect(stateText({ a: undefined })).toBe('{"a":U}');
+  });
+
+  it('GDD-TEC-09 stateText: a key is written as a string is, so one key cannot pass for two fields', () => {
+    expect(stateText({ 'a:T,b': true })).toBe('{"a:T,b":T}');
+    expect(stateText({ 'a:T,b': true })).not.toBe(stateText({ a: true, b: true }));
+    expect(stateText({ 'a"': 1 })).toBe('{"a\\"":n3ff0000000000000}');
   });
 
   it('GDD-TEC-09 stateText: 0 and -0, and 1 and true, are different', () => {

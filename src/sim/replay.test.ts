@@ -165,8 +165,13 @@ describe('GDD-TEC-09 record and replay', () => {
     // A count is a whole number from 1 written in digits; a held mark has none; one space between tokens; no JSON but an object.
     for (const inputs of ['*aa', '01*aa', '2.5*aa', '-1*aa', 'h2*aa', '2*haa', ' aa', 'aa ', 'aa  aa', ' ']) expect(read(text(inputs)), inputs).toBeNull();
     for (const json of ['null', '5', '"aa"', '[]']) expect(read(json), json).toBeNull();
-    // The bounds beside those: a count of 1, and no entries.
-    expect(read(text('1*aa'))!.entries).toStrictEqual(steps(idle, 1));
+    // Only what `writeRecord` writes is read: no count of 1, no two runs of one code side by side (a held mark between them parts them).
+    for (const inputs of ['1*aa', 'aa aa', '2*aa 3*aa', '2*aa aa', 'aa 2*aa']) expect(read(text(inputs)), inputs).toBeNull();
+    expect(read(text('2*aa haa 2*aa'))!.entries).toStrictEqual([...steps(idle, 2), { input: idle, held: true }, ...steps(idle, 2)]);
+    expect(read(text('haa haa'))!.entries).toStrictEqual([{ input: idle, held: true }, { input: idle, held: true }]);
+    expect(read(text(`2*aa 2*${inputCode(jump)} 2*aa`))!.entries).toHaveLength(6);
+    // The bounds beside those: a count of 2, one step, and no entries.
+    expect(read(text('2*aa'))!.entries).toStrictEqual(steps(idle, 2));
     expect(read(text('aa'))!.entries).toStrictEqual(steps(idle, 1));
     expect(read(text(''))!.entries).toStrictEqual([]);
   });
@@ -198,10 +203,14 @@ describe('GDD-TEC-09 record and replay', () => {
     // A record says one thing about how it began: a 'start' or a 'restart' with a saved run is refused.
     expect(read(text('aa', { start: 'start', resume: resumed }))).toBeNull();
     expect(read(text('aa', { start: 'restart', resume: resumed }))).toBeNull();
-    // The bounds beside those: a token, no hilos, each ability alone true or false, a restart, a saved run with nothing used and no hilos.
-    for (const over of [{ token: 't' }, { hilos: '' }, { hilos: '01' }, { abilities: { glide: false } }, { abilities: { wallCling: true } }, { start: 'restart' as const }]) {
+    // The bounds beside those: a token, no hilos, each ability alone, a restart, a saved run with nothing used and no hilos.
+    for (const over of [{ token: 't' }, { hilos: '' }, { hilos: '01' }, { abilities: { glide: true } }, { abilities: { wallCling: true } }, { seed: Number.MAX_SAFE_INTEGER }, { start: 'restart' as const }]) {
       expect(read(text('aa', over))!.header, JSON.stringify(over)).toStrictEqual(header(over));
     }
+    // An ability is added or left out, never turned off; a seed is a whole number from 0 that a number holds exactly.
+    for (const abilities of [{ glide: false }, { wallCling: false }, { glide: true, wallCling: false }]) expect(read(text('aa', { abilities })), JSON.stringify(abilities)).toBeNull();
+    for (const seed of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) expect(read(text('aa', { seed })), String(seed)).toBeNull();
+    expect(read(text('aa').replace('"seed":0', '"seed":1e999'))).toBeNull();
     const bare = { ...resumed, used: [], hilos: [] };
     expect(read(text('aa', { start: 'resume', resume: bare }))!.header.resume).toStrictEqual(bare);
     // A field the header has no place for is not read.
@@ -288,6 +297,12 @@ describe('GDD-TEC-09 record and replay', () => {
   it('GDD-TEC-09 a replay adds the abilities of the header to the level', () => {
     expect(glides({ glide: true })).toBe(true);
     expect(glides({})).toBe(false);
+    // Added, never taken away: a header built in code that turns an ability off leaves the level's own on.
+    const own: Level = { ...LEVEL_0_1, abilities: { glide: true } };
+    const glidesOn = (abilities: RecordHeader['abilities']): boolean => statesOf(record(steps(jump, 60), { abilities }), own).some((s) => s.player.gliding === true);
+    expect(glidesOn({})).toBe(true);
+    expect(glidesOn({ glide: false })).toBe(true);
+    expect(glidesOn({ wallCling: true })).toBe(true);
   });
 
   it('GDD-TEC-09 a held mark holds the jump back', () => {

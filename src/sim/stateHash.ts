@@ -22,7 +22,8 @@ export function stateText(value: unknown): string {
   const fields = new Map<string, unknown>(Object.entries(value));
   const keys = [...fields.keys()];
   keys.sort();
-  return `{${keys.map((k) => `${k}:${stateText(fields.get(k))}`).join(',')}}`;
+  // A key is written as a string is, quotes and escapes included, so no key can pass for two fields.
+  return `{${keys.map((k) => `${stateText(k)}:${stateText(fields.get(k))}`).join(',')}}`;
 }
 
 /** GDD-TEC-09: the hash of a run's state (or any plain data). */

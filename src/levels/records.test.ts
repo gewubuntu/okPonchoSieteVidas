@@ -43,6 +43,8 @@ function outcome(over: Partial<RecordHeader>): string {
 describe('GDD-TEC-09 replaying a record of a real level', () => {
   it('GDD-TEC-09 refuses another simulation version', () => {
     expect(replayRecord(tenSteps(), 'v2')).toStrictEqual({ error: 'version' });
+    // A process without the build's version calls itself 'unbuilt': it replays nothing, not even a record that says the same.
+    expect(replayRecord(tenSteps({ sim: 'unbuilt' }), 'unbuilt')).toStrictEqual({ error: 'version' });
   });
 
   it('GDD-TEC-09 refuses a level that is not registered', () => {
