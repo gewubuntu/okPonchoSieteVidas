@@ -336,7 +336,7 @@ export function waitAt(t: number, place: Place, level: Level = L): { rest: RunSt
   let stop = false;
   const from = level === L ? onP5(mid(176), Y(25), t) : withoutZopilote(onP5(mid(176), Y(25), t));
   const d = drive(from, 300, (r) => {
-    if (place === 'wake' ? ringtail(r, E.K3).ride!.phase !== 'waiting' : r.player.x >= 2992 - RUN.maxSpeed ** 2 / (2 * RUN.groundDecel)) stop = true; // GDD-TEC-09: a test bot's braking distance, run in Node only; what it presses is what a record holds
+    if (place === 'wake' ? ringtail(r, E.K3).ride!.phase !== 'waiting' : r.player.x >= 2992 - RUN.maxSpeed ** 2 / (2 * RUN.groundDecel)) stop = true; // sim-determinism: a test bot's braking distance, run in Node only; what it presses is what a record holds
     return stop ? idle : right;
   }, (r) => r.phase !== 'playing' || (stop && r.player.vx === 0 && r.player.grounded), level);
   return { rest: d.states.length > 0 && !d.lost ? last(d.states) : from, lost: d.lost, cause: d.cause };

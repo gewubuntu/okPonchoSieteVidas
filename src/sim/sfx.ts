@@ -41,7 +41,7 @@ export function stepHiloCombo(combo: HiloCombo, collected: number): { combo: Hil
 }
 
 /** The playback rate that raises a sound by `semitones` (equal temperament): an octave, 12, doubles it. */
-export const noteRate = (semitones: number): number => 2 ** (semitones / 12); // GDD-TEC-09: a playback rate handed to the sound, never read by a step (rule 5)
+export const noteRate = (semitones: number): number => 2 ** (semitones / 12); // sim-determinism: a playback rate handed to the sound, never read by a step
 
 /** Whether Poncho is on screen: playing, or in the flip of a respawn that is not the wait after the last life (GDD-LIFE-02, GDD-LIFE-05). */
 export const shown = (run: RunState): boolean =>

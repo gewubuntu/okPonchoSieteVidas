@@ -105,6 +105,23 @@ export const ANGLES: readonly (readonly [x: string, sin: string, cos: string])[]
   ['5faf3cc2cc058291', '3fef64ab211d4747', 'bfc8ced74bd11973'], // 8.180163158599976e+152: TWO_OVER_PI piece 20
   ['5c89a24cd480018c', '3fd5b972bde8c931', 'bfee199c5be68264'], // 5.962167307304437e+137: q0 2
   ['6cfeac201d2a26bd', '3fef972f8c740074', '3fc46900b40f898e'], // 1.0573631220940028e+217: q0 1
+  // Each beside a threshold of `detmath.ts`, so that the threshold moved by one gives other bits (the review of 2026-11-22).
+  ['3fe921fbc08e3ef9', '3fe6a09eb311b1f8', '3fe6a09e19ecc49f'], // 0.7853983651020534: the cosine's pi/4 line
+  ['4002d97ca7e08fa0', '3fe6a09df3719ab4', 'bfe6a09ed98cda9c'], // 2.3561947932630147: the 3 pi/4 line
+  ['3fd33333c24daad6', '3fd2e9ce1e70f854', '3fee921dbf09ec95'], // 0.30000013327541575: the cosine's 0.3 line
+  ['3fe90000879b4143', '3fe6888aae5c4c41', '3fe6b8989b219fc6'], // 0.7812502525867234: the cosine's 0.78125 line
+  ['72eca8b720df29f4', '3fd98484075fdb32', '3fed58af262fb5a3'], // 3.913705905008846e+245: the large reduction with q0 0, its top bit
+  ['63b63a3139d2ec7c', 'bfe4485053f68b5c', '3fe8c04dafde374c'], // 2.1474571887083843e+172: q0 below 0, z at 0.5
+  ['401921fb53c42d12', 'be400000c8d31319', '3ff0000000000000'], // 6.283185299729: a reduced sine just at 2^-27
+  ['4042d97c7f4321d2', '3e3fffff961b1ace', '3ff0000000000000'], // 37.6991118505281: a reduced sine just under 2^-27
+  ['bfd33332aeb328b7', 'bfd2e9cd1725ac84', '3fee921de7c310d6'], // -0.29999987659960986: just under the cosine's 0.3 line
+  ['3fe90001c3dfdda8', '3fe6888b8eebe240', '3fe6b897bc6cf1af'], // 0.7812508416818007: just past the cosine's 0.78125 line
+  ['c13921fc863e6e3f', 'bfedc5009e6666d9', '3fd779b889549750'], // -1647100.524390116: just past the medium reduction's line
+  ['404858ec81d55963', 'bfefffffffbbd589', '3f008334db2c0030'], // 48.6947176257843: n 31, beside 31 pi/2
+  ['404921f96f5a4759', 'bf0e4e9e5babeb13', '3fefffffff1a5eaf'], // 50.26542465122356: n 32, beside 16 pi but off its high word
+  ['40f4534fc8fea876', '3fe6888b948082ed', '3fe6b897b6e41e15'], // 83252.98657098584: exactly 17 bits lost before the second pass
+  ['bfe921fc237b2bc2', 'bfe6a09ef9051db8', '3fe6a09dd3f9562d'], // -0.7853985493651339: just past the sine's pi/4 line
+  ['3fe921fce8880998', '3fe6a09f845b00c3', '3fe6a09d48a368bb'], // 0.7853989163998447: just past the cosine's pi/4 line
   ['7ff0000000000000', '7ff8000000000000', '7ff8000000000000'], // Infinity
   ['fff0000000000000', '7ff8000000000000', '7ff8000000000000'], // -Infinity
   ['7ff8000000000000', '7ff8000000000000', '7ff8000000000000'], // NaN

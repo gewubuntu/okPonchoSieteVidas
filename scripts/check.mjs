@@ -512,7 +512,7 @@ function checkPhoneShotsByTouch() {
   return errors;
 }
 
-// GDD-TEC-09: nothing a step can reach calls what an engine may approximate, reads a clock or draws an unseeded random number
+// GDD-TEC-09: nothing a step can reach (src/sim, src/levels, src/config) uses what an engine may approximate, a clock or an unseeded random source
 // (scripts/sim-determinism.mjs).
 function checkSimDeterminism() {
   return determinismErrors(textFiles().filter((f) => f.endsWith('.ts')).map((f) => ({ path: f.split(sep).join('/'), text: read(f) })));
