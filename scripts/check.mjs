@@ -515,7 +515,13 @@ function checkPhoneShotsByTouch() {
 // GDD-TEC-09: nothing a step can reach (src/sim, src/levels, src/config) uses what an engine may approximate, a clock or an unseeded random source
 // (scripts/sim-determinism.mjs).
 function checkSimDeterminism() {
-  return determinismErrors(textFiles().filter((f) => f.endsWith('.ts')).map((f) => ({ path: f.split(sep).join('/'), text: read(f) })));
+  try {
+    return determinismErrors(textFiles().filter((f) => f.endsWith('.ts')).map((f) => ({ path: f.split(sep).join('/'), text: read(f) })));
+  } catch (e) {
+    // The check reads the files with the parser Vite ships; without `node_modules` it says so and the checks after it still run.
+    if (e?.code === 'MODULE_NOT_FOUND' || e?.code === 'ERR_MODULE_NOT_FOUND') return ['the parser is not installed (run `npm install`), so the check could not read src/sim, src/levels and src/config'];
+    throw e;
+  }
 }
 
 // L-059: every character sprite sheet has a test that pins how far its frames reach past their box and fits them over the real levels
