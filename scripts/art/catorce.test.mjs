@@ -82,8 +82,8 @@ describe('GDD-BOS-04 La Catorce art', { timeout: 120_000 }, () => {
     for (const { look, left, grid } of FRAMES) {
       const e = extent(grid);
       const name = `${look} ${left ? 'left' : 'right'}`;
-      // Phases 1 and 2 slam 1 game px forward: 2 drawing px past her front (column 135 facing right, 8 facing left).
-      const ahead = look === 'slam3' || look === 'slam2';
+      // Her slam is 1 game px forward: 2 drawing px past her front (column 135 facing right, 8 facing left).
+      const ahead = look.startsWith('slam');
       if (ahead && !left) expect([e.x0 >= 8, e.x1], name).toEqual([true, 137]);
       else if (ahead) expect([e.x0, e.x1 <= 135], name).toEqual([6, true]);
       else expect([e.x0 >= 8, e.x1 <= 135], name).toEqual([true, true]);
@@ -101,8 +101,8 @@ describe('GDD-BOS-04 La Catorce art', { timeout: 120_000 }, () => {
     const want = ['#070509', '#93A0AE', '#221D2E', '#353A48', '#EEF1EA', '#EDCB86', '#F0A23A', '#3D3650', '#9A6A2C', '#2E9E96', '#63E6C4', '#D8473A', '#A0472F', '#5A3B28'];
     expect([...used].sort()).toEqual([...want].sort());
     expect(COLD_FLAME).toBe('#63E6C4');
-    // GDD-ART-06: the cold flame stands out from the mist, the steel and the three sky bands of World 3.
-    const against = { mist: '#EEF1EA', steel: '#93A0AE', 'sky top': '#527391', 'sky middle': '#8AA5B8', 'sky horizon': '#BFCDD2' };
+    // GDD-ART-06: the cold flame stands out from the mist, the steel and the three sky bands of World 3, and from Poncho's blue (GDD-ART-03).
+    const against = { mist: '#EEF1EA', steel: '#93A0AE', 'sky top': '#527391', 'sky middle': '#8AA5B8', 'sky horizon': '#BFCDD2', "Poncho's blue": '#3F66B1' };
     const figures = Object.entries(against).map(([name, c]) => [name, c, deltaE(COLD_FLAME, c)]);
     out(`GDD-BOS-04 cold flame ${COLD_FLAME}, CIE76 against ${figures.map(([name, c, d]) => `${name} ${c} ${d.toFixed(1)}`).join(', ')}`);
     for (const [name, c, d] of figures) expect(d, `${name} ${c}`).toBeGreaterThanOrEqual(12);

@@ -205,9 +205,9 @@ function lookParts(look) {
     case 'spin': return [{ lamps, eye: 'full', turn, open }, null];
     case 'spinRed': return [{ lamps, eye: 'full', turn, open }, FLASH];
     case 'run': return [{ lamps, eye: 'full', turn, open, dy: turn % 2 }, null];
-    // Squashed 2 px down and, in phases 1 and 2, 1 px forward; in phase 3 she slams at the wall, with no room ahead of her box (L-059).
-    case 'slam': return [{ lamps, eye: 'full', open, dx: open ? 0 : 2, dy: 4 }, null];
-    case 'slamRed': return [{ lamps, eye: 'full', open, dx: open ? 0 : 2, dy: 4 }, FLASH];
+    // Squashed 2 px down and 1 px forward, the way she faces: she has turned round by then, so forward is into the room in every phase.
+    case 'slam': return [{ lamps, eye: 'full', open, dx: 2, dy: 4 }, null];
+    case 'slamRed': return [{ lamps, eye: 'full', open, dx: 2, dy: 4 }, FLASH];
     default: return [{ lamps, eye: 'squint', dy: 1 }, kind === 'hurtWhite' ? WHITE : null];
   }
 }

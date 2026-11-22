@@ -6,7 +6,7 @@ import { base, fightTasks } from './level3-4.drive';
 import { LEVEL_3_4 } from './level3-4';
 
 // GDD-BOS-04, L-059: the frames of assets/sprites/boss/la-catorce.png (scripts/art/catorce.test.mjs pins their reach: everything inside her
-// 64 x 32 box but the slam's squash in phases 1 and 2, 1 px ahead of her front) and of assets/sprites/boss/catorce-plume.png, over the real
+// 64 x 32 box but the slam's squash, 1 px ahead of her front) and of assets/sprites/boss/catorce-plume.png, over the real
 // fight: the floor-free bot's whole fight (`level3-4.bot.test.ts`, 1367 steps to the clear), every look her pose picks on the way. The room she
 // has: the screen, x 0 to 480, the floor's top, y 224, and for the plume the gap between her box's top and home's underside (y 176).
 const DEF = LEVEL_3_4.catorce!;
@@ -24,8 +24,8 @@ describe('GDD-BOS-04 3-4 her sprite', () => {
       const at = `step ${i} ${pose.look}`;
       looks.add(pose.look);
       expect(CATORCE_LOOKS, at).toContain(pose.look);
-      // Her drawn reach: her box, and 1 px ahead of her front in the slam's squash of phases 1 and 2.
-      const ahead = pose.look === 'slam3' || pose.look === 'slam2' ? 1 : 0;
+      // Her drawn reach: her box, and 1 px ahead of her front in the slam's squash (she has turned by then, so ahead is into the room).
+      const ahead = pose.look.startsWith('slam') ? 1 : 0;
       const x0 = pose.body.x0 - (pose.left ? ahead : 0);
       const x1 = pose.body.x1 + (pose.left ? 0 : ahead);
       expect([x0 >= 0, x1 <= 480, pose.body.y1 <= FLOOR], at).toEqual([true, true, true]);

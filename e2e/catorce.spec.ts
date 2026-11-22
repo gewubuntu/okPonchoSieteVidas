@@ -124,13 +124,12 @@ test('GDD-BOS-04 3-4 a cart that lands on her takes a pip and flashes her white'
       new Promise<{ hits: number; mode: string; age: number; flash: string | null; look: string; lamps: number; plume: unknown; pips: number; outlines: number; held: number }[]>((resolve) => {
         const d = window.__PONCHO__!;
         const out: { hits: number; mode: string; age: number; flash: string | null; look: string; lamps: number; plume: unknown; pips: number; outlines: number; held: number }[] = [];
-        let after = 0;
         const tick = () => {
           const c = d.catorce()!;
           const drawn = d.catorceDrawn()!;
           out.push({ hits: c.hits, mode: c.mode, age: c.age, flash: drawn.flash, look: drawn.look, lamps: drawn.lamps, plume: drawn.plume, pips: d.bossBar().pips, outlines: d.bossBar().outlines, held: d.hitStop().held });
-          if (c.hits > 0) after++;
-          if (after > 12 || out.length > 600) {
+          // Read to the end of her hurt time, whatever the frames' pace (L-042): the first frame past it ends the read.
+          if ((c.hits > 0 && c.mode !== 'hurt') || out.length > 600) {
             d.pause(true);
             resolve(out);
           } else requestAnimationFrame(tick);
@@ -145,7 +144,10 @@ test('GDD-BOS-04 3-4 a cart that lands on her takes a pip and flashes her white'
   expect(first).toMatchObject({ hits: 1, mode: 'hurt', age: 0, flash: 'white', look: 'hurtWhite2', lamps: 2, plume: null, pips: 2, outlines: 1 });
   expect(frames.every((f) => f.hits <= 1)).toBe(true);
   // Through her hurt time, on every frame read: white at ages 0 to 3, plain at 4 to 7 (and so on, 4 on and 4 off), two lamps lit, no plume.
-  for (const f of frames.filter((g) => g.hits === 1)) {
+  // Only frames in her hurt time: the read ends on the first frame past its 60 steps, phase 2's telegraph (L-042). Both a white and a plain frame are seen.
+  const hurt = frames.filter((g) => g.hits === 1 && g.mode === 'hurt');
+  expect(new Set(hurt.map((f) => f.flash))).toEqual(new Set(['white', null]));
+  for (const f of hurt) {
     expect([f.look, f.flash, f.lamps, f.plume], `age ${f.age}`).toEqual(Math.floor(f.age / 4) % 2 === 0 ? ['hurtWhite2', 'white', 2, null] : ['hurt2', null, 2, null]);
   }
   // The hit-stop holds 4 loop ticks, no more (HIT_STOP.hurtSteps, GDD-BOS-01).
