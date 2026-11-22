@@ -21,6 +21,8 @@ import estrellaTejocotePng from '../../assets/sprites/boss/tejocote.png';
 import estrellaTrolleyPng from '../../assets/sprites/boss/trolley.png';
 import estrellaRopePng from '../../assets/sprites/boss/rope.png';
 import estrellaCablePng from '../../assets/sprites/boss/cable.png';
+import laCatorcePng from '../../assets/sprites/boss/la-catorce.png';
+import catorcePlumePng from '../../assets/sprites/boss/catorce-plume.png';
 import alacranPng from '../../assets/sprites/enemies/alacran.png';
 import zopilotePng from '../../assets/sprites/enemies/zopilote.png';
 import cactusPng from '../../assets/sprites/enemies/cactus.png';
@@ -71,11 +73,12 @@ import bossDefeatOgg from '../../assets/audio/sfx/boss-defeat.ogg';
 import bossDefeatMp3 from '../../assets/audio/sfx/boss-defeat.mp3';
 import { activateOfrenda, collectVeladora, isOutOfLives, loseLife } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
-import { CATORCE, ESTRELLA, ESTRELLA_ART, FIREBALL, FRUIT, ROCK } from '../config/tuning';
+import { CATORCE_ART, ESTRELLA, ESTRELLA_ART, FIREBALL, FRUIT, ROCK } from '../config/tuning';
 import { catorceStart } from '../sim/catorce';
 import type { CrumbleState } from '../sim/crumble';
 import { estrellaStart } from '../sim/estrella';
-import { CATORCE_COLOURS, CATORCE_LAMP, CATORCE_PLUME, CATORCE_STACK, catorcePose } from '../ui/catorcePose';
+import { catorcePose } from '../ui/catorcePose';
+import { lookInfo } from '../ui/catorceLooks';
 import { estrellaFrameInfo, estrellaPose, tejocoteBoxes } from '../ui/estrellaPose';
 import { flipPose } from '../sim/respawnFlip';
 import { blockAt } from '../sim/block';
@@ -585,11 +588,12 @@ export interface PonchoDebug {
    */
   catorce(): { x: number; mode: string; age: number; hits: number; dir: number; armoured: boolean; home: string[] } | null;
   /**
-   * GDD-BOS-04: La Catorce's stand-in as last drawn, or null when she was not, read back from its rectangles: her body's box, the stack's, the
-   * plume's (null when not shown), how many lamps are drawn lit, the body's flash ('red' or 'white' by its fill, null for her iron dark) and
-   * whether she is drawn facing left (her stack on the left half of her body).
+   * GDD-BOS-04: La Catorce as last drawn, or null when she was not, read back from her images (`lookInfo` of the frame drawn): her body's box
+   * (the sprite's drawn corners, `CATORCE_ART.boxX` in from each side and `boxY` down from its top: 64 x 32), the look of her frame, whether
+   * it faces left, the lamps it shows lit (0 defeated), its flash ('red' or 'white' by the look, else null), and the plume's drawn box and
+   * frame (null when not shown).
    */
-  catorceDrawn(): { body: { x0: number; x1: number; y0: number; y1: number }; stack: { x0: number; x1: number; y0: number; y1: number }; plume: { x0: number; x1: number; y0: number; y1: number } | null; lamps: number; flash: 'red' | 'white' | null; flipX: boolean } | null;
+  catorceDrawn(): { body: { x0: number; x1: number; y0: number; y1: number }; look: string; left: boolean; lamps: number; flash: 'red' | 'white' | null; plume: { x0: number; x1: number; y0: number; y1: number; frame: number } | null } | null;
   /**
    * GDD-BOS-04: La Catorce's home tiles as last drawn, read from what was drawn (as `crumbles`): their state at that draw, `look` ('ledge' or
    * 'placeholder'), `x` the drawn tile's left edge (its column's edge, 1 px either side while it shakes in its warning), `frame` (1 in its
@@ -672,9 +676,6 @@ function opening(): PlayOptions {
   }
   return startLevel(window.location.search, save);
 }
-
-/** A rectangle's drawn box, from its drawn edges (L-010). */
-const drawnBox = (r: Phaser.GameObjects.Rectangle) => ({ x0: r.getTopLeft().x, x1: r.getBottomRight().x, y0: r.getTopLeft().y, y1: r.getBottomRight().y });
 
 export class PlayScene extends Phaser.Scene {
   private readonly stepper = new FixedStepper();
@@ -786,13 +787,11 @@ export class PlayScene extends Phaser.Scene {
   private estrellaPainted: ReturnType<PonchoDebug['estrellaDrawn']> = null;
   private tejocotesPainted: { x: number; y: number; w: number; h: number; frame: number }[] = [];
   /**
-   * GDD-BOS-04: La Catorce's stand-in (rectangles, made only in a level that has her; her art is a later phase), her home tiles (the rock ledge
-   * image where perches are, else drawn in `homeGfx`), and what was last drawn of each (`PonchoDebug.catorceDrawn`, `homeDrawn`).
+   * GDD-BOS-04: La Catorce's sprite and her armour's plume (images made only in a level that has her), her home tiles (the rock ledge image
+   * where perches are, else drawn in `homeGfx`), and what was last drawn of each (`PonchoDebug.catorceDrawn`, `homeDrawn`).
    */
-  private catorceBody!: Phaser.GameObjects.Rectangle;
-  private catorceStack!: Phaser.GameObjects.Rectangle;
-  private catorcePlume!: Phaser.GameObjects.Rectangle;
-  private catorceLamps: Phaser.GameObjects.Rectangle[] = [];
+  private catorceSprite!: Phaser.GameObjects.Image;
+  private catorcePlumeSprite!: Phaser.GameObjects.Image;
   private catorcePainted: ReturnType<PonchoDebug['catorceDrawn']> = null;
   private homeGfx!: Phaser.GameObjects.Graphics;
   private homeImages: Phaser.GameObjects.Image[] | null = null;
@@ -1033,6 +1032,11 @@ export class PlayScene extends Phaser.Scene {
       this.load.image('estrella-rope', estrellaRopePng);
       this.load.image('estrella-cable', estrellaCablePng);
     }
+    // GDD-BOS-04: La Catorce's sheet and her armour's plume, only in a level that has her.
+    if (this.level.catorce) {
+      this.load.spritesheet('catorce', laCatorcePng, { frameWidth: CATORCE_ART.frameW * ART_SCALE, frameHeight: CATORCE_ART.frameH * ART_SCALE });
+      this.load.spritesheet('catorce-plume', catorcePlumePng, { frameWidth: CATORCE_ART.plume.w * ART_SCALE, frameHeight: CATORCE_ART.plume.h * ART_SCALE });
+    }
     // GDD-ENM-02: the enemies and the defeat poof, one row of frames each (`ENEMY_LOOKS`). Every level loads them, they are small, but the
     // Armadillo's and the Cacomixtle's, each only in a level that has one (GDD-ENM-04, GDD-TEC-03; `sheetsFor`).
     for (const sheet of sheetsFor(this.level)) this.load.spritesheet(`enemy-${sheet}`, ENEMY_PNGS[sheet], { frameWidth: ENEMY_ART.frames[sheet].w * ART_SCALE, frameHeight: ENEMY_ART.frames[sheet].h * ART_SCALE });
@@ -1157,12 +1161,11 @@ export class PlayScene extends Phaser.Scene {
       this.estrellaSprite = this.add.image(0, 0, 'estrella', 0).setOrigin(0.5).setScale(1 / ART_SCALE).setDepth(3).setVisible(false);
       this.estrellaCable.setVisible(false);
     }
-    // GDD-BOS-04: La Catorce's stand-in and her home tiles, below the HUD like La Estrella; the home tiles at the placeholder's depth.
+    // GDD-BOS-04: La Catorce and her plume, below the HUD like La Estrella (the plume just behind her: it does not overlap her painted pixels);
+    // her home tiles at the placeholder's depth.
     if (this.level.catorce) {
-      this.catorceBody = this.add.rectangle(0, 0, CATORCE.width, CATORCE.height, CATORCE_COLOURS.iron).setOrigin(0).setDepth(3);
-      this.catorceStack = this.add.rectangle(0, 0, CATORCE_STACK.w, CATORCE_STACK.h, CATORCE_COLOURS.iron).setOrigin(0).setDepth(3);
-      this.catorcePlume = this.add.rectangle(0, 0, CATORCE_PLUME.w, CATORCE_PLUME.h, CATORCE_COLOURS.mist).setOrigin(0).setDepth(3);
-      this.catorceLamps = Array.from({ length: CATORCE.hits }, () => this.add.rectangle(0, 0, CATORCE_LAMP.size, CATORCE_LAMP.size, CATORCE_COLOURS.amber).setOrigin(0).setDepth(3.1));
+      this.catorceSprite = this.add.image(0, 0, 'catorce', 0).setOrigin(0).setScale(1 / ART_SCALE).setDepth(3);
+      this.catorcePlumeSprite = this.add.image(0, 0, 'catorce-plume', 0).setOrigin(0).setScale(1 / ART_SCALE).setDepth(2.9);
       this.homeGfx = this.add.graphics().setDepth(1);
       this.homeImages = this.drawsLedges() ? this.level.catorce.home.map((h) => this.add.image(h.col * TILE, h.row * TILE, textureKey('sierra', 'ledge'), 0).setOrigin(0).setScale(1 / ART_SCALE).setDepth(1)) : null;
       this.drawCatorce();
@@ -1782,37 +1785,37 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * La Catorce's stand-in (GDD-BOS-04), from `catorcePose`: her body in iron dark, red or white in a flash, the stack on her roof at her front,
-   * the three lamps on her body (lit amber, out iron dark), the armour's plume; and her home tiles, from the arena's own states and not the
-   * level's crumbling ones (`drawHome`). Each rectangle has its position, fill and visibility set every frame (L-069). Nothing is drawn
-   * without her.
+   * La Catorce (GDD-BOS-04), from `catorcePose`: her frame of the sheet (her look by her mode, her lamps, her flash and her wheels' turn, each
+   * facing in the sheet, so never flipped), drawn with her box `CATORCE_ART.boxX`, `boxY` into it, and her armour's plume while it holds; and
+   * her home tiles, from the arena's own states and not the level's crumbling ones (`drawHome`). Each image has its position, frame and
+   * visibility set every frame (L-069). Nothing is drawn without her.
    */
   private drawCatorce(): void {
     this.catorcePainted = null;
     this.homePainted = [];
     const c = this.run.catorce;
-    const parts = [this.catorceBody, this.catorceStack, this.catorcePlume, ...this.catorceLamps];
-    parts.forEach((part) => part.setVisible(c !== null));
+    const sprite = this.catorceSprite;
+    const plume = this.catorcePlumeSprite;
+    sprite.setVisible(c !== null);
     this.homeGfx.clear();
     this.homeImages?.forEach((im) => im.setVisible(false));
-    if (!c) return;
+    if (!c) {
+      plume.setVisible(false);
+      return;
+    }
     this.drawHome(c.home);
     const pose = catorcePose(this.level.catorce!, c);
-    this.catorceBody.setPosition(pose.body.x0, pose.body.y0).setFillStyle(pose.flash === 'red' ? CATORCE_COLOURS.red : pose.flash === 'white' ? CATORCE_COLOURS.mist : CATORCE_COLOURS.iron);
-    this.catorceStack.setPosition(pose.stack.x0, pose.stack.y0);
-    this.catorcePlume.setPosition(pose.plume?.x0 ?? 0, pose.plume?.y0 ?? 0).setVisible(pose.plume !== null);
-    this.catorceLamps.forEach((lamp, i) => lamp.setPosition(pose.body.x0 + CATORCE_LAMP.x + i * CATORCE_LAMP.gap, pose.body.y0 + CATORCE_LAMP.y).setFillStyle(i < pose.lampsLit ? CATORCE_COLOURS.amber : CATORCE_COLOURS.iron));
-    // L-010: what was drawn is read back from the rectangles' drawn edges and fills, not from the pose.
-    const body = drawnBox(this.catorceBody);
-    const stack = drawnBox(this.catorceStack);
-    const fill = this.catorceBody.fillColor;
+    sprite.setPosition(pose.body.x0 - CATORCE_ART.boxX, pose.body.y0 - CATORCE_ART.boxY).setFrame(pose.frame);
+    plume.setPosition(pose.plume?.box.x0 ?? 0, pose.plume?.box.y0 ?? 0).setFrame(pose.plume?.frame ?? 0).setVisible(pose.plume !== null);
+    // L-010: what was drawn is read back from the images (their drawn corners, their frames, the plume's visibility), not from the pose.
+    // Her box is boxX in from her frame's left and right edges and boxY down from its top, its bottom the frame's: read from the drawn corners, so
+    // a changed origin or scale is caught too.
+    const [top, bottom] = [sprite.getTopLeft(), sprite.getBottomRight()];
+    const [plumeTop, plumeBottom] = [plume.getTopLeft(), plume.getBottomRight()];
     this.catorcePainted = {
-      body,
-      stack,
-      plume: this.catorcePlume.visible ? drawnBox(this.catorcePlume) : null,
-      lamps: this.catorceLamps.filter((lamp) => lamp.fillColor === CATORCE_COLOURS.amber).length,
-      flash: fill === CATORCE_COLOURS.red ? 'red' : fill === CATORCE_COLOURS.mist ? 'white' : null,
-      flipX: stack.x0 + stack.x1 < body.x0 + body.x1,
+      body: { x0: top.x + CATORCE_ART.boxX, x1: bottom.x - CATORCE_ART.boxX, y0: top.y + CATORCE_ART.boxY, y1: bottom.y },
+      ...lookInfo(Number(sprite.frame.name)),
+      plume: plume.visible ? { x0: plumeTop.x, x1: plumeBottom.x, y0: plumeTop.y, y1: plumeBottom.y, frame: Number(plume.frame.name) } : null,
     };
   }
 

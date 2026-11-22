@@ -4,8 +4,8 @@ import { catorceBox, catorceStart } from '../src/sim/catorce';
 import { boot, openGame, stepUntil, tapAt, waitForResults } from './helpers';
 
 // GDD-BOS-04: La Catorce in her arena, level 3-4, World 3's last level after 3-3 (GDD-UI-02, user, 2026-11-21: "Link 3-3 to 3-4 now"; 3-3's
-// Next level into it is played in `e2e/level3-3.spec.ts`), opened here by its address, drawn as a
-// stand-in of rectangles (her art is a later phase). Timed in simulation steps, never by polling around an event (L-042): the stepped tests pause
+// Next level into it is played in `e2e/level3-3.spec.ts`), opened here by its address, drawn from her sheet
+// (`assets/sprites/boss/la-catorce.png`, her look picked by `catorcePose`) and her armour's plume. Timed in simulation steps, never by polling around an event (L-042): the stepped tests pause
 // the game and step it in the page; two run through the game's own frames (L-021). What is drawn is read back through `catorceDrawn()`,
 // `homeDrawn()` and `rails()`, always in the same callback as the state it must agree with (L-033). Where things are comes from the GDD's numbers
 // and `src/levels/level3-4.ts` (L-062): her box 64 x 32 on the floor (y 192 to 224), her stops at x 80 and 400 in phases 1 and 2, home at columns 14
@@ -24,7 +24,7 @@ async function arena(page: Page): Promise<string[]> {
   return errors;
 }
 
-test('GDD-BOS-04 3-4 opens by its address and plays La Catorce: bar, pips, her stand-in at her box', async ({ page, isMobile }) => {
+test('GDD-BOS-04 3-4 opens by its address and plays La Catorce: bar, pips, her frame at her box', async ({ page, isMobile }) => {
   const errors = await openGame(page, '/?level=3-4');
   expect(await api(page, () => window.__PONCHO__!.level())).toBe('3-4');
   expect((await api(page, () => window.__PONCHO__!.titleDrawn())).shown).toBe(true);
@@ -49,8 +49,10 @@ test('GDD-BOS-04 3-4 opens by its address and plays La Catorce: bar, pips, her s
   expect(seen.drawn.body.y1).toBeCloseTo(224, 0);
   const box = catorceBox(DEF, { ...catorceStart(DEF, 0), x: seen.run.x });
   for (const key of ['x0', 'x1', 'y0', 'y1'] as const) expect(Math.abs(seen.drawn.body[key] - box[key]), key).toBeLessThanOrEqual(0.5);
-  // Her stack on her roof at her front (left), her plume while armoured, three lamps lit, drawn facing left.
-  expect(seen.drawn).toMatchObject({ stack: { x0: 374, x1: 384, y0: 184, y1: 192 }, plume: { x0: 397, x1: 403, y0: 182, y1: 192 }, lamps: 3, flipX: true });
+  // Her telegraph's first look one step in (age 1: floor(1 / 4) is even, so red; floor(1 / 2) % 4 = 0, her wheels' first quarter), facing left,
+  // three lamps lit; her plume over her middle stud while armoured, 0.75 px left of her middle (399.25), 6 x 10 px, its foot 5 px under her
+  // top (y 197), its first frame.
+  expect(seen.drawn).toMatchObject({ look: 'spinRed3_0', left: true, lamps: 3, flash: 'red', plume: { x0: 396.25, x1: 402.25, y0: 187, y1: 197, frame: 0 } });
   expect(await api(page, () => window.__PONCHO__!.hilos())).toMatchObject({ taken: 0, total: 0 });
   expect(await api(page, () => window.__PONCHO__!.exitDrawn())).toBe(false);
   // Home's two tiles drawn whole at columns 14 and 15, row 10 (x 224 and 240).
@@ -62,18 +64,20 @@ test('GDD-BOS-04 3-4 opens by its address and plays La Catorce: bar, pips, her s
 test('GDD-BOS-04 3-4 she telegraphs red, then charges left in real time', async ({ page }) => {
   const errors = await arena(page);
   // Her first 30 steps are her telegraph, then she charges: every frame of the game's own loop is read in one evaluate (L-073), her state and what
-  // was drawn together (L-033), until she has charged for 20 steps. Her phase 1 is started afresh and the game resumed in the same evaluate, so
+  // was drawn together (L-033), until she has charged for 20 steps (her wheels turn as she runs: 80 px/s is 1.33 px a step, a quarter turn every
+  // 2 pi px, so every 4.7 steps). Her phase 1 is started afresh and the game resumed in the same evaluate, so
   // the read starts at her telegraph's first step however long the boot took (CI's slow runner had played most of it before the read).
   const frames = await page.evaluate(
     () =>
-      new Promise<{ mode: string; age: number; x: number; flash: string | null }[]>((resolve) => {
+      new Promise<{ mode: string; age: number; x: number; flash: string | null; look: string; plume: number | null }[]>((resolve) => {
         const d = window.__PONCHO__!;
         d.setCatorce(0);
         d.pause(false);
-        const out: { mode: string; age: number; x: number; flash: string | null }[] = [];
+        const out: { mode: string; age: number; x: number; flash: string | null; look: string; plume: number | null }[] = [];
         const tick = () => {
           const c = d.catorce()!;
-          out.push({ mode: c.mode, age: c.age, x: c.x, flash: d.catorceDrawn()!.flash });
+          const drawn = d.catorceDrawn()!;
+          out.push({ mode: c.mode, age: c.age, x: c.x, flash: drawn.flash, look: drawn.look, plume: drawn.plume?.frame ?? null });
           if ((c.mode === 'charge' && c.age >= 20) || out.length > 600) resolve(out);
           else requestAnimationFrame(tick);
         };
@@ -82,14 +86,22 @@ test('GDD-BOS-04 3-4 she telegraphs red, then charges left in real time', async 
   );
   const telegraph = frames.filter((f) => f.mode === 'telegraph');
   expect(telegraph.length).toBeGreaterThan(3);
-  // Red 4 steps on and 4 off (GDD-BOS-04): the drawn flash is red where floor(age / 4) is even, else none, on every frame read.
-  for (const f of telegraph) expect(f.flash, `age ${f.age}`).toBe(Math.floor(f.age / 4) % 2 === 0 ? 'red' : null);
+  // Red 4 steps on and 4 off (GDD-BOS-04): the drawn flash is red where floor(age / 4) is even, else none, on every frame read; her wheels spin a
+  // quarter turn every 2 steps (floor(age / 2) % 4).
+  for (const f of telegraph) {
+    const red = Math.floor(f.age / 4) % 2 === 0;
+    expect([f.flash, f.look], `age ${f.age}`).toEqual([red ? 'red' : null, `${red ? 'spinRed3_' : 'spin3_'}${Math.floor(f.age / 2) % 4}`]);
+  }
   expect(new Set(telegraph.map((f) => f.flash))).toEqual(new Set(['red', null]));
-  // Then she charges left from the right stop (x 400): her middle falls, and she is not flashing.
+  // Then she charges left from the right stop (x 400): her middle falls, she is not flashing, and her wheels turn.
   const charge = frames.filter((f) => f.mode === 'charge');
   expect(charge.length).toBeGreaterThan(0);
   expect(frames.at(-1)!.x).toBeLessThan(400);
-  expect(charge.every((f) => f.flash === null)).toBe(true);
+  expect(charge.every((f) => f.flash === null && f.look.startsWith('run3_'))).toBe(true);
+  expect(new Set(charge.map((f) => f.look)).size).toBeGreaterThanOrEqual(2);
+  // Armoured through all of it: her plume shows, its frame changing every 8 steps of her telegraph and of her charge (each counts from 0).
+  for (const f of frames) expect(f.plume, `${f.mode} age ${f.age} plume`).toBe(Math.floor(f.age / 8) % 2);
+  expect(new Set(frames.map((f) => f.plume))).toEqual(new Set([0, 1]));
   expect(errors).toEqual([]);
 });
 
@@ -109,14 +121,14 @@ test('GDD-BOS-04 3-4 a cart that lands on her takes a pip and flashes her white'
   // Then the game's own loop runs the hit, read once a frame (L-073), her state, drawing, bar and the hold's count together (L-033).
   const frames = await page.evaluate(
     () =>
-      new Promise<{ hits: number; mode: string; age: number; flash: string | null; lamps: number; pips: number; outlines: number; held: number }[]>((resolve) => {
+      new Promise<{ hits: number; mode: string; age: number; flash: string | null; look: string; lamps: number; plume: unknown; pips: number; outlines: number; held: number }[]>((resolve) => {
         const d = window.__PONCHO__!;
-        const out: { hits: number; mode: string; age: number; flash: string | null; lamps: number; pips: number; outlines: number; held: number }[] = [];
+        const out: { hits: number; mode: string; age: number; flash: string | null; look: string; lamps: number; plume: unknown; pips: number; outlines: number; held: number }[] = [];
         let after = 0;
         const tick = () => {
           const c = d.catorce()!;
           const drawn = d.catorceDrawn()!;
-          out.push({ hits: c.hits, mode: c.mode, age: c.age, flash: drawn.flash, lamps: drawn.lamps, pips: d.bossBar().pips, outlines: d.bossBar().outlines, held: d.hitStop().held });
+          out.push({ hits: c.hits, mode: c.mode, age: c.age, flash: drawn.flash, look: drawn.look, lamps: drawn.lamps, plume: drawn.plume, pips: d.bossBar().pips, outlines: d.bossBar().outlines, held: d.hitStop().held });
           if (c.hits > 0) after++;
           if (after > 12 || out.length > 600) {
             d.pause(true);
@@ -129,9 +141,13 @@ test('GDD-BOS-04 3-4 a cart that lands on her takes a pip and flashes her white'
   );
   const first = frames.find((f) => f.hits === 1)!;
   expect(first).toBeDefined();
-  // On the hit's frame: hurt, her white flash, two lamps lit, two pips filled and one outline.
-  expect(first).toMatchObject({ hits: 1, mode: 'hurt', age: 0, flash: 'white', lamps: 2, pips: 2, outlines: 1 });
+  // On the hit's frame: hurt, her white flash, two lamps lit, no plume, two pips filled and one outline.
+  expect(first).toMatchObject({ hits: 1, mode: 'hurt', age: 0, flash: 'white', look: 'hurtWhite2', lamps: 2, plume: null, pips: 2, outlines: 1 });
   expect(frames.every((f) => f.hits <= 1)).toBe(true);
+  // Through her hurt time, on every frame read: white at ages 0 to 3, plain at 4 to 7 (and so on, 4 on and 4 off), two lamps lit, no plume.
+  for (const f of frames.filter((g) => g.hits === 1)) {
+    expect([f.look, f.flash, f.lamps, f.plume], `age ${f.age}`).toEqual(Math.floor(f.age / 4) % 2 === 0 ? ['hurtWhite2', 'white', 2, null] : ['hurt2', null, 2, null]);
+  }
   // The hit-stop holds 4 loop ticks, no more (HIT_STOP.hurtSteps, GDD-BOS-01).
   expect(frames.at(-1)!.held - staged).toBe(4);
 });
@@ -158,13 +174,20 @@ test('GDD-BOS-04 3-4 her defeat clears the level 1.0 s later, 3-4 saved, Next le
   });
   expect(steps).toBe(55);
   expect(await api(page, () => window.__PONCHO__!.catorce())).toMatchObject({ hits: 3, mode: 'defeated', age: 0 });
-  // Drawn defeated: no lamp lit, no flash, three outlines on the bar, read together (L-033).
+  // Drawn defeated on the hit's step (age 0): her white flash, no lamp lit, no plume, three outlines on the bar, read together (L-033).
   await page.waitForFunction(() => {
     const d = window.__PONCHO__!;
-    return d.catorceDrawn()?.lamps === 0 && d.catorceDrawn()?.flash === null && d.catorceDrawn()?.plume === null && d.bossBar().pips === 0 && d.bossBar().outlines === 3;
+    const c = d.catorceDrawn();
+    return c?.look === 'defeatedWhite' && c.lamps === 0 && c.flash === 'white' && c.plume === null && d.bossBar().pips === 0 && d.bossBar().outlines === 3;
   });
+  // White for 4 steps, plain for 4, then the wreck: 8 steps on.
+  const wreck = await api(page, () => {
+    window.__PONCHO__!.step(8);
+    return window.__PONCHO__!.catorceDrawn();
+  });
+  expect(wreck).toMatchObject({ look: 'wreck', lamps: 0, flash: null, plume: null });
   // 1.0 s (60 steps) after the hit: the clear screen.
-  await api(page, () => window.__PONCHO__!.step(59));
+  await api(page, () => window.__PONCHO__!.step(51));
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('playing');
   await api(page, () => window.__PONCHO__!.step(1));
   expect(await api(page, () => window.__PONCHO__!.phase())).toBe('clear');
@@ -195,11 +218,11 @@ test('GDD-BOS-04 3-4 a lost life keeps her hits and starts her phase at its righ
   expect(await api(page, () => window.__PONCHO__!.catorce())).toMatchObject({ x: 400, hits: 1, mode: 'telegraph', age: 0, dir: -1, armoured: true, home: ['idle', 'idle'] });
   expect(await api(page, () => window.__PONCHO__!.catorce()!.x)).toBe(catorceStart(DEF, 1).x);
   expect(await api(page, () => window.__PONCHO__!.state())).toMatchObject({ x: 240, y: 160 });
-  // Drawn there (L-033): her body at x 368 to 432, two lamps lit, two pips, her plume.
+  // Drawn there (L-033): her body at x 368 to 432, her telegraph's spinning wheels, two lamps lit, two pips, her plume.
   await page.waitForFunction(() => {
     const d = window.__PONCHO__!;
     const c = d.catorceDrawn()!;
-    return d.catorce()!.age === 0 && c.body.x0 === 368 && c.body.x1 === 432 && c.lamps === 2 && c.plume !== null && d.bossBar().pips === 2 && d.bossBar().outlines === 1;
+    return d.catorce()!.age === 0 && c.body.x0 === 368 && c.body.x1 === 432 && c.look.startsWith('spin') && c.lamps === 2 && c.plume !== null && d.bossBar().pips === 2 && d.bossBar().outlines === 1;
   });
 });
 
