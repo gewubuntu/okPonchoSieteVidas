@@ -10,7 +10,11 @@ export function memoryStore(): Store {
       rows.set(at(table, key), value);
     },
     delete: (table, key) => rows.delete(at(table, key)),
-    entries: (table) => [...rows].filter(([k]) => k.startsWith(`${table}\n`)).map(([k, v]) => [k.slice(table.length + 1), v] as const),
+    entries: (table) =>
+      [...rows]
+        .filter(([k]) => k.startsWith(`${table}\n`))
+        .map(([k, v]) => [k.slice(table.length + 1), v] as const)
+        .toSorted(([a], [b]) => Buffer.compare(Buffer.from(a), Buffer.from(b))),
     transaction: (work) => {
       const before = new Map(rows);
       try {

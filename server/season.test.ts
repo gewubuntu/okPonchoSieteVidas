@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { seasonAt, seasonStartMs } from './season';
+import { addMonthsUtc, seasonAt, seasonStartMs } from './season';
 
 const FIRST = '2026-01-01T00:00:00.000Z';
 const NOON = Date.parse('2026-11-21T12:00:00.000Z');
@@ -35,6 +35,23 @@ describe('GDD-CHAIN-04 season', () => {
     const first = '2026-01-31T00:00:00.000Z';
     expect(seasonAt(at('2026-03-30T23:59:59.999Z'), first, 1)).toBe(2);
     expect(seasonAt(at('2026-03-31T00:00:00.000Z'), first, 1)).toBe(3);
+  });
+
+  it('a season that starts past a year end starts in the next year', () => {
+    expect(seasonStartMs(5, FIRST, 3)).toBe(at('2027-01-01T00:00:00.000Z'));
+    const first = '2026-01-15T12:00:00.000Z';
+    expect(seasonAt(at('2027-01-15T11:59:59.999Z'), first, 3)).toBe(4);
+    expect(seasonAt(at('2027-01-15T12:00:00.000Z'), first, 3)).toBe(5);
+  });
+
+  it('a season whose months reach past December twice starts two years on', () => {
+    expect(seasonStartMs(9, FIRST, 3)).toBe(at('2028-01-01T00:00:00.000Z'));
+    expect(seasonStartMs(3, FIRST, 12)).toBe(at('2028-01-01T00:00:00.000Z'));
+  });
+
+  it('months taken away go back across a year end', () => {
+    expect(addMonthsUtc(at('2026-01-31T00:00:00.000Z'), -1)).toBe(at('2025-12-31T00:00:00.000Z'));
+    expect(addMonthsUtc(at('2026-03-31T00:00:00.000Z'), -13)).toBe(at('2025-02-28T00:00:00.000Z'));
   });
 
   it('a start in the middle of a day keeps its hour', () => {

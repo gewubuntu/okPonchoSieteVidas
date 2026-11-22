@@ -40,6 +40,13 @@ describe.each([
     expect(store.entries('wallet')).toEqual([['a', '1']]);
   });
 
+  it('entries come by key compared as plain text, whatever order they were put in', () => {
+    const store = open();
+    // U+FF61 is one UTF-16 unit and U+1F600 two, which sort the other way round by UTF-16 units than by UTF-8 bytes.
+    for (const key of ['b', 'a', '10', '9', 'B', '\u{1F600}', '｡']) store.put('wallet', key, key);
+    expect(store.entries('wallet').map(([key]) => key)).toEqual(['10', '9', 'B', 'a', 'b', '｡', '\u{1F600}']);
+  });
+
   it('a transaction that throws leaves nothing written', () => {
     const store = open();
     store.put('wallet', 'a', '3');
@@ -69,6 +76,22 @@ describe('GDD-TEC-10 store: sqlite file', () => {
       const again = sqliteStore(path);
       expect(again.get('wallet', 'a')).toBe('1');
       again.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('what a transaction wrote is read by a second connection, and the next transaction can begin', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'poncho-'));
+    try {
+      const path = join(dir, 'server.db');
+      const first = sqliteStore(path);
+      const second = sqliteStore(path);
+      first.transaction(() => first.put('wallet', 'a', '1'));
+      expect(second.get('wallet', 'a')).toBe('1');
+      expect(first.transaction(() => 'again')).toBe('again');
+      first.close();
+      second.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
