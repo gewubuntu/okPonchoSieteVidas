@@ -20,6 +20,18 @@ describe('GDD-CHAIN-04 season', () => {
     expect(seasonAt(at('2026-03-31T23:59:59.999Z'), FIRST, 3)).toBe(1);
   });
 
+  it('a season starts at the first start own time of day, to the millisecond', () => {
+    const first = '2026-01-15T12:34:56.789Z';
+    expect(seasonStartMs(2, first, 3)).toBe(at('2026-04-15T12:34:56.789Z'));
+    expect(seasonAt(at('2026-04-15T12:34:56.789Z'), first, 3)).toBe(2);
+    expect(seasonAt(at('2026-04-15T12:34:56.788Z'), first, 3)).toBe(1);
+    // Each part of the time of day alone still short of the start: the hour, the minute, the second, the millisecond.
+    expect(seasonAt(at('2026-04-15T11:59:59.999Z'), first, 3)).toBe(1);
+    expect(seasonAt(at('2026-04-15T12:10:00.000Z'), first, 3)).toBe(1);
+    expect(seasonAt(at('2026-04-15T12:34:10.000Z'), first, 3)).toBe(1);
+    expect(seasonAt(at('2026-04-15T12:34:56.100Z'), first, 3)).toBe(1);
+  });
+
   it('before the first start there is no season', () => {
     expect(seasonAt(at('2025-12-31T23:59:59.999Z'), FIRST, 3)).toBeNull();
   });
