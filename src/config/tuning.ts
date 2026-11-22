@@ -710,6 +710,27 @@ export const CATORCE = {
 } as const;
 
 /**
+ * GDD-BOS-04: La Catorce's sprite. Each frame of her sheet is `frameW` x `frameH` game px, her 64 x 32 box `boxX`, `boxY` px into it (its
+ * bottom on the frame's bottom); `columns` frames across, her `looks` facing right and then, from a new row, the same looks facing left. In
+ * her telegraph her wheels turn a quarter every `spinSteps` steps; in her charge a quarter every `turnPx` px she runs (a wheel 8 px across).
+ * She is drawn squashed for `slamSteps` steps after a slam. Defeated, she flashes white for `defeatFlashSteps` steps, is plain for as many,
+ * then lies as a wreck. Her armour's `plume` is `w` x `h` px, its middle `ahead` px ahead of her box's middle (her middle stud's), its foot `rise` px under her box's top, a frame every `steps` steps.
+ */
+export const CATORCE_ART = {
+  frameW: 72,
+  frameH: 36,
+  boxX: 4,
+  boxY: 4,
+  columns: 8,
+  looks: 49,
+  spinSteps: 2,
+  turnPx: 2 * Math.PI,
+  slamSteps: 4,
+  defeatFlashSteps: 4,
+  plume: { w: 6, h: 10, ahead: 0.75, rise: 5, steps: 8 },
+} as const;
+
+/**
  * GDD-BOS-01: the hit-stop. On the step a hit lands on a boss the scene's loop runs no step for `hurtSteps` (67 ms) after a hit that
  * leaves him hurt and `defeatSteps` (200 ms) after the hit that defeats him, so everything waits and the hit's frame stays on screen.
  */
