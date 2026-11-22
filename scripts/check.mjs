@@ -9,7 +9,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { gddVersionErrors } from './gdd-version.mjs';
+import { changelogSectionErrors, gddVersionErrors } from './gdd-version.mjs';
+import { changelogRange, pathErrors } from './harness-paths.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 import { determinismErrors } from './sim-determinism.mjs';
 
@@ -93,10 +94,19 @@ function checkGdd() {
 
 // L-057: one GDD version per pull request (scripts/gdd-version.mjs): the working tree's GDD against the one at the merge
 // base with origin/main. Without that base it passes, except under CI, where it fails.
+// The GDD is near Node's default output limit of 1 MB, past which `git show` fails and both checks would pass unseen.
+const gitText = (...args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 28 });
+
 function checkOneGddVersion() {
   if (!exists('docs/GDD.md')) return [];
-  const git = (...args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
-  return gddVersionErrors(git, read('docs/GDD.md'), Boolean(process.env['CI']));
+  return gddVersionErrors(gitText, read('docs/GDD.md'), Boolean(process.env['CI']));
+}
+
+// L-013: the branch's changelog line names every section its diff changes and no other (scripts/gdd-version.mjs), against the
+// same merge base. Without that base it passes, under CI too: gdd-one-version has failed there already.
+function checkChangelogSections() {
+  if (!exists('docs/GDD.md')) return [];
+  return gddVersionErrors(gitText, read('docs/GDD.md'), false, changelogSectionErrors);
 }
 
 // Open Questions are a numbered list, so removing one renumbers the ones after it. A reference past the end of the list is
@@ -374,17 +384,12 @@ function checkClaudeSettings() {
 function checkHarnessPaths() {
   const files = ['CLAUDE.md', ...[join('.claude', 'skills'), join('.claude', 'agents')].filter(exists).flatMap((d) => walk(d))]
     .filter((f) => f.endsWith('.md') && exists(f));
-  const errors = [];
-  for (const f of files) {
-    read(f).split('\n').forEach((line, i) => {
-      for (const [, span] of line.matchAll(/`([^`]+)`/g)) {
-        for (const word of span.split(/\s+/)) {
-          const p = word.replace(/^["'(]+|["'),.:;]+$/g, '').replace(/:\d+(-\d+)?$/, '');
-          if (!/^(src|e2e|scripts|docs|assets|\.claude|\.github)\//.test(p) || /[<>*{}$]/.test(p)) continue;
-          if (!exists(p)) errors.push(`${f.split(sep).join('/')}:${i + 1}: \`${p}\` does not exist; fix the text that names it`);
-        }
-      }
-    });
+  const errors = files.flatMap((f) => pathErrors(f.split(sep).join('/'), read(f), exists));
+  // L-013: the design documents too, where a file designed and not built yet is marked " (planned)". The GDD's changelog is
+  // history and keeps the paths of its day.
+  for (const f of ['docs/GDD.md', 'docs/BACKLOG.md'].filter(exists)) {
+    const log = changelogRange(read(f).split('\n'));
+    errors.push(...pathErrors(f, read(f), exists, { planned: true, skip: (i) => log !== null && i > log.start && i <= log.end }));
   }
   return errors;
 }
@@ -552,6 +557,7 @@ const checks = [
   ['sim-determinism', checkSimDeterminism],
   ['gdd', checkGdd],
   ['gdd-one-version', checkOneGddVersion],
+  ['gdd-changelog-sections', checkChangelogSections],
   ['gdd-open-questions', checkOpenQuestionRefs],
   ['gdd-references', checkReferences],
   ['backlog', checkBacklog],
