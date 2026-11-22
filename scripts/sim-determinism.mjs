@@ -4,7 +4,10 @@
 // regular expressions and comments are never taken for code (L-008: every spelling, not one per call). An error: every identifier `Math`
 // but `Math.<exact member>`; every identifier `Date`, `Temporal`, `performance` or `crypto`, wherever it stands; every `**` and `**=`.
 // A `// sim-determinism: <reason>` comment lets through what starts on its line; a file that does not parse is one error.
-import { parseSync } from 'vite';
+import { createRequire } from 'node:module';
+
+// Loaded on first use, so that `node scripts/check.mjs --lessons` and the like still run in a checkout with no `node_modules`.
+const require = createRequire(import.meta.url);
 
 /** The members of `Math` that are exact by the standard: allowed. */
 export const EXACT = ['sqrt', 'abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'min', 'max', 'fround', 'imul', 'clz32', 'PI', 'E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'SQRT2', 'SQRT1_2'];
@@ -50,10 +53,11 @@ function forbidden(node, parent, text, comments) {
 export function determinismErrors(files) {
   const errors = [];
   for (const { path, text } of files.filter((f) => covered(f.path))) {
-    const lineOf = (at) => text.slice(0, at).split('\n').length;
-    const { program, comments, errors: broken } = parseSync(path, text, { lang: 'ts' });
-    // The parser gives an empty program for a file it cannot parse, so nothing else is read from it (L-025); were it to keep a part,
-    // that part would only add errors.
+    // A line ends where the parser ends one: LF, CRLF, a lone CR, U+2028 and U+2029, so a marker never reaches past its own line.
+    const lineOf = (at) => text.slice(0, at).split(/\r\n|[\n\r\u2028\u2029]/).length;
+    const { program, comments, errors: broken } = require('vite').parseSync(path, text, { lang: 'ts' });
+    // The file's tree is read all the same: the parser gives an empty program for some errors and the whole tree for others, and what
+    // it keeps can only add errors.
     if (broken.length > 0) errors.push(`${path}:${lineOf(broken[0].labels[0]?.start ?? 0)}: does not parse (${broken[0].message}), so the check cannot read it (GDD-TEC-09)`);
     const exempt = new Set(comments.filter((c) => c.type === 'Line' && MARKER.test(c.value)).map((c) => lineOf(c.start)));
     const byLine = new Map();

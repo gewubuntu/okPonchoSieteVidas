@@ -354,6 +354,34 @@ describe('GDD-TEC-09 sim-determinism: nothing an engine may approximate, no cloc
     expect(found("const r = 2 ** n; /* sim-determinism: a sound's rate */")).toEqual(['1: the ** operator']);
   });
 
+  it('the marker exempts the line an error is on, not the line its expression starts on', () => {
+    expect(found("const a = b // sim-determinism: a sound's rate\n  ** 2;")).toEqual(['2: the ** operator']);
+  });
+
+  it('a new Date is placed where its new stands', () => {
+    expect(found('const d = new\n  Date();')).toEqual(['1: new Date']);
+    expect(found("const d = new // sim-determinism: a label, never a step\n  Date();")).toEqual([]);
+    expect(found("const d = new\n  Date(); // sim-determinism: a label, never a step")).toEqual(['1: new Date']);
+  });
+
+  it('a marker on the line below exempts nothing', () => {
+    expect(found("const r = 2 ** n;\n// sim-determinism: a sound's rate")).toEqual(['1: the ** operator']);
+  });
+
+  it('a clock passed to a constructor is not a new clock', () => {
+    expect(found('const f = new Foo(Date);')).toEqual(['1: Date']);
+  });
+
+  it('a clock read by a bracket is named without a member', () => {
+    expect(found("const t = Date['now']();")).toEqual(['1: Date']);
+  });
+
+  it('a marker reaches no further than its line, whatever ends the line', () => {
+    for (const end of ['\r', '\r\n', '\u2028', '\u2029']) {
+      expect(found(`const r = 2 ** n; // sim-determinism: a rate${end}const a = Math.random();`), JSON.stringify(end)).toEqual(['2: Math.random']);
+    }
+  });
+
   it('a GDD citation is not the marker', () => {
     expect(found('const seed = Date.now(); // GDD-TEC-09: the seed a record holds')).toEqual(['1: Date.now']);
   });
