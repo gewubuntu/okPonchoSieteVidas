@@ -5,14 +5,14 @@
   "description": "PONCHO: Siete Vidas - a platformer starring a cat in a Mexican poncho",
   "type": "module",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.13.0"
   },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "oxlint --type-aware --deny-warnings",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p server",
     "test": "vitest run",
     "test:abilities": "vitest run -c vitest.abilities.config.ts",
     "test:glide": "vitest run -c vitest.glide.config.ts",

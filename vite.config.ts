@@ -18,7 +18,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 1500,
   },
   test: {
-    include: ['src/**/*.test.ts', 'scripts/**/*.test.mjs'],
+    include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'scripts/**/*.test.mjs'],
     // GDD-WLD-03: the sight sweep runs on its own (`npm run test:sight`, `vitest.sight.config.ts`).
     exclude: [...configDefaults.exclude, 'src/levels/sight.test.ts'],
     environment: 'node',
