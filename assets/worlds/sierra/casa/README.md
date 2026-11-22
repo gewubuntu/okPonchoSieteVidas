@@ -2,7 +2,7 @@
 
 The look of La Catorce's arena 3-4 (GDD-ART-06, GDD-BOS-04), as the user approved it (user, 2026-11-22: "Approved"). No reference images were given (user, 2026-11-10 and 2026-11-22: "Design it, show me"). Do not edit or overwrite these images.
 
-- `design-charge.png`, `design-telegraph.png`, `design-phase3.png`: mock-ups made before the shed was built into the game: screenshots of the real 3-4 with the back wall (drawn by `scripts/art/sierra-casa.mjs`) put between the backdrop and everything in play, on the mine's floor and decor. In the game the coal in the bunker lies a little higher than in the first mock-ups the user saw, so that nothing dark is behind La Catorce.
+- `design-charge.png`, `design-telegraph.png`, `design-phase3.png`: mock-ups made before the shed was built into the game: screenshots of the real 3-4 with the back wall (drawn by `scripts/art/sierra-casa.mjs`) put between the backdrop and everything in play, on the mine's floor and decor. In the game the coal in the bunker lies a little higher than in the first mock-ups the user saw, so that no dark patch is behind La Catorce.
 
 The look, which `mid-casa.png` follows:
 

@@ -32,7 +32,7 @@ export interface Scenery {
   follow(scrollX: number, scrollY: number, cameraY: number, lowestY: number, offsetY: number): void;
   /** How far each object of the backdrop is drawn from where it rests, in game px: its share of the camera's rise plus `follow`'s `offsetY`. */
   backdropShifts(): number[];
-  /** How far the clouds, the far band and the mid band are shifted, in game px, read back from what was drawn; the clouds 0 where there are none (the mine). */
+  /** How far the clouds, the far band and the mid band are shifted, in game px, read back from what was drawn; the clouds 0 where there are none (the mine and the engine shed). */
   backdrop(): { clouds: number; mountains: number; desert: number };
   /**
    * Where the fixed parts are drawn, in game px, without the shake: the sun's centre (null without a sun), the far band's top, its foot's top,

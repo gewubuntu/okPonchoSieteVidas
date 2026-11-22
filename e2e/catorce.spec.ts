@@ -98,7 +98,7 @@ test("GDD-ART-06 3-4 the shed's wall is drawn behind the arena, the sky through 
   const TIMBER = ['#43362F', '#221D2E', '#A89480', '#75614F'];
   expect(STONE.some((c) => nearHex(stone!, c)), `stone ${JSON.stringify(stone)}`).toBe(true);
   expect(['#43362F', '#221D2E'].some((c) => nearHex(roof!, c)), `roof ${JSON.stringify(roof)}`).toBe(true);
-  // Through the arch: not the wall (sky, cloud or far strip; measured: the sky's middle band, #8AA5B8).
+  // Through the arch: not the wall (sky or far strip, the shed draws no clouds; measured: the sky's middle band, #8AA5B8).
   expect([...STONE, ...TIMBER].some((c) => nearHex(arch!, c)), `arch ${JSON.stringify(arch)}`).toBe(false);
   expect(nearHex(arch!, '#8AA5B8'), `arch ${JSON.stringify(arch)}`).toBe(true);
   expect(await clearOfButtons(page, points)).toHaveLength(3);
