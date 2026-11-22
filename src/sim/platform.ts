@@ -2,6 +2,7 @@
 // lands on its top from above, is carried along while he stands on it, and passes through it from below and the sides.
 // Where it is depends only on the step count, so it is the same on every run. Pure logic, no Phaser (GDD-TEC-02).
 import { HITBOX, PLATFORM, TICK_HZ } from '../config/tuning';
+import { hypot } from './detmath';
 import { blocked, type PlayerState, type World } from './movement';
 
 /** A platform's two ends, as the top-left corner of its top surface, and how wide it is. */
@@ -28,7 +29,7 @@ const HALF = HITBOX.width / 2;
  * first end and turns round at each end without stopping. Shared by the moving platforms and the moving blocks (GDD-WLD-05).
  */
 export function along(x0: number, y0: number, x1: number, y1: number, speed: number, tick: number): { x: number; y: number } {
-  const length = Math.hypot(x1 - x0, y1 - y0);
+  const length = hypot(x1 - x0, y1 - y0);
   if (length === 0) return { x: x0, y: y0 };
   let d = ((speed * tick) / TICK_HZ) % (2 * length);
   if (d > length) d = 2 * length - d;

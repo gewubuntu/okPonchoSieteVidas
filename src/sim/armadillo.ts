@@ -3,6 +3,7 @@
 // Unlike every walker it rolls off a ledge's end and falls as Poncho falls (GDD-MOV-04). It does not set off crumbling tiles, and it falls
 // wherever its ground goes. Pure logic, no Phaser (GDD-TEC-02).
 import { ARMADILLO, GRAVITY, STEP, TILE } from '../config/tuning';
+import { hypot } from './detmath';
 import type { Enemy, EnemyState } from './enemy';
 import { hurtbox } from './hazards';
 import type { PlayerState } from './movement';
@@ -72,7 +73,7 @@ export function rollAcross(world: TileGrid, x: number, y: number, dir: 1 | -1): 
   const at = slopeTile(world, x, y);
   const rise = at === null ? 0 : (dir * (SLOPE_HEIGHTS[at.slope].right - SLOPE_HEIGHTS[at.slope].left)) / TILE;
   const along = rise > 0 ? ARMADILLO.rollUp : rise < 0 ? ARMADILLO.rollDown : ARMADILLO.rollSpeed;
-  return along / Math.hypot(1, rise);
+  return along / hypot(1, rise);
 }
 
 /** Where its body is after a step, and whether a wall stopped it across. */

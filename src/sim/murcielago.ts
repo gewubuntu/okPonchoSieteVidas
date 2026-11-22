@@ -2,6 +2,7 @@
 // and never reacts to Poncho; it ignores tiles, awnings, cordeles and rails. It has no telegraph and one state, flying. Its sound and a row
 // of bats (3-3) are not built yet. Pure logic, no Phaser (GDD-TEC-02).
 import { MURCIELAGO } from '../config/tuning';
+import { cos, sin } from './detmath';
 import type { Enemy, EnemyState } from './enemy';
 
 /** A Murciélago's loop: the steps it has flown since the level start or the last respawn, and the y of its middle. */
@@ -16,7 +17,7 @@ export interface Loop {
  */
 export function murcielagoAt(def: Enemy, steps: number): { x: number; y: number } {
   const a = (2 * Math.PI * ((steps + (def.phase ?? 0)) % MURCIELAGO.periodSteps)) / MURCIELAGO.periodSteps;
-  return { x: def.x + (def.rx ?? 0) * Math.cos(a), y: def.y + (def.ry ?? 0) * Math.sin(a) };
+  return { x: def.x + (def.rx ?? 0) * cos(a), y: def.y + (def.ry ?? 0) * sin(a) };
 }
 
 /** How a Murciélago starts, and how it is after a lost life: at its `phase`, its steps counted from 0, heading right. */

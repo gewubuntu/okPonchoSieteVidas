@@ -9,6 +9,7 @@
 import { ARMADILLO, CACOMIXTLE, CACTUS, CHAPULIN, ENEMY, MURCIELAGO, PALOMA, STEP, STOMP, TLACUACHE, TROMPO, ZOPILOTE } from '../config/tuning';
 import { isDazed, stepArmadillo, WALKING, type Shell } from './armadillo';
 import { CROUCHING, stepChapulin, type Hop } from './chapulin';
+import { hypot, sin } from './detmath';
 import { hurtbox } from './hazards';
 import type { PlayerState } from './movement';
 import { freshMurcielago, stepMurcielago, type Loop } from './murcielago';
@@ -169,7 +170,7 @@ export const centre = (player: PlayerState): { x: number; y: number } => {
 
 /** Moves from (x, y) towards (tx, ty) by at most `dist`, stopping on it. */
 export function approach(x: number, y: number, tx: number, ty: number, dist: number): { x: number; y: number; arrived: boolean } {
-  const d = Math.hypot(tx - x, ty - y);
+  const d = hypot(tx - x, ty - y);
   return d <= dist ? { x: tx, y: ty, arrived: true } : { x: x + ((tx - x) / d) * dist, y: y + ((ty - y) / d) * dist, arrived: false };
 }
 
@@ -199,7 +200,7 @@ function stepZopilote(def: Enemy, state: EnemyState, player: PlayerState): Enemy
   const x = past ? def.x + state.dir * ZOPILOTE.range : moved;
   const dir = past ? turn(state.dir) : state.dir;
   const age = f.age + 1;
-  const y = def.y + ZOPILOTE.amplitude * Math.sin((2 * Math.PI * age) / ZOPILOTE.periodSteps);
+  const y = def.y + ZOPILOTE.amplitude * sin((2 * Math.PI * age) / ZOPILOTE.periodSteps);
   const p = centre(player);
   const spotted = Math.abs(p.x - x) <= ZOPILOTE.triggerX && p.y > y && p.y - y <= ZOPILOTE.triggerY;
   return { ...state, x, dir, flight: { ...f, y, age: spotted ? 0 : age, phase: spotted ? 'telegraph' : 'cruise' } };
