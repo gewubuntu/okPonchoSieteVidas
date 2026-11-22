@@ -70,6 +70,7 @@ describe('GDD-TEC-09 sim-determinism: nothing an engine may approximate, no cloc
     'crypto getRandomValues': ['crypto.getRandomValues(buffer);', ['1: crypto.getRandomValues']],
     'crypto randomUUID': ['const id = crypto.randomUUID();', ['1: crypto.randomUUID']],
     'Date without new': ['const today = Date();', ['1: Date']],
+    'Temporal': ['const t = Temporal.Now.instant();', ['1: Temporal.Now']],
     'a name that only starts like an exact one': ['const b = Math.absolute(a);', ['1: Math.absolute']],
   };
   for (const [name, [text, want]] of Object.entries(spellings)) {
@@ -87,6 +88,10 @@ describe('GDD-TEC-09 sim-determinism: nothing an engine may approximate, no cloc
   it('lets through what is exact', () => {
     const exact = ['sqrt(a)', 'abs(a)', 'floor(a)', 'ceil(a)', 'round(a)', 'trunc(a)', 'sign(a)', 'min(a, b)', 'max(a, b)', 'fround(a)', 'imul(a, b)', 'clz32(a)', 'PI', 'E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'SQRT2', 'SQRT1_2'];
     expect(one('src/sim/x.ts', `const b = ${exact.map((m) => `Math.${m}`).join(' + ')};`)).toEqual([]);
+  });
+
+  it('a longer name holding Math or a clock is neither', () => {
+    expect(found('const fooMath = 1, Mathy = 2, myDate = 3, Dates = 4, cryptography = 5;')).toEqual([]);
   });
 
   it('reads src/levels too', () => {
@@ -117,24 +122,126 @@ describe('GDD-TEC-09 sim-determinism: nothing an engine may approximate, no cloc
     expect(found('/* the sway:\n   Math.sin(a)\n */ const b = Math.sin(a);\nconst c = Math.cos(a);')).toEqual(['3: Math.sin', '4: Math.cos']);
   });
 
+  it('a block comment ends with its slash', () => {
+    expect(found('const a = /* x */ Math.sin(b) / 2;')).toEqual(['1: Math.sin']);
+  });
+
+  it('a line comment ends at its line', () => {
+    expect(found('// the sway\nconst b = Math.sin(a);')).toEqual(['2: Math.sin']);
+  });
+
   it('a string holding Math.sin or // does not confuse it', () => {
     expect(found("const s = 'Math.sin(a)';")).toEqual([]);
     expect(found('const s = "Math.random()";')).toEqual([]);
     expect(found("const s = '//'; const b = Math.sin(a);")).toEqual(['1: Math.sin']);
+    expect(found('const s = "//"; const b = Math.sin(a);')).toEqual(['1: Math.sin']);
     expect(found("const s = 'it\\'s //'; const b = Math.sin(a);")).toEqual(['1: Math.sin']);
+    // A bracket in a string opens no class.
+    expect(found("const s = '['; const b = Math.sin(a); const c = '';")).toEqual(['1: Math.sin']);
+  });
+
+  it('a string or a regular expression ends at its line', () => {
+    expect(found("const s = 'a;\nconst z = Math.sin(b); const c = '';")).toEqual(['2: Math.sin']);
+    expect(found('const y = a + /2;\nconst z = Math.sin(phase) / 3;')).toEqual(['2: Math.sin']);
+    expect(found('const y = ys[i]! / 2;\nconst z = Math.sin(phase) / 3;')).toEqual(['2: Math.sin']);
+  });
+
+  it('a quote not closed on its line is read as code', () => {
+    expect(found("const s = 'it; const b = Math.sin(a);")).toEqual(['1: Math.sin']);
+  });
+
+  it('a division after a string', () => {
+    expect(found("const r = 'a' / 2 + Math.sin(b) / 3;")).toEqual(['1: Math.sin']);
   });
 
   it('reads the code in a template and not its text', () => {
     expect(found('const s = `Math.sin`;')).toEqual([]);
     expect(found('const s = `${a} Math.sin`;')).toEqual([]);
+    expect(found('const s = `${f({ a })} Math.sin`;')).toEqual([]);
     expect(found('const s = `x ${Math.sin(a)}`;')).toEqual(['1: Math.sin']);
     expect(found('const s = `${f({ a }) + Math.sin(a)}`;')).toEqual(['1: Math.sin']);
+  });
+
+  it('a template ends at its backquote', () => {
+    expect(found('const s = `a`; const y = Math.sin(a);')).toEqual(['1: Math.sin']);
+  });
+
+  it('an escaped backquote does not end a template', () => {
+    expect(found('const s = `a\\`b`; const y = Math.sin(a);')).toEqual(['1: Math.sin']);
+  });
+
+  it('the code of a template opens a regular expression', () => {
+    expect(found("const s = `${/'/.test(t) ? Math.sin(a) : ''}`;")).toEqual(['1: Math.sin']);
   });
 
   it('reads a regular expression as one, its classes too, and a division as a division', () => {
     expect(found('const ok = /[//]/.test(s), b = Math.sin(a);')).toEqual(['1: Math.sin']);
     expect(found("const ok = /[/']/.test(s) && Math.sin(a) > 0 && t === '';")).toEqual(['1: Math.sin']);
+    expect(found("const ok = /[a]'/.test(s) && Math.sin(a) > 0 && t === '';")).toEqual(['1: Math.sin']);
     expect(found('const b = a / 2 + Math.sin(c) / 3;')).toEqual(['1: Math.sin']);
+    expect(found('const b = f(a) / 2 + Math.sin(c) / 3;')).toEqual(['1: Math.sin']);
+  });
+
+  it('a regular expression at the start of the text', () => {
+    expect(found("/'/.test(s) && Math.sin(a) > 0 && t === '';")).toEqual(['1: Math.sin']);
+  });
+
+  it('a bang at the start of the text opens a regular expression', () => {
+    expect(found("!/'/.test(s) && Math.sin(a) > 0 && t === '';")).toEqual(['1: Math.sin']);
+  });
+
+  it('a regular expression after return at the start of the text', () => {
+    expect(found("return /'/.test(a) ? Math.random() : 'x';")).toEqual(['1: Math.random']);
+  });
+
+  // After each keyword that takes an expression, a `/` opens a regular expression.
+  for (const keyword of ['return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw', 'case', 'do', 'else', 'yield', 'await']) {
+    it(`a regular expression after the keyword ${keyword}`, () => {
+      expect(found(`a; ${keyword} /'/.test(s) && Math.sin(a) > 0 && t === '';`)).toEqual(['1: Math.sin']);
+    });
+  }
+
+  // After each operator or punctuation mark, a `/` opens a regular expression: here one holding a quote, which read as a division would
+  // open a string that hides the call.
+  const operators = {
+    'open paren': '(', comma: ',', equals: '=', colon: ':', 'open bracket': '[', bang: '!', ampersand: '&', bar: '|', question: '?',
+    'open brace': '{', 'close brace': '}', semicolon: ';', plus: '+', minus: '-', star: '*', percent: '%', less: '<', greater: '>',
+    tilde: '~', caret: '^',
+  };
+  for (const [name, op] of Object.entries(operators)) {
+    it(`a regular expression after the ${name}`, () => {
+      expect(found(`const t = a ${op} /'/; const b = Math.sin(a); const c = '';`)).toEqual(['1: Math.sin']);
+    });
+  }
+
+  // A postfix `!`, `++` or `--` after a value: the `/` is a division (the review of 2026-11-22).
+  it('a division after a name and a bang', () => {
+    expect(found('const y = x! / 2 + Math.sin(a) / 3;')).toEqual(['1: Math.sin']);
+  });
+
+  it('a division after a dollar and a bang', () => {
+    expect(found('const y = $! / 2 + Math.sin(a) / 3;')).toEqual(['1: Math.sin']);
+  });
+
+  it('a division after a bracket and a bang', () => {
+    expect(found('const y = ys[i]! / 2 + Math.sin(phase) / 3;')).toEqual(['1: Math.sin']);
+    expect(found('const d = dx[i]! / Math.hypot(a, b) / 2;')).toEqual(['1: Math.hypot']);
+  });
+
+  it('a division after a call and a bang', () => {
+    expect(found('const t = m.get(k)! / Date.now() / 1000;')).toEqual(['1: Date.now']);
+  });
+
+  it('a division after plus plus', () => {
+    expect(found('const r = i++ / Math.random() / 2;')).toEqual(['1: Math.random']);
+  });
+
+  it('a division after minus minus', () => {
+    expect(found('const r = i-- / Math.random() / 2;')).toEqual(['1: Math.random']);
+  });
+
+  it('a division after two bangs', () => {
+    expect(found('const y = x!! / 2 + Math.sin(a) / 3;')).toEqual(['1: Math.sin']);
   });
 
   it('a line that says why is let through, and only that line, L-028', () => {
@@ -143,6 +250,15 @@ describe('GDD-TEC-09 sim-determinism: nothing an engine may approximate, no cloc
 
   it('a marker with no reason lets nothing through', () => {
     expect(found('const r = 2 ** n; // sim-determinism:')).toEqual(['1: the ** operator']);
+  });
+
+  it('a marker in a string lets nothing through', () => {
+    expect(found("const why = '// sim-determinism: no'; const y = Math.random();")).toEqual(['1: Math.random']);
+    expect(found('const why = `// sim-determinism: no`; const y = Math.random();')).toEqual(['1: Math.random']);
+  });
+
+  it('the marker needs its slashes', () => {
+    expect(found("const r = 2 ** n; /* sim-determinism: a sound's rate */")).toEqual(['1: the ** operator']);
   });
 
   it('a GDD citation is not the marker', () => {
