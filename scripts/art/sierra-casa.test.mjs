@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildCasa } from './make-sierra.mjs';
 import { ARCHES, drawMidCasa, inArch, RODS, ROOF, SILL, SPRING } from './sierra-casa.mjs';
+import { BOSS_BAR } from '../../src/config/tuning';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'sprites', 'sierra');
 
@@ -14,6 +15,7 @@ const GDD = [
 ];
 const TIMBER_DARK = '#43362F', GALLERY_DEEP = '#221D2E', GALLERY_BASE = '#3D3650', IRON_DARK = '#353A48', STEEL = '#93A0AE', PEAK_SHADE = '#5B7067';
 const NEAR_BLACK = '#070509';
+const TIMBER_LIT = '#A89480', TIMBER = '#75614F', ROCK_DEEP = '#5A3B28';
 /** The colours the back wall uses, measured on the approved drawing (L-072). */
 const CASA_COLOURS = ['#43362F', '#221D2E', '#A89480', '#75614F', '#353A48', '#5B7067', '#7F9488', '#93A0AE', '#A9B8AC', '#EEF1EA', '#3D3650', '#5A3B28'];
 
@@ -81,19 +83,35 @@ describe('GDD-ART-06 the engine shed back wall', () => {
     }
   });
 
-  it('GDD-BOS-04 casa behind her: no dark patch behind the black engine in her rows 192 to 223', () => {
-    // Her box's rows, over the whole width: none of gallery deep, gallery base or iron dark (measured: 0).
+  it('GDD-BOS-04 casa behind her: no dark patch behind the black engine in her rows 192 to 223, only thin timber lines', () => {
+    // Her box's rows, over the whole width: none of gallery deep, gallery base or iron dark (measured: 0). The dark that is there is in
+    // lines 1 to 2 px wide: timber dark (the bunker's posts, the tank's legs and braces) and rock deep (the bunker's board joints),
+    // counted, so a wider dark shape fails (measured, L-072).
     const dark = [];
-    for (let y = 192; y < 224; y++) for (let x = 0; x < 480; x++) if ([GALLERY_DEEP, GALLERY_BASE, IRON_DARK].includes(px(x, y))) dark.push(`${x},${y} ${px(x, y)}`);
+    const count = { [TIMBER_DARK]: 0, [ROCK_DEEP]: 0 };
+    for (let y = 192; y < 224; y++) {
+      for (let x = 0; x < 480; x++) {
+        if ([GALLERY_DEEP, GALLERY_BASE, IRON_DARK].includes(px(x, y))) dark.push(`${x},${y} ${px(x, y)}`);
+        if (px(x, y) in count) count[px(x, y)]++;
+      }
+    }
     expect(dark).toEqual([]);
+    expect([count[TIMBER_DARK], count[ROCK_DEEP]]).toEqual([282, 120]);
   });
 
-  it('GDD-UI-01 casa behind the HUD: rows 0 to 21 are the plain boards, timber dark and gallery deep', () => {
-    // Down to the truss's top chord (`ROOF.bottom - 18`, row 22, timber lit), the HUD lies on plain boards (measured, L-072).
+  it('GDD-UI-01 casa behind the HUD: rows 0 to 21 are the plain boards, and the boss bar pips end two rows into the top chord', () => {
+    // Down to the truss's top chord (`ROOF.bottom - 18`, row 22), the HUD lies on plain boards (measured, L-072).
     expect(ROOF.bottom - 18).toBe(22);
     const above = new Set();
     for (let y = 0; y < 22; y++) for (let x = 0; x < 480; x++) above.add(px(x, y));
     expect(above).toEqual(new Set([TIMBER_DARK, GALLERY_DEEP]));
+    // The boss bar's pips (GDD-UI-01) are the HUD's lowest part: rows `pipTop` to `pipTop + pipSize - 1`, 18 to 23. Their last two rows lie
+    // on the chord's first two, timber lit and timber, the whole width; the chord's third row is below them. If the pips or the chord move,
+    // this says so.
+    const hudBottom = BOSS_BAR.pipTop + BOSS_BAR.pipSize - 1;
+    expect([BOSS_BAR.pipTop, hudBottom]).toEqual([18, 23]);
+    for (let x = 0; x < 480; x++) expect([px(x, 22), px(x, hudBottom)], `column ${x}`).toEqual([TIMBER_LIT, TIMBER]);
+    expect(px(240, hudBottom + 1)).toBe(TIMBER_DARK);
   });
 
   it('GDD-BOS-04 casa rods: two iron rods from the tie beam to above home', () => {

@@ -194,15 +194,18 @@ describe('GDD-ART-06 a World 3 level chooses its place', () => {
     // The back wall from y 0 down to the floor's top at 224 (row 14), the mine's seven decor kinds.
     expect([c.midTop, c.midTop + c.midBandArt / 4]).toEqual([0, 224]);
     expect(c.decor).toBe(SIERRA_MINA.decor);
-    // Everything else is the canyon's: its sky bands, their ends and strips, its clouds, no sun, its shares, its far strip and foot.
-    expect([c.skyBands, c.skyEnds, c.stripArt, c.sun, c.clouds]).toEqual([s.skyBands, s.skyEnds, s.stripArt, s.sun, s.clouds]);
+    // No clouds: the canyon's rest above y 52 (their lowest rows 31, 51 and 39), behind the roof and the wall's top, and the arches open from y 64.
+    expect(c.clouds).toEqual([]);
+    expect(s.clouds.length).toBe(3);
+    // Everything else is the canyon's: its sky bands, their ends and strips, no sun, its shares, its far strip and foot.
+    expect([c.skyBands, c.skyEnds, c.stripArt, c.sun]).toEqual([s.skyBands, s.skyEnds, s.stripArt, s.sun]);
     expect([c.cloudFactor, c.farFactor, c.midFactor]).toEqual([s.cloudFactor, s.farFactor, s.midFactor]);
     expect([c.farTop, c.farBandArt, c.footColour]).toEqual([s.farTop, s.farBandArt, s.footColour]);
   });
 
-  it('GDD-ART-06 casa keys: its own mid, the mine ground and decor, the canyon sky, clouds and far strip', () => {
-    const images = ['sky-strips', 'cloud-0', 'far', 'mid', 'ground', 'decor'];
-    expect(images.map((i) => imageKey('sierra', 'casa', i))).toEqual(['sierra:sky-strips', 'sierra:cloud-0', 'sierra:far', 'sierra:mid-casa', 'sierra:ground-mina', 'sierra:decor-mina']);
+  it('GDD-ART-06 casa keys: its own mid, the mine ground and decor, the canyon sky and far strip', () => {
+    const images = ['sky-strips', 'far', 'mid', 'ground', 'decor'];
+    expect(images.map((i) => imageKey('sierra', 'casa', i))).toEqual(['sierra:sky-strips', 'sierra:far', 'sierra:mid-casa', 'sierra:ground-mina', 'sierra:decor-mina']);
   });
 
   it('GDD-ART-06 casa file size: the back wall is the size the scene loads', () => {

@@ -112,10 +112,11 @@ const MINA_LOOK: Look = {
 };
 
 /**
- * GDD-ART-06: the engine shed's look (3-4 La Casa de Máquinas): the canyon's sky, clouds and far strip, its back wall in the mid band from
- * the screen's top to the floor, the mine's decor.
+ * GDD-ART-06: the engine shed's look (3-4 La Casa de Máquinas): the canyon's sky and far strip, no clouds (the roof and the wall's top
+ * would hide them: they rest above y 52, the arches open from y 64, and the arena's camera does not move), its back wall in the mid band
+ * from the screen's top to the floor, the mine's decor.
  */
-const CASA_LOOK: Look = { ...LOOKS.sierra, midTop: SIERRA_CASA.midTop, midBandArt: SIERRA_CASA.midBandArt, decor: SIERRA_MINA.decor };
+const CASA_LOOK: Look = { ...LOOKS.sierra, clouds: [], midTop: SIERRA_CASA.midTop, midBandArt: SIERRA_CASA.midBandArt, decor: SIERRA_MINA.decor };
 
 /** GDD-ART-06: the look a level is drawn with: in the mine the mine's, in the shed the shed's, else its set's. */
 export const lookFor = (set: ArtSet, place: Place | null): Look => (place === 'mina' ? MINA_LOOK : place === 'casa' ? CASA_LOOK : LOOKS[set]);

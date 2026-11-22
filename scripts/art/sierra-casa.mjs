@@ -108,7 +108,8 @@ function midCasaCells() {
   for (let y = 0; y < ROOF.bottom; y++) {
     for (let x = 0; x < w; x++) c.set(x, y, y % 8 === 7 ? GALLERY_DEEP : TIMBER_DARK);
   }
-  // The truss is shallow, 16 px under the boards, so the HUD above it lies on plain boards: a top chord, and braces in a row of Ws.
+  // The truss is shallow, 16 px under the boards, so the HUD lies on plain boards down to row 21 (the boss bar's pips end two rows into
+  // the top chord, rows 22 and 23): a top chord, and braces in a row of Ws.
   for (let x = 0; x < w; x++) {
     c.set(x, ROOF.bottom - 18, TIMBER_LIT);
     c.set(x, ROOF.bottom - 17, TIMBER);

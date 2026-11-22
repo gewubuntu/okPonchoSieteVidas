@@ -7,10 +7,10 @@ The look of La Catorce's arena 3-4 (GDD-ART-06, GDD-BOS-04), as the user approve
 The look, which `mid-casa.png` follows:
 
 - **A back wall of dressed stone,** pale (peak base with peak lit and peak shade joints), the whole screen wide, from the roof to the floor, so a black engine reads against it along her whole run.
-- **Three tall round-arched openings** (x 60 to 140, 200 to 280, 340 to 420; sill at y 184, the heads spring at y 104) with pale voussoirs and a keystone, through which the sky, the clouds and the far ridges show.
-- **The roof:** dark boards behind the HUD, and under them a shallow timber truss on a tie beam.
+- **Three tall round-arched openings** (x 60 to 140, 200 to 280, 340 to 420; sill at y 184, the heads spring at y 104) with pale voussoirs and a keystone, through which the sky and the far ridges show (the shed draws no clouds: the roof and the wall's top would hide them).
+- **The roof:** dark boards behind the HUD, and under them a shallow timber truss on a tie beam; the boss bar's pips end two rows into the truss's pale top chord.
 - **The gantry's rods:** two thin iron rods from the tie beam down to home.
 - **A round water tank** of timber staves and iron hoops on a timber stand at the right wall, under the perch.
-- **A coal bunker** of timber boards at the left wall, its coal heaped above her height.
+- **A coal bunker** of timber boards at the left wall, its coal heaped above her height: behind her there is no dark patch, only the thin dark lines of the bunker's posts and joints and the tank's legs.
 - **The floor and the decor** are the mine's: bare trodden rock, ore heaps, sacks, tools.
 - The ridges through the arches are the canyon's far strip until 3-3's own is drawn.

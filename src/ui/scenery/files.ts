@@ -95,10 +95,10 @@ const MINA_FILES: ArtFiles = {
 };
 
 /**
- * GDD-ART-06: the engine shed's images (3-4): its back wall (`scripts/art/sierra-casa.mjs`) as the mid band, the canyon's sky strips,
- * clouds and far strip, the mine's ground and decor sheets.
+ * GDD-ART-06: the engine shed's images (3-4): its back wall (`scripts/art/sierra-casa.mjs`) as the mid band, the canyon's sky strips
+ * and far strip, no clouds (never seen behind the wall), the mine's ground and decor sheets.
  */
-const CASA_FILES: ArtFiles = { ...FILES.sierra, mid: casaMid, ground: minaGround, decor: minaDecor };
+const CASA_FILES: ArtFiles = { ...FILES.sierra, clouds: [], mid: casaMid, ground: minaGround, decor: minaDecor };
 
 /** GDD-ART-06, GDD-TEC-03: the files a level of art set `set` in `place` loads: the mine's in the mine, the shed's in the shed, else its set's. */
 export const artFiles = (set: ArtSet, place: Place | null): ArtFiles => (place === 'mina' ? MINA_FILES : place === 'casa' ? CASA_FILES : FILES[set]);

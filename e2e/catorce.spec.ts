@@ -90,7 +90,7 @@ test("GDD-ART-06 3-4 the shed's wall is drawn behind the arena, the sky through 
   // Points from the drawing (`scripts/art/sierra-casa.mjs`), measured on both viewports (L-072): the pier between the first and the middle
   // arch at (170, 60), peak base; the roof's boards at (300, 3), timber dark; the middle arch's head at (240, 80), between the gantry's
   // rods (x 227 and 252), the sky's middle band. Each is clear of the HUD (the lives at the left, the boss bar's name and pips round
-  // x 215 to 265 above y 24, the hilo counter and the phone's pause button right of x 440), of the touch buttons (all below y 180 but
+  // x 215 to 265 down to y 23, the hilo counter and the phone's pause button right of x 440), of the touch buttons (all below y 180 but
   // pause), of the perches (x 0 to 64 and 416 to 480, y 96 to 112), the rails (y 112 on) and of her and Poncho (home, y 160 down).
   const points = [{ x: 170, y: 60 }, { x: 300, y: 3 }, { x: 240, y: 80 }];
   const [stone, roof, arch] = await pixelsAt(page, points);
