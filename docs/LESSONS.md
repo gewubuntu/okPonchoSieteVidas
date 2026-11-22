@@ -1173,3 +1173,13 @@ Retired IDs: L-046
 - **Recurrence 4 (2026-11-22, PR #121, GDD-TEC-10, found by the pr-reviewer):** the changelog and the PR description said a credit is "counted once per chain event" and that each placeholder is named in its code and in a test, and neither was in the diff: both sentences were copied from the plan. A claim that something is built is checked against the diff (a search for the function, the test name), never taken from the plan.
 - **Recurrence:** 4
 - **Promoted:** `harness-gdd-update` Rules ("Record each decision where it applies"), which now says that a decision is named in its section's status line and that a Decided paragraph or an ADR's Status holds only the clauses the user's words carry (L-097). Guard: none (whether a sentence states more than the user said can only be told by reading it against their words; the `pr-reviewer` reads every added GDD sentence against the open questions, and L-096's search for an open thing's words is the step that would have found this one).
+
+## L-098 A skill grew by one promotion at a time until its rules were missed
+
+- **Date:** 2026-11-22
+- **Area:** harness
+- **What went wrong:** `harness-feature` had grown to 3,339 words: step 5 held 13 blocks of rules as paragraphs of up to 2.4 KB, each a little longer after every recurrence, all read for a one-line fix too. Rules it already held were then missed (L-010 recurrence 34, "move a threshold by one"; L-013 recurrence 30). At that size it was also about as long as the 5,000 tokens of a skill that a context compaction keeps, and its last two steps hold the commit chained on the gate and the fetch of main before a push. Found by an audit of the skills the user asked for.
+- **Root cause:** The retro's second promotion path, "add a step to the relevant skill", had no limit, nothing measured a skill's size, and nothing said where a rule that applies only to some changes should live.
+- **Rule:** A skill's `SKILL.md` holds its steps. Rules that apply by kind of change live in files beside it, one rule to a line with its lesson, named in a table in the step that uses them (`.claude/skills/harness-feature/rules/`). A promotion to a skill tightens or replaces the sentence it sharpens where there is one, and otherwise adds a line to the file its kind of change reads, not to the steps.
+- **Recurrence:** 1
+- **Promoted:** .claude/skills/harness-feature (step 5 and its rules files) and .claude/skills/harness-retro (step 3: where a promotion to a skill is written)
