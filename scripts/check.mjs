@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { changedSections, changelogSectionErrors, gddVersionErrors } from './gdd-version.mjs';
 import { hunt, reportLine } from './gdd-hunt.mjs';
+import { lessonBrief, lessonEntry } from './lessons.mjs';
 import { changelogRange, pathErrors } from './harness-paths.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 import { determinismErrors } from './sim-determinism.mjs';
@@ -308,6 +309,18 @@ function checkSkills() {
   return errors;
 }
 
+// L-098: a skill is read whole each time it is used, and after a context compaction only its first 5,000 tokens are kept, so
+// a file that grows by a sentence per lesson ends up skimmed or cut. Every file of a skill stays under SKILL_WORDS words.
+const SKILL_WORDS = 2000;
+function checkSkillSize() {
+  const dir = join('.claude', 'skills');
+  if (!exists(dir)) return [];
+  return walk(dir).filter((f) => f.endsWith('.md')).flatMap((f) => {
+    const words = read(f).split(/\s+/).filter(Boolean).length;
+    return words > SKILL_WORDS ? [`SKILL: ${f.split(sep).join('/')} has ${words} words, over the ${SKILL_WORDS} a skill file may have; tighten it, or move rules that apply only to some changes into a file beside it (L-098)`] : [];
+  });
+}
+
 // Subagents in .claude/agents. Claude Code silently skips an agent with bad frontmatter, so the gate must not.
 function checkAgents() {
   const errors = [];
@@ -565,6 +578,7 @@ const checks = [
   ['lessons', checkLessons],
   ['lesson-references', checkLessonRefs],
   ['skills', checkSkills],
+  ['skill-size', checkSkillSize],
   ['agents', checkAgents],
   ['claude-settings', checkClaudeSettings],
   ['harness-paths', checkHarnessPaths],
@@ -578,6 +592,20 @@ const lessonsArg = process.argv.indexOf('--lessons');
 if (lessonsArg !== -1) {
   const next = process.argv[lessonsArg + 1];
   process.exit(printLessons(next && !next.startsWith('--') ? next.split(',').map((a) => a.trim()).filter(Boolean) : []));
+}
+
+// One lesson or several, each with its fields and only its last three occurrences (scripts/lessons.mjs).
+const lessonArg = process.argv.indexOf('--lesson');
+if (lessonArg !== -1) {
+  const ids = (process.argv[lessonArg + 1] ?? '').split(',').map((a) => a.trim()).filter(Boolean);
+  const entries = ids.map((id) => lessonEntry(read('docs/LESSONS.md'), id));
+  const unknown = ids.filter((_, i) => entries[i] === null);
+  if (ids.length === 0 || unknown.length) {
+    console.error(ids.length === 0 ? 'usage: node scripts/check.mjs --lesson L-NNN[,L-NNN...]' : `no lesson ${unknown.join(', ')} in docs/LESSONS.md`);
+    process.exit(2);
+  }
+  console.log(entries.map((e) => lessonBrief(e)).join('\n\n'));
+  process.exit(0);
 }
 
 // L-013, L-053: the stale-sentence hunt's reading list (scripts/gdd-hunt.mjs), for the sections the branch changed since its
@@ -625,6 +653,12 @@ if (process.argv.includes('--backlog-stub')) {
 
 let failed = 0;
 for (const [name, fn] of checks) {
+  // L-099: the toolchain is the last check and takes half an hour; with a harness check already failed nothing can be
+  // committed, so it is not run until those are fixed.
+  if (name === 'toolchain' && failed > 0) {
+    console.log('skip  toolchain: lint, typecheck and the tests are not run until the problem(s) above are fixed');
+    continue;
+  }
   const errors = fn();
   if (errors.length === 0) {
     console.log(`ok    ${name}`);

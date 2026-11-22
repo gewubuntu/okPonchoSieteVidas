@@ -32,6 +32,13 @@ check can tell the bad case from the good one>)`. `scripts/check.mjs` fails othe
 Record each new occurrence just above the `Recurrence` field as
 `- **Recurrence N (YYYY-MM-DD, PR #x or GDD ID):** what happened, and why the rule already in place did not stop it.`
 
+A recurrence is counted when the mistake is found after the push (by the `pr-reviewer` on a pushed head, by CI or by the
+user), or before it by anything other than the step meant to catch it (by luck, or by the user in the session). One that the
+step meant to catch it caught before the commit (the gate, a planned mutant, the `implementer`'s report, the local GDD audit)
+is that guard working and is not counted (user, 2026-11-22: "Only after the push"). Counts up to that date hold both kinds. A
+mistake that no lesson covers gets its entry either way. `node scripts/check.mjs --lesson L-NNN` prints an entry with its
+last three occurrences only.
+
 Entries are never deleted or renumbered and an ID is never reused. A new entry that turns out to repeat an older
 lesson stays: bump the older one and set the new one's `Promoted:` to `merged into L-NNN`. `scripts/check.mjs` fails on
 a missing ID unless it is listed below (L-046 was folded into L-014 on 2026-10-27, before this rule).
@@ -86,7 +93,7 @@ Retired IDs: L-046
 - **Recurrence 18 (2026-11-22, GDD-BOS-04 phase D1, found by the implementer's report before the commit):** my plan put La Catorce's plume half a px ahead of her box's middle, a figure I worked out by eye from the stud's place in the drawing; the stud's middle is 0.75 px ahead, so the plume was built a quarter px off it. The rule covers figures from the simulation and levels' data, and I did not read a place in a drawing as one; now `scripts/art/catorce.test.mjs` works `CATORCE_ART.plume.ahead` out from the drawing's `STUDS`.
 - **Recurrence 19 (2026-11-22, PR #120, GDD-BOS-04, found by the review):** I drew phase 3's slam without its 1 px forward and wrote in the GDD that she slams at the screen's edge, so the squash would leave the screen. She turns round on the step she arrives, so forward points into the room; I reasoned from the direction she was running and never ran the fight to see which way she faces on the squash's frames. The approved design's 1 px forward is restored, and the art and sprite tests now check it for every slam look.
 - **Recurrence:** 19
-- **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test). Guard: none (no script can tell a measured claim from one worked out by hand; the implementer measures every planned number in a test before the GDD takes it, which caught recurrence 8; a figure from a scratch test outside the repository stays a target, recurrence 9)
+- **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test). Guard: none (no script can tell a measured claim from one worked out by hand; the implementer measures every planned number in a test before the GDD takes it, which caught recurrence 8; a figure from a scratch test outside the repository stays a target, recurrence 9; since 2026-11-22 the implementer's report says for each figure which test asserts it and whether exactly, and only an exact one goes into the GDD, after recurrences 7, 12, 14 and 15)
 
 ## L-004 Debug hook returned the wrong value after landing
 
@@ -1182,4 +1189,14 @@ Retired IDs: L-046
 - **Root cause:** The retro's second promotion path, "add a step to the relevant skill", had no limit, nothing measured a skill's size, and nothing said where a rule that applies only to some changes should live.
 - **Rule:** A skill's `SKILL.md` holds its steps. Rules that apply by kind of change live in files beside it, one rule to a line with its lesson, named in a table in the step that uses them (`.claude/skills/harness-feature/rules/`). A promotion to a skill tightens or replaces the sentence it sharpens where there is one, and otherwise adds a line to the file its kind of change reads, not to the steps.
 - **Recurrence:** 1
-- **Promoted:** .claude/skills/harness-feature (step 5 and its rules files) and .claude/skills/harness-retro (step 3: where a promotion to a skill is written)
+- **Promoted:** .claude/skills/harness-feature (step 5 and its rules files), .claude/skills/harness-retro (step 3: where a promotion to a skill is written) and `scripts/check.mjs` (`skill-size`: no file of a skill has more than 2,000 words)
+
+## L-099 The gate ran half an hour of tests after its first check had already failed
+
+- **Date:** 2026-11-22
+- **Area:** harness, process
+- **What went wrong:** The unit tests of a new gate check named two GDD IDs that do not exist as fixtures. `gdd-references` failed in the gate's first second, the gate went on through lint, the typecheck and four test runs with its output in a log, and the commit chained on it failed half an hour later. In the scratch worktree where the check was built I had run its own tests and the new checks, not the gate's other checks.
+- **Root cause:** The harness checks and the toolchain ran as one pass with no early end, so a failure that costs a second to find cost a whole run to learn of, and nothing ran the fast checks alone.
+- **Rule:** The gate does not run lint, the typecheck and the tests while a harness check has failed. A test fixture that needs a GDD ID takes one that exists (`gdd-references` reads test files too).
+- **Recurrence:** 1
+- **Promoted:** `scripts/check.mjs` (the toolchain is skipped, with a line saying so, when a check before it failed)

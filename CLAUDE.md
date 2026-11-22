@@ -20,7 +20,7 @@ commit refers to a stable GDD ID such as `GDD-MOV-02`; a harness-only commit nam
 
 ## Work loop (every task)
 
-1. **Read** the GDD section(s) you are implementing, and the lessons: `node scripts/check.mjs --lessons` prints every lesson's title and rule (add areas to narrow it, e.g. `--lessons input,playtest`); read in full each entry in `docs/LESSONS.md` that applies. Before that, `git fetch origin main`: if the branch holds only merged history, restart it from `origin/main` (L-030).
+1. **Read** the GDD section(s) you are implementing, and the lessons: `node scripts/check.mjs --lessons` prints every lesson's title and rule (add areas to narrow it, e.g. `--lessons input,playtest`); read each entry that applies with `node scripts/check.mjs --lesson L-NNN,L-NNN` (its fields and its last three occurrences). Before that, `git fetch origin main`: if the branch holds only merged history, restart it from `origin/main` (L-030).
 2. **Plan** briefly. Name the GDD IDs touched. Ask the user only when blocked on a decision that is theirs.
 3. **Test first** where logic is testable (movement, lives, damage, save data are pure code).
 4. **Implement** the smallest change that satisfies the GDD text. For a feature, the main session writes the plan and the `implementer` subagent writes the tests and code from it, then the main session checks the result (`harness-feature` steps 5 to 7, `docs/HARNESS.md`).
@@ -59,6 +59,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `node scripts/check.mjs --backlog-stub` | Print backlog rows for GDD IDs missing from `docs/BACKLOG.md`. |
 | `node scripts/check.mjs --gdd-hunt [GDD-ID,...] [term,...]` | Print the sentences to read after a GDD change or a feature (L-013): those that name a section the branch changed, a GDD ID given or a term, in the GDD, the backlog, `CLAUDE.md`, `docs/HARNESS.md` and `.claude/`. |
 | `node scripts/check.mjs --lessons [area,...]` | Print each lesson's title, areas and rule from `docs/LESSONS.md`, only those areas' if named. |
+| `node scripts/check.mjs --lesson L-NNN[,L-NNN...]` | Print those lessons' entries, each with its last three occurrences only. |
 
 ## Repository map
 
@@ -87,6 +88,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 - A run must come out the same in every browser engine and in Node (GDD-TEC-09): code under `src/sim/`, `src/levels/` and `src/config/` takes its sine, cosine and hypot from `src/sim/detmath.ts`, never from `Math`, and reads no clock and no unseeded random number. The gate's `sim-determinism` check fails otherwise; a line that never reaches a step says why in a `// sim-determinism: <reason>` comment.
 - Input that starts something on a press (jump, claw, Fuego) is latched from raw key and pointer events with `src/ui/inputLatch.ts` and cleared by the step that uses it, never only polled once per frame (L-006). A new press-driven action needs a test in `e2e/subframe.spec.ts` that taps it inside one task. Pause (Escape, P) is the exception: it is applied per frame, not per step, from raw browser `keydown` events with auto-repeat ignored, so it needs no latch. It must not use Phaser `Key` `down` events, which can fire again on the release when a press and release land in one frame (L-006), and an extra event toggles the pause back. Its one-task tap tests are in `e2e/pause.spec.ts`. The gamepad is the other exception: browsers give no raw pad events, so it is polled once per frame in `src/ui/gamepad.ts` with no latch, and a press shorter than a frame can be missed (user, 2026-10-25; GDD-CTL-02, GDD-CTL-04). It needs no `e2e/subframe.spec.ts` test.
 - Do not add game code that no GDD ID asks for.
+- Where a general-purpose skill and a `harness-` skill or one of the two subagents serve the same purpose, the harness one is used: a pull request is reviewed by the `pr-reviewer`, the game is run and its screenshots taken with `harness-playtest`, a feature is built with `harness-feature`.
 - A dry run of a CI or deploy step first lists what differs on the runner (a fresh build with new mtimes, overlapping runs, a re-run of the workflow itself or of the one that triggers it, several runs for the same commit, a concurrency queue that keeps one pending run, missing secrets) and reproduces each, or the PR names the ones it does not cover (L-083).
 - Do not name AI models in repository files or in commit subjects and bodies. Attribution trailers (such as `Co-Authored-By`) follow the session's own instructions.
 - Commit on the branch the session designates. After every push, open a draft PR for the branch if it has no open one; a merged or closed PR does not count (user, 2026-11-01). A PR is marked ready for review only when its work is done: gate and CI green, the `pr-reviewer`'s blocking findings fixed, and for a visible change the user's screenshot approval.

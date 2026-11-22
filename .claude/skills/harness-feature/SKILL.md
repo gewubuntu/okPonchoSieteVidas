@@ -19,7 +19,7 @@ Implements exactly one GDD ID (or a small named group of them) from spec to test
    - every test, by name, with its setup and expected values written from the GDD, not from code. Test names include the GDD ID, e.g. `describe('GDD-MOV-02 jump', ...)`. Pure logic gets Vitest tests with no Phaser imports; a new press-driven action gets its one-task tap in `e2e/subframe.spec.ts`; a playtest or screenshot scenario follows the `harness-playtest` skill (load it before planning one);
    - the mutant list in the `scripts/mutate.mjs` format, each naming the test that must kill it;
    - whether the change is visible (screenshots needed) and which playtests to run. Motion counts (L-007): a change that moves what is drawn (a shake, an animation, a camera move, the timing of a drawn thing) is visible, since its frames differ; plan a screenshot scenario of its extreme frames (for a shake, its biggest down and up frames) and the user's approval, never "cannot be seen in a still frame";
-   - the lessons that apply, by ID, found with `node scripts/check.mjs --lessons <area,...>` (the implementer reads each one the plan names in full).
+   - the lessons that apply, by ID, found with `node scripts/check.mjs --lessons <area,...>` (the implementer reads each one the plan names with `--lesson`).
    - the rules files below that the plan followed.
    **Rules.** The rules a plan follows are in files beside this one, one rule to a line with its lesson. Read the first for every plan and each other whose row fits the change. A lesson, a hook message or a review that cites "harness-feature step 5" means this step and these files.
 
