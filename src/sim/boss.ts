@@ -1,6 +1,7 @@
 // GDD-BOS-01, GDD-BOS-02: Don Zopilote, World 1's boss: his flight, his cactus fruit and the rocks of his arena. He follows a fixed
 // pattern, with nothing left to chance: the only thing that varies is where Poncho is. Pure logic, no Phaser (GDD-TEC-02).
 import { BOSS, BOSS_ART, BOSS_DEFEAT, FRUIT, ROCK, STEP, TILE } from '../config/tuning';
+import { cos, sin } from './detmath';
 import { approach, type Box } from './enemy';
 import { hurtbox } from './hazards';
 import { squareBlocked } from './item';
@@ -68,7 +69,7 @@ const floorLine = (def: Boss): number => def.floor - BOSS.height / 2;
 /** Where he is `age` steps into a lap from `side`'s end: along the lower half first from the right end, the upper half first from the left. */
 export function lapPoint(def: Boss, side: 1 | -1, age: number): { x: number; y: number } {
   const phi = (2 * Math.PI * age) / BOSS.lapSteps;
-  return { x: def.x + side * BOSS.rx * Math.cos(phi), y: def.y + side * BOSS.ry * Math.sin(phi) };
+  return { x: def.x + side * BOSS.rx * cos(phi), y: def.y + side * BOSS.ry * sin(phi) };
 }
 
 /** At the start of a fight, or of the phase he is in after a lost life (GDD-BOS-01): the right end of his lap, a lap about to start, facing left. */

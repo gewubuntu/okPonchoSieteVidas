@@ -6,6 +6,7 @@ import { bossStart } from '../sim/boss';
 import { bottomRowAt, type Bottom } from '../sim/bottoms';
 import { cartFloor, railGround, railLength, type Rail } from '../sim/cart';
 import { catorceStart } from '../sim/catorce';
+import { hypot } from '../sim/detmath';
 import { estrellaStart } from '../sim/estrella';
 import { isBossLevel } from '../sim/bossLevel';
 import { freshCrumbles, withCrumbles } from '../sim/crumble';
@@ -557,7 +558,7 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
   for (const e of level.enemies) {
     const places = kindOf(e) === 'murcielago' ? loopOf(e) : [e];
     for (const r of respawns) {
-      const d = Math.min(...places.map((p) => Math.hypot(p.x - r.x, p.y - r.y)));
+      const d = Math.min(...places.map((p) => hypot(p.x - r.x, p.y - r.y)));
       if (d < LEVEL_RULES.enemyClearance) problems.push(`${kindOf(e)} at ${e.x},${e.y} is ${Math.floor(d)} px from the respawn at ${r.x},${r.y}, under ${LEVEL_RULES.enemyClearance}`);
     }
   }
@@ -573,14 +574,14 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
   // GDD-ENM-01, GDD-BOS-01: the boss starts at least 3 tiles from the spawn, his only respawn.
   if (level.boss) {
     const start = bossStart(level.boss, 0);
-    const d = Math.hypot(start.x - level.spawn.x, start.y - level.spawn.y);
+    const d = hypot(start.x - level.spawn.x, start.y - level.spawn.y);
     if (d < LEVEL_RULES.enemyClearance) problems.push(`the boss starts ${Math.floor(d)} px from the spawn, under ${LEVEL_RULES.enemyClearance}`);
   }
   // GDD-BOS-03: La Estrella too, by her box's middle, at the start of each phase: a lost life starts her phase again (GDD-BOS-01).
   if (level.estrella) {
     for (const hits of [0, 1, 2]) {
       const start = estrellaStart(level.estrella, hits);
-      const d = Math.hypot(start.x - level.spawn.x, start.y - ESTRELLA.height / 2 - level.spawn.y);
+      const d = hypot(start.x - level.spawn.x, start.y - ESTRELLA.height / 2 - level.spawn.y);
       if (d < LEVEL_RULES.enemyClearance) problems.push(`La Estrella starts phase ${hits + 1} ${Math.floor(d)} px from the spawn, under ${LEVEL_RULES.enemyClearance}`);
     }
   }
@@ -588,7 +589,7 @@ export function validateLevel(entry: LevelEntry): readonly string[] {
   if (level.catorce) {
     for (const hits of [0, 1, 2]) {
       const start = catorceStart(level.catorce, hits);
-      const d = Math.hypot(start.x - level.spawn.x, level.catorce.floor - CATORCE.height / 2 - level.spawn.y);
+      const d = hypot(start.x - level.spawn.x, level.catorce.floor - CATORCE.height / 2 - level.spawn.y);
       if (d < LEVEL_RULES.enemyClearance) problems.push(`La Catorce starts phase ${hits + 1} ${Math.floor(d)} px from the spawn, under ${LEVEL_RULES.enemyClearance}`);
     }
   }
