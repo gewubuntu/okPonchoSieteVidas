@@ -57,6 +57,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `harness-playtest` skill). |
 | `node scripts/mutate.mjs <mutants.json>` | Run mutants (L-010) and restore each file; `--restore` after an interrupted run, which the gate otherwise fails on (L-020). |
 | `node scripts/check.mjs --backlog-stub` | Print backlog rows for GDD IDs missing from `docs/BACKLOG.md`. |
+| `node scripts/check.mjs --gdd-hunt [GDD-ID,...] [term,...]` | Print the sentences to read after a GDD change or a feature (L-013): those that name a section the branch changed, a GDD ID given or a term, in the GDD, the backlog, `CLAUDE.md`, `docs/HARNESS.md` and `.claude/`. |
 | `node scripts/check.mjs --lessons [area,...]` | Print each lesson's title, areas and rule from `docs/LESSONS.md`, only those areas' if named. |
 
 ## Repository map

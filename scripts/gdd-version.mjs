@@ -64,15 +64,20 @@ export function changedSections(baseText, headText) {
   return [...changed, ...[...base.keys()].filter((id) => !head.has(id))];
 }
 
-/** The IDs a changelog line names before its first colon, with a range such as `GDD-CHAIN-01 to GDD-CHAIN-06` written out. */
-export function namedSections(line) {
-  const colon = line.indexOf(':');
+/** The GDD IDs a text names, with a range such as `GDD-CHAIN-01 to GDD-CHAIN-06` written out, whichever end comes first. */
+export function idsIn(text) {
   const ids = [];
-  for (const m of (colon < 0 ? line : line.slice(0, colon)).matchAll(/GDD-([A-Z]+)-(\d+)(?: to GDD-\1-(\d+))?/g)) {
-    const last = Number(m[3] ?? m[2]);
-    for (let n = Number(m[2]); n <= last; n++) ids.push(`GDD-${m[1]}-${String(n).padStart(m[2].length, '0')}`);
+  for (const m of text.matchAll(/GDD-([A-Z]+)-(\d+)(?: to GDD-\1-(\d+))?/g)) {
+    const ends = [Number(m[2]), Number(m[3] ?? m[2])];
+    for (let n = Math.min(...ends); n <= Math.max(...ends); n++) ids.push(`GDD-${m[1]}-${String(n).padStart(m[2].length, '0')}`);
   }
   return ids;
+}
+
+/** The IDs a changelog line names before its first colon. */
+export function namedSections(line) {
+  const colon = line.indexOf(':');
+  return idsIn(colon < 0 ? line : line.slice(0, colon));
 }
 
 /** A changelog line may name this section without changing it: a dependency review (`harness-gdd-update` step 2). */

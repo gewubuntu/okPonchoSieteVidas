@@ -9,7 +9,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { changelogSectionErrors, gddVersionErrors } from './gdd-version.mjs';
+import { changedSections, changelogSectionErrors, gddVersionErrors } from './gdd-version.mjs';
+import { hunt, reportLine } from './gdd-hunt.mjs';
 import { changelogRange, pathErrors } from './harness-paths.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 import { determinismErrors } from './sim-determinism.mjs';
@@ -577,6 +578,41 @@ const lessonsArg = process.argv.indexOf('--lessons');
 if (lessonsArg !== -1) {
   const next = process.argv[lessonsArg + 1];
   process.exit(printLessons(next && !next.startsWith('--') ? next.split(',').map((a) => a.trim()).filter(Boolean) : []));
+}
+
+// L-013, L-053: the stale-sentence hunt's reading list (scripts/gdd-hunt.mjs), for the sections the branch changed since its
+// merge base with origin/main and any terms given. It prints and never fails.
+const huntArg = process.argv.indexOf('--gdd-hunt');
+if (huntArg !== -1) {
+  // Every argument up to the next option, split at commas: a GDD ID counts as a changed section (a feature that edits no
+  // section of its own still hunts for its ID), anything else is a term.
+  const rest = process.argv.slice(huntArg + 1);
+  const args = rest.slice(0, rest.findIndex((a) => a.startsWith('--')) === -1 ? rest.length : rest.findIndex((a) => a.startsWith('--')))
+    .flatMap((a) => a.split(',')).map((a) => a.trim()).filter(Boolean);
+  const named = args.filter((a) => /^GDD-[A-Z]+-\d+$/.test(a));
+  const terms = args.filter((a) => !named.includes(a));
+  const gdd = read('docs/GDD.md');
+  let compared = false;
+  const changed = gddVersionErrors(gitText, gdd, false, (base, head) => { compared = true; return changedSections(base, head); });
+  const ids = [...new Set([...changed, ...named])];
+  const log = changelogRange(gdd.split('\n'));
+  const harness = ['CLAUDE.md', ...[join('.claude', 'skills'), join('.claude', 'agents')].filter(exists).flatMap((d) => walk(d))].filter((f) => f.endsWith('.md') && exists(f));
+  const found = hunt({
+    ids,
+    terms,
+    files: [
+      { name: 'docs/GDD.md', text: gdd, skip: (i) => log !== null && i > log.start && i <= log.end },
+      ...['docs/BACKLOG.md', 'docs/HARNESS.md', ...harness].filter(exists).map((f) => ({ name: f.split(sep).join('/'), text: read(f) })),
+    ],
+  });
+  console.log(compared
+    ? `gdd-hunt: ${changed.length} section(s) changed since the merge base with origin/main${changed.length ? `: ${changed.join(', ')}` : ''}`
+    : 'gdd-hunt: no merge base with origin/main, or no GDD there, so the changed sections are NOT known: run `git fetch origin main`, or name them as arguments');
+  if (named.length) console.log(`also hunted as changed: ${named.join(', ')}`);
+  if (terms.length) console.log(`terms: ${terms.join(', ')}`);
+  console.log(`${found.length} sentence(s) to read; "!" marks one with a status word (yet, only, not built, ...). Inside a hunted section only those and the terms are listed: re-read the section and its backlog row in full.`);
+  for (const f of found) console.log(reportLine(f));
+  process.exit(0);
 }
 
 if (process.argv.includes('--backlog-stub')) {

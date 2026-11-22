@@ -136,6 +136,7 @@ describe('gdd-changelog-sections (L-013)', () => {
     expect(namedSections('- **1.0.0** (2026-11-20) GDD-CHAIN-01 to GDD-CHAIN-03, GDD-LIFE-06: text')).toEqual(['GDD-CHAIN-01', 'GDD-CHAIN-02', 'GDD-CHAIN-03', 'GDD-LIFE-06']);
     expect(namedSections('- **1.0.0** (2026-11-20) GDD-WLD-09 to GDD-WLD-11: text')).toEqual(['GDD-WLD-09', 'GDD-WLD-10', 'GDD-WLD-11']);
     expect(namedSections('- **1.0.0** (2026-11-20) GDD-WLD-09 to GDD-UI-02: text')).toEqual(['GDD-WLD-09', 'GDD-UI-02']);
+    expect(namedSections('- **1.0.0** (2026-11-20) GDD-WLD-11 to GDD-WLD-09: text')).toEqual(['GDD-WLD-09', 'GDD-WLD-10', 'GDD-WLD-11']);
     expect(namedSections('- **1.0.0** (2026-11-20) a line with no colon that ends in GDD-WLD-09')).toEqual(['GDD-WLD-09']);
   });
 
