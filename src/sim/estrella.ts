@@ -4,6 +4,7 @@
 // (GDD-TEC-02).
 import { ESTRELLA, HITBOX, STEP, TEJOCOTE } from '../config/tuning';
 import { ponchoBox } from './boss';
+import { hypot, sin } from './detmath';
 import { overlaps, type Box } from './enemy';
 import { hurtbox } from './hazards';
 import { squareBlocked } from './item';
@@ -110,7 +111,7 @@ export function surfaceUnder(def: Estrella, awnings: readonly PlatformPos[], x: 
 /** Moves her towards (tx, ty) at `speed` px/s; she arrives on the step she reaches it. */
 function move(e: EstrellaState, speed: number): { at: EstrellaState; arrived: boolean } {
   const dist = speed * STEP;
-  const d = Math.hypot(e.tx - e.x, e.ty - e.y);
+  const d = hypot(e.tx - e.x, e.ty - e.y);
   if (d <= dist + EDGE) return { at: { ...e, x: e.tx, y: e.ty, age: e.age + 1 }, arrived: true };
   return { at: { ...e, x: e.x + ((e.tx - e.x) / d) * dist, y: e.y + ((e.ty - e.y) / d) * dist, age: e.age + 1 }, arrived: false };
 }
@@ -166,7 +167,7 @@ export function moveEstrella(def: Estrella, e: EstrellaState, player: PlayerStat
     }
     case 'hang': {
       // She sways about where she hangs on a sine, which is back at its middle when the hang ends; then the next spot.
-      if (age < ESTRELLA.hangSteps[p]) return still({ ...e, x: e.tx + ESTRELLA.swayPx[p] * Math.sin((2 * Math.PI * age) / ESTRELLA.swayPeriodSteps), age });
+      if (age < ESTRELLA.hangSteps[p]) return still({ ...e, x: e.tx + ESTRELLA.swayPx[p] * sin((2 * Math.PI * age) / ESTRELLA.swayPeriodSteps), age });
       const spots = def.spots[p];
       return still({ ...e, x: e.tx, mode: 'yank', age: 0, ty: ESTRELLA.highBottom, spot: (e.spot + 1) % spots.length });
     }

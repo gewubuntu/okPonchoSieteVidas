@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { gddVersionErrors } from './gdd-version.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
+import { determinismErrors } from './sim-determinism.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -511,6 +512,12 @@ function checkPhoneShotsByTouch() {
   return errors;
 }
 
+// GDD-TEC-09: nothing a step can reach calls what an engine may approximate, reads a clock or draws an unseeded random number
+// (scripts/sim-determinism.mjs).
+function checkSimDeterminism() {
+  return determinismErrors(textFiles().filter((f) => f.endsWith('.ts')).map((f) => ({ path: f.split(sep).join('/'), text: read(f) })));
+}
+
 // L-059: every character sprite sheet has a test that pins how far its frames reach past their box and fits them over the real levels
 // (scripts/sprite-fit.mjs).
 function checkSpriteFit() {
@@ -536,6 +543,7 @@ const checks = [
   ['whole-save-pins', checkWholeSavePins],
   ['phone-shots-by-touch', checkPhoneShotsByTouch],
   ['sprite-fit', checkSpriteFit],
+  ['sim-determinism', checkSimDeterminism],
   ['gdd', checkGdd],
   ['gdd-one-version', checkOneGddVersion],
   ['gdd-open-questions', checkOpenQuestionRefs],
