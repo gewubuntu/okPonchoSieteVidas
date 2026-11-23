@@ -111,9 +111,9 @@ export function writeRecord(record: RunRecord): string {
 const isFlags = (v: unknown): v is boolean[] => Array.isArray(v) && v.every((b) => typeof b === 'boolean');
 const isTexts = (v: unknown): v is string[] => Array.isArray(v) && v.every((s) => typeof s === 'string');
 
-/** The abilities as read, or null when a field is there and is not true or false. */
+/** The abilities as read, or null when it is no plain object or a field is there and is not `true`: a record's abilities only add. */
 function abilitiesOf(value: unknown): Abilities | null {
-  if (typeof value !== 'object' || value === null) return null;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const { glide, wallCling } = value as { glide?: unknown; wallCling?: unknown };
   const out: { glide?: boolean; wallCling?: boolean } = {};
   // An ability a record names is one it adds (an unlock): `true` or left out. A `false` could only take away what the level has itself.
@@ -134,8 +134,8 @@ function resumeOf(value: unknown): Omit<SavedRun, 'level'> | null | undefined {
 }
 
 /**
- * The header as read, or null when a field is not of the type `RecordHeader` names (its values are not checked: `replayRecord` holds them
- * to the level), or the saved run does not match the start: a 'resume' has one, a 'start' and a 'restart' have none.
+ * The header as read, or null when a field is not of the type `RecordHeader` names, the seed is no whole number from 0 that a number holds
+ * exactly, an ability is turned off (the other values are not checked: `replayRecord` holds them to the level), or the saved run does not match the start: a 'resume' has one, a 'start' and a 'restart' have none.
  */
 function headerOf(data: object): RecordHeader | null {
   const { format, sim, level, seed, token, start, lives, hilos, abilities, resume } = data as { format?: unknown; sim?: unknown; level?: unknown; seed?: unknown; token?: unknown; start?: unknown; lives?: unknown; hilos?: unknown; abilities?: unknown; resume?: unknown };
@@ -149,7 +149,8 @@ function headerOf(data: object): RecordHeader | null {
 
 /**
  * The record `writeRecord` wrote as `text`, or null for anything malformed: not JSON, a header field not of its type (another format
- * among them), no inputs, a bad token, a count under 1 or past the safe integers, or more than `maxSteps` steps in all (the caller's
+ * among them), no inputs, a bad token, inputs not written as `writeRecord` writes them (a count under 2 or past the safe integers, two runs of one
+ * code side by side), or more than `maxSteps` steps in all (the caller's
  * limit, a whole number of 0 or more; a held mark is no step). The counts are added up before any entry is built.
  */
 export function readRecord(text: string, maxSteps: number): RunRecord | null {

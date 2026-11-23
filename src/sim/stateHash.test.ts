@@ -33,6 +33,7 @@ describe('GDD-TEC-09 state hash', () => {
   it('GDD-TEC-09 stateText: a key is written as a string is, so one key cannot pass for two fields', () => {
     expect(stateText({ 'a:T,b': true })).toBe('{"a:T,b":T}');
     expect(stateText({ 'a:T,b': true })).not.toBe(stateText({ a: true, b: true }));
+    expect(stateText({ 'ñ': true })).toBe('{"\\u00f1":T}');
     expect(stateText({ 'a"': 1 })).toBe('{"a\\"":n3ff0000000000000}');
   });
 

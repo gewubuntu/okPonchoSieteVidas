@@ -208,7 +208,7 @@ describe('GDD-TEC-09 record and replay', () => {
       expect(read(text('aa', over))!.header, JSON.stringify(over)).toStrictEqual(header(over));
     }
     // An ability is added or left out, never turned off; a seed is a whole number from 0 that a number holds exactly.
-    for (const abilities of [{ glide: false }, { wallCling: false }, { glide: true, wallCling: false }]) expect(read(text('aa', { abilities })), JSON.stringify(abilities)).toBeNull();
+    for (const abilities of [{ glide: false }, { wallCling: false }, { glide: true, wallCling: false }, [], 'glide', 5, null]) expect(read(text('aa', { abilities })), JSON.stringify(abilities)).toBeNull();
     for (const seed of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) expect(read(text('aa', { seed })), String(seed)).toBeNull();
     expect(read(text('aa').replace('"seed":0', '"seed":1e999'))).toBeNull();
     const bare = { ...resumed, used: [], hilos: [] };
@@ -303,6 +303,15 @@ describe('GDD-TEC-09 record and replay', () => {
     expect(glidesOn({})).toBe(true);
     expect(glidesOn({ glide: false })).toBe(true);
     expect(glidesOn({ wallCling: true })).toBe(true);
+    // The wall cling, alone: a jump into a wall clings only with it, and the level's own stays on.
+    const rows = ['#.........', '#.........', '#.........', '#.........', '#.........', '#.........', '##########'];
+    const wall: Level = { world: parseTiles(rows), spawn: { x: 40, y: 96 }, ofrendas: [], spikes: [], crumbles: [], springs: [], platforms: [], tacos: [], pinatas: [], doors: [], keys: [], fragiles: [], enemies: [] };
+    const intoWall = steps({ move: -1, jumpHeld: true }, 60);
+    const clings = (abilities: RecordHeader['abilities'], level: Level): boolean => statesOf(record(intoWall, { abilities, hilos: '' }), level).some((s) => s.player.clinging === true);
+    expect(clings({ wallCling: true }, wall)).toBe(true);
+    expect(clings({}, wall)).toBe(false);
+    expect(clings({ glide: true }, wall)).toBe(false);
+    expect(clings({ wallCling: false }, { ...wall, abilities: { wallCling: true } })).toBe(true);
   });
 
   it('GDD-TEC-09 a held mark holds the jump back', () => {
