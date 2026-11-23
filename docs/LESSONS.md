@@ -1036,8 +1036,9 @@ Retired IDs: L-046
 - **Root cause:** the changelog line was written while the run was planned and committed before its result came back; nothing ties a "passing" claim to a finished run.
 - **Rule:** write that a check passed only after its run has finished, naming where (local or CI); until then write that it is pending.
 - **Recurrence 2 (2026-11-09, PR #88):** the review fix moved vite to 8.3.7 and kept the changelog's "the full playtest suite passing in CI", which held for the earlier head while CI's playtests on the new head were still running (found in the re-review). The lesson was a day old and in no step that a changelog edit goes through.
-- **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-gdd-update (step 3: a changelog claim that a check passed names a finished run on the head it describes)
+- **Recurrence 3 (2026-11-23, PR #123, found by the re-review):** the description and a commit message said the new `gdd-changelog-sections` check, replayed over the last 27 GDD commits on main, "fails one and none wrongly". I had run that replay before the check learned to leave Open Question numbers out, and before main gained 0.13.4, and did not run it again: on the head it failed three, one of them wrongly (0.11.7 named four sections whose only change was a renumbered question). The rule speaks of a changelog; a measured claim in a PR description or a commit message goes stale the same way when the code it measured changes.
+- **Recurrence:** 3
+- **Promoted:** .claude/skills/harness-gdd-update (step 3: a changelog claim that a check passed names a finished run on the head it describes); since recurrence 3 the same holds for a measured claim in a PR description or a commit message. Guard: none (whether a figure was measured on the code it describes can only be told by running it again; the `pr-reviewer` re-runs the claims a description makes)
 
 ## L-085 A command blocked by a hook was re-run only in part, and its edits were lost
 

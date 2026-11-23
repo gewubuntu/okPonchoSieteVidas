@@ -124,6 +124,8 @@ describe('gdd-changelog-sections (L-013)', () => {
     expect(changedSections(cite('See Open Question 7. And Open Questions 8, 9 and 12 or 14 to 16.'), cite('See Open Question 6. And Open Questions 7, 8 and 11 or 13 to 15.'))).toEqual([]);
     expect(changedSections(cite('See Open Question 7 (a).'), cite('See Open Question 6 (b).'))).toEqual(['GDD-WLD-02']);
     expect(changedSections(cite('Question 7 of 9.'), cite('Question 6 of 9.'))).toEqual(['GDD-WLD-02']);
+    expect(changedSections(cite('See Open Question 7.'), cite('See Open Question 6.'), true)).toEqual(['GDD-WLD-02']);
+    expect(changedSections(cite('body \n\n'), cite('body'), true)).toEqual([]);
   });
 
   it('does not count a change outside the sections', () => {
@@ -146,6 +148,13 @@ describe('gdd-changelog-sections (L-013)', () => {
 
   it('passes a branch that changes no section and adds no version', () => {
     expect(changelogSectionErrors(base, base)).toEqual([]);
+  });
+
+  it('lets a section whose only change is a renumbered Open Question be named or left out', () => {
+    const renumbered = (ids) => changelogSectionErrors(doc('', edit('GDD-WLD-02', 'See Open Question 7.')), doc(line(ids), edit('GDD-WLD-02', 'See Open Question 6.').map((s) => (s[0] === 'GDD-WLD-01' ? [s[0], 'ONE'] : s))));
+    expect(renumbered('GDD-WLD-01')).toEqual([]);
+    expect(renumbered('GDD-WLD-01, GDD-WLD-02')).toEqual([]);
+    expect(renumbered('GDD-WLD-01, GDD-UI-05')).toHaveLength(1);
   });
 
   it('fails a line that names a section on a branch that changes none', () => {

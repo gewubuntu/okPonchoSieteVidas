@@ -56,11 +56,16 @@ export function sectionTexts(text) {
 /** A section's text as compared: without the blank lines at its end, and with the numbers of the Open Questions it cites taken out, since removing an answered question renumbers the ones after it in every section (`harness-gdd-update` step 4). */
 const compared = (text) => text?.trimEnd().replace(/(Open Questions?) \d+(?:(?:, | and | to | or )\d+)*/g, '$1 N');
 
-/** The IDs whose section differs between the two texts, blank end lines and Open Question numbers aside: the head's sections in its order, then the ones it lost. */
-export function changedSections(baseText, headText) {
+/**
+ * The IDs whose section differs between the two texts, blank end lines aside: the head's sections in its order, then the
+ * ones it lost. Open Question numbers are left out of the comparison too, unless `exact`: then a section whose only change
+ * is such a number counts as changed.
+ */
+export function changedSections(baseText, headText, exact = false) {
   const base = sectionTexts(baseText);
   const head = sectionTexts(headText);
-  const changed = [...head.keys()].filter((id) => compared(base.get(id)) !== compared(head.get(id)));
+  const as = exact ? (text) => text?.trimEnd() : compared;
+  const changed = [...head.keys()].filter((id) => as(base.get(id)) !== as(head.get(id)));
   return [...changed, ...[...base.keys()].filter((id) => !head.has(id))];
 }
 
@@ -94,7 +99,9 @@ export function changelogSectionErrors(baseText, headText, baseName = 'origin/ma
   }
   const named = namedSections(headText.split('\n').find((l) => l.startsWith(`- **${version}**`)) ?? '');
   const unnamed = changed.filter((id) => !named.includes(id));
-  const untouched = named.filter((id) => !changed.includes(id) && id !== REVIEW_ONLY);
+  // A section whose only change is a renumbered Open Question may be named or left out: it is in `touched`, not in `changed`.
+  const touched = changedSections(baseText, headText, true);
+  const untouched = named.filter((id) => !touched.includes(id) && id !== REVIEW_ONLY);
   const errors = [];
   if (unnamed.length > 0) errors.push(`GDD: the changelog line of ${version} does not name ${unnamed.join(', ')}, which changed since ${baseName}; the line names every section the diff changes (harness-gdd-update step 3, L-013). ${stale}`);
   if (untouched.length > 0) errors.push(`GDD: the changelog line of ${version} names ${untouched.join(', ')}, which did not change since ${baseName}; the line names no section the diff leaves alone (harness-gdd-update step 3, L-013). ${stale}`);

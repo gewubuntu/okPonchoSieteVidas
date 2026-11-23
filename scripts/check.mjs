@@ -637,6 +637,8 @@ if (huntArg !== -1) {
     ? `gdd-hunt: ${changed.length} section(s) changed since the merge base with origin/main${changed.length ? `: ${changed.join(', ')}` : ''}`
     : 'gdd-hunt: no merge base with origin/main, or no GDD there, so the changed sections are NOT known: run `git fetch origin main`, or name them as arguments');
   if (named.length) console.log(`also hunted as changed: ${named.join(', ')}`);
+  const known = new Set(parseGdd().defs.map((d) => d.id));
+  for (const id of named.filter((n) => !known.has(n))) console.log(`NOTE: ${id} is no section of the GDD, so nothing is listed for it: a slip of the keys?`);
   if (terms.length) console.log(`terms: ${terms.join(', ')}`);
   console.log(`${found.length} sentence(s) to read; "!" marks one with a status word (yet, only, not built, ...). Inside a hunted section only those and the terms are listed: re-read the section and its backlog row in full.`);
   for (const f of found) console.log(reportLine(f));
