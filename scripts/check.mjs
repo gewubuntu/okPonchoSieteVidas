@@ -9,7 +9,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { gddVersionErrors } from './gdd-version.mjs';
+import { changedSections, changelogSectionErrors, gddVersionErrors } from './gdd-version.mjs';
+import { hunt, reportLine } from './gdd-hunt.mjs';
+import { lessonBrief, lessonEntry } from './lessons.mjs';
+import { changelogRange, pathErrors } from './harness-paths.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 import { determinismErrors } from './sim-determinism.mjs';
 
@@ -93,10 +96,19 @@ function checkGdd() {
 
 // L-057: one GDD version per pull request (scripts/gdd-version.mjs): the working tree's GDD against the one at the merge
 // base with origin/main. Without that base it passes, except under CI, where it fails.
+// The GDD is near Node's default output limit of 1 MB, past which `git show` fails and both checks would pass unseen.
+const gitText = (...args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 28 });
+
 function checkOneGddVersion() {
   if (!exists('docs/GDD.md')) return [];
-  const git = (...args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
-  return gddVersionErrors(git, read('docs/GDD.md'), Boolean(process.env['CI']));
+  return gddVersionErrors(gitText, read('docs/GDD.md'), Boolean(process.env['CI']));
+}
+
+// L-013: the branch's changelog line names every section its diff changes and no other (scripts/gdd-version.mjs), against the
+// same merge base. Without that base it passes, under CI too: gdd-one-version has failed there already.
+function checkChangelogSections() {
+  if (!exists('docs/GDD.md')) return [];
+  return gddVersionErrors(gitText, read('docs/GDD.md'), false, changelogSectionErrors);
 }
 
 // Open Questions are a numbered list, so removing one renumbers the ones after it. A reference past the end of the list is
@@ -297,6 +309,18 @@ function checkSkills() {
   return errors;
 }
 
+// L-098: a skill is read whole each time it is used, and after a context compaction only its first 5,000 tokens are kept, so
+// a file that grows by a sentence per lesson ends up skimmed or cut. Every file of a skill stays under SKILL_WORDS words.
+const SKILL_WORDS = 2000;
+function checkSkillSize() {
+  const dir = join('.claude', 'skills');
+  if (!exists(dir)) return [];
+  return walk(dir).filter((f) => f.endsWith('.md')).flatMap((f) => {
+    const words = read(f).split(/\s+/).filter(Boolean).length;
+    return words > SKILL_WORDS ? [`SKILL: ${f.split(sep).join('/')} has ${words} words, over the ${SKILL_WORDS} a skill file may have; tighten it, or move rules that apply only to some changes into a file beside it (L-098)`] : [];
+  });
+}
+
 // Subagents in .claude/agents. Claude Code silently skips an agent with bad frontmatter, so the gate must not.
 function checkAgents() {
   const errors = [];
@@ -374,17 +398,12 @@ function checkClaudeSettings() {
 function checkHarnessPaths() {
   const files = ['CLAUDE.md', ...[join('.claude', 'skills'), join('.claude', 'agents')].filter(exists).flatMap((d) => walk(d))]
     .filter((f) => f.endsWith('.md') && exists(f));
-  const errors = [];
-  for (const f of files) {
-    read(f).split('\n').forEach((line, i) => {
-      for (const [, span] of line.matchAll(/`([^`]+)`/g)) {
-        for (const word of span.split(/\s+/)) {
-          const p = word.replace(/^["'(]+|["'),.:;]+$/g, '').replace(/:\d+(-\d+)?$/, '');
-          if (!/^(src|e2e|scripts|docs|assets|\.claude|\.github)\//.test(p) || /[<>*{}$]/.test(p)) continue;
-          if (!exists(p)) errors.push(`${f.split(sep).join('/')}:${i + 1}: \`${p}\` does not exist; fix the text that names it`);
-        }
-      }
-    });
+  const errors = files.flatMap((f) => pathErrors(f.split(sep).join('/'), read(f), exists));
+  // L-013: the design documents too, where a file designed and not built yet is marked " (planned)". The GDD's changelog is
+  // history and keeps the paths of its day.
+  for (const f of ['docs/GDD.md', 'docs/BACKLOG.md'].filter(exists)) {
+    const log = changelogRange(read(f).split('\n'));
+    errors.push(...pathErrors(f, read(f), exists, { planned: true, skip: (i) => log !== null && i > log.start && i <= log.end }));
   }
   return errors;
 }
@@ -552,12 +571,14 @@ const checks = [
   ['sim-determinism', checkSimDeterminism],
   ['gdd', checkGdd],
   ['gdd-one-version', checkOneGddVersion],
+  ['gdd-changelog-sections', checkChangelogSections],
   ['gdd-open-questions', checkOpenQuestionRefs],
   ['gdd-references', checkReferences],
   ['backlog', checkBacklog],
   ['lessons', checkLessons],
   ['lesson-references', checkLessonRefs],
   ['skills', checkSkills],
+  ['skill-size', checkSkillSize],
   ['agents', checkAgents],
   ['claude-settings', checkClaudeSettings],
   ['harness-paths', checkHarnessPaths],
@@ -573,6 +594,57 @@ if (lessonsArg !== -1) {
   process.exit(printLessons(next && !next.startsWith('--') ? next.split(',').map((a) => a.trim()).filter(Boolean) : []));
 }
 
+// One lesson or several, each with its fields and only its last three occurrences (scripts/lessons.mjs).
+const lessonArg = process.argv.indexOf('--lesson');
+if (lessonArg !== -1) {
+  const ids = (process.argv[lessonArg + 1] ?? '').split(',').map((a) => a.trim()).filter(Boolean);
+  const entries = ids.map((id) => lessonEntry(read('docs/LESSONS.md'), id));
+  const unknown = ids.filter((_, i) => entries[i] === null);
+  if (ids.length === 0 || unknown.length) {
+    console.error(ids.length === 0 ? 'usage: node scripts/check.mjs --lesson L-NNN[,L-NNN...]' : `no lesson ${unknown.join(', ')} in docs/LESSONS.md`);
+    process.exit(2);
+  }
+  console.log(entries.map((e) => lessonBrief(e)).join('\n\n'));
+  process.exit(0);
+}
+
+// L-013, L-053: the stale-sentence hunt's reading list (scripts/gdd-hunt.mjs), for the sections the branch changed since its
+// merge base with origin/main and any terms given. It prints and never fails.
+const huntArg = process.argv.indexOf('--gdd-hunt');
+if (huntArg !== -1) {
+  // Every argument up to the next option, split at commas: a GDD ID counts as a changed section (a feature that edits no
+  // section of its own still hunts for its ID), anything else is a term.
+  const rest = process.argv.slice(huntArg + 1);
+  const args = rest.slice(0, rest.findIndex((a) => a.startsWith('--')) === -1 ? rest.length : rest.findIndex((a) => a.startsWith('--')))
+    .flatMap((a) => a.split(',')).map((a) => a.trim()).filter(Boolean);
+  const named = args.filter((a) => /^GDD-[A-Z]+-\d+$/.test(a));
+  const terms = args.filter((a) => !named.includes(a));
+  const gdd = read('docs/GDD.md');
+  let compared = false;
+  const changed = gddVersionErrors(gitText, gdd, false, (base, head) => { compared = true; return changedSections(base, head); });
+  const ids = [...new Set([...changed, ...named])];
+  const log = changelogRange(gdd.split('\n'));
+  const harness = ['CLAUDE.md', ...[join('.claude', 'skills'), join('.claude', 'agents')].filter(exists).flatMap((d) => walk(d))].filter((f) => f.endsWith('.md') && exists(f));
+  const found = hunt({
+    ids,
+    terms,
+    files: [
+      { name: 'docs/GDD.md', text: gdd, skip: (i) => log !== null && i > log.start && i <= log.end },
+      ...['docs/BACKLOG.md', 'docs/HARNESS.md', ...harness].filter(exists).map((f) => ({ name: f.split(sep).join('/'), text: read(f) })),
+    ],
+  });
+  console.log(compared
+    ? `gdd-hunt: ${changed.length} section(s) changed since the merge base with origin/main${changed.length ? `: ${changed.join(', ')}` : ''}`
+    : 'gdd-hunt: no merge base with origin/main, or no GDD there, so the changed sections are NOT known: run `git fetch origin main`, or name them as arguments');
+  if (named.length) console.log(`also hunted as changed: ${named.join(', ')}`);
+  const known = new Set(parseGdd().defs.map((d) => d.id));
+  for (const id of named.filter((n) => !known.has(n))) console.log(`NOTE: ${id} is no section of the GDD, so nothing is listed for it: a slip of the keys?`);
+  if (terms.length) console.log(`terms: ${terms.join(', ')}`);
+  console.log(`${found.length} sentence(s) to read; "!" marks one with a status word (yet, only, not built, ...). Inside a hunted section only those and the terms are listed: re-read the section and its backlog row in full.`);
+  for (const f of found) console.log(reportLine(f));
+  process.exit(0);
+}
+
 if (process.argv.includes('--backlog-stub')) {
   const have = new Set(parseBacklog().map((r) => r.id));
   for (const d of parseGdd().defs) {
@@ -583,6 +655,12 @@ if (process.argv.includes('--backlog-stub')) {
 
 let failed = 0;
 for (const [name, fn] of checks) {
+  // L-099: the toolchain is the last check and takes half an hour; with a harness check already failed nothing can be
+  // committed, so it is not run until those are fixed.
+  if (name === 'toolchain' && failed > 0) {
+    console.log('skip  toolchain: lint, typecheck and the tests are not run until the problem(s) above are fixed');
+    continue;
+  }
   const errors = fn();
   if (errors.length === 0) {
     console.log(`ok    ${name}`);

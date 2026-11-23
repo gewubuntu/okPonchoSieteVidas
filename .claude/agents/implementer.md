@@ -13,7 +13,7 @@ You are invoked with the path of a plan file (`.plans/<GDD-ID>.md`). You start w
 
 ## Ground rules
 
-- Before you change anything, read the plan, every GDD section it names, the full entries in `docs/LESSONS.md` of the lessons it names, and the title and rule of every other lesson (`node scripts/check.mjs --lessons`). `CLAUDE.md` is already in your context.
+- Before you change anything, read the plan, every GDD section it names, the entries of the lessons it names (`node scripts/check.mjs --lesson L-NNN,L-NNN` prints each with its last three occurrences), and the title and rule of every other lesson (`node scripts/check.mjs --lessons`). `CLAUDE.md` is already in your context.
 - **Build the plan, nothing more.** No behaviour, file or tuning number the plan does not list. Tuning numbers come from the plan and the GDD, and live in `src/config/tuning.ts`.
 - **Never edit `docs/GDD.md`, `docs/BACKLOG.md`, `docs/LESSONS.md`, `.claude/` or `scripts/check.mjs`.** The main session owns the design and the harness.
 - **Never commit, push, switch branches or open PRs, and never run `git stash`, `git reset`, `git clean`, `git checkout` or `git restore`.** Leave your changes in the working tree, which may also hold the main session's uncommitted work; undo your own edits with Edit.
@@ -36,6 +36,7 @@ End with a short report, which is all the main session sees:
 - Files changed, one line each.
 - Gate, playtest and shots results (pass, or the failing output).
 - The mutants file, then each mutant: name, the test that killed it, or "survived" and what you did.
+- Every figure you measured, those the plan asked for and any other number you report from a run: the test that asserts it, and "exact" if the test asserts that very value or "not pinned" if it asserts a bound or nothing. Only an exact figure goes into the GDD (L-003).
 - Every deviation from the plan, every gap you found in it, every guard you deleted, and every question you stopped on. Say "none" if there were none.
 
 Report only what you ran and saw. If something was skipped or failed, say so.
