@@ -1,8 +1,9 @@
 // server-one-way (docs/decisions/0004-game-server.md, L-008): the server imports the game, never the other way round, so the
 // game's build holds none of it. Every file under `src/` is parsed, and each text in it that is a relative path leading
 // into the top-level `server/` folder is an error, however it is used: `import ... from`, a bare `import '...'`, `import()`,
-// `export ... from`, `import.meta.glob(...)`, `vi.mock(...)`. Comments are not read, and a folder named `server` inside
-// `src/` is not the server.
+// `export ... from`, `import.meta.glob(...)`, `vi.mock(...)`; so is a path from the project's root (`/server/...`), which a
+// glob may use. Comments are not read, and a folder named `server` inside `src/` is not the server. A glob with a wildcard
+// where the folder's name stands (`../../*/ledger.ts`) is not read.
 import { createRequire } from 'node:module';
 import { posix } from 'node:path';
 
@@ -20,8 +21,12 @@ function* nodes(node) {
   }
 }
 
-/** Where a relative path written in the file at `from` leads, from the repository's root; null for one that is not relative. */
+/**
+ * Where a path written in the file at `from` leads, from the repository's root: a relative one from that file's folder, one
+ * that starts with `/` from the root itself, as Vite reads it (a glob may be written so). Null for any other text.
+ */
 export function target(from, written) {
+  if (written.startsWith('/')) return posix.join('.', written); // join drops the leading slash and takes the `..` out
   if (!/^\.\.?\//.test(written)) return null;
   return posix.join(posix.dirname(from), written); // join also takes the `..` out
 }

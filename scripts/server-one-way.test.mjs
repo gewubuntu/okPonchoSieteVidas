@@ -17,6 +17,10 @@ describe('server-one-way (L-008)', () => {
     expect(target('src/ui/a.ts', './server/api')).toBe('src/ui/server/api');
     expect(target('src/sim/a.ts', './b')).toBe('src/sim/b');
     expect(target('src/sim/a.ts', 'server/ledger')).toBeNull();
+    expect(target('src/sim/a.ts', '/server/ledger.ts')).toBe('server/ledger.ts');
+    expect(target('src/sim/a.ts', '/assets/x.png')).toBe('assets/x.png');
+    expect(target('src/sim/a.ts', '/server/../src/x')).toBe('src/x');
+    expect(target('src/sim/a.ts', '//server/x')).toBe('server/x');
     expect(target('src/sim/a.ts', 'viem')).toBeNull();
     expect(target('src/sim/a.ts', '.hidden/x')).toBeNull();
     expect(target('src/sim/a.ts', '...')).toBeNull();
@@ -33,6 +37,7 @@ describe('server-one-way (L-008)', () => {
     expect(errorsOf('const m = await import(`../../server/ledger`);')).toEqual([at(1, '../../server/ledger')]);
     expect(errorsOf("const all = import.meta.glob('../../server/*.ts');")).toEqual([at(1, '../../server/*.ts')]);
     expect(errorsOf("vi.mock('../../server/ledger');")).toEqual([at(1, '../../server/ledger')]);
+    expect(errorsOf("const l = import.meta.glob('/server/ledger.ts', { eager: true });")).toEqual([at(1, '/server/ledger.ts')]);
     expect(errorsOf("import '../../server';")).toEqual([at(1, '../../server')]);
     expect(errorsOf('const m = await import(`../../server/${name}`);')).toEqual([at(1, '../../server/')]);
   });
@@ -44,6 +49,7 @@ describe('server-one-way (L-008)', () => {
     expect(errorsOf("const name = 'server/ledger';\nconst other = '../../servers/x';\nconst near = '../../serverless';")).toEqual([]);
     expect(errorsOf('const p = `../../${folder}/ledger`;')).toEqual([]);
     expect(errorsOf('const n = 5;\nconst r = /..\\/server/;')).toEqual([]);
+    expect(errorsOf("const img = '/assets/x.png';\nconst main = '/src/main.ts';\nconst s = '/servers/x';")).toEqual([]);
   });
 
   it('reads a plain module as one, and says so when a file does not parse', () => {
