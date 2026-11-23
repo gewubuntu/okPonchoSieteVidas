@@ -4,6 +4,7 @@ Rules for step 5 of the `harness-feature` skill, one to a line, each with the le
 
 ## Mutants (L-010)
 
+- Once the code is written, `node scripts/mutate.mjs --suggest` lists a mutant for every bound (`<`, `<=`, `>`, `>=`) and every operand of an `&&` or `||` on the lines the branch changed. Each one gets its test and is killed, or is taken out with the reason it changes nothing; none is left unanswered.
 - Every code change the plan lists (each call added to a scene path too) gets its own mutant, and every mutant a test in the same plan (L-029).
 - A number the scene computes and hands to Phaser (a playback rate, a position, a colour) gets a mutant too: move the computation into a pure helper with a unit test, and have the scene log what it passed so a playtest can check it.
 - Go sentence by sentence through the GDD text, not bullet by bullet: split each new bullet into its clauses ("A or B wins over C" is two rules; a warning or a pose drawn on screen is a rule too) and give each clause its own mutant (remove the rule, move a threshold by one).

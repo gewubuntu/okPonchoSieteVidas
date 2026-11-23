@@ -44,6 +44,8 @@ project get better at itself over time.
 
 `node scripts/check.mjs --lesson L-NNN[,L-NNN...]` prints those lessons' entries, each with its last three occurrences only (`scripts/lessons.mjs`), for reading before work; `docs/LESSONS.md` keeps every occurrence.
 
+`node scripts/mutate.mjs --suggest [base]` prints a mutants file for the code lines (under `src/`, `server/` and `scripts/`, tests aside) changed since the merge base with `origin/main`, uncommitted and untracked ones included: for each comparison its bound moved one step, and for each `&&` or `||` chain each operand dropped (`scripts/mutant-suggest.mjs`, L-010). Its mutants name no test, and the runner counts a mutant with no test as not caught, so each one is answered: a test that kills it, or the reason it changes nothing. The runner stops a mutant's test after 600 seconds, or the file's `timeout`, and counts it as not caught (L-064).
+
 ## The improvement loop
 
 ```

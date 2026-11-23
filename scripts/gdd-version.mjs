@@ -53,8 +53,8 @@ export function sectionTexts(text) {
   return out;
 }
 
-/** A section's text as compared: without the blank lines at its end, and with the numbers of the Open Questions it cites taken out, since removing an answered question renumbers the ones after it in every section (`harness-gdd-update` step 4). */
-const compared = (text) => text?.trimEnd().replace(/(Open Questions?) \d+(?:(?:, | and | to | or )\d+)*/g, '$1 N');
+/** A section's text as compared: without the blank lines at its end, and with each number of the Open Questions it cites read as the same (how many it cites still counts), since removing an answered question renumbers the ones after it in every section (`harness-gdd-update` step 4). */
+const compared = (text) => text?.trimEnd().replace(/Open Questions? \d+(?:(?:, | and | to | or )\d+)*/g, (cited) => cited.replace(/\d+/g, 'N'));
 
 /**
  * The IDs whose section differs between the two texts, blank end lines aside: the head's sections in its order, then the

@@ -76,3 +76,14 @@ export function reportLine(f, width = 300) {
   const text = f.text.length <= width ? f.text : `${f.text.slice(0, width - 1)}…`;
   return `${f.status ? '!' : ' '} ${f.file}:${f.line}${f.owner ? ` [${f.owner}]` : ''} ${text}`;
 }
+
+/**
+ * The command's arguments, up to the next option: split at commas (write `\,` for a comma that belongs to a term), trimmed,
+ * empty ones dropped. A GDD ID is hunted as a changed section; anything else is a term.
+ */
+export function huntArgs(argv) {
+  const end = argv.findIndex((a) => a.startsWith('--'));
+  const args = argv.slice(0, end === -1 ? argv.length : end).flatMap((a) => a.split(/(?<!\\),/)).map((a) => a.replace(/\\,/g, ',').trim()).filter(Boolean);
+  const ids = args.filter((a) => /^GDD-[A-Z]+-\d+$/.test(a));
+  return { ids, terms: args.filter((a) => !ids.includes(a)) };
+}
