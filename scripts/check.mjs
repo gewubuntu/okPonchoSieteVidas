@@ -15,6 +15,7 @@ import { lessonBrief, lessonEntry } from './lessons.mjs';
 import { changelogRange, pathErrors } from './harness-paths.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 import { determinismErrors } from './sim-determinism.mjs';
+import { serverImportErrors } from './server-one-way.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -408,11 +409,15 @@ function checkHarnessPaths() {
   return errors;
 }
 
-// docs/decisions/0004-game-server.md: the server imports the game, never the other way round, so the game's build holds none of it.
+// docs/decisions/0004-game-server.md, L-008: nothing under src/ leads into server/ (scripts/server-one-way.mjs).
 function checkServerOneWay() {
   if (!exists('src')) return [];
-  return walk('src').filter((f) => /\.(ts|mjs)$/.test(f)).flatMap((f) =>
-    read(f).split('\n').flatMap((line, i) => (/(?:from|import\()\s*['"](?:\.\.?\/)+(?:[\w.-]+\/)*server\//.test(line) ? [`${f.split(sep).join('/')}:${i + 1}: the game imports from server/; only the server imports the game (docs/decisions/0004-game-server.md)`] : [])));
+  try {
+    return serverImportErrors(walk('src').map((f) => ({ path: f.split(sep).join('/'), text: read(f) })));
+  } catch (e) {
+    if (e?.code === 'MODULE_NOT_FOUND' || e?.code === 'ERR_MODULE_NOT_FOUND') return ['the parser is not installed (run `npm install`), so the check could not read src/'];
+    throw e;
+  }
 }
 
 // Repository files must not name AI models (see CLAUDE.md conventions).
