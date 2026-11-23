@@ -281,8 +281,8 @@ test('GDD-BOS-02 a paused step draws him, his crown and his bar at once, with no
   expect(seen.hit.boss).toMatchObject({ crown: 0, look: 'defeatWhite' });
   expect(seen.hit.crown!.y).toBeCloseTo(214, 3);
   expect(seen.hit.bar).toMatchObject({ pips: 0, outlines: 3 });
-  // His white flash ends by the frames' clock, not by steps, so his look is not read here.
-  expect(seen.rest.boss).toMatchObject({ crown: 0 });
+  // He flashes white 4 steps on and 4 off by his age, as long as he lies there: step 48 is the first of an "on" span.
+  expect(seen.rest.boss).toMatchObject({ crown: 0, look: 'defeatWhite' });
   expect(seen.rest.crown!.y).toBeCloseTo(224, 3);
 });
 
