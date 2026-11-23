@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -52,6 +53,42 @@ describe('run-limited (L-064)', () => {
     expect(await runLimited('true', { cwd: '/no-such-dir-for-run-limited', seconds: 20 })).toEqual({ started: false, status: null, output: '', stopped: false });
   });
 
+  it('says so when starting the command throws, and when the child has no pipes and fails', async () => {
+    const threw = await runLimited('x', { seconds: 20 }, () => { throw new Error('cannot start'); });
+    expect(threw).toEqual({ started: false, status: null, output: '', stopped: false });
+    expect(verdict(threw)).toBe('not started');
+    // What Node gives when no file handle is left: a child without stdout and stderr, then its error.
+    const child = new EventEmitter();
+    const run = runLimited('x', { seconds: 20 }, () => child);
+    child.emit('error', new Error('EMFILE'));
+    expect(await run).toEqual({ started: false, status: null, output: '', stopped: false });
+  });
+
+  it('starts the command in a shell, in a group of its own, with what it was given', async () => {
+    const seen = [];
+    const child = new EventEmitter();
+    const run = runLimited('the command', { cwd: '/a', env: { A: '1' }, seconds: 20 }, (...args) => { seen.push(args); return child; });
+    child.emit('close', 0);
+    await run;
+    expect(seen).toEqual([['the command', { cwd: '/a', env: { A: '1' }, shell: true, detached: true, stdio: ['ignore', 'pipe', 'pipe'] }]]);
+  });
+
+  it('leaves no timer behind once the command has ended or failed', async () => {
+    vi.useFakeTimers();
+    try {
+      for (const event of [['close', 0], ['error', new Error('x')]]) {
+        const child = new EventEmitter();
+        const run = runLimited('x', { seconds: 20 }, () => child);
+        expect(vi.getTimerCount()).toBe(1);
+        child.emit(...event);
+        await run;
+        expect(vi.getTimerCount()).toBe(0);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it.each(['SIGINT', 'SIGTERM', 'SIGHUP'])('ends what the command started when %s ends the runner, and ends with that signal', async (signal) => {
     const dir = mkdtempSync(join(tmpdir(), 'run-limited-'));
     try {
@@ -88,6 +125,14 @@ describe('run-limited (L-064)', () => {
     expect(verdict(run({ output: 'Running 0 tests\nError: No tests found\n' }))).toBe('no test');
     expect(verdict(run({ output: 'filter: x\nNo test files found, exiting with code 1\n' }))).toBe('no test');
     expect(verdict(run({ output: "  expect(text).toBe('Error: No tests found')\n  a test said: No test files found" }))).toBe('caught');
+    // Vitest colours the line when told to; the codes are no part of it.
+    expect(verdict(run({ output: '\x1b[31mNo test files found, exiting with code 1\x1b[39m\n' }))).toBe('no test');
+    expect(verdict(run({ output: '\x1b[1m\x1b[31mError: No tests found\x1b[0m' }))).toBe('no test');
+    // The shell's own two answers for a command it cannot run or cannot find.
+    expect(verdict(run({ status: 126 }))).toBe('not started');
+    expect(verdict(run({ status: 127, output: 'sh: 1: no-such-command: not found' }))).toBe('not started');
+    expect(verdict(run({ status: 125 }))).toBe('caught');
+    expect(verdict(run({ status: 128 }))).toBe('caught');
     // A stop or a failed start is told before the output is read, and a failed start before a stop.
     expect(verdict(run({ stopped: true, output: 'Error: No tests found' }))).toBe('stopped');
     expect(verdict(run({ started: false, stopped: true }))).toBe('not started');

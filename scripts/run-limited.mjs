@@ -10,13 +10,13 @@ const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 /**
  * Runs `command` in a shell. Resolves with `{ started, status, output, stopped }`: whether the command could be started at
  * all, its exit status (null when it was killed or never started), what it wrote to stdout and stderr together, and whether
- * the limit of `seconds` ended it.
+ * the limit of `seconds` ended it. `start` starts the process (`spawn` unless given, for the tests).
  */
-export function runLimited(command, { cwd, env, seconds }) {
+export function runLimited(command, { cwd, env, seconds }, start = spawn) {
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn(command, { cwd, env, shell: true, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = start(command, { cwd, env, shell: true, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch {
       resolve({ started: false, status: null, output: '', stopped: false });
       return;
@@ -37,6 +37,7 @@ export function runLimited(command, { cwd, env, seconds }) {
       for (const signal of SIGNALS) process.off(signal, onSignal);
     };
     for (const signal of SIGNALS) process.on(signal, onSignal);
+    // With no file handle left to give, the child has no pipes; its `error` follows.
     child.stdout?.on('data', (chunk) => (output += chunk));
     child.stderr?.on('data', (chunk) => (output += chunk));
     child.on('error', () => { end(); resolve({ started: false, status: null, output, stopped: false }); });
@@ -45,14 +46,16 @@ export function runLimited(command, { cwd, env, seconds }) {
 }
 
 /**
- * What a mutant's test run says about the mutant: 'not started' (the command could not be run), 'stopped' (the limit ended
+ * What a mutant's test run says about the mutant: 'not started' (the command could not be run, or the shell could not run
+ * or find it: its exit status 126 or 127), 'stopped' (the limit ended
  * it), 'no test' (the filter matched no test: Playwright exits 1 on "No tests found", Vitest on a missing file), 'caught'
  * (the test went red) or 'survived'. Only 'caught' counts as a kill (L-034: each mutant names the one test that must kill it).
  */
 export function verdict(run) {
-  if (!run.started) return 'not started';
+  if (!run.started || run.status === 126 || run.status === 127) return 'not started';
   if (run.stopped) return 'stopped';
-  // At the start of a line, as the two tools print it: a failing test that only quotes the words is a failing test.
-  if (/^(Error: No tests found|No test files found)/m.test(run.output)) return 'no test';
+  // At the start of a line, as the two tools print it (colour codes aside): a failing test that only quotes the words is a
+  // failing test.
+  if (/^(Error: No tests found|No test files found)/m.test(run.output.replace(/\x1b\[[0-9;]*m/g, ''))) return 'no test';
   return run.status !== 0 ? 'caught' : 'survived';
 }
