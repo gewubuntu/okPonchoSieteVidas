@@ -73,6 +73,21 @@ describe('run-limited (L-064)', () => {
     expect(seen).toEqual([['the command', { cwd: '/a', env: { A: '1' }, shell: true, detached: true, stdio: ['ignore', 'pipe', 'pipe'] }]]);
   });
 
+  it('stops the command when its seconds have passed, and not a millisecond before', async () => {
+    vi.useFakeTimers();
+    try {
+      for (const [waited, stopped] of [[19_999, false], [20_000, true]]) {
+        const child = new EventEmitter();
+        const run = runLimited('x', { seconds: 20 }, () => child);
+        vi.advanceTimersByTime(waited);
+        child.emit('close', null);
+        expect((await run).stopped).toBe(stopped);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('leaves no timer behind once the command has ended or failed', async () => {
     vi.useFakeTimers();
     try {
