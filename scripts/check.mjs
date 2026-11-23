@@ -10,7 +10,7 @@ import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { changedSections, changelogSectionErrors, gddVersionErrors } from './gdd-version.mjs';
-import { hunt, reportLine } from './gdd-hunt.mjs';
+import { hunt, huntArgs, reportLine } from './gdd-hunt.mjs';
 import { lessonBrief, lessonEntry } from './lessons.mjs';
 import { changelogRange, pathErrors } from './harness-paths.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
@@ -612,13 +612,9 @@ if (lessonArg !== -1) {
 // merge base with origin/main and any terms given. It prints and never fails.
 const huntArg = process.argv.indexOf('--gdd-hunt');
 if (huntArg !== -1) {
-  // Every argument up to the next option, split at commas: a GDD ID counts as a changed section (a feature that edits no
-  // section of its own still hunts for its ID), anything else is a term.
-  const rest = process.argv.slice(huntArg + 1);
-  const args = rest.slice(0, rest.findIndex((a) => a.startsWith('--')) === -1 ? rest.length : rest.findIndex((a) => a.startsWith('--')))
-    .flatMap((a) => a.split(',')).map((a) => a.trim()).filter(Boolean);
-  const named = args.filter((a) => /^GDD-[A-Z]+-\d+$/.test(a));
-  const terms = args.filter((a) => !named.includes(a));
+  // A GDD ID given counts as a changed section (a feature that edits no section of its own still hunts for its ID); anything
+  // else is a term (scripts/gdd-hunt.mjs, huntArgs).
+  const { ids: named, terms } = huntArgs(process.argv.slice(huntArg + 1));
   const gdd = read('docs/GDD.md');
   let compared = false;
   const changed = gddVersionErrors(gitText, gdd, false, (base, head) => { compared = true; return changedSections(base, head); });
