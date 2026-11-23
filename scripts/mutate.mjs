@@ -6,7 +6,7 @@
 //                                            (origin/main unless given): a bound moved and a clause dropped for each one
 //                                            (scripts/mutant-suggest.mjs, L-010). Its mutants name no test: give each one.
 // mutants.json: { "test": "<shell command>", "timeout"?: <seconds>, "mutants": [{ "name": "...", "file": "src/...", "from": "...", "to": "...", "test"?: "..." }] }
-// A mutant's test is stopped after `timeout` seconds (300 unless given), with everything it started (scripts/run-limited.mjs):
+// A mutant's test is stopped after `timeout` seconds (300 unless given), with its process group (scripts/run-limited.mjs):
 // a mutant that makes a loop endless would hang the whole run (L-064). A stopped mutant is not caught: bound the loop and
 // run it again.
 // A mutant's own `test` replaces the file's, so each mutant can run against the one test that must kill it (L-026).
@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { occurrences } from './mutant-suggest.mjs';
-import { runLimited } from './run-limited.mjs';
+import { runLimited, verdict } from './run-limited.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const MARKER = join(ROOT, '.mutating.json');
@@ -84,12 +84,10 @@ for (const m of mutants) {
     writeFileSync(path, original.replace(m.from, () => m.to));
     // PONCHO_MUTATING tells scripts/check.mjs not to fail on this run's own marker, so the gate can be a mutant's test.
     const r = await runLimited(m.test ?? test, { cwd: ROOT, env: { ...process.env, PONCHO_MUTATING: '1' }, seconds: timeout });
-    // A test filter that matches nothing fails the run too (Playwright exits 1 on "No tests found", Vitest on a missing
-    // file). No test went red, so the mutant is not caught (L-034: each mutant names the one test that must kill it).
-    const noTest = /No tests found|No test files found/.test(r.output);
-    const caught = r.status !== 0 && !r.stopped && !noTest;
-    if (!caught) survived++;
-    console.log(`${r.stopped ? `STOPPED after ${timeout} s (an endless loop? bound it and run again)` : noTest ? 'NO TEST (the filter matched none)' : caught ? 'RED  ' : 'GREEN (survived)'} ${m.name}`);
+    const says = verdict(r);
+    if (says !== 'caught') survived++;
+    const shown = { 'not started': 'NOT RUN (the test command could not be started)', stopped: `STOPPED after ${timeout} s (an endless loop? bound it and run again)`, 'no test': 'NO TEST (the filter matched none)', caught: 'RED  ', survived: 'GREEN (survived)' };
+    console.log(`${shown[says]} ${m.name}`);
   } finally {
     restore();
   }
