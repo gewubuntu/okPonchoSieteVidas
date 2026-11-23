@@ -1,0 +1,33 @@
+# The game server, wallets and the chain
+
+Rules for step 5 of the `harness-feature` skill, one to a line, each with where it comes from: a decision in the GDD or in `docs/decisions/0004-game-server.md`, or a lesson. Read when the change touches `server/`, or builds a wallet, token or chain feature of the GDD's section 16.
+
+## What is decided, and what is not (GDD-CHAIN-01, GDD-TEC-10)
+
+- Build only what the first wave of GDD-CHAIN-01 names, or what the user has decided since, with their words quoted in the plan. Hero select, the leagues, the cosmetics and a real wallet adapter are not decided: a plan that needs one stops and asks.
+- The chain is the mock: tests and local runs use the chain interface's in-memory one. A call to a real chain, a contract address, or anything in `Dockerfile`, `deploy/` or `.github/workflows/deploy.yml` is a later step the user approves, never part of a feature's plan.
+- What a player could reach of the lives, wallet and Pal features stays off in the production build until the user turns it on, and no build holds the stand-in Pals. A plan that adds such a thing names the switch that keeps it out and plans the test that shows it off in a production build.
+- Where the build meets a conflict or an Open Question that is not decided, it builds the recommended resolution as a placeholder, named as one in a comment at its code, in the GDD section that says what is built, and in the pull request. Changing it later is that conflict's decision.
+- A sentence that says a thing is built, named or tested is checked against the diff (the function, the test's name) before it goes into the GDD, the changelog or the pull request, never taken from the plan (L-097).
+
+## How server code is written (`docs/decisions/0004-game-server.md`)
+
+- Server code lives under `server/` and imports the game's modules by relative path; nothing under `src/` imports `server/` (the gate's `server-one-way`).
+- It has no browser types: `server/tsconfig.json` leaves the DOM out, and so does whatever of `src/` it imports. A plan that imports a new game module into the server checks that module, and what it imports, uses nothing of the browser.
+- A rule is a pure function: the time and the stored counts are handed in, as in `server/ledger.ts`, so a test sets the time it needs. (This is how the first phase is built, not a decision of the ADR.)
+- A number the GDD names (`LEDGER.*`, `SEASON.*`, `START_TOKEN.*`, `SESSION.*`, `CHAIN.*`) lives in `server/config.ts` under that name, never as a number in code. One the GDD leaves unset is `null`; a stand-in for it is marked as one, and a real chain listener does not start while any is `null`.
+- Keys and secrets come from the environment (`PONCHO_TOKEN_KEY`, `PONCHO_RPC_URL`): never from a file of the repository, never into the public config, a log line or a test's expected text.
+- Storage goes through the `Store` interface, and both implementations (memory, SQLite) pass the same contract tests: a new method or guarantee is added to those tests, not to one implementation's own. A read and a write that must not be split by another request are one synchronous transaction.
+- A handler is written against the standard `Request` and `Response` and tested by calling it, with no socket.
+- A new dependency is the user's decision and an edit of the ADR; its version is looked up in the registry, not remembered (GDD-TEC-07, L-005). `viem` is imported only where the ADR says.
+
+## Tests
+
+- Every bound gets a fixture on it: the last bought life, the clamp of what is left, the carry of a month or a year into the next (L-010, recurrence 36). `node scripts/mutate.mjs --suggest` lists them.
+- A rule that carries several fields over (hours, minutes, seconds, milliseconds) gets a fixture where each is not zero, so dropping one changes the answer (L-010, recurrence 37).
+- A thing that counts once gets a test that sends it twice and checks the second changes nothing: a start token is single use by the ADR, and so is whatever a later decision makes count once.
+- A rule that refuses someone gets a test for the one refused, not only for the one let through: by the ADR, a state-changing request from another origin is refused.
+
+## The GDD after the build (L-013)
+
+- The first code for a section makes "not built", "none of it is in code yet" and a `todo` backlog row false in sections well beyond the one being built: give `node scripts/check.mjs --gdd-hunt` every GDD ID a comment in the diff cites, not only the plan's own (L-013, recurrences 39 and 40).

@@ -408,6 +408,13 @@ function checkHarnessPaths() {
   return errors;
 }
 
+// docs/decisions/0004-game-server.md: the server imports the game, never the other way round, so the game's build holds none of it.
+function checkServerOneWay() {
+  if (!exists('src')) return [];
+  return walk('src').filter((f) => /\.(ts|mjs)$/.test(f)).flatMap((f) =>
+    read(f).split('\n').flatMap((line, i) => (/(?:from|import\()\s*['"](?:\.\.?\/)+(?:[\w.-]+\/)*server\//.test(line) ? [`${f.split(sep).join('/')}:${i + 1}: the game imports from server/; only the server imports the game (docs/decisions/0004-game-server.md)`] : [])));
+}
+
 // Repository files must not name AI models (see CLAUDE.md conventions).
 function checkNoModelIds() {
   const re = /\b(claude-(opus|sonnet|haiku|fable)[\w.-]*|(opus|sonnet|haiku|fable)\s+\d|model:\s*["']?(opus|sonnet|haiku|fable)\b)/i;
@@ -569,6 +576,7 @@ const checks = [
   ['phone-shots-by-touch', checkPhoneShotsByTouch],
   ['sprite-fit', checkSpriteFit],
   ['sim-determinism', checkSimDeterminism],
+  ['server-one-way', checkServerOneWay],
   ['gdd', checkGdd],
   ['gdd-one-version', checkOneGddVersion],
   ['gdd-changelog-sections', checkChangelogSections],
