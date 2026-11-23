@@ -1578,6 +1578,9 @@ export class PlayScene extends Phaser.Scene {
           this.renderBlocks(1);
           this.renderCarts(1);
           this.drawEnemies();
+          // The boss and his bar too: read right after a step, they were the last frame's on a slow machine (L-042).
+          this.drawBossBar();
+          this.drawBoss();
           this.renderBody(1); // draw now, so a test that reads the picture right away sees this step
           this.followBody(1);
           this.drawVeladora();
