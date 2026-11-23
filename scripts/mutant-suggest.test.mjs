@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOUNDS, changedLines, covered, suggest } from './mutant-suggest.mjs';
+import { BOUNDS, changedCode, changedLines, covered, occurrences, suggest } from './mutant-suggest.mjs';
 
 describe('mutant-suggest (L-010)', () => {
   const all = (text) => new Set(text.split('\n').map((_, i) => i + 1));
@@ -28,7 +28,7 @@ describe('mutant-suggest (L-010)', () => {
     expect(BOUNDS).toEqual({ '<': '<=', '<=': '<', '>': '>=', '>=': '>' });
     const text = 'const a = x < 1;\nconst b = x <= 2;\nconst c = x > 3;\nconst d = x >= 4;\nconst e = x === 5;\n';
     const mutants = suggest('src/a.ts', text, all(text));
-    expect(mutants.map((m) => m.name)).toEqual(['src/a.ts:1 bound: < becomes <=', 'src/a.ts:2 bound: <= becomes <', 'src/a.ts:3 bound: > becomes >=', 'src/a.ts:4 bound: >= becomes >']);
+    expect(mutants.map((m) => m.name)).toEqual(['src/a.ts:1:13 bound: < becomes <=', 'src/a.ts:2:13 bound: <= becomes <', 'src/a.ts:3:13 bound: > becomes >=', 'src/a.ts:4:13 bound: >= becomes >']);
     expect(mutants.map((m) => [m.file, m.from, m.to])).toEqual([
       ['src/a.ts', 'const a = x < 1;', 'const a = x <= 1;'],
       ['src/a.ts', 'const b = x <= 2;', 'const b = x < 2;'],
@@ -40,10 +40,10 @@ describe('mutant-suggest (L-010)', () => {
   it('suggests only for a comparison whose operator is on a changed line', () => {
     const text = 'const a = x < 1;\nconst b = y\n  > 2;\nconst c = z < 3;\n';
     expect(suggest('src/a.ts', text, new Set([2])).map((m) => m.name)).toEqual([]);
-    expect(suggest('src/a.ts', text, new Set([3])).map((m) => m.name)).toEqual(['src/a.ts:3 bound: > becomes >=']);
+    expect(suggest('src/a.ts', text, new Set([3])).map((m) => m.name)).toEqual(['src/a.ts:3:3 bound: > becomes >=']);
     expect(suggest('src/a.ts', text, new Set()).length).toBe(0);
     const atStart = 'const b = y\n> 2;\nconst c = 1;\n';
-    expect(suggest('src/a.ts', atStart, new Set([2])).map((m) => [m.name, m.from, m.to])).toEqual([['src/a.ts:2 bound: > becomes >=', '> 2;', '>= 2;']]);
+    expect(suggest('src/a.ts', atStart, new Set([2])).map((m) => [m.name, m.from, m.to])).toEqual([['src/a.ts:2:1 bound: > becomes >=', '> 2;', '>= 2;']]);
     expect(suggest('src/a.ts', atStart, new Set([1, 3]))).toEqual([]);
   });
 
@@ -61,9 +61,9 @@ describe('mutant-suggest (L-010)', () => {
     const text = 'const ok = a.left === b.left && a.right === b.right && near(a, b);\n';
     const mutants = suggest('src/a.ts', text, all(text));
     expect(mutants.map((m) => m.name)).toEqual([
-      'src/a.ts:1 clause dropped from &&: a.left === b.left',
-      'src/a.ts:1 clause dropped from &&: a.right === b.right',
-      'src/a.ts:1 clause dropped from &&: near(a, b)',
+      'src/a.ts:1:12 clause dropped from &&: a.left === b.left',
+      'src/a.ts:1:33 clause dropped from &&: a.right === b.right',
+      'src/a.ts:1:56 clause dropped from &&: near(a, b)',
     ]);
     expect(mutants.map((m) => m.to)).toEqual([
       'const ok = a.right === b.right && near(a, b);',
@@ -85,7 +85,7 @@ describe('mutant-suggest (L-010)', () => {
   it('drops only the operands that start on a changed line, and leaves ?? alone', () => {
     const text = 'const ok = first(a) &&\n  second(a) &&\n  third(a);\nconst v = a ?? b;\n';
     expect(suggest('src/a.ts', text, new Set([2, 4])).map((m) => [m.name, m.to])).toEqual([
-      ['src/a.ts:2 clause dropped from &&: second(a)', 'const ok = first(a) &&'],
+      ['src/a.ts:2:3 clause dropped from &&: second(a)', 'const ok = first(a) &&'],
     ]);
     const [m] = suggest('src/a.ts', text, new Set([2]));
     expect(applied(text, m)).toBe('const ok = first(a) &&\n  third(a);\nconst v = a ?? b;\n');
@@ -95,9 +95,9 @@ describe('mutant-suggest (L-010)', () => {
     const long = `check(${'x'.repeat(70)})`;
     const exact = `check(${'y'.repeat(53)})`;
     const names = suggest('src/a.ts', `const ok = ${long} && ${exact};\n`, new Set([1])).map((m) => m.name);
-    expect(names).toEqual([`src/a.ts:1 clause dropped from &&: ${long.slice(0, 59)}…`, `src/a.ts:1 clause dropped from &&: ${exact}`]);
+    expect(names).toEqual([`src/a.ts:1:12 clause dropped from &&: ${long.slice(0, 59)}…`, `src/a.ts:1:93 clause dropped from &&: ${exact}`]);
     const over = `check(${'z'.repeat(54)})`;
-    expect(suggest('src/a.ts', `const ok = ${over} && y;\n`, new Set([1]))[0].name).toBe(`src/a.ts:1 clause dropped from &&: ${over.slice(0, 59)}…`);
+    expect(suggest('src/a.ts', `const ok = ${over} && y;\n`, new Set([1]))[0].name).toBe(`src/a.ts:1:12 clause dropped from &&: ${over.slice(0, 59)}…`);
   });
 
   it('widens the text of a mutant until it is in the file once, so the runner can place it', () => {
@@ -129,5 +129,55 @@ describe('mutant-suggest (L-010)', () => {
     const parse = (path, text) => { seen.push([path, text]); return { program: { type: 'Program', body: [] }, comments: [] }; };
     expect(suggest('src/a.ts', 'x < 1', new Set([1]), parse)).toEqual([]);
     expect(seen).toEqual([['src/a.ts', 'x < 1']]);
+  });
+  it('tells two bounds on one line apart by their column', () => {
+    expect(suggest('src/a.ts', 'const ok = a < b && c < d;\n', new Set([1])).map((m) => m.name).filter((n) => n.includes('bound'))).toEqual(['src/a.ts:1:14 bound: < becomes <=', 'src/a.ts:1:23 bound: < becomes <=']);
+  });
+
+  it('finds the operator after a left side that holds its character', () => {
+    expect(suggest('src/a.ts', 'const many = xs.filter((v) => v.ok).length > 2;\n', new Set([1])).map((m) => m.to)).toEqual(['const many = xs.filter((v) => v.ok).length >= 2;']);
+  });
+
+  it('takes an operand of several lines by the line it starts on, and names it on one line', () => {
+    const text = 'const ok = ready &&\n  near(\n    a,\n    b,\n  );\n';
+    expect(suggest('src/a.ts', text, new Set([2])).map((m) => m.name)).toEqual(['src/a.ts:2:3 clause dropped from &&: near( a, b, )']);
+    expect(suggest('src/a.ts', text, new Set([3, 4, 5]))).toEqual([]);
+  });
+
+  it('counts the places a text stands in another, overlapping ones too', () => {
+    expect(occurrences('abcabc', 'bc')).toBe(2);
+    expect(occurrences('abc', 'x')).toBe(0);
+    expect(occurrences('aaa', 'aa')).toBe(2);
+    expect(occurrences('abc', 'abc')).toBe(1);
+    expect(occurrences('abc', '')).toBe(0);
+  });
+
+  it('places a mutant in a block that repeats three times in a row on the line it names', () => {
+    const thrice = 'f(x < 1);\nf(x < 1);\nf(x < 1);';
+    expect(applied(thrice, suggest('src/a.ts', thrice, new Set([3]))[0])).toBe('f(x < 1);\nf(x < 1);\nf(x <= 1);');
+    expect(applied(thrice, suggest('src/a.ts', thrice, new Set([2]))[0])).toBe('f(x < 1);\nf(x <= 1);\nf(x < 1);');
+    const pairs = 'a();\nb(x < 1);\na();\nb(x < 1);\na();\nb(x < 1);';
+    expect(applied(pairs, suggest('src/a.ts', pairs, new Set([6]))[0])).toBe('a();\nb(x < 1);\na();\nb(x < 1);\na();\nb(x <= 1);');
+  });
+
+  describe('the changed code of a branch', () => {
+    const diff = ['+++ b/src/a.ts', '@@ -1 +2,2 @@', '+x', '+y', '+++ b/src/a.test.ts', '@@ -1 +1 @@', '+t', '+++ b/docs/GDD.md', '@@ -1 +1 @@', '+d'].join('\n');
+    const git = (answers) => (...args) => answers[args.slice(0, 2).join(' ')] ?? answers[args[0]] ?? { status: 1, stdout: '' };
+    const calls = [];
+    const repo = (...args) => { calls.push(args.join(' ')); return git({ 'merge-base': { status: 0, stdout: 'abc\n' }, diff: { status: 0, stdout: diff }, 'ls-files': { status: 0, stdout: 'scripts/new.mjs\nscripts/new.test.mjs\n\n' } })(...args); };
+    const read = (path) => ({ 'scripts/new.mjs': 'one\ntwo\nthree', 'scripts/new.test.mjs': 'x' })[path];
+
+    it('is the diff against the merge base and every line of an untracked file, code only', () => {
+      const files = changedCode(repo, read);
+      expect([...files].map(([path, lines]) => [path, [...lines]])).toEqual([['src/a.ts', [2, 3]], ['scripts/new.mjs', [1, 2, 3]]]);
+      expect(calls).toEqual(['merge-base origin/main HEAD', 'diff -U0 --no-color abc -- src server scripts', 'ls-files --others --exclude-standard -- src server scripts']);
+    });
+
+    it('takes the base it is given, and is null without a merge base', () => {
+      calls.length = 0;
+      changedCode(repo, read, 'some/base');
+      expect(calls[0]).toBe('merge-base some/base HEAD');
+      expect(changedCode(git({}), read)).toBeNull();
+    });
   });
 });

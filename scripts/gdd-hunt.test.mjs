@@ -145,5 +145,6 @@ describe('gdd-hunt (L-013, L-053)', () => {
   it('takes only a whole GDD ID for an ID, and keeps a comma written with a backslash', () => {
     expect(huntArgs(['gdd-wld-01,GDD-WLD-1x,xGDD-WLD-01,GDD-WLD-01x,GDD-wld-01']).ids).toEqual([]);
     expect(huntArgs(['1-2\\, 1-3 and 1-4,3-3'])).toEqual({ ids: [], terms: ['1-2, 1-3 and 1-4', '3-3'] });
+    expect(huntArgs(['1-2\\, 1-3\\, 1-4']).terms).toEqual(['1-2, 1-3, 1-4']);
   });
 });

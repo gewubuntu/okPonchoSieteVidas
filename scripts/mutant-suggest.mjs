@@ -34,6 +34,31 @@ export function changedLines(diff) {
   return files;
 }
 
+/** How often `part` stands in `text`, places that overlap counted too (three equal lines hold a pair of them twice); never for the empty text. */
+export function occurrences(text, part) {
+  // The empty text stands everywhere, and searching on for it would never end (L-064).
+  if (part === '') return 0;
+  let n = 0;
+  for (let at = text.indexOf(part); at !== -1; at = text.indexOf(part, at + 1)) n++;
+  return n;
+}
+
+/**
+ * The changed lines to suggest for, by file: the lines `git diff -U0` gives against the merge base with `base` (the working
+ * tree's, so uncommitted ones too), and every line of a file git does not track yet; only files `covered` takes. `git(...args)`
+ * runs git and returns `{ status, stdout }`, `read(path)` a file's text. Null when there is no merge base.
+ */
+export function changedCode(git, read, base = 'origin/main') {
+  const from = git('merge-base', base, 'HEAD');
+  if (from.status !== 0) return null;
+  const files = changedLines(git('diff', '-U0', '--no-color', from.stdout.trim(), '--', 'src', 'server', 'scripts').stdout);
+  for (const path of git('ls-files', '--others', '--exclude-standard', '--', 'src', 'server', 'scripts').stdout.split('\n').filter(Boolean)) {
+    files.set(path, new Set(read(path).split('\n').map((_, i) => i + 1)));
+  }
+  // A deleted file is not among them: `changedLines` leaves it out, and git lists no deleted file as untracked.
+  return new Map([...files].filter(([path]) => covered(path)));
+}
+
 /** Every node of the tree with its parent, in source order. */
 function* nodes(node, parent = null) {
   yield [node, parent];
@@ -52,6 +77,7 @@ function operands(node) {
  * The mutants for one file. `text` is its source, `lines` the set of its changed lines, `parse(path, text)` gives
  * `{ program, comments }` (Vite's `parseSync` by default). Each mutant is `{ name, file, from, to }` with `from` in the file
  * exactly once: the whole lines the change stands on, widened line by line until no other place in the file reads the same.
+ * Its name gives the line and the column of what it changes.
  */
 export function suggest(path, text, lines, parse = (p, t) => require('vite').parseSync(p, t, { lang: p.endsWith('.ts') ? 'ts' : 'js' })) {
   const { program, comments } = parse(path, text);
@@ -66,12 +92,12 @@ export function suggest(path, text, lines, parse = (p, t) => require('vite').par
     const slice = () => [starts[first - 1], last < starts.length ? starts[last] - 1 : text.length];
     // The whole file is in the file once, so the widening ends there at the latest; the second condition only keeps a broken
     // line count from looping for ever (L-064).
-    while (text.split(text.slice(...slice())).length !== 2 && (first > 1 || last < starts.length)) {
+    while (occurrences(text, text.slice(...slice())) !== 1 && (first > 1 || last < starts.length)) {
       first = Math.max(1, first - 1);
       last = Math.min(starts.length, last + 1);
     }
     const [from, to] = slice();
-    mutants.push({ name: `${path}:${lineOf(at)} ${what}`, file: path, from: text.slice(from, to), to: text.slice(from, start) + replacement + text.slice(end, to) });
+    mutants.push({ name: `${path}:${lineOf(at)}:${at - starts[lineOf(at) - 1] + 1} ${what}`, file: path, from: text.slice(from, to), to: text.slice(from, start) + replacement + text.slice(end, to) });
   };
   for (const [node, parent] of nodes(program)) {
     // Only a binary expression has one of these operators. It stands between the two sides, after any comment.
