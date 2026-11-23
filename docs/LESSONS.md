@@ -32,6 +32,13 @@ check can tell the bad case from the good one>)`. `scripts/check.mjs` fails othe
 Record each new occurrence just above the `Recurrence` field as
 `- **Recurrence N (YYYY-MM-DD, PR #x or GDD ID):** what happened, and why the rule already in place did not stop it.`
 
+A recurrence is counted when the mistake is found after the push (by the `pr-reviewer` on a pushed head, by CI or by the
+user), or before it by anything other than the step meant to catch it (by luck, or by the user in the session). One that the
+step meant to catch it caught before the commit (the gate, a planned mutant, the `implementer`'s report, the local GDD audit)
+is that guard working and is not counted (user, 2026-11-22: "Only after the push"). Counts up to that date hold both kinds. A
+mistake that no lesson covers gets its entry either way. `node scripts/check.mjs --lesson L-NNN` prints an entry with its
+last three occurrences only.
+
 Entries are never deleted or renumbered and an ID is never reused. A new entry that turns out to repeat an older
 lesson stays: bump the older one and set the new one's `Promoted:` to `merged into L-NNN`. `scripts/check.mjs` fails on
 a missing ID unless it is listed below (L-046 was folded into L-014 on 2026-10-27, before this rule).
@@ -86,7 +93,7 @@ Retired IDs: L-046
 - **Recurrence 18 (2026-11-22, GDD-BOS-04 phase D1, found by the implementer's report before the commit):** my plan put La Catorce's plume half a px ahead of her box's middle, a figure I worked out by eye from the stud's place in the drawing; the stud's middle is 0.75 px ahead, so the plume was built a quarter px off it. The rule covers figures from the simulation and levels' data, and I did not read a place in a drawing as one; now `scripts/art/catorce.test.mjs` works `CATORCE_ART.plume.ahead` out from the drawing's `STUDS`.
 - **Recurrence 19 (2026-11-22, PR #120, GDD-BOS-04, found by the review):** I drew phase 3's slam without its 1 px forward and wrote in the GDD that she slams at the screen's edge, so the squash would leave the screen. She turns round on the step she arrives, so forward points into the room; I reasoned from the direction she was running and never ran the fight to see which way she faces on the squash's frames. The approved design's 1 px forward is restored, and the art and sprite tests now check it for every slam look.
 - **Recurrence:** 19
-- **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test). Guard: none (no script can tell a measured claim from one worked out by hand; the implementer measures every planned number in a test before the GDD takes it, which caught recurrence 8; a figure from a scratch test outside the repository stays a target, recurrence 9)
+- **Promoted:** .claude/skills/harness-gdd-update (Rules: a number or claim that follows from the simulation, a level's data or a layout is measured by the real code in a test). Guard: none (no script can tell a measured claim from one worked out by hand; the implementer measures every planned number in a test before the GDD takes it, which caught recurrence 8; a figure from a scratch test outside the repository stays a target, recurrence 9; since 2026-11-22 the implementer's report says for each figure which test asserts it and whether exactly, and only an exact one goes into the GDD, after recurrences 7, 12, 14 and 15)
 
 ## L-004 Debug hook returned the wrong value after landing
 
@@ -269,7 +276,7 @@ Retired IDs: L-046
 - **Recurrence 40 (2026-11-22, PR #121, GDD-TEC-10, found by the re-review):** after the fix for the last occurrence, Conflict C13 still said "none of them is in code" and GDD-CHAIN-03 "not built" with its row `todo`, while `server/ledger.ts` cites GDD-CHAIN-03 for `creditBought`. The hunt fixed the sentences the review listed and did not search again: every GDD ID a new file cites in its comments (`grep -oh "GDD-[A-Z]*-[0-9]*" server/`) names a section whose status and backlog row must say what is built.
 - **Recurrence 41 (2026-11-22, PR #124, GDD-TEC-09, found by the review):** three sentences of GDD-TEC-09 still spoke of the record as to come ("to be completed ... when the record is built", "to be checked when the replay test is built") or named less than was built (the version covers every level's data). I edited the paragraphs the build changed and did not search the section for "to be" and "when".
 - **Recurrence:** 41
-- **Promoted:** .claude/skills/harness-feature (Update docs step, which now also searches for the path of every test file or block the feature deletes or moves, and since recurrence 8 for the lists a new member of a family must join and a full re-read of each edited section, since recurrence 10 in `docs/BACKLOG.md` too, with a plain pattern; its Push and pull request step runs the retro on the review's findings) and .claude/skills/harness-gdd-update (step 1, the same hunt for GDD edits made outside a feature, with the same plain list pattern since recurrence 10). Guard: none (which sentences a change makes false takes reading the GDD; the pr-reviewer's consistency audit is the backstop).
+- **Promoted:** .claude/skills/harness-feature (Update docs step, which held the hunt until 2026-11-22 and now points to step 1 of `harness-gdd-update`; it came to search for the path of every test file or block the feature deletes or moves, and since recurrence 8 for the lists a new member of a family must join and a full re-read of each edited section, since recurrence 10 in `docs/BACKLOG.md` too, with a plain pattern; its Push and pull request step runs the retro on the review's findings) and .claude/skills/harness-gdd-update (step 1, the same hunt for GDD edits made outside a feature, with the same plain list pattern since recurrence 10). Two kinds of it have a check since 2026-11-22: a changelog line that names other sections than the diff changes (`gdd-changelog-sections`, `scripts/gdd-version.mjs`; recurrences 6, 19 and 30) and a path in the GDD or the backlog that no longer exists (`harness-paths`, `scripts/harness-paths.mjs`). Since the same day the hunt's search is a command, `node scripts/check.mjs --gdd-hunt` (`scripts/gdd-hunt.mjs`), in place of search words chosen each time, and `harness-gdd-update` step 6 has the `pr-reviewer` audit the GDD diff before the commit ("local GDD audit"). Guard: none (which sentences a change makes false takes reading the GDD; the pr-reviewer's consistency audit is the backstop).
 
 ## L-014 A claim about where things are in the sandbox level had no test
 
@@ -693,8 +700,9 @@ Retired IDs: L-046
 - **Recurrence 2 (2026-11-01, PR #64, found by the review):** the same PR began updating lesson `Rule` lines (L-007, L-052) while the `docs/LESSONS.md` header still allowed only `Recurrence`, `Promoted` and `Area` to change; once the header allowed it, L-052's update still lacked the dated form it asks for (found by the re-review).
 - **Recurrence 3 (2026-11-01, PR #64, found by the re-review):** the commit that made `docs/HARNESS.md` say a hook answering `ask` reads quoted text as written changed only `before-merge.mjs`; `stale-main.mjs` still emptied quoted text and missed `echo don\'t; git push origin HEAD; echo 'x y'`. Both now read commands through `scripts/hooks/command-text.mjs`.
 - **Recurrence 4 (2026-11-18, PR #106, found by the review):** the new lesson L-091 gave the rule "after a PR merges, nothing more is pushed to its branch", which contradicts `CLAUDE.md` (restart the working branch from `main` under the same name). The step covers a changed rule, and a new lesson's rule was not read against the rules already in place.
-- **Recurrence:** 4
-- **Promoted:** .claude/skills/harness-retro (step 3: after a promotion or any rule change, search the other harness files and the lesson rules for the old rule and fix what it falsifies; step 2: a new lesson's rule is read against `CLAUDE.md` and the skills). Guard: none (whether a changed rule falsifies a sentence elsewhere takes reading it; the instance of recurrence 3 is pinned by `scripts/check.mjs`, claude-settings: a hook that answers ask on shell commands must read them through command-text.mjs)
+- **Recurrence 5 (2026-11-22, GDD-VIS-05, found by an audit of the skills the user asked for):** the `pr-reviewer` still said "No wallet, token or on-chain feature (GDD-VIS-05)" and "no new network calls" after the user decided the first wave of section 16 and the game server (GDD-CHAIN-01, GDD-TEC-10; GDD 0.13.1), so each first-wave PR would have drawn a false blocking finding; its determinism line also named only `src/sim/` and two calls, behind GDD-TEC-09's first phase (GDD 0.13.2). This rule's search starts from a changed harness rule and L-013's hunt reads the GDD and the backlog, so a GDD decision that falsifies a harness file was searched for by neither.
+- **Recurrence:** 5
+- **Promoted:** .claude/skills/harness-retro (step 3: after a promotion or any rule change, search the other harness files and the lesson rules for the old rule and fix what it falsifies; step 2: a new lesson's rule is read against `CLAUDE.md` and the skills), and since recurrence 5 .claude/skills/harness-gdd-update (step 1: the hunt also reads `CLAUDE.md`, `docs/HARNESS.md` and `.claude/` for the touched IDs and the terms given, with `node scripts/check.mjs --gdd-hunt`, `scripts/gdd-hunt.mjs`). Guard: none (whether a changed rule falsifies a sentence elsewhere takes reading it; the instance of recurrence 3 is pinned by `scripts/check.mjs`, claude-settings: a hook that answers ask on shell commands must read them through command-text.mjs)
 
 ## L-054 A playtest compared the whole saved text, and every new part of the save broke it
 
@@ -1031,8 +1039,9 @@ Retired IDs: L-046
 - **Root cause:** the changelog line was written while the run was planned and committed before its result came back; nothing ties a "passing" claim to a finished run.
 - **Rule:** write that a check passed only after its run has finished, naming where (local or CI); until then write that it is pending.
 - **Recurrence 2 (2026-11-09, PR #88):** the review fix moved vite to 8.3.7 and kept the changelog's "the full playtest suite passing in CI", which held for the earlier head while CI's playtests on the new head were still running (found in the re-review). The lesson was a day old and in no step that a changelog edit goes through.
-- **Recurrence:** 2
-- **Promoted:** .claude/skills/harness-gdd-update (step 3: a changelog claim that a check passed names a finished run on the head it describes)
+- **Recurrence 3 (2026-11-23, PR #123, found by the re-review):** the description and a commit message said the new `gdd-changelog-sections` check, replayed over the last 27 GDD commits on main, "fails one and none wrongly". I had run that replay before the check learned to leave Open Question numbers out, and before main gained 0.13.4, and did not run it again: on the head it failed three, one of them wrongly (0.11.7 named four sections whose only change was a renumbered question). The rule speaks of a changelog; a measured claim in a PR description or a commit message goes stale the same way when the code it measured changes.
+- **Recurrence:** 3
+- **Promoted:** .claude/skills/harness-gdd-update (step 3: a changelog claim that a check passed names a finished run on the head it describes); since recurrence 3 the same holds for a measured claim in a PR description or a commit message. Guard: none (whether a figure was measured on the code it describes can only be told by running it again; the `pr-reviewer` re-runs the claims a description makes)
 
 ## L-085 A command blocked by a hook was re-run only in part, and its edits were lost
 
@@ -1159,8 +1168,9 @@ Retired IDs: L-046
 - **What went wrong:** In PR #115 (the Poncho on Base proposal, GDD 0.13.0) the user asked that whether league attempts cost lives stay an "OPEN QUESTION, do not decide". GDD-CHAIN-05 and Open Question 57 left it open, but GDD-TEC-10's start-token bullet said the server takes a ledger life for every token and listed the league week among what a token is for, which decided it. The same sentence contradicted GDD-LIFE-06 and Conflict C2 (a run that clears its world goes on at no cost) and let a guest's token carry a server save. The review called it blocking.
 - **Root cause:** The token rule was written in the proposal's general words ("each attempt") before the league section existed, and the hunt after the edit (L-013) searches for sentences the change makes false in the old text, not for sentences in the new text that presuppose an answer to something left open. Nothing listed which kinds of attempt the general rule covers.
 - **Rule:** When the user leaves a question open, or a conflict is listed as unresolved, search every new and edited GDD section for that thing's words before the gate (here "league", "token", "ledger life") and read each hit for a presupposed answer. A rule stated for a whole family ("each attempt", "every token") names its members and says which ones it does not settle.
-- **Recurrence:** 1
-- **Promoted:** no
+- **Recurrence 2 (2026-11-22, PR #123, GDD-VIS-05, found by the pr-reviewer):** rewording the `pr-reviewer`'s product rule after the first wave's decisions, I wrote that a wallet, token or on-chain feature "needs a GDD ID of the GDD's section 16", which let the leagues, the cosmetics, hero select and a real wallet adapter through, none of them decided, and a network line that covered Phase 2's calls. The rule above speaks of GDD sections, and I did not read a harness file that restates a GDD rule as one; a read of the next commits before they were made had found the same, after this one was pushed.
+- **Recurrence:** 2
+- **Promoted:** .claude/skills/harness-gdd-update (Rules: a rule worded for a whole family names its members and which the user has not decided, in the GDD and in a harness file that restates it)
 
 ## L-097 A paragraph marked Decided kept clauses of the recommendation it replaced
 
@@ -1175,3 +1185,23 @@ Retired IDs: L-046
 - **Recurrence 5 (2026-11-22, PR #124, GDD-TEC-09, found by the pr-reviewer):** I added "The marks also show a reviewer where a run was paused" to GDD-TEC-09. The build's own tests show it is false: a pause that ends with no button down leaves no mark, and a mark at a level's start is no pause. I wrote what the held mark seemed good for and did not check the sentence against the recorder's rule three lines above it.
 - **Recurrence:** 5
 - **Promoted:** `harness-gdd-update` Rules ("Record each decision where it applies"), which now says that a decision is named in its section's status line and that a Decided paragraph or an ADR's Status holds only the clauses the user's words carry (L-097). Guard: none (whether a sentence states more than the user said can only be told by reading it against their words; the `pr-reviewer` reads every added GDD sentence against the open questions, and L-096's search for an open thing's words is the step that would have found this one).
+
+## L-098 A skill grew by one promotion at a time until its rules were missed
+
+- **Date:** 2026-11-22
+- **Area:** harness
+- **What went wrong:** `harness-feature` had grown to 3,339 words: step 5 held 13 blocks of rules as paragraphs of up to 2.4 KB, each a little longer after every recurrence, all read for a one-line fix too. Rules it already held were then missed (L-010 recurrence 34, "move a threshold by one"; L-013 recurrence 30). At that size it was also about as long as the 5,000 tokens of a skill that a context compaction keeps, and its last two steps hold the commit chained on the gate and the fetch of main before a push. Found by an audit of the skills the user asked for.
+- **Root cause:** The retro's second promotion path, "add a step to the relevant skill", had no limit, nothing measured a skill's size, and nothing said where a rule that applies only to some changes should live.
+- **Rule:** A skill's `SKILL.md` holds its steps. Rules that apply by kind of change live in files beside it, one rule to a line with its lesson, named in a table in the step that uses them (`.claude/skills/harness-feature/rules/`). A promotion to a skill tightens or replaces the sentence it sharpens where there is one, and otherwise adds a line to the file its kind of change reads, not to the steps.
+- **Recurrence:** 1
+- **Promoted:** .claude/skills/harness-feature (step 5 and its rules files), .claude/skills/harness-retro (step 3: where a promotion to a skill is written) and `scripts/check.mjs` (`skill-size`: no file of a skill has more than 2,000 words)
+
+## L-099 The gate ran half an hour of tests after its first check had already failed
+
+- **Date:** 2026-11-22
+- **Area:** harness, process
+- **What went wrong:** The unit tests of a new gate check named two GDD IDs that do not exist as fixtures. `gdd-references` failed in the gate's first second, the gate went on through lint, the typecheck and four test runs with its output in a log, and the commit chained on it failed half an hour later. In the scratch worktree where the check was built I had run its own tests and the new checks, not the gate's other checks.
+- **Root cause:** The harness checks and the toolchain ran as one pass with no early end, so a failure that costs a second to find cost a whole run to learn of, and nothing ran the fast checks alone.
+- **Rule:** The gate does not run lint, the typecheck and the tests while a harness check has failed. A test fixture that needs a GDD ID takes one that exists (`gdd-references` reads test files too).
+- **Recurrence:** 1
+- **Promoted:** `scripts/check.mjs` (the toolchain is skipped, with a line saying so, when a check before it failed)
