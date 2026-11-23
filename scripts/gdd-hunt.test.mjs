@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hunt, ownerOf, reportLine, sentences, STATUS_WORDS, termPattern } from './gdd-hunt.mjs';
+import { hunt, huntArgs, ownerOf, reportLine, sentences, STATUS_WORDS, termPattern } from './gdd-hunt.mjs';
 
 describe('gdd-hunt (L-013, L-053)', () => {
   it('splits a line into sentences after a stop, a question or an exclamation mark', () => {
@@ -134,5 +134,17 @@ describe('gdd-hunt (L-013, L-053)', () => {
     expect(reportLine(f, 18)).toBe('! docs/GDD.md:4 [GDD-WLD-02] It has no boss ye…');
     expect(reportLine({ ...f, text: 'x'.repeat(301) })).toBe(`! docs/GDD.md:4 [GDD-WLD-02] ${'x'.repeat(299)}…`);
     expect(reportLine({ ...f, text: 'x'.repeat(300) })).toBe(`! docs/GDD.md:4 [GDD-WLD-02] ${'x'.repeat(300)}`);
+  });
+  it('reads the arguments: split at commas, IDs apart from terms, up to the next option', () => {
+    expect(huntArgs(['GDD-WLD-01, 3-3 ,', 'left right', '--other', 'GDD-WLD-02'])).toEqual({ ids: ['GDD-WLD-01'], terms: ['3-3', 'left right'] });
+    expect(huntArgs([])).toEqual({ ids: [], terms: [] });
+    expect(huntArgs(['--other'])).toEqual({ ids: [], terms: [] });
+    expect(huntArgs(['GDD-WLD-01,GDD-UI-05'])).toEqual({ ids: ['GDD-WLD-01', 'GDD-UI-05'], terms: [] });
+  });
+
+  it('takes only a whole GDD ID for an ID, and keeps a comma written with a backslash', () => {
+    expect(huntArgs(['gdd-wld-01,GDD-WLD-1x,xGDD-WLD-01,GDD-WLD-01x,GDD-wld-01']).ids).toEqual([]);
+    expect(huntArgs(['1-2\\, 1-3 and 1-4,3-3'])).toEqual({ ids: [], terms: ['1-2, 1-3 and 1-4', '3-3'] });
+    expect(huntArgs(['1-2\\, 1-3\\, 1-4']).terms).toEqual(['1-2, 1-3, 1-4']);
   });
 });
