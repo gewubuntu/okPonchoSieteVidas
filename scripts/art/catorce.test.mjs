@@ -78,7 +78,7 @@ describe('GDD-BOS-04 La Catorce art', { timeout: 120_000 }, () => {
 
   // L-059: how far each frame of assets/sprites/boss/la-catorce.png reaches past her 64 x 32 box (drawing px 8 to 135 across, 8 to 71 down),
   // measured on the approved drawing; src/levels/level3-4.sprite.test.ts fits them over the fight.
-  it('GDD-BOS-04 art box: every frame inside her box but the slam\'s squash, 1 game px ahead, her wheels on its bottom row', () => {
+  it('GDD-BOS-04 art box: every frame inside her box but the slam\'s squash, half a game px ahead, her wheels on its bottom row', () => {
     expect(FRAME).toEqual({ w: 144, h: 72 });
     expect(BOX).toEqual({ x0: 8, y0: 8, x1: 136, y1: 72 });
     for (const { look, left, grid } of FRAMES) {
@@ -151,7 +151,19 @@ describe('GDD-BOS-04 La Catorce art', { timeout: 120_000 }, () => {
   it('GDD-BOS-04 art studs: three mist white studs close together on her boiler\'s top, the mark that she cannot be stomped', () => {
     // GDD-CMB-01: the not-stompable mark.
     expect([STUDS, STUD_TOP]).toEqual([[61, 66, 71], 8]);
-    for (const x of [61, 66, 71]) expect(frame('rest3').get(BOX.x0 + x, BOX.y0 + STUD_TOP + 1), `stud ${x}`).toBe('#EEF1EA');
+    // Each stud's top row is STUD_TOP, mist white, with her outline on the row above it: the plume's foot stands there (CATORCE_ART.plume.rise).
+    for (const x of [61, 66, 71]) {
+      expect([frame('rest3').get(BOX.x0 + x, BOX.y0 + STUD_TOP - 1), frame('rest3').get(BOX.x0 + x, BOX.y0 + STUD_TOP), frame('rest3').get(BOX.x0 + x, BOX.y0 + STUD_TOP + 1)], `stud ${x}`).toEqual([OUTLINE, '#EEF1EA', '#EEF1EA']);
+    }
+  });
+
+  it('GDD-BOS-04 art wreck: the wreck holds no cold flame, in her lamps, her eye, her cab or her ash pan', () => {
+    for (const left of [false, true]) {
+      const cells = frame('wreck', left).cells;
+      expect(cells.filter((c) => c === COLD_FLAME || c === '#2E9E96').length, left ? 'left' : 'right').toBe(0);
+    }
+    // Before her defeat her cab glows: the rest look holds the flame's deep shade.
+    expect(frame('rest3').cells.includes('#2E9E96')).toBe(true);
   });
 
   it('GDD-BOS-04 art plume: two frames of 12 by 20, mist and steel only, not outlined, its foot on the bottom row', () => {
