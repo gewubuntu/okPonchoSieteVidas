@@ -15,6 +15,12 @@ describe('L-100 reviewer-read-only hook', () => {
     for (const command of [
       'git push',
       ' git push',
+      'A= git push',
+      'Z=1 git push',
+      'a=1  _b=2 git push',
+      '_x=1 git push',
+      'git  push',
+      'git  -C  /tmp/pr-5  --no-pager  push',
       '\tgit commit -m x',
       'git push -u origin x',
       'cd /tmp/pr-5 && git push',
@@ -46,6 +52,10 @@ describe('L-100 reviewer-read-only hook', () => {
       '! git push',
       '(time git push)',
       'true;! git push',
+      'true&&! git push',
+      'if true; then  git push; fi',
+      "bash  -c  'git push'",
+      'true|if git push; then :; fi',
       'if git pull origin main; then echo ok; fi',
       'true; elif git push; then :; fi',
       'while git push; do sleep 1; done',
@@ -64,10 +74,15 @@ describe('L-100 reviewer-read-only hook', () => {
     for (const command of [
       'gh pr merge 5 --merge',
       ' gh pr merge 5',
+      'gh  pr  merge 5',
+      'gh  api  -X PUT repos/o/r/contents/a.txt',
+      'gh api --method  PATCH repos/o/r/pulls/5',
       ' gh api -X PUT repos/o/r/pulls/5/merge',
       'gh api repos/o/r/pulls/5; gh api -X PUT repos/o/r/pulls/5/merge',
       'gh api -Xpatch repos/o/r/pulls/5',
       'gh api -X "PATCH" repos/o/r/pulls/5',
+      "gh api -X 'PATCH' repos/o/r/pulls/5",
+      'gh api repos/o/r/pulls/5/reviews -f event="APPROVE"',
       'gh api repos/o/r/merges -f base=main -f head=x',
       'gh pr close 5',
       'gh pr review 5 --approve',
@@ -75,6 +90,7 @@ describe('L-100 reviewer-read-only hook', () => {
       'gh pr edit 5 --title x',
       'gh api -X PUT repos/o/r/pulls/5/merge',
       'gh api repos/o/r/pulls/5/merge -f merge_method=merge',
+      'gh api repos/o/r/pulls/129/merge -f merge_method=merge',
       'gh api -X POST repos/o/r/pulls/5/reviews -f event=APPROVE',
       "gh api repos/o/r/pulls/5/reviews -f event='REQUEST_CHANGES' -f body=x",
       'gh api -X PATCH repos/o/r/pulls/5 -f state=closed',
@@ -88,12 +104,19 @@ describe('L-100 reviewer-read-only hook', () => {
     for (const command of [
       'git checkout pr-5',
       ' git reset --hard',
+      'git  stash',
+      'gh  pr  checkout 5',
+      'cd  /repo && git stash',
       'git bisect start HEAD origin/main',
       'if git checkout pr-5; then :; fi',
       // The leading `cd` counts only while `&&` alone chains the command: a failed `cd` leaves what follows a `;` or `||` here.
       'cd /tmp/gone && ls; git checkout -- .',
       'cd /tmp/gone && ls || git checkout -- .',
       'cd /tmp/gone && ls\ngit stash',
+      // After a single `&` the `cd` is in a background job, and what follows runs here.
+      'cd /tmp/pr-5 && npm test & git reset --hard',
+      // A `cd` that is not the first word is not a leading one.
+      'git stash && cd /tmp/pr-5 && ls',
       'git --git-dir=/x/.git checkout y',
       'git switch -c x',
       'git reset --hard origin/main',
@@ -132,6 +155,11 @@ describe('L-100 reviewer-read-only hook', () => {
     expect(reviewer('  cd ../pr-5 && git reset --hard')).toBeNull();
     expect(reviewer('cd /repo-5 && git rm a.ts')).toBeNull();
     expect(reviewer('cd /tmp/pr-5&& git stash')).toBeNull();
+    expect(reviewer('cd  /tmp/pr-5 && git stash')).toBeNull();
+    expect(reviewer('cd /tmp/pr-5 && git stash\n')).toBeNull();
+    expect(reviewer('cd /tmp/pr-5 && git stash 2>&1 | tail -3')).toBeNull();
+    expect(reviewer('cd /tmp/pr-5 && git stash &> /tmp/log')).toBeNull();
+    expect(reviewer('cd /tmp/pr-5 && git stash >&2')).toBeNull();
     expect(reviewer('cd "/tmp/pr 5" && gh pr checkout 5')).toBeNull();
   });
 
@@ -139,6 +167,9 @@ describe('L-100 reviewer-read-only hook', () => {
     for (const command of [
       'node scripts/mutate.mjs m.json',
       'node --no-warnings scripts/mutate.mjs m.json',
+      "node 'scripts/mutate.mjs' m.json",
+      'node  --no-warnings  --trace-uncaught  scripts/mutate.mjs m.json',
+      'cd /tmp/pr-5 && npm run dev & node scripts/mutate.mjs m.json',
       'node ./scripts/mutate.mjs --suggest',
       'node /repo/scripts/mutate.mjs --restore',
       'cd /tmp/pr-5 && node /repo/scripts/mutate.mjs m.json',
@@ -156,8 +187,12 @@ describe('L-100 reviewer-read-only hook', () => {
 
   it('lets a run of a worktree\'s own mutant runner through', () => {
     expect(reviewer('cd /tmp/pr-5 && node scripts/mutate.mjs m.json')).toBeNull();
+    expect(reviewer('cd /tmp/pr-5 && node scripts/mutate.mjs m.json 2>&1 | tail -5')).toBeNull();
     expect(reviewer('cd "/tmp/pr 5" && node scripts/mutate.mjs m.json')).toBeNull();
     expect(reviewer('node /tmp/pr-5/scripts/mutate.mjs m.json')).toBeNull();
+    expect(reviewer('node "/tmp/pr-5/scripts/mutate.mjs" m.json')).toBeNull();
+    // The path is the one word before the runner's name: another script's argument is not it.
+    expect(reviewer('cd /tmp/pr-5 && node tool.mjs /x y/scripts/mutate.mjs')).toBeNull();
     expect(reviewer('cd ../pr-5 && node ./scripts/mutate.mjs --suggest')).toBeNull();
   });
 
@@ -178,6 +213,10 @@ describe('L-100 reviewer-read-only hook', () => {
       'grep -rn "git push" docs',
       'grep -c "git push" docs/HARNESS.md',
       'echo git push',
+      'echo gh pr merge 5',
+      "publish -c 'git push'",
+      'grep -n "gh api -X PUT" docs/HARNESS.md',
+      'grep -rn "gh pr checkout" .claude',
       'cat scripts/mutate.mjs',
       'gh pr view 5',
       'gh pr checks 5',

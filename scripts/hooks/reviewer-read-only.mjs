@@ -6,11 +6,13 @@
 //     any call with the method PATCH, PUT or DELETE (a close is one);
 //   - a command that changes a working tree (`git checkout|switch|reset|restore|stash|clean|apply|rm|mv|bisect`, `gh pr checkout`)
 //     and does not begin with `cd <dir> &&` for a folder outside the main checkout: every call starts in it. The `cd`
-//     counts only while `&&` alone chains the command: after `;`, `||` or a new line a failed `cd` leaves the shell there;
+//     counts only while `&&` alone chains the command: after `;`, `||`, a single `&` or a new line the shell may be there;
 //   - a run of a `scripts/mutate.mjs` that lies in the main checkout, whatever folder the command starts in: the runner
 //     mutates the tree its own file is in.
 // A command word is read at the start, after a separator, after `if`, `elif`, `while`, `until`, `then`, `do`, `else`, `time`
 // or `!`, and as the text of `sh -c`. Quoted text is read as written, so a review's body goes in a here-document or a file, never in the command.
+// It reads a command word in the places listed here and no other (not after `eval`, `xargs` or a `case` arm, in backticks,
+// or written with a path), and an approval only as `event=` among `gh api`'s arguments, not in a JSON body.
 // It does not read what a command writes by other means (a redirection, `sed -i`, a script, a `cd` later in the command,
 // git's `-C <dir>` or `--work-tree`), nor a flag between `gh pr` and its verb (`gh pr -R o/r merge`):
 // that stays the agent's rule. It never fails: any problem prints nothing and exits 0.
@@ -27,13 +29,13 @@ const AT = String.raw`(?:^\s*|[;&|\n({]\s*|(?:^|[\s;&|(])(?:if|elif|while|until|
 // git with its own options before the subcommand (`-C <dir>`, `-c k=v`, `--git-dir=...`), as in stale-main.mjs.
 const git = (subs) => new RegExp(String.raw`${AT}git\s+(?:-[Cc]\s+${WORD}\s+|-${WORD}\s+)*(?:${subs})(?![\w-])`);
 const PUBLISHES = git('push|pull|commit|cherry-pick|merge|revert|am|rebase');
-const GH_PR = new RegExp(String.raw`${AT}gh\s+pr\s+(?:merge|close|review|ready|edit)\b`);
+const GH_PR = new RegExp(String.raw`${AT}gh\s+pr\s+(?:merge|close|review|ready|edit)`);
 // One `gh api` call, up to the next separator or new line; what it does is read from its arguments.
-const GH_API = new RegExp(String.raw`${AT}gh\s+api\b((?:${WORD}|[^\S\n])*)`, 'g');
-const DECIDES = /\/pulls\/\d+\/merge\b|\/merges\b|\bevent=["']?(?:APPROVE|REQUEST_CHANGES)\b|(?:-X\s*|--method[\s=]+)["']?(?:PATCH|PUT|DELETE)\b/i;
-const CHANGES_TREE = new RegExp(`${git('checkout|switch|reset|restore|stash|clean|apply|rm|mv|bisect').source}|${AT}gh\\s+pr\\s+checkout\\b`);
+const GH_API = new RegExp(String.raw`${AT}gh\s+api((?:${WORD}|[^\S\n])*)`, 'g');
+const DECIDES = /\/pulls\/\d+\/merge|\/merges|event=["']?(?:APPROVE|REQUEST_CHANGES)|(?:-X\s*|--method[\s=]+)["']?(?:PATCH|PUT|DELETE)/i;
+const CHANGES_TREE = new RegExp(`${git('checkout|switch|reset|restore|stash|clean|apply|rm|mv|bisect').source}|${AT}gh\\s+pr\\s+checkout`);
 // A run of the mutant runner, with the path written before `scripts/mutate.mjs`.
-const MUTANTS = /\bnode\s+(?:-\S+\s+)*["']?([^\s;&|<>()"']*\/)?scripts\/mutate\.mjs\b/g;
+const MUTANTS = /node\s+(?:-\S+\s+)*["']?(\S*\/)?scripts\/mutate\.mjs/g;
 const LEADING_CD = new RegExp(String.raw`^\s*cd\s+(${WORD})\s*&&`);
 
 /** Whether `dir` lies in the main checkout at `root`, or is the checkout itself. */
@@ -41,9 +43,10 @@ const inside = (root, dir) => !relative(root, dir).startsWith('..');
 
 /**
  * The folder of a leading `cd <dir> &&`, its quotes taken off; undefined when the command does not begin with one, or goes on
- * after a `;`, a `||` or a new line, where a `cd` that failed leaves the rest in the main checkout.
+ * after a `;`, a `||` or a new line, where a `cd` that failed leaves the rest in the main checkout, or after a single `&`,
+ * which puts the `cd` in a background job (`2>&1` and `&>` are redirections, and a pipe keeps the folder).
  */
-const leadingCd = (text) => (/;|\|\||\n/.test(text.trim()) ? undefined : LEADING_CD.exec(text)?.[1].replace(/^(["'])(.*)\1$/, '$2'));
+const leadingCd = (text) => (/;|\|\||\n|(?<![&>])&(?![&>])/.test(text.trim()) ? undefined : LEADING_CD.exec(text)?.[1].replace(/^(["'])(.*)\1$/, '$2'));
 
 /**
  * Whether the command begins with `cd <dir> &&` for a folder outside the main checkout at `root`. A folder is read as written,
@@ -74,13 +77,15 @@ export function readOnlyProblem(input, root = '/') {
   if (CHANGES_TREE.test(text) && !leavesMain(text, root)) {
     return (
       'L-100: this command changes a working tree, and every Bash call of the pr-reviewer starts in the main checkout, which ' +
-      'it never writes to. Begin the command with `cd <the temporary worktree> &&`, its path written out.'
+      'it never writes to. Begin the command with `cd <the temporary worktree> &&`, its path written out, and chain the rest ' +
+      'with `&&` alone (a pipe is fine; no `;`, `||`, single `&` or new line).'
     );
   }
   if (mutatesMain(text, root)) {
     return (
       'L-100: scripts/mutate.mjs mutates the tree its own file is in, and this one is the main checkout\'s, which the ' +
-      'pr-reviewer never writes to. Run the temporary worktree\'s copy: `cd <worktree> && node scripts/mutate.mjs ...`.'
+      'pr-reviewer never writes to. Run the temporary worktree\'s copy: `cd <worktree> && node scripts/mutate.mjs ...`, the ' +
+      'rest chained with `&&` alone (a pipe is fine; no `;`, `||`, single `&` or new line).'
     );
   }
   return null;
