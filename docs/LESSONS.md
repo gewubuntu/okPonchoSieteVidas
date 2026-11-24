@@ -1212,3 +1212,13 @@ Retired IDs: L-046
 - **Rule:** The gate does not run lint, the typecheck and the tests while a harness check has failed. A test fixture that needs a GDD ID takes one that exists (`gdd-references` reads test files too).
 - **Recurrence:** 1
 - **Promoted:** `scripts/check.mjs` (the toolchain is skipped, with a line saying so, when a check before it failed)
+
+## L-100 The reviewer's read-only rule stood only in a sentence
+
+- **Date:** 2026-11-24
+- **Area:** harness, process
+- **What went wrong:** The `pr-reviewer` is read-only, and its tool list holds an unscoped `Bash`. What kept it from a commit, a push or a mutant run in the session's own working tree was one sentence in its file, which itself said that the tool list cannot scope `Bash`. Its every Bash call starts in the main checkout, and it runs `scripts/mutate.mjs` in most reviews. No review has yet written to the main checkout; an audit of the skills the user asked for found the gap.
+- **Root cause:** When the agent was written a hook could not tell which agent made a call, so the rule was left as prose and never looked at again when the hook's input came to name the agent (`agent_type`).
+- **Rule:** A subagent's limit that a tool list cannot express is a hook keyed on the agent's name, with the commands it denies in its test. What the hook cannot read (a write by a redirection or a script) is named in the agent's file as still its own rule.
+- **Recurrence:** 1
+- **Promoted:** `scripts/hooks/reviewer-read-only.mjs` (denies the reviewer a commit, push, merge, close or approval, and a tree-changing git command or a mutant run that does not begin with `cd <worktree> &&`)

@@ -49,6 +49,7 @@ describe('server-one-way (L-008)', () => {
     expect(errorsOf("const name = 'server/ledger';\nconst other = '../../servers/x';\nconst near = '../../serverless';")).toEqual([]);
     expect(errorsOf('const p = `../../${folder}/ledger`;')).toEqual([]);
     expect(errorsOf('const n = 5;\nconst r = /..\\/server/;')).toEqual([]);
+    expect(errorsOf("import { watch } from './observer';\nimport { o } from '../observer';", 'src/a.ts')).toEqual([]);
     expect(errorsOf("const img = '/assets/x.png';\nconst main = '/src/main.ts';\nconst s = '/servers/x';")).toEqual([]);
   });
 

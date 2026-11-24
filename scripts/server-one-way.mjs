@@ -2,8 +2,9 @@
 // game's build holds none of it. Every file under `src/` is parsed, and each text in it that is a relative path leading
 // into the top-level `server/` folder is an error, however it is used: `import ... from`, a bare `import '...'`, `import()`,
 // `export ... from`, `import.meta.glob(...)`, `vi.mock(...)`; so is a path from the project's root (`/server/...`), which a
-// glob may use. Comments are not read, and a folder named `server` inside `src/` is not the server. A glob with a wildcard
-// where the folder's name stands (`../../*/ledger.ts`) is not read.
+// glob may use. Comments are not read, and a folder named `server` inside `src/` is not the server. A glob with a wildcard,
+// or a template with something put into it, where the folder's name stands (`../../*/ledger.ts`, `../${folder}/ledger.ts`)
+// is not read: the folder's name is not written in the file.
 import { createRequire } from 'node:module';
 import { posix } from 'node:path';
 
