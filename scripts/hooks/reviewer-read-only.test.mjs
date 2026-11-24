@@ -14,6 +14,8 @@ describe('L-100 reviewer-read-only hook', () => {
   it('denies the reviewer a git command that publishes or commits, from any folder', () => {
     for (const command of [
       'git push',
+      ' git push',
+      '\tgit commit -m x',
       'git push -u origin x',
       'cd /tmp/pr-5 && git push',
       'git -C /tmp/pr-5 push',
@@ -42,7 +44,16 @@ describe('L-100 reviewer-read-only hook', () => {
       'true || { false; } else git push',
       'time git push',
       '! git push',
+      '(time git push)',
+      'true;! git push',
+      'if git pull origin main; then echo ok; fi',
+      'true; elif git push; then :; fi',
+      'while git push; do sleep 1; done',
+      'until git push; do sleep 1; done',
       "bash -c 'git push'",
+      "zsh -c 'git push'",
+      "dash -c 'git push'",
+      "ksh -c 'git push'",
       'sh -ec "git push"',
       // A mention after such a word is denied too: the hook cannot tell it from a call, and the reviewer words it otherwise.
       'echo then git push',
@@ -52,6 +63,12 @@ describe('L-100 reviewer-read-only hook', () => {
   it('denies a decision made with gh: its pr commands, and through the API a merge, an approval, a request for changes and a close', () => {
     for (const command of [
       'gh pr merge 5 --merge',
+      ' gh pr merge 5',
+      ' gh api -X PUT repos/o/r/pulls/5/merge',
+      'gh api repos/o/r/pulls/5; gh api -X PUT repos/o/r/pulls/5/merge',
+      'gh api -Xpatch repos/o/r/pulls/5',
+      'gh api -X "PATCH" repos/o/r/pulls/5',
+      'gh api repos/o/r/merges -f base=main -f head=x',
       'gh pr close 5',
       'gh pr review 5 --approve',
       'gh pr ready 5',
@@ -70,6 +87,13 @@ describe('L-100 reviewer-read-only hook', () => {
   it('denies a command that changes a tree and does not first leave the main checkout', () => {
     for (const command of [
       'git checkout pr-5',
+      ' git reset --hard',
+      'git bisect start HEAD origin/main',
+      'if git checkout pr-5; then :; fi',
+      // The leading `cd` counts only while `&&` alone chains the command: a failed `cd` leaves what follows a `;` or `||` here.
+      'cd /tmp/gone && ls; git checkout -- .',
+      'cd /tmp/gone && ls || git checkout -- .',
+      'cd /tmp/gone && ls\ngit stash',
       'git --git-dir=/x/.git checkout y',
       'git switch -c x',
       'git reset --hard origin/main',
@@ -107,6 +131,7 @@ describe('L-100 reviewer-read-only hook', () => {
     expect(reviewer("cd '/tmp/pr-5' && git stash && git stash pop")).toBeNull();
     expect(reviewer('  cd ../pr-5 && git reset --hard')).toBeNull();
     expect(reviewer('cd /repo-5 && git rm a.ts')).toBeNull();
+    expect(reviewer('cd /tmp/pr-5&& git stash')).toBeNull();
     expect(reviewer('cd "/tmp/pr 5" && gh pr checkout 5')).toBeNull();
   });
 
@@ -124,6 +149,8 @@ describe('L-100 reviewer-read-only hook', () => {
       'cd "$W" && node scripts/mutate.mjs m.json',
       'node $W/scripts/mutate.mjs m.json',
       'cd /tmp/pr-5 && node scripts/check.mjs; node /repo/scripts/mutate.mjs m.json',
+      'node /tmp/pr-5/scripts/mutate.mjs m.json; node scripts/mutate.mjs m.json',
+      'cd /tmp/gone && npm ci; node scripts/mutate.mjs m.json',
     ]) expect(reviewer(command), command).toMatch(MUTANTS);
   });
 
@@ -143,6 +170,9 @@ describe('L-100 reviewer-read-only hook', () => {
       'git merge-base origin/main HEAD',
       'git show HEAD:scripts/mutate.mjs',
       'git checkout-index --help',
+      'git mergetool --tool-help',
+      'gh api repos/o/r/pulls/5/comments; echo -X PUT',
+      'gh api repos/o/r/pulls/5/comments\necho -X PUT',
       'git rm-cached-like --help',
       'cd /tmp/pr-5 && node scripts/check.mjs',
       'grep -rn "git push" docs',
@@ -154,7 +184,6 @@ describe('L-100 reviewer-read-only hook', () => {
       'gh api repos/o/r/pulls/5',
       'gh api -X POST repos/o/r/pulls/5/reviews -f event=COMMENT -f body=fine',
       "gh api repos/o/r/pulls/5/reviews --input - <<'EOF'\n{\"event\":\"COMMENT\",\"body\":\"Do not chain\\ngit push after the gate; event=APPROVE is not this\"}\nEOF",
-      'gh api -X POST repos/o/r/issues/5/comments -f body=x; gh pr view 5 --json state -q .state # PATCH',
       "cat > /tmp/notes.md <<'EOF'\ngit push\ngh pr merge 5\nnode scripts/mutate.mjs\nEOF",
     ]) expect(reviewer(command), command).toBeNull();
   });
