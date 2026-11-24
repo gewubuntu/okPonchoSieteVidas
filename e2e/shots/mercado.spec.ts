@@ -62,7 +62,7 @@ test('GDD-ART-06 mercado: the arena 2-4 with the plaza and the kiosco', async ({
   await shot(page, info, 'mercado-arena');
 });
 
-/** Waits until a frame has drawn La Estrella with these fields (`estrellaDrawn`), as the debug `step` does not draw (L-033). */
+/** Waits until a frame has drawn La Estrella with these fields (`estrellaDrawn`), as a frame may not have drawn since the last step (L-033). */
 const drawnAs = (page: Page, want: Record<string, unknown>) =>
   page.waitForFunction((w) => {
     const d = window.__PONCHO__!.estrellaDrawn() as Record<string, unknown> | null;

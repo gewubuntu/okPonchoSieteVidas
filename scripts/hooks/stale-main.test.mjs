@@ -7,6 +7,7 @@ describe('L-052 stale-main hook', () => {
   it('sees a push, also with git options or after cd', () => {
     expect(isPush('git push -u origin feature')).toBe(true);
     expect(isPush('git push')).toBe(true);
+    expect(isPush(' git push')).toBe(true);
     expect(isPush('cd /repo && git push -u origin x')).toBe(true);
     expect(isPush('git -C /repo push origin x')).toBe(true);
     expect(isPush('node scripts/check.mjs && git commit -m x && git push')).toBe(true);
