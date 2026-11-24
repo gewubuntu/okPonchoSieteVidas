@@ -64,9 +64,9 @@ test('GDD-BOS-04 3-4 opens by its address and plays La Catorce: bar, pips, her f
   const box = catorceBox(DEF, { ...catorceStart(DEF, 0), x: seen.run.x });
   for (const key of ['x0', 'x1', 'y0', 'y1'] as const) expect(Math.abs(seen.drawn.body[key] - box[key]), key).toBeLessThanOrEqual(0.5);
   // Her telegraph's first look one step in (age 1: floor(1 / 4) is even, so red; floor(1 / 2) % 4 = 0, her wheels' first quarter), facing left,
-  // three lamps lit; her plume over her middle stud while armoured, 0.75 px left of her middle (399.25), 6 x 10 px, its foot 5 px under her
-  // top (y 197), its first frame.
-  expect(seen.drawn).toMatchObject({ look: 'spinRed3_0', left: true, lamps: 3, flash: 'red', plume: { x0: 396.25, x1: 402.25, y0: 187, y1: 197, frame: 0 } });
+  // three lamps lit; her plume over her middle stud while armoured, 1.25 px left of her middle (398.75), 6 x 10 px, its foot 4 px under her
+  // top (y 196), its first frame.
+  expect(seen.drawn).toMatchObject({ look: 'spinRed3_0', left: true, lamps: 3, flash: 'red', plume: { x0: 395.75, x1: 401.75, y0: 186, y1: 196, frame: 0 } });
   expect(await api(page, () => window.__PONCHO__!.hilos())).toMatchObject({ taken: 0, total: 0 });
   expect(await api(page, () => window.__PONCHO__!.exitDrawn())).toBe(false);
   // Home's two tiles drawn whole at columns 14 and 15, row 10 (x 224 and 240).

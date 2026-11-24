@@ -1,4 +1,5 @@
-// La Catorce, World 3's boss (GDD-BOS-04): a squat narrow-gauge saddle-tank mine engine, number 14, drawn in code (GDD-ART-01) like La
+// La Catorce, World 3's boss (GDD-BOS-04): a squat narrow-gauge mine engine, number 14, after the user's model
+// (assets/characters/la-catorce/reference-model.jpg), drawn in code (GDD-ART-01) like La
 // Estrella (scripts/art/estrella.mjs), on a grid of drawing pixels, each 2 x 2 art pixels (half a game pixel), outlined (GDD-ART-05), in
 // World 3's colours (GDD-ART-06) plus the outline, the flash reds and her cold flame. Facing right; `drawLook` mirrors her for the left-facing frames and puts her digits back unmirrored, so the game never flips her.
 // Everything of her, outline included, lies inside her 64 x 32 game px box, her wheels' outline on its bottom row.
@@ -28,16 +29,18 @@ const STEEL = [W3.mist, W3.steel, W3.ironDark];
 const WHITE = { colour: W3.mist, shade: W3.steel };
 const DARKS = [W3.ironDark, W3.galleryDeep, W3.galleryBase, W3.ochreShade, W3.rockDeep, COLD_FLAME_DEEP];
 
-/** The wheels' middles across (box px) and their middle's row; each 16 px across. */
-export const WHEELS = [15, 40, 78, 103];
+/** The wheels' middles across (box px) and their middle's row; each 16 px across. Three, as on the user's model. */
+export const WHEELS = [30, 55, 80];
 const WHEEL_Y = 55;
 const WHEEL_R = 8;
-/** The three hit lamps along her tank (box px), rear to front; the front one goes out first. */
-export const LAMPS = [[48, 28], [65, 28], [82, 28]];
-/** Her headlamp's middle (box px). */
-export const HEADLAMP = [118, 19];
-/** The three pale steam-valve studs on her tank's top: the mark that she cannot be stomped (GDD-CMB-01). */
-export const STUDS = [46, 65, 84];
+/** The three hit lamps along her boiler (box px), rear to front; the front one goes out first. */
+export const LAMPS = [[49, 30], [66, 30], [83, 30]];
+/** Her eye's middle (box px): the big lens in her smokebox front, under its hood. */
+export const HEADLAMP = [113, 31];
+/** The three pale steam-valve studs on her boiler's top, close together on their block: the mark that she cannot be stomped (GDD-CMB-01). */
+export const STUDS = [61, 66, 71];
+/** The studs' top row (box px); each stud is 3 px wide from its `STUDS` column less 1, and 5 tall. */
+export const STUD_TOP = 8;
 
 // prettier-ignore
 const DIGITS = {
@@ -86,18 +89,26 @@ export function drawCatorce({ turn = 0, lamps = 3, eye = 'dim', dx = 0, dy = 0, 
   const B = (test) => (x, y) => test(x - BOX.x0 - dx, y - BOX.y0 - dy);
   const bp = (x, y) => [BOX.x0 + x + dx, BOX.y0 + y + dy];
 
-  // The rear buffer and the cab: a tiny open cab, its roof overhanging.
-  shaded(g, B(rect(1, 42, 6, 9)), IRON);
-  shaded(g, B(rect(5, 11, 30, 32)), IRON);
-  shaded(g, B(polygon([[1, 10], [3, 6], [36, 6], [39, 10], [39, 12], [1, 12]])), IRON);
-  // The window: the dark of the cab, or the cold flame of her open firebox.
-  g.fill(B(rect(12, 16, 15, 12)), open ? COLD_FLAME_DEEP : W3.galleryDeep);
+  // The rear buffer and the cab: tall, its long flat roof overhanging both ways.
+  shaded(g, B(rect(1, 43, 5, 7)), IRON);
+  shaded(g, B(rect(5, 10, 33, 34)), IRON);
+  shaded(g, B(polygon([[1, 9], [3, 5], [40, 5], [43, 9], [43, 11], [1, 11]])), IRON, { lightDepth: 2 });
+  // The window: the glow of her firebox low in the dark of the cab, or the cold flame filling it when her door is open (phase 3).
+  g.fill(B(rect(10, 15, 16, 14)), W3.galleryDeep);
+  g.fill(B(rect(10, 15, 4, 14)), W3.galleryBase);
   if (open) {
-    g.fill(B(polygon([[13, 28], [16, 21], [19, 25], [22, 18], [25, 24], [26, 28]])), COLD_FLAME);
-    g.fill(B(polygon([[18, 28], [21, 23], [23, 28]])), W3.mist);
+    g.fill(B(polygon([[14, 29], [16, 21], [19, 25], [21, 16], [24, 23], [26, 29]])), COLD_FLAME);
+    g.fill(B(polygon([[18, 29], [21, 22], [23, 29]])), W3.mist);
+    g.fill(B(polygon([[14, 29], [15, 25], [17, 29]])), COLD_FLAME_DEEP);
+  } else if (plate) {
+    // The glow dies with her: none once she is defeated (her plate gone).
+    g.fill(B(polygon([[16, 29], [19, 23], [21, 26], [23, 21], [25, 29]])), COLD_FLAME_DEEP);
   }
-  shaded(g, B(rect(11, 15, 17, 1)), [W3.steel, W3.steel, W3.steel]);
-  g.fill(B(rect(11, 28, 17, 1)), W3.galleryDeep);
+  g.fill(B(rect(9, 14, 18, 1)), W3.steel);
+  g.fill(B(rect(9, 29, 18, 1)), W3.galleryDeep);
+  // The grab rails either side of her door, brass.
+  g.fill(B(rect(7, 31, 1, 11)), W3.ochreShade);
+  g.fill(B(rect(34, 31, 1, 11)), W3.lampAmber);
   // Her plate "14": lamp amber, its digits iron dark.
   if (plate) {
     shaded(g, B(rect(9, 31, 21, 10)), BRASS);
@@ -107,23 +118,32 @@ export function drawCatorce({ turn = 0, lamps = 3, eye = 'dim', dx = 0, dy = 0, 
     px(g, [bp(10, 32), bp(28, 32), bp(10, 39), bp(28, 39)], W3.galleryDeep);
   }
 
-  // The saddle tank over her boiler, round shouldered, and the smokebox ahead of it.
-  const tank = (x, y) => rect(35, 20, 60, 23)(x, y) || ellipse(47, 26, 12, 12)(x, y) || ellipse(83, 26, 12, 12)(x, y) || rect(47, 14, 36, 8)(x, y);
-  shaded(g, B(tank), IRON, { lightDepth: 2, darkDepth: 2 });
-  shaded(g, B(rect(95, 19, 20, 24)), IRON, { lightDepth: 1, darkDepth: 2 });
-  g.fill(B(rect(95, 20, 2, 22)), W3.steel);
-  // The round smokebox door, seen a little from the front, with its handle.
-  shaded(g, B(ellipse(113, 31, 4, 11)), IRON_FLAT);
-  px(g, [bp(113, 30), bp(113, 31)], W3.lampAmber);
-  // Rivets along the tank's foot.
-  for (let x = 40; x <= 90; x += 10) px(g, [bp(x, 40)], W3.steel);
+  // The boiler, round shouldered, in three banded rings, and the smokebox ahead of it behind a brass joint.
+  const boiler = (x, y) => rect(38, 22, 58, 22)(x, y) || ellipse(49, 27, 11, 10)(x, y) || ellipse(85, 27, 11, 10)(x, y) || rect(49, 17, 36, 8)(x, y);
+  shaded(g, B(boiler), IRON, { lightDepth: 2, darkDepth: 2 });
+  for (const x of [57, 75]) {
+    g.fill((u, v) => B(boiler)(u, v) && B(rect(x, 19, 1, 24))(u, v), W3.galleryDeep);
+    g.fill((u, v) => B(boiler)(u, v) && B(rect(x + 1, 19, 1, 6))(u, v), W3.steel);
+  }
+  shaded(g, B(rect(96, 20, 18, 24)), IRON, { lightDepth: 1, darkDepth: 2 });
+  g.fill(B(rect(95, 21, 2, 22)), W3.lampAmber);
+  g.fill(B(rect(95, 21, 2, 5)), W3.ochreLight);
+  g.fill(B(rect(95, 37, 2, 6)), W3.ochreShade);
 
-  // The fat funnel stack, flared, with a brass band.
-  shaded(g, B(polygon([[97, 1], [113, 1], [113, 5], [110, 8], [110, 19], [100, 19], [100, 8], [97, 5]])), IRON, { lightDepth: 2 });
-  g.fill(B(rect(100, 10, 10, 2)), W3.lampAmber);
-  g.fill(B(rect(100, 10, 3, 2)), W3.ochreLight);
-  // The three pale studs on her tank's top.
-  for (const x of STUDS) shaded(g, B(rect(x - 2, 10, 5, 4)), [W3.mist, W3.mist, W3.steel]);
+  // On her boiler's top: a brass whistle, the block with her three pale studs, and the sand dome.
+  shaded(g, B(rect(50, 9, 3, 9)), BRASS);
+  shaded(g, B(rect(58, 13, 17, 5)), IRON_FLAT);
+  for (const x of STUDS) shaded(g, B(rect(x - 1, STUD_TOP, 3, 5)), [W3.mist, W3.mist, W3.steel]);
+  shaded(g, B((x, y) => ellipse(84, 16, 6, 7)(x, y) && y < 19), IRON, { lightDepth: 2 });
+
+  // The big funnel stack: a narrow waist under a wide flared top, with a brass band.
+  shaded(g, B(polygon([[90, 1], [110, 1], [110, 4], [105, 12], [105, 21], [95, 21], [95, 12], [90, 4]])), IRON, { lightDepth: 2 });
+  g.fill(B(rect(95, 13, 10, 2)), W3.lampAmber);
+  g.fill(B(rect(95, 13, 3, 2)), W3.ochreLight);
+  // The round brass lamp on her smokebox's top, ahead of the stack.
+  shaded(g, B(rect(108, 17, 4, 4)), IRON_FLAT);
+  shaded(g, B(ellipse(113, 13, 5, 5)), BRASS);
+  g.fill(B(ellipse(113.5, 13.5, 2.5, 2.5)), eye === 'amber' || eye === 'out' ? W3.ochreShade : W3.ochreLight);
 
   // The hit lamps: a brass ring, the cold flame inside while it burns.
   LAMPS.forEach(([x, y], i) => {
@@ -132,35 +152,38 @@ export function drawCatorce({ turn = 0, lamps = 3, eye = 'dim', dx = 0, dy = 0, 
     if (i < lamps) px(g, [bp(x - 1, y - 1), bp(x, y - 1)], W3.mist);
   });
 
-  // Her headlamp, her eye: a brass housing on a bracket, a slanted hood for a brow.
+  // Her eye: the smokebox door's big lens in its iron ring, a slanted hood over it for a brow.
   const [hx, hy] = HEADLAMP;
-  shaded(g, B(rect(hx - 6, hy + 5, 6, 4)), IRON_FLAT);
-  shaded(g, B(ellipse(hx, hy, 8, 8)), BRASS);
-  const lens = B(ellipse(hx + 0.5, hy + 0.5, 5.5, 5.5));
+  shaded(g, B(ellipse(hx, hy, 9, 11)), IRON, { lightDepth: 1, darkDepth: 2 });
+  g.fill(B(ellipse(hx + 0.5, hy + 0.5, 7, 9)), W3.galleryDeep);
+  const lens = B(ellipse(hx + 1, hy + 1.5, 5, 6.5));
   g.fill(lens, { dim: COLD_FLAME_DEEP, full: COLD_FLAME, squint: W3.galleryDeep, amber: W3.rockDeep, out: W3.galleryDeep }[eye]);
-  if (eye === 'dim') g.fill(B(ellipse(hx + 2, hy + 2.5, 2.6, 2.6)), COLD_FLAME);
-  if (eye === 'full') g.fill(B(ellipse(hx + 1.5, hy + 1, 3, 3)), W3.mist);
-  if (eye === 'amber') g.fill(B(ellipse(hx + 1, hy + 2.5, 2.6, 2.6)), W3.lampAmber);
-  if (eye === 'squint') g.fill((x, y) => lens(x, y) && B(stroke([[hx - 4, hy - 3], [hx + 3, hy + 0.5], [hx - 4, hy + 4]], 1.5))(x, y), COLD_FLAME);
-  // The brow: a hood over the lamp, lower toward her front, so she frowns; level and heavy when she is defeated.
-  const brow = eye === 'amber' || eye === 'out' ? [[hx - 8, hy - 7], [hx + 9, hy - 7], [hx + 9, hy - 1], [hx - 8, hy - 1]] : eye === 'full' ? [[hx - 9, hy - 10], [hx + 9, hy - 5], [hx + 9, hy - 2], [hx - 9, hy - 7]] : [[hx - 9, hy - 10], [hx + 9, hy - 3], [hx + 9, hy + 1], [hx - 9, hy - 4]];
-  shaded(g, (x, y) => B(polygon(brow))(x, y) && B(ellipse(hx, hy, 10, 10))(x, y), IRON_FLAT);
+  if (eye === 'dim') g.fill(B(ellipse(hx + 2, hy + 3, 2.6, 3.2)), COLD_FLAME);
+  if (eye === 'full') g.fill(B(ellipse(hx + 2, hy + 1.5, 2.6, 3.4)), W3.mist);
+  if (eye === 'amber') g.fill(B(ellipse(hx + 1.5, hy + 3, 2.6, 3)), W3.lampAmber);
+  if (eye === 'squint') g.fill((x, y) => lens(x, y) && B(stroke([[hx - 3, hy - 3], [hx + 4, hy + 1.5], [hx - 3, hy + 6]], 1.5))(x, y), COLD_FLAME);
+  // The brow: a hood over the lens, lower toward her front, so she frowns; level and heavy when she is defeated.
+  const brow = eye === 'amber' || eye === 'out' ? [[hx - 9, hy - 9], [hx + 11, hy - 9], [hx + 11, hy - 2], [hx - 9, hy - 2]] : eye === 'full' ? [[hx - 10, hy - 13], [hx + 12, hy - 7], [hx + 12, hy - 3], [hx - 10, hy - 9]] : [[hx - 10, hy - 13], [hx + 12, hy - 5], [hx + 12, hy], [hx - 10, hy - 7]];
+  shaded(g, B(polygon(brow)), IRON_FLAT);
 
-  // The running board, the toothed buffer beam and the cylinder.
-  shaded(g, B(rect(3, 43, 118, 5)), IRON);
-  shaded(g, B(rect(115, 40, 11, 12)), IRON);
-  for (let i = 0; i < 3; i++) shaded(g, B(polygon([[116 + i * 3.4, 52], [119.4 + i * 3.4, 52], [117.7 + i * 3.4, 57]])), STEEL);
-  px(g, [bp(120, 44), bp(120, 48)], W3.steel);
-  shaded(g, B(rect(92, 46, 16, 8)), IRON, { darkDepth: 2 });
-  g.fill(B(rect(94, 47, 2, 6)), W3.steel);
-  g.fill(B(rect(104, 47, 2, 6)), W3.steel);
+  // The running board, the step under her cab, the cylinder and the cowcatcher, its slats steel.
+  shaded(g, B(rect(3, 44, 116, 4)), IRON);
+  shaded(g, B(rect(7, 48, 9, 9)), IRON_FLAT);
+  g.fill(B(rect(9, 51, 5, 1)), W3.steel);
+  shaded(g, B(rect(92, 47, 16, 9)), IRON, { darkDepth: 2 });
+  g.fill(B(rect(94, 48, 2, 7)), W3.steel);
+  g.fill(B(rect(104, 48, 2, 7)), W3.steel);
+  const catcher = polygon([[108, 46], [118, 46], [126, 58], [108, 58]]);
+  shaded(g, B(catcher), IRON_FLAT);
+  for (let k = 0; k < 4; k++) g.fill((u, v) => B(catcher)(u, v) && B(stroke([[110 + k * 3, 48], [114 + k * 4, 58]], 1.2))(u, v), W3.steel);
+  shaded(g, B(rect(108, 43, 12, 4)), IRON);
   // The ash pan's glow between her rear wheels.
-  g.fill(B(rect(25, 48, 6, 4)), open ? COLD_FLAME : COLD_FLAME_DEEP);
+  g.fill(B(rect(40, 48, 6, 3)), open ? COLD_FLAME : plate ? COLD_FLAME_DEEP : W3.galleryDeep);
 
   // The wheels stay on the rail; the coupling rod joins their pins, the piston rod reaches the leading pin.
   const pins = WHEELS.map((cx) => drawWheel(g, cx, turn));
-  g.fill(stroke([pins[0], pins[3]], 2.2), W3.steel);
-  g.fill(stroke([[pins[3][0], pins[3][1]], [BOX.x0 + 100 + dx, BOX.y0 + 50 + dy]], 1.4), W3.steel);
+  g.fill(stroke([pins[0], pins[2]], 2.2), W3.steel);
+  g.fill(stroke([[pins[2][0], pins[2][1]], [BOX.x0 + 94 + dx, BOX.y0 + 52 + dy]], 1.4), W3.steel);
   for (const [x, y] of pins) g.fill(ellipse(x, y, 1.6, 1.6), W3.mist);
 
   g.outline(OUTLINE, 1);

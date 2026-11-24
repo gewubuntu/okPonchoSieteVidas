@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { OUTLINE } from './enemies1/kit.mjs';
-import { BOX, COLD_FLAME, COLUMNS, drawDigits, drawFrames, drawLook, drawPlumeFrames, FRAME, LAMPS, LOOKS, PLUME, STUDS, W3 } from './catorce.mjs';
+import { BOX, COLD_FLAME, COLUMNS, drawDigits, drawFrames, drawLook, drawPlumeFrames, FRAME, LAMPS, LOOKS, PLUME, STUD_TOP, STUDS, W3 } from './catorce.mjs';
 import { CATORCE_ART } from '../../src/config/tuning';
 import { CATORCE_LOOKS } from '../../src/ui/catorceLooks';
 import { buildCatorce } from './make-catorce.mjs';
@@ -70,8 +70,10 @@ describe('GDD-BOS-04 La Catorce art', { timeout: 120_000 }, () => {
     expect([CATORCE_ART.boxX, CATORCE_ART.boxY]).toEqual([BOX.x0 / 2, BOX.y0 / 2]);
     expect([CATORCE_ART.columns, CATORCE_ART.looks]).toEqual([COLUMNS, LOOKS.length]);
     expect([CATORCE_ART.plume.w, CATORCE_ART.plume.h]).toEqual([PLUME.w / 2, PLUME.h / 2]);
-    // The plume stands over her middle stud: 5 drawing px wide from STUDS[1] - 2, its middle measured from her box's (L-003).
-    expect(CATORCE_ART.plume.ahead).toBe((STUDS[1] - 2 + 5 / 2 - (BOX.x1 - BOX.x0) / 2) / 2);
+    // The plume stands over her middle stud: 3 drawing px wide from STUDS[1] - 1, its middle measured from her box's (L-003), its foot
+    // on the stud's top row.
+    expect(CATORCE_ART.plume.ahead).toBe((STUDS[1] - 1 + 3 / 2 - (BOX.x1 - BOX.x0) / 2) / 2);
+    expect(CATORCE_ART.plume.rise).toBe(STUD_TOP / 2);
   });
 
   // L-059: how far each frame of assets/sprites/boss/la-catorce.png reaches past her 64 x 32 box (drawing px 8 to 135 across, 8 to 71 down),
@@ -82,10 +84,11 @@ describe('GDD-BOS-04 La Catorce art', { timeout: 120_000 }, () => {
     for (const { look, left, grid } of FRAMES) {
       const e = extent(grid);
       const name = `${look} ${left ? 'left' : 'right'}`;
-      // Her slam is 1 game px forward: 2 drawing px past her front (column 135 facing right, 8 facing left).
+      // Her slam moves her body 1 game px forward; her cowcatcher stops 1 drawing px short of her box's front, so the squash reaches 1
+      // drawing px past it (column 135 facing right, 8 facing left).
       const ahead = look.startsWith('slam');
-      if (ahead && !left) expect([e.x0 >= 8, e.x1], name).toEqual([true, 137]);
-      else if (ahead) expect([e.x0, e.x1 <= 135], name).toEqual([6, true]);
+      if (ahead && !left) expect([e.x0 >= 8, e.x1], name).toEqual([true, 136]);
+      else if (ahead) expect([e.x0, e.x1 <= 135], name).toEqual([7, true]);
       else expect([e.x0 >= 8, e.x1 <= 135], name).toEqual([true, true]);
       expect(e.y0, name).toBeGreaterThanOrEqual(8);
       // Her wheels' outline is on her box's bottom row (the floor's top is under it).
@@ -145,10 +148,10 @@ describe('GDD-BOS-04 La Catorce art', { timeout: 120_000 }, () => {
     expect(differ).toEqual([]);
   });
 
-  it('GDD-BOS-04 art studs: three mist white studs on her tank\'s top, the mark that she cannot be stomped', () => {
+  it('GDD-BOS-04 art studs: three mist white studs close together on her boiler\'s top, the mark that she cannot be stomped', () => {
     // GDD-CMB-01: the not-stompable mark.
-    expect(STUDS).toEqual([46, 65, 84]);
-    for (const x of [46, 65, 84]) expect(frame('rest3').get(BOX.x0 + x, BOX.y0 + 11), `stud ${x}`).toBe('#EEF1EA');
+    expect([STUDS, STUD_TOP]).toEqual([[61, 66, 71], 8]);
+    for (const x of [61, 66, 71]) expect(frame('rest3').get(BOX.x0 + x, BOX.y0 + STUD_TOP + 1), `stud ${x}`).toBe('#EEF1EA');
   });
 
   it('GDD-BOS-04 art plume: two frames of 12 by 20, mist and steel only, not outlined, its foot on the bottom row', () => {
