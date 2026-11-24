@@ -43,6 +43,14 @@
           },
           {
             "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/scripts/hooks/reviewer-read-only.mjs"
+            ],
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "if": "Bash(git *)",
             "command": "node",
             "args": [

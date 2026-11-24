@@ -9,6 +9,8 @@ describe('L-043 before-merge hook', () => {
     expect(mergeQuestion({ tool_name: 'mcp__github__enable_pr_auto_merge' })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'mcp__plugin_engineering_github__merge_pull_request' })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'gh pr merge 62 --merge' } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: ' gh pr merge 62' } })).toMatch(/L-043/);
+    expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: '\tgh api -X PUT repos/o/r/pulls/3/merge' } })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'cd x && GH_REPO=o/r gh pr merge 62' } })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: 'gh api -X PUT repos/o/r/pulls/3/merge -f merge_method=merge' } })).toMatch(/L-043/);
     expect(mergeQuestion({ tool_name: 'Bash', tool_input: { command: "gh api -X PUT 'repos/o/r/pulls/3/merge'" } })).toMatch(/L-043/);

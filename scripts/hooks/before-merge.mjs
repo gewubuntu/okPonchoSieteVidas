@@ -18,7 +18,7 @@ export function mergeQuestion(input) {
   // command as written: quoted text is not emptied, because quotes inside quotes, comments and operators in arguments made
   // that hide real merges. A quoted mention after a separator asks too; an extra question costs a click where a missed one
   // costs an unreviewed merge (L-008, L-043).
-  const merge = new RegExp(String.raw`(?:^|[;&|\n(]\s*)(?:[A-Za-z_]\w*=(?:${WORD})?\s+)*gh\s+(?:pr\s+merge\b|api\b[^\n]*\/pulls\/\d+\/merge\b)`);
+  const merge = new RegExp(String.raw`(?:^\s*|[;&|\n(]\s*)(?:[A-Za-z_]\w*=(?:${WORD})?\s+)*gh\s+(?:pr\s+merge\b|api\b[^\n]*\/pulls\/\d+\/merge\b)`);
   const viaGh = input?.tool_name === 'Bash' && merge.test(raw);
   if (!input || !(MERGE_TOOL.test(input.tool_name ?? '') || viaGh)) return null;
   return (
