@@ -15,6 +15,7 @@ import { lessonBrief, lessonEntry } from './lessons.mjs';
 import { changelogRange, pathErrors } from './harness-paths.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 import { determinismErrors } from './sim-determinism.mjs';
+import { serverImportErrors } from './server-one-way.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -408,6 +409,17 @@ function checkHarnessPaths() {
   return errors;
 }
 
+// docs/decisions/0004-game-server.md, L-008: nothing under src/ leads into server/ (scripts/server-one-way.mjs).
+function checkServerOneWay() {
+  if (!exists('src')) return [];
+  try {
+    return serverImportErrors(walk('src').map((f) => ({ path: f.split(sep).join('/'), text: read(f) })));
+  } catch (e) {
+    if (e?.code === 'MODULE_NOT_FOUND' || e?.code === 'ERR_MODULE_NOT_FOUND') return ['the parser is not installed (run `npm install`), so the check could not read src/'];
+    throw e;
+  }
+}
+
 // Repository files must not name AI models (see CLAUDE.md conventions).
 function checkNoModelIds() {
   const re = /\b(claude-(opus|sonnet|haiku|fable)[\w.-]*|(opus|sonnet|haiku|fable)\s+\d|model:\s*["']?(opus|sonnet|haiku|fable)\b)/i;
@@ -569,6 +581,7 @@ const checks = [
   ['phone-shots-by-touch', checkPhoneShotsByTouch],
   ['sprite-fit', checkSpriteFit],
   ['sim-determinism', checkSimDeterminism],
+  ['server-one-way', checkServerOneWay],
   ['gdd', checkGdd],
   ['gdd-one-version', checkOneGddVersion],
   ['gdd-changelog-sections', checkChangelogSections],
