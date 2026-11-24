@@ -146,6 +146,11 @@ describe('L-100 reviewer-read-only hook', () => {
       'cd ~/repo && git stash',
       'cd - && git stash',
       'cd `pwd` && git stash',
+      // A folder quoted in part is not known to be outside: the shell takes the quotes off wherever they stand.
+      'cd /"repo" && git reset --hard',
+      "cd /'repo' && git stash",
+      'cd /tmp/"pr 5" && git stash',
+      'cd "/tmp"/pr-5 && git stash',
     ]) expect(reviewer(command), command).toMatch(TREE);
   });
 
@@ -168,6 +173,10 @@ describe('L-100 reviewer-read-only hook', () => {
       'node scripts/mutate.mjs m.json',
       'node --no-warnings scripts/mutate.mjs m.json',
       "node 'scripts/mutate.mjs' m.json",
+      'node ./"scripts/mutate.mjs" m.json',
+      "node ./'scripts/mutate.mjs' m.json",
+      'cd /"repo" && node scripts/mutate.mjs m.json',
+      'node "/tmp"/pr-5/scripts/mutate.mjs m.json',
       'node  --no-warnings  --trace-uncaught  scripts/mutate.mjs m.json',
       'cd /tmp/pr-5 && npm run dev & node scripts/mutate.mjs m.json',
       'node ./scripts/mutate.mjs --suggest',
@@ -188,9 +197,11 @@ describe('L-100 reviewer-read-only hook', () => {
   it('lets a run of a worktree\'s own mutant runner through', () => {
     expect(reviewer('cd /tmp/pr-5 && node scripts/mutate.mjs m.json')).toBeNull();
     expect(reviewer('cd /tmp/pr-5 && node scripts/mutate.mjs m.json 2>&1 | tail -5')).toBeNull();
+    expect(reviewer('cd /tmp/pr-5 && node scripts/mutate.mjs m.json |& tail -5')).toBeNull();
     expect(reviewer('cd "/tmp/pr 5" && node scripts/mutate.mjs m.json')).toBeNull();
     expect(reviewer('node /tmp/pr-5/scripts/mutate.mjs m.json')).toBeNull();
     expect(reviewer('node "/tmp/pr-5/scripts/mutate.mjs" m.json')).toBeNull();
+    expect(reviewer("node '/tmp/pr-5/scripts/mutate.mjs' m.json")).toBeNull();
     // The path is the one word before the runner's name: another script's argument is not it.
     expect(reviewer('cd /tmp/pr-5 && node tool.mjs /x y/scripts/mutate.mjs')).toBeNull();
     expect(reviewer('cd ../pr-5 && node ./scripts/mutate.mjs --suggest')).toBeNull();
@@ -214,6 +225,8 @@ describe('L-100 reviewer-read-only hook', () => {
       'grep -c "git push" docs/HARNESS.md',
       'echo git push',
       'echo gh pr merge 5',
+      'echo todo git push',
+      'grep -c runtime git push',
       "publish -c 'git push'",
       'grep -n "gh api -X PUT" docs/HARNESS.md',
       'grep -rn "gh pr checkout" .claude',

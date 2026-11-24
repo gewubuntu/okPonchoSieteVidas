@@ -25,7 +25,7 @@ import { commandText, WORD } from './command-text.mjs';
 export const REVIEWER = 'pr-reviewer';
 
 // A command word's place, with env assignments before it.
-const AT = String.raw`(?:^\s*|[;&|\n({]\s*|(?:^|[\s;&|(])(?:if|elif|while|until|then|do|else|time|!)\s+|\b(?:ba|z|da|k)?sh\s+-\w*c\s+["'])(?:[A-Za-z_]\w*=(?:${WORD})?\s+)*`;
+const AT = String.raw`(?:^\s*|[;&|\n({]\s*|(?:^|[\s;&|(])(?:if|elif|while|until|then|do|else|time|!)\s+|\b(?:ba|z|da|k)?sh\s+-\w*c\s+["'])(?:[_a-zA-Z]\w*=(?:${WORD})?\s+)*`;
 // git with its own options before the subcommand (`-C <dir>`, `-c k=v`, `--git-dir=...`), as in stale-main.mjs.
 const git = (subs) => new RegExp(String.raw`${AT}git\s+(?:-[Cc]\s+${WORD}\s+|-${WORD}\s+)*(?:${subs})(?![\w-])`);
 const PUBLISHES = git('push|pull|commit|cherry-pick|merge|revert|am|rebase');
@@ -35,34 +35,38 @@ const GH_API = new RegExp(String.raw`${AT}gh\s+api((?:${WORD}|[^\S\n])*)`, 'g');
 const DECIDES = /\/pulls\/\d+\/merge|\/merges|event=["']?(?:APPROVE|REQUEST_CHANGES)|(?:-X\s*|--method[\s=]+)["']?(?:PATCH|PUT|DELETE)/i;
 const CHANGES_TREE = new RegExp(`${git('checkout|switch|reset|restore|stash|clean|apply|rm|mv|bisect').source}|${AT}gh\\s+pr\\s+checkout`);
 // A run of the mutant runner, with the path written before `scripts/mutate.mjs`.
-const MUTANTS = /node\s+(?:-\S+\s+)*["']?(\S*\/)?scripts\/mutate\.mjs/g;
+const MUTANTS = /node\s+(?:-\S+\s+)*["']?(\S*\/)?["']?scripts\/mutate\.mjs/g;
 const LEADING_CD = new RegExp(String.raw`^\s*cd\s+(${WORD})\s*&&`);
 
 /** Whether `dir` lies in the main checkout at `root`, or is the checkout itself. */
 const inside = (root, dir) => !relative(root, dir).startsWith('..');
 
+/** Whether a path, each part written from the one before and the first from the main checkout at `root`, is known to lie outside it: no quote left in it, and not inside. */
+const outside = (root, ...parts) => !parts.some((part) => /["']/.test(part)) && !inside(root, resolve(root, ...parts));
+
 /**
  * The folder of a leading `cd <dir> &&`, its quotes taken off; undefined when the command does not begin with one, or goes on
  * after a `;`, a `||` or a new line, where a `cd` that failed leaves the rest in the main checkout, or after a single `&`,
- * which puts the `cd` in a background job (`2>&1` and `&>` are redirections, and a pipe keeps the folder).
+ * which puts the `cd` in a background job (`2>&1` and `&>` are redirections, and a pipe, `|&` too, keeps the folder).
  */
-const leadingCd = (text) => (/;|\|\||\n|(?<![&>])&(?![&>])/.test(text.trim()) ? undefined : LEADING_CD.exec(text)?.[1].replace(/^(["'])(.*)\1$/, '$2'));
+const leadingCd = (text) => (/;|\|\||\n|(?<![&>|])&(?![&>])/.test(text.trim()) ? undefined : LEADING_CD.exec(text)?.[1].replace(/^(["'])(.*)\1$/, '$2'));
 
 /**
  * Whether the command begins with `cd <dir> &&` for a folder outside the main checkout at `root`. A folder is read as written,
  * so `$PWD`, `~/x`, `-` or a backtick is a relative name and lies inside; one that climbs out through a variable
- * (`/tmp/$X`, `../$X`) is taken at its word.
+ * (`/tmp/$X`, `../$X`) is taken at its word. One quoted in part (`/"repo"`) is not known to be outside: the shell takes
+ * the quotes off, and the strip here only a pair round the whole word.
  */
 function leavesMain(text, root) {
   const dir = leadingCd(text);
-  return dir !== undefined && !inside(root, resolve(root, dir));
+  return dir !== undefined && outside(root, dir);
 }
 
 /** Whether the command runs a `scripts/mutate.mjs` that lies in the main checkout, its path read as written, as a folder is. */
 function mutatesMain(text, root) {
   const cd = leadingCd(text);
   return [...text.matchAll(MUTANTS)].some(([, before = '']) => {
-    return inside(root, resolve(root, cd ?? '.', before));
+    return !outside(root, cd ?? '.', before);
   });
 }
 
