@@ -140,6 +140,8 @@ describe('L-100 reviewer-read-only hook', () => {
       "cd '/repo' && git stash",
       'cd /repo/ && git reset --hard',
       'cd docs && git reset --hard',
+      'cd .claude && git stash',
+      'cd /repo/.github && git checkout -- .',
       'cd /repo/scripts && git stash',
       'cd src/../docs && git checkout -- a.md',
       'cd "$PWD" && git stash',
