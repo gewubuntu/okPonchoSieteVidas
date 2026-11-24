@@ -29,6 +29,7 @@ export const ABILITY_OFF_TESTS: ReadonlyMap<string, string> = new Map([
   ],
   ['GDD-WLD-10 awning: the chain > goes on from one awning to the next: 480 on A, then 540 on B', 'holds jump while falling, so the glide carries him past B'],
   ['GDD-WLD-10 awning: the other rules on the jump button (L-024) > wall cling off: the same press is the late press', 'tests the ability off'],
+  ['GDD-TEC-09 record and replay > GDD-TEC-09 a replay adds the abilities of the header to the level', 'tests the ability off'],
 ]);
 
 vi.mock('./movement', async (importOriginal) => {
