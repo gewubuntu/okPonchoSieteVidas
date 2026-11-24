@@ -4,12 +4,16 @@ import { enemyBox, feetOf, kindOf } from '../sim/enemy';
 import { touchesHilo } from '../sim/hilo';
 import { loseLife, startWorld } from '../sim/lives';
 import { spawn, type PlayerInput } from '../sim/movement';
-import { startRun, stepRun, touchesExit, type Level, type RunState } from '../sim/run';
+import { startRun, stepRun as simStepRun, touchesExit, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
 import { withUnlocks, type LevelEntry } from './index';
 import { LEVEL_2_1, LEVEL_2_1_AWNINGS, LEVEL_2_1_CORDELES, LEVEL_2_1_ROWS } from './level2-1';
 import { parseTiles } from '../sim/tilemap';
 import { gaps, openGaps, validateLevel } from './validate';
+import { expectReplay, headerFor, tapeOf } from './tape';
+
+const tape = tapeOf(simStepRun);
+const stepRun = tape.step;
 
 const level = LEVEL_2_1;
 const world = level.world;
@@ -857,6 +861,16 @@ describe('GDD-WLD-12 playing 2-1', () => {
     expect(level.ofrendas.map((o) => run.lives.used.has(`ofrenda:${o.id}`))).toEqual([true, true, true]);
     expect(run.enemies.map((e) => e.alive)).toEqual([true, false, false, false, false, false]); // the Alacrán jumped, the Palomas clawed
     expect(clawed).toBe(10); // claw presses, two for each Paloma: the bot presses every other step while one is in its reach
+  });
+
+  it('GDD-TEC-09 2-1 the bot run replays from its record', () => {
+    const taped = tape.record(() => void bot(level, 3000));
+    const replayed = expectReplay(taped, headerFor('2-1', level), level);
+    expect(replayed.firstDiff).toBe(-1);
+    expect(replayed.steps).toBe(taped.inputs.length);
+    expect(replayed.steps).toBe(2791); // as the play-through above pins it
+    expect(replayed.clearReplay).toBe(replayed.clearTaped);
+    expect(replayed.clearReplay).toBe(taped.inputs.length);
   });
 
   it('GDD-PRG-01 2-1 with the glide unlocked the route still reaches the exit losing no life', () => {

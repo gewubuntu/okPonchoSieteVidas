@@ -5,11 +5,15 @@ import { touchesHilo } from '../sim/hilo';
 import { loseLife, startWorld } from '../sim/lives';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { bundleBox, rolloLength } from '../sim/papel';
-import { startRun, stepRun, touchesExit, type Level, type RunState } from '../sim/run';
+import { startRun, stepRun as simStepRun, touchesExit, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
 import { withUnlocks } from './index';
 import { AWNINGS_2_3, CORDELES_2_3, ENEMIES_2_3, LEVEL_2_3, ROLLOS_2_3, ROOF } from './level2-3';
 import { gaps, openGaps, validateLevel } from './validate';
+import { expectReplay, headerFor, tapeOf } from './tape';
+
+const tape = tapeOf(simStepRun);
+const stepRun = tape.step;
 
 const level = LEVEL_2_3;
 const world = level.world;
@@ -824,6 +828,16 @@ describe('GDD-WLD-14 playing 2-3', () => {
     expect(touchesExit(run.player, level.exit!)).toBe(true);
     expect([T2, T3, T4, TB, TD, T5].map((i) => run.awningsGone[i])).toEqual([true, true, true, true, true, true]);
     expect([R1, R4].map((i) => rolloLength(ROLLOS_2_3[i]!, run.rollos[i]!))).toEqual([ROLLOS_2_3[R1]!.w, ROLLOS_2_3[R4]!.w]);
+  });
+
+  it('GDD-TEC-09 2-3 the bot run replays from its record', () => {
+    const taped = tape.record(() => void playThrough());
+    const replayed = expectReplay(taped, headerFor('2-3', level), level);
+    expect(replayed.firstDiff).toBe(-1);
+    expect(replayed.steps).toBe(taped.inputs.length);
+    expect(replayed.steps).toBe(2574); // measured 2026-11-24
+    expect(replayed.clearReplay).toBe(replayed.clearTaped);
+    expect(replayed.clearReplay).toBe(taped.inputs.length);
   });
 
   it('GDD-PRG-01 2-3 with the glide unlocked the route still reaches the exit losing no life', () => {

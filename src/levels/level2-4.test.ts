@@ -9,11 +9,15 @@ import { aimAt, bumps, estrellaBox, estrellaStart, moveEstrella, surfaceUnder, t
 import { hurtbox } from '../sim/hazards';
 import { spawn, type PlayerInput } from '../sim/movement';
 import { medal } from '../sim/results';
-import { startRun, stepRun, type Level, type RunState } from '../sim/run';
+import { startRun, stepRun as simStepRun, type Level, type RunState } from '../sim/run';
 import { estrellaFrameInfo, estrellaPose } from '../ui/estrellaPose';
 import { LEVEL_2_4, LEVEL_2_4_AWNINGS, LEVEL_2_4_CORDELES } from './level2-4';
 import { LEVELS, levelById, withUnlocks } from './index';
 import { gaps, validateLevel } from './validate';
+import { expectReplay, headerFor, tapeOf } from './tape';
+
+const tape = tapeOf(simStepRun);
+const stepRun = tape.step;
 
 // GDD-BOS-03: the arena 2-4 and La Estrella's fight in it, measured over the real level data and `stepRun` (L-003, L-014). Expected
 // values come from the GDD's numbers: the floor's top at y = 224, awnings' tops at 176 (x 48 to 112, 208 to 272, 368 to 432), cordeles'
@@ -382,6 +386,22 @@ describe('GDD-BOS-03 playing 2-4', () => {
     // Measured: the hits on steps 344, 663 and 975, the clear 60 steps after the third.
     expect(hitsAt).toEqual([344, 663, 975]);
     expect(steps).toBe(1035);
+  });
+
+  it('GDD-TEC-09 2-4 the bot run replays from its record, plain and with the glide', () => {
+    // The glided twin's header names the glide (GDD-PRG-01); both replay on the level as registered.
+    for (const [played, abilities, clearsOn] of [
+      [LEVEL_2_4, {}, 1035],
+      [withUnlocks(LEVEL_2_4, { glide: true }), { glide: true }, 1037], // measured 2026-11-21
+    ] as const) {
+      const taped = tape.record(() => void bot(played, 1800));
+      const replayed = expectReplay(taped, headerFor('2-4', LEVEL_2_4, abilities), LEVEL_2_4);
+      expect(replayed.firstDiff).toBe(-1);
+      expect(replayed.steps).toBe(taped.inputs.length);
+      expect(replayed.steps).toBe(clearsOn);
+      expect(replayed.clearReplay).toBe(replayed.clearTaped);
+      expect(replayed.clearReplay).toBe(taped.inputs.length);
+    }
   });
 
   it('GDD-PRG-01 2-4 with the glide unlocked the fight is still won losing no life', () => {

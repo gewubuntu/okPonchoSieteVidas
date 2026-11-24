@@ -5,10 +5,14 @@ import { shakeStarts, type ShakeDef } from '../sim/shake';
 import { bossPose } from '../ui/bossPose';
 import { spawn, type PlayerInput } from '../sim/movement';
 import { medal } from '../sim/results';
-import { startRun, stepRun, type Level, type RunState } from '../sim/run';
+import { startRun, stepRun as simStepRun, type Level, type RunState } from '../sim/run';
 import { LEVEL_1_4 } from './level1-4';
 import { LEVELS, withUnlocks } from './index';
 import { gaps } from './validate';
+import { expectReplay, headerFor, tapeOf } from './tape';
+
+const tape = tapeOf(simStepRun);
+const stepRun = tape.step;
 
 const world = LEVEL_1_4.world;
 const STILL: PlayerInput = { move: 0, jumpHeld: false };
@@ -241,6 +245,16 @@ describe('GDD-BOS-02 playing 1-4', () => {
     expect(steps).toBeLessThan(1500);
     expect(run.lives.lives).toBe(7);
     expect(run.boss).toMatchObject({ hits: 3, mode: 'defeated' });
+  });
+
+  it('GDD-TEC-09 1-4 the bot run replays from its record', () => {
+    const taped = tape.record(() => void bot(LEVEL_1_4, 1500));
+    const replayed = expectReplay(taped, headerFor('1-4', LEVEL_1_4), LEVEL_1_4);
+    expect(replayed.firstDiff).toBe(-1);
+    expect(replayed.steps).toBe(taped.inputs.length);
+    expect(replayed.steps).toBe(1325); // measured 2026-11-21
+    expect(replayed.clearReplay).toBe(replayed.clearTaped);
+    expect(replayed.clearReplay).toBe(taped.inputs.length);
   });
 
   it('GDD-PRG-01 1-4 with the glide unlocked the fight is still won losing no life', () => {
