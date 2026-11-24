@@ -109,12 +109,15 @@ test('GDD-BOS-03 in phase 2 she thuds through the cordel to the floor and a tejo
   });
   expect(await stepToEstrellaMode(page, 'rest', 400)).toBeLessThan(400);
   expect(await api(page, () => window.__PONCHO__!.estrella())).toMatchObject({ x: 160, y: 224 });
-  await api(page, () => window.__PONCHO__!.step(10));
-  const run = await api(page, () => window.__PONCHO__!.tejocotes());
+  // The steps and both reads in one task: the debug step draws her and her tejocotes itself, so no frame is waited for (L-042).
+  const { run, drawn } = await api(page, () => {
+    const d = window.__PONCHO__!;
+    d.step(10);
+    return { run: d.tejocotes(), drawn: d.tejocotesDrawn() };
+  });
   expect(run.map((t) => t.x)).toEqual([145, 175]);
-  await page.waitForFunction(() => window.__PONCHO__!.tejocotesDrawn().length === 2);
   // Each a box at 8 px to the left of its middle and 8 px high, the calyx turned a quarter for each 6.28 px rolled: x 145 is 23 quarters, 175 is 27.
-  expect(await api(page, () => window.__PONCHO__!.tejocotesDrawn())).toEqual([
+  expect(drawn).toEqual([
     { x: 141, y: 216, w: 8, h: 8, frame: 3 },
     { x: 171, y: 216, w: 8, h: 8, frame: 3 },
   ]);

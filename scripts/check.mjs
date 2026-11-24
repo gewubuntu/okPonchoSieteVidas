@@ -10,11 +10,12 @@ import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { changedSections, changelogSectionErrors, gddVersionErrors } from './gdd-version.mjs';
-import { hunt, reportLine } from './gdd-hunt.mjs';
+import { hunt, huntArgs, reportLine } from './gdd-hunt.mjs';
 import { lessonBrief, lessonEntry } from './lessons.mjs';
 import { changelogRange, pathErrors } from './harness-paths.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 import { determinismErrors } from './sim-determinism.mjs';
+import { serverImportErrors } from './server-one-way.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -408,6 +409,17 @@ function checkHarnessPaths() {
   return errors;
 }
 
+// docs/decisions/0004-game-server.md, L-008: nothing under src/ leads into server/ (scripts/server-one-way.mjs).
+function checkServerOneWay() {
+  if (!exists('src')) return [];
+  try {
+    return serverImportErrors(walk('src').map((f) => ({ path: f.split(sep).join('/'), text: read(f) })));
+  } catch (e) {
+    if (e?.code === 'MODULE_NOT_FOUND' || e?.code === 'ERR_MODULE_NOT_FOUND') return ['the parser is not installed (run `npm install`), so the check could not read src/'];
+    throw e;
+  }
+}
+
 // Repository files must not name AI models (see CLAUDE.md conventions).
 function checkNoModelIds() {
   const re = /\b(claude-(opus|sonnet|haiku|fable)[\w.-]*|(opus|sonnet|haiku|fable)\s+\d|model:\s*["']?(opus|sonnet|haiku|fable)\b)/i;
@@ -569,6 +581,7 @@ const checks = [
   ['phone-shots-by-touch', checkPhoneShotsByTouch],
   ['sprite-fit', checkSpriteFit],
   ['sim-determinism', checkSimDeterminism],
+  ['server-one-way', checkServerOneWay],
   ['gdd', checkGdd],
   ['gdd-one-version', checkOneGddVersion],
   ['gdd-changelog-sections', checkChangelogSections],
@@ -612,13 +625,9 @@ if (lessonArg !== -1) {
 // merge base with origin/main and any terms given. It prints and never fails.
 const huntArg = process.argv.indexOf('--gdd-hunt');
 if (huntArg !== -1) {
-  // Every argument up to the next option, split at commas: a GDD ID counts as a changed section (a feature that edits no
-  // section of its own still hunts for its ID), anything else is a term.
-  const rest = process.argv.slice(huntArg + 1);
-  const args = rest.slice(0, rest.findIndex((a) => a.startsWith('--')) === -1 ? rest.length : rest.findIndex((a) => a.startsWith('--')))
-    .flatMap((a) => a.split(',')).map((a) => a.trim()).filter(Boolean);
-  const named = args.filter((a) => /^GDD-[A-Z]+-\d+$/.test(a));
-  const terms = args.filter((a) => !named.includes(a));
+  // A GDD ID given counts as a changed section (a feature that edits no section of its own still hunts for its ID); anything
+  // else is a term (scripts/gdd-hunt.mjs, huntArgs).
+  const { ids: named, terms } = huntArgs(process.argv.slice(huntArg + 1));
   const gdd = read('docs/GDD.md');
   let compared = false;
   const changed = gddVersionErrors(gitText, gdd, false, (base, head) => { compared = true; return changedSections(base, head); });

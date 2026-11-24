@@ -263,6 +263,29 @@ test('GDD-BOS-02 phase 3: his fruit lies on the floor for 3.0 s, drawn there', a
   expect(await api(page, () => window.__PONCHO__!.lives())).toBe(7);
 });
 
+// The debug step draws him, his crown and his bar itself: the hit, the steps after it and the read are one task here, so no frame
+// of the game runs in between. Read a call later, the picture was that of the last frame on a slow machine (L-042).
+test('GDD-BOS-02 a paused step draws him, his crown and his bar at once, with no frame in between', async ({ page }) => {
+  await arena(page);
+  await api(page, () => window.__PONCHO__!.setBoss(2));
+  await stuckBeside(page);
+  const seen = await api(page, () => {
+    const d = window.__PONCHO__!;
+    const before = { crown: d.bossCrownDrawn(), pips: d.bossBar().pips };
+    d.step(3, { move: 0, jumpHeld: false, claw: true });
+    const hit = { boss: d.bossDrawn(), crown: d.bossCrownDrawn(), bar: d.bossBar() };
+    d.step(48);
+    return { before, hit, rest: { boss: d.bossDrawn(), crown: d.bossCrownDrawn() } };
+  });
+  expect(seen.before).toEqual({ crown: null, pips: 1 });
+  expect(seen.hit.boss).toMatchObject({ crown: 0, look: 'defeatWhite' });
+  expect(seen.hit.crown!.y).toBeCloseTo(214, 3);
+  expect(seen.hit.bar).toMatchObject({ pips: 0, outlines: 3 });
+  // He flashes white 4 steps on and 4 off by his age, as long as he lies there: step 48 is the first of an "on" span.
+  expect(seen.rest.boss).toMatchObject({ crown: 0, look: 'defeatWhite' });
+  expect(seen.rest.crown!.y).toBeCloseTo(224, 3);
+});
+
 test('GDD-BOS-02 the third hit defeats him, and 1.0 s later the level clear screen comes up and 1-4 is saved', async ({ page, isMobile }) => {
   await arena(page);
   // Two lives lost first: five are left at the clear, and Next level still starts 2-1 with seven (GDD-LIFE-05).

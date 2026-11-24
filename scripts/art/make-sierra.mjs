@@ -8,7 +8,7 @@
 // after its 28: the underside, deep rock, the one-tile ledge, the rock tile with no ore), decor-mina.png (seven frames of 64 x 160) and
 // backwall.png (the rock back wall, four versions of 64 x 64). The roof band and the foot (#221D2E) are drawn flat.
 // The engine shed's (3-4 La Casa de Máquinas, `sierra-casa.mjs`): mid-casa.png (the back wall, the screen's width from game y 0 to the
-// floor's top, 1920 x 896); its sky, clouds and far strip are the canyon's, its ground and decor the mine's.
+// floor's top, 1920 x 896); its sky and far strip are the canyon's (no clouds), its ground and decor the mine's.
 // The PNGs are committed, so only run this after changing the drawing (scripts/art/sierra.test.mjs checks they match).
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

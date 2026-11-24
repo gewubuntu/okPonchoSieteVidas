@@ -55,6 +55,7 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `node scripts/art-lineup.mjs <out.png> <folder or file>...` | New art beside its neighbours and the user's references on one image: sheets at one scale, references at one height, to judge it before the user sees it (L-066). |
 | `node scripts/pr-screenshots.mjs [base]` | Warn if visible files changed and no screenshot was added under `docs/screenshots/`. |
 | `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `harness-playtest` skill). |
+| `node scripts/mutate.mjs --suggest [base]` | Print a mutants file for the lines changed since the merge base with `origin/main` (or `base`): each bound moved a step, each `&&` or `||` operand dropped (L-010). Give each mutant its test. |
 | `node scripts/mutate.mjs <mutants.json>` | Run mutants (L-010) and restore each file; `--restore` after an interrupted run, which the gate otherwise fails on (L-020). |
 | `node scripts/check.mjs --backlog-stub` | Print backlog rows for GDD IDs missing from `docs/BACKLOG.md`. |
 | `node scripts/check.mjs --gdd-hunt [GDD-ID,...] [term,...]` | Print the sentences to read after a GDD change or a feature (L-013): those that name a section the branch changed, a GDD ID given or a term, in the GDD, the backlog, `CLAUDE.md`, `docs/HARNESS.md` and `.claude/`. |
