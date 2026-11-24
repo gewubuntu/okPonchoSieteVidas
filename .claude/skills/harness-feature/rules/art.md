@@ -1,6 +1,6 @@
 # Sprites and stand-ins
 
-Rules for step 5 of the `harness-feature` skill, one to a line, each with the lesson it came from. Read when the change draws or redraws a sprite, or replaces a stand-in (a stub level, a placeholder drawing or sound).
+Rules for step 5 of the `harness-feature` skill, one to a line, each with the lesson it came from. Read when the change draws or redraws art, pins a property of approved art or of a level's tile frames, or replaces a stand-in (a stub level, a placeholder drawing or sound).
 
 ## Sprite frames (L-059)
 
@@ -9,3 +9,7 @@ Rules for step 5 of the `harness-feature` skill, one to a line, each with the le
 ## Stand-ins (L-062)
 
 - A change that replaces a stand-in (a stub level, a placeholder drawing, a placeholder sound) greps `e2e/` and `src/` for what pins the stand-in's details (its colours, sizes, positions, frame pixels) and lists in the plan each spec that will break and how it is rewritten to check the same rule on the real thing; never "must stay green unchanged" for a spec that pins the stand-in.
+
+## Approved art (L-072)
+
+- Every property the plan pins of a drawing the user approved, or of the frames a level's tiles take (a colour set, a count, where it is see-through, which rows differ), is measured on the drawing or the level first, a few lines over its draw function, and the plan writes each claim with its measured figure; a claim written from how the drawing was meant to work is left out or measured.

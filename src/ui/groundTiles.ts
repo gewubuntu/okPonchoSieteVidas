@@ -114,6 +114,9 @@ export function mineGroundFrame(grid: TileGrid, tx: number, ty: number): number 
   }
 }
 
-/** GDD-ART-06: the ground frame of a tile in a level of `place`: the mine's rule in the mine, `groundFrame` everywhere else. */
+/**
+ * GDD-ART-06: the ground frame of a tile in a level of `place`: the mine's rule in the mine and in the engine shed (bare rock underfoot says
+ * "inside"), `groundFrame` everywhere else.
+ */
 export const groundFrameFor = (place: Place | null, grid: TileGrid, tx: number, ty: number): number =>
-  place === 'mina' ? mineGroundFrame(grid, tx, ty) : groundFrame((x, y) => grid.solidTile(x, y), tx, ty, (x, y) => grid.slopeAt(x, y));
+  place === 'mina' || place === 'casa' ? mineGroundFrame(grid, tx, ty) : groundFrame((x, y) => grid.solidTile(x, y), tx, ty, (x, y) => grid.slopeAt(x, y));

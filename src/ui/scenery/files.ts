@@ -32,6 +32,7 @@ import minaFar from '../../../assets/sprites/sierra/far-mina.png';
 import minaMid from '../../../assets/sprites/sierra/mid-mina.png';
 import minaGround from '../../../assets/sprites/sierra/ground-mina.png';
 import minaDecor from '../../../assets/sprites/sierra/decor-mina.png';
+import casaMid from '../../../assets/sprites/sierra/mid-casa.png';
 import type { ArtSet, Place } from './looks';
 
 export interface ArtFiles {
@@ -93,5 +94,11 @@ const MINA_FILES: ArtFiles = {
   decor: minaDecor,
 };
 
-/** GDD-ART-06, GDD-TEC-03: the files a level of art set `set` in `place` loads: the mine's in the mine, else its set's. */
-export const artFiles = (set: ArtSet, place: Place | null): ArtFiles => (place === 'mina' ? MINA_FILES : FILES[set]);
+/**
+ * GDD-ART-06: the engine shed's images (3-4): its back wall (`scripts/art/sierra-casa.mjs`) as the mid band, the canyon's sky strips
+ * and far strip, no clouds (never seen behind the wall), the mine's ground and decor sheets.
+ */
+const CASA_FILES: ArtFiles = { ...FILES.sierra, clouds: [], mid: casaMid, ground: minaGround, decor: minaDecor };
+
+/** GDD-ART-06, GDD-TEC-03: the files a level of art set `set` in `place` loads: the mine's in the mine, the shed's in the shed, else its set's. */
+export const artFiles = (set: ArtSet, place: Place | null): ArtFiles => (place === 'mina' ? MINA_FILES : place === 'casa' ? CASA_FILES : FILES[set]);

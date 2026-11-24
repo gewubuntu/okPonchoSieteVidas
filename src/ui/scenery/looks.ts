@@ -1,7 +1,7 @@
 // GDD-ART-06: each world's look: which art a level is drawn with and the numbers that put its backdrop together. Pure, no Phaser and
 // no image imports (those are in `files.ts`), so it is unit-tested. World 1 (and the tutorial, the World 1 test levels and any world not
-// drawn yet) is the desert; World 2 the Mercado; World 3 the Sierra, in the place its level chooses (the canyon or the mine).
-import { ART_SCALE, BACKDROP, BACKDROP_ART, BACKDROP_RISE, MERCADO, PLANTS, SIERRA, SIERRA_MINA } from '../../config/tuning';
+// drawn yet) is the desert; World 2 the Mercado; World 3 the Sierra, in the place its level chooses (the canyon, the mine or the engine shed).
+import { ART_SCALE, BACKDROP, BACKDROP_ART, BACKDROP_RISE, MERCADO, PLANTS, SIERRA, SIERRA_CASA, SIERRA_MINA } from '../../config/tuning';
 
 /** The art sets, by their folder under `assets/sprites/`. */
 export type ArtSet = 'desierto' | 'mercado' | 'sierra';
@@ -87,10 +87,10 @@ export const LOOKS: Readonly<Record<ArtSet, Look>> = {
  */
 export const artSetFor = (world: number): ArtSet => (world === 2 ? 'mercado' : world === 3 ? 'sierra' : 'desierto');
 
-/** GDD-ART-06: World 3's places, each with its own backdrop, ground sheet and decor sheet: the canyon and the mine. */
-export type Place = 'barranca' | 'mina';
+/** GDD-ART-06: World 3's places, each with its own backdrop, ground sheet and decor sheet: the canyon, the mine and the engine shed (3-4). */
+export type Place = 'barranca' | 'mina' | 'casa';
 
-/** GDD-ART-06: a level's place: in World 3 the one it chooses, the canyon when it chooses none; no place in any other world. */
+/** GDD-ART-06: a level's place: in World 3 the one it chooses (the canyon, the mine or the shed), the canyon when it chooses none; no place in any other world. */
 export const placeFor = (world: number, place?: Place): Place | null => (world === 3 ? (place ?? 'barranca') : null);
 
 /** GDD-ART-06: the mine's look (3-2 La Mina, underground): the sky slot is the rock, no sun and no clouds, the foot gallery deep. */
@@ -111,14 +111,28 @@ const MINA_LOOK: Look = {
   decor: SIERRA_MINA.decor,
 };
 
-/** GDD-ART-06: the look a level is drawn with: its set's, or in the mine the mine's. */
-export const lookFor = (set: ArtSet, place: Place | null): Look => (place === 'mina' ? MINA_LOOK : LOOKS[set]);
+/**
+ * GDD-ART-06: the engine shed's look (3-4 La Casa de Máquinas): the canyon's sky and far strip, no clouds (the roof and the wall's top
+ * would hide them: they rest above y 52, the arches open from y 64, and the arena's camera does not move), its back wall in the mid band
+ * from the screen's top to the floor, the mine's decor.
+ */
+const CASA_LOOK: Look = { ...LOOKS.sierra, clouds: [], midTop: SIERRA_CASA.midTop, midBandArt: SIERRA_CASA.midBandArt, decor: SIERRA_MINA.decor };
+
+/** GDD-ART-06: the look a level is drawn with: in the mine the mine's, in the shed the shed's, else its set's. */
+export const lookFor = (set: ArtSet, place: Place | null): Look => (place === 'mina' ? MINA_LOOK : place === 'casa' ? CASA_LOOK : LOOKS[set]);
+
+/**
+ * GDD-ART-06: an image's name in the shed: its mid is its own (`mid-casa`), its ground and decor the mine's (the same files, so the same
+ * textures), every other image the canyon's.
+ */
+const casaImage = (image: string): string => (image === 'mid' ? 'mid-casa' : image === 'ground' || image === 'decor' ? `${image}-mina` : image);
 
 /**
  * GDD-ART-06: the texture key of an image of a set in a place: the mine's images have keys of their own (`sierra:far-mina`), since the
- * canyon's are `sierra:far` and Phaser's texture cache outlives a level.
+ * canyon's are `sierra:far` and Phaser's texture cache outlives a level; the shed's are `casaImage`'s (`sierra:mid-casa`).
  */
-export const imageKey = (set: ArtSet, place: Place | null, image: string): string => textureKey(set, place === 'mina' ? `${image}-mina` : image);
+export const imageKey = (set: ArtSet, place: Place | null, image: string): string =>
+  textureKey(set, place === 'mina' ? `${image}-mina` : place === 'casa' ? casaImage(image) : image);
 
 /** GDD-ART-06: the mid band's image: in World 2's boss arena the plaza with the kiosco, else the world's mid layer. */
 export const midImage = (set: ArtSet, bossLevel: boolean): 'mid' | 'plaza' => (set === 'mercado' && bossLevel ? 'plaza' : 'mid');

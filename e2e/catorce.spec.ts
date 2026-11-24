@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { LEVEL_3_4, LEVEL_3_4_HOME } from '../src/levels/level3-4';
 import { catorceBox, catorceStart } from '../src/sim/catorce';
-import { boot, openGame, stepUntil, tapAt, waitForResults } from './helpers';
+import { mineGroundFrame } from '../src/ui/groundTiles';
+import { boot, clearOfButtons, nearHex, openGame, pixelsAt, stepUntil, tapAt, waitForResults } from './helpers';
 
 // GDD-BOS-04: La Catorce in her arena, level 3-4, World 3's last level after 3-3 (GDD-UI-02, user, 2026-11-21: "Link 3-3 to 3-4 now"; 3-3's
 // Next level into it is played in `e2e/level3-3.spec.ts`), opened here by its address, drawn from her sheet
@@ -15,6 +16,13 @@ const DEF = LEVEL_3_4.catorce!;
 const SAVE_KEY = 'poncho-siete-vidas';
 /** The step of her second slam at the left stop in phase 1 (her first, on step 270, is the one that ends her armour). */
 const SECOND_LEFT_SLAM = 1170;
+/** GDD-ART-06: the solid tiles of 3-4's floor, each with the frame the mine's rule gives it (the shed's floor is the mine's). */
+const FLOOR = (() => {
+  const { world } = LEVEL_3_4;
+  const tiles: { tx: number; ty: number; frame: number }[] = [];
+  for (let ty = 0; ty < world.height; ty++) for (let tx = 0; tx < world.width; tx++) if (world.solidTile(tx, ty)) tiles.push({ tx, ty, frame: mineGroundFrame(world, tx, ty) });
+  return tiles;
+})();
 
 /** Boots 3-4 from its title screen and pauses it a few steps in, Poncho at the start (x 240, on home). */
 async function arena(page: Page): Promise<string[]> {
@@ -38,9 +46,15 @@ test('GDD-BOS-04 3-4 opens by its address and plays La Catorce: bar, pips, her f
     d.pause(true);
     d.setCatorce(0);
     d.step(1);
-    return { run: d.catorce()!, drawn: d.catorceDrawn()!, bar: d.bossBar() };
+    return { run: d.catorce()!, drawn: d.catorceDrawn()!, bar: d.bossBar(), scenery: d.scenery() };
   });
   expect(seen.bar).toMatchObject({ shown: true, name: 'La Catorce', nameY: 10, pips: 3, outlines: 0 });
+  // GDD-ART-06: drawn in the engine shed: its back wall in the mid band, and its floor tiles in the mine's frames from the mine's sheet
+  // (`sierra:ground-mina`, `imageKey`): tile (0, 15) is deep rock, frame 31, which the canyon's 28-frame sheet does not have.
+  expect(seen.scenery).toEqual({ set: 'sierra', midKey: 'sierra:mid-casa', place: 'casa' });
+  const frames = await page.evaluate((tiles) => tiles.map(({ tx, ty }) => window.__PONCHO__!.groundFrame(tx, ty)), FLOOR);
+  expect(frames).toEqual(FLOOR.map((t) => t.frame));
+  expect(FLOOR.find((t) => t.tx === 0 && t.ty === 15)?.frame).toBe(31);
   // She starts phase 1 at the right stop (x 400), armoured, facing left: her drawn body is her box, 64 x 32 on the floor (y 192 to 224), to 0.5 px.
   expect(seen.run).toMatchObject({ x: 400, hits: 0, armoured: true, dir: -1 });
   expect(seen.drawn.body.x0).toBeCloseTo(368, 0);
@@ -58,6 +72,36 @@ test('GDD-BOS-04 3-4 opens by its address and plays La Catorce: bar, pips, her f
   // Home's two tiles drawn whole at columns 14 and 15, row 10 (x 224 and 240).
   const home = await api(page, () => window.__PONCHO__!.homeDrawn());
   expect(home.map((h) => [h.col, h.row, h.x, h.frame, h.visible, h.phase])).toEqual(LEVEL_3_4_HOME.map((h) => [h.col, h.row, h.col * 16, 0, true, 'idle']));
+  expect(errors).toEqual([]);
+});
+
+test("GDD-ART-06 3-4 the shed's wall is drawn behind the arena, the sky through its arches", async ({ page }) => {
+  const errors = await arena(page);
+  // Her phase fresh and one step, as the first test, so the picture holds still while it is read.
+  const seen = await api(page, () => {
+    const d = window.__PONCHO__!;
+    d.setCatorce(0);
+    d.step(1);
+    return { cam: d.camera(), scenery: d.scenery() };
+  });
+  // One screen: the camera does not move, so a game point is the same point on the screen (GDD-UI-04).
+  expect([seen.cam.viewX, seen.cam.viewY]).toEqual([0, 0]);
+  expect(seen.scenery).toMatchObject({ place: 'casa' });
+  // Points from the drawing (`scripts/art/sierra-casa.mjs`), measured on both viewports (L-072): the pier between the first and the middle
+  // arch at (170, 60), peak base; the roof's boards at (300, 3), timber dark; the middle arch's head at (240, 80), between the gantry's
+  // rods (x 227 and 252), the sky's middle band. Each is clear of the HUD (the lives at the left, the boss bar's name and pips round
+  // x 215 to 265 down to y 23, the hilo counter and the phone's pause button right of x 440), of the touch buttons (all below y 180 but
+  // pause), of the perches (x 0 to 64 and 416 to 480, y 96 to 112), the rails (y 112 on) and of her and Poncho (home, y 160 down).
+  const points = [{ x: 170, y: 60 }, { x: 300, y: 3 }, { x: 240, y: 80 }];
+  const [stone, roof, arch] = await pixelsAt(page, points);
+  const STONE = ['#7F9488', '#A9B8AC', '#5B7067'];
+  const TIMBER = ['#43362F', '#221D2E', '#A89480', '#75614F'];
+  expect(STONE.some((c) => nearHex(stone!, c)), `stone ${JSON.stringify(stone)}`).toBe(true);
+  expect(['#43362F', '#221D2E'].some((c) => nearHex(roof!, c)), `roof ${JSON.stringify(roof)}`).toBe(true);
+  // Through the arch: not the wall (sky or far strip, the shed draws no clouds; measured: the sky's middle band, #8AA5B8).
+  expect([...STONE, ...TIMBER].some((c) => nearHex(arch!, c)), `arch ${JSON.stringify(arch)}`).toBe(false);
+  expect(nearHex(arch!, '#8AA5B8'), `arch ${JSON.stringify(arch)}`).toBe(true);
+  expect(await clearOfButtons(page, points)).toHaveLength(3);
   expect(errors).toEqual([]);
 });
 

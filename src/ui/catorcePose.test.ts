@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { CATORCE } from '../config/tuning';
 import { catorceBox, catorceStart, type CatorceMode, type CatorceState } from '../sim/catorce';
 import { LEVEL_3_4 } from '../levels/level3-4';
+import { CATORCE_LOOKS } from './catorceLooks';
 import { catorcePose } from './catorcePose';
 
 // GDD-BOS-04: which frame of her sheet La Catorce is drawn with, and her plume. Her box is 64 x 32 on the floor (y 192 to 224); every expected
@@ -97,6 +99,26 @@ describe("GDD-BOS-04 La Catorce's pose", () => {
     // The plume is the armour's: she is never armoured and hurt in the fight, but a hurt or defeated pose has none whatever the flag says.
     expect(catorcePose(DEF, she({ mode: 'hurt', hits: 1, armoured: true })).plume).toBeNull();
     expect(catorcePose(DEF, she({ mode: 'defeated', hits: 3, armoured: true })).plume).toBeNull();
+  });
+
+  it('GDD-BOS-04 pose looks: 36 of her 49 looks are ever posed, 13 never with these numbers', () => {
+    // Every state the fight can hold: in phase p (hits p, lamps 3 - p) her rest (none in phase 3), her telegraph armoured or not, her charge
+    // at every whole x between the phase's stops either way, armoured or not; hurt after hits 1 and 2; defeated after the third.
+    const posed = new Set<string>();
+    const pose = (o: Partial<CatorceState> & { mode: CatorceMode }) => posed.add(lookOf(o));
+    for (const hits of [0, 1, 2]) {
+      for (let age = 0; age < CATORCE.restSteps[hits]!; age++) pose({ mode: 'rest', hits, age });
+      for (let age = 0; age < CATORCE.telegraphSteps; age++) for (const armoured of [true, false]) pose({ mode: 'telegraph', hits, age, armoured });
+      const [from, to] = CATORCE.stops[hits]!;
+      for (let x = from; x <= to; x++) for (const dir of [1, -1] as const) for (const armoured of [true, false]) pose({ mode: 'charge', hits, x, dir, armoured });
+    }
+    for (const hits of [1, 2]) for (let age = 0; age < CATORCE.hurtSteps; age++) pose({ mode: 'hurt', hits, age });
+    for (let age = 0; age < CATORCE.defeatSteps; age++) pose({ mode: 'defeated', hits: 3, age });
+    // Her red flash (ages 0 to 3 of every 8) meets the wheel quarters 0 and 1 only (floor(age / 2) % 4), plain meets 2 and 3 only: 12 spins
+    // never posed. Phase 3's slam is in a telegraph at ages 0 to 3, always red: slamRed1, never slam1. 12 + 1 = 13; 49 - 13 = 36.
+    const never = CATORCE_LOOKS.filter((look) => !posed.has(look));
+    expect(never).toEqual(['spin3_0', 'spin3_1', 'spinRed3_2', 'spinRed3_3', 'spin2_0', 'spin2_1', 'spinRed2_2', 'spinRed2_3', 'spin1_0', 'spin1_1', 'spinRed1_2', 'spinRed1_3', 'slam1']);
+    expect([CATORCE_LOOKS.length, posed.size]).toEqual([49, 36]);
   });
 
   it('GDD-BOS-04 pose frame: her look\'s place in her sheet, 56 on facing left', () => {

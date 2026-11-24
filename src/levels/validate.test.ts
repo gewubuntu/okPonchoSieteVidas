@@ -193,7 +193,7 @@ describe('GDD-TEC-04 and GDD-WLD-03 gaps', () => {
 
 describe('GDD-ART-06 a level place in the validator', () => {
   it('GDD-ART-06 a World 3 level may choose its place, a level of any other world may not', () => {
-    for (const place of ['barranca', 'mina'] as const) {
+    for (const place of ['barranca', 'mina', 'casa'] as const) {
       expect(validateLevel({ ...entry({ world: 3 }), place }), place).toEqual([]);
       for (const world of [0, 1, 2]) expect(validateLevel({ ...entry({ world }), place }), `World ${world} ${place}`).toEqual([`a place (${place}), only a World 3 level chooses one`]);
     }

@@ -32,7 +32,7 @@ export interface Scenery {
   follow(scrollX: number, scrollY: number, cameraY: number, lowestY: number, offsetY: number): void;
   /** How far each object of the backdrop is drawn from where it rests, in game px: its share of the camera's rise plus `follow`'s `offsetY`. */
   backdropShifts(): number[];
-  /** How far the clouds, the far band and the mid band are shifted, in game px, read back from what was drawn; the clouds 0 where there are none (the mine). */
+  /** How far the clouds, the far band and the mid band are shifted, in game px, read back from what was drawn; the clouds 0 where there are none (the mine and the engine shed). */
   backdrop(): { clouds: number; mountains: number; desert: number };
   /**
    * Where the fixed parts are drawn, in game px, without the shake: the sun's centre (null without a sun), the far band's top, its foot's top,
@@ -40,8 +40,8 @@ export interface Scenery {
    */
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number };
   /**
-   * The art set chosen, the texture key of the drawn mid band (`mercado:plaza` in World 2's arena, `sierra:mid-mina` in the mine) and, in
-   * World 3 only, the level's place (`barranca` or `mina`).
+   * The art set chosen, the texture key of the drawn mid band (`mercado:plaza` in World 2's arena, `sierra:mid-mina` in the mine,
+   * `sierra:mid-casa` in the engine shed) and, in World 3 only, the level's place (`barranca`, `mina` or `casa`).
    */
   drawn(): { set: ArtSet; midKey: string; place?: Place };
   /** The ground sheet's frame drawn at tile (tx, ty), or null where no ground image is, whether the image is shown or not. */

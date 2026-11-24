@@ -225,7 +225,7 @@ export interface PonchoDebug {
   /**
    * How far the backdrop's clouds, far band (`mountains`: World 1's mountains, World 2's hill town) and mid band (`desert`: the far desert
    * strip, World 2's rooftops or its arena's plaza) are shifted (GDD-ART-06), in game px, read back from what was drawn: the clouds from
-   * where the first cloud's image stands against its place at the start (0 in the mine, which has no clouds), the two bands from their
+   * where the first cloud's image stands against its place at the start (0 in the mine and in the engine shed, which have no clouds), the two bands from their
    * layers' `tilePositionX / ART_SCALE`.
    */
   backdrop(): { clouds: number; mountains: number; desert: number };
@@ -236,7 +236,8 @@ export interface PonchoDebug {
   backdropLayout(): { sunX: number | null; sunY: number | null; mountainsY: number; footY: number; desertY: number };
   /**
    * The art set the scenery is drawn from (`desierto`, `mercado`, `sierra`), the texture key of the drawn mid band (`mercado:plaza` in World
-   * 2's arena, `sierra:mid-mina` in the mine) and, in a World 3 level only, its place (`barranca` or `mina`) (GDD-ART-06).
+   * 2's arena, `sierra:mid-mina` in the mine, `sierra:mid-casa` in the engine shed) and, in a World 3 level only, its place (`barranca`,
+   * `mina` or `casa`) (GDD-ART-06).
    */
   scenery(): { set: string; midKey: string; place?: string };
   /** The frame of the ground sheet drawn at tile (tx, ty), or null where no ground image is (GDD-ART-06), whether the image is shown or not. Read from the drawn image. */

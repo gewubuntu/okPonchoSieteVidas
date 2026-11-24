@@ -28,7 +28,7 @@ Implements exactly one GDD ID (or a small named group of them) from spec to test
    | every plan: its mutants, worked cases, existing fixtures, families and size | `.claude/skills/harness-feature/rules/plan.md` |
    | reads a button (a press, a release, a hold) or adds a tap target | `.claude/skills/harness-feature/rules/input.md` |
    | places things in a level by a rule, claims where things are or what a path costs, or drives a level in a test | `.claude/skills/harness-feature/rules/levels.md` |
-   | draws or redraws a sprite, or replaces a stand-in (a stub level, a placeholder drawing or sound) | `.claude/skills/harness-feature/rules/art.md` |
+   | draws or redraws art, pins a property of approved art or of a level's tile frames, or replaces a stand-in (a stub level, a placeholder drawing or sound) | `.claude/skills/harness-feature/rules/art.md` |
    | sets each frame something other code reads, or shows the player a new text | `.claude/skills/harness-feature/rules/screen.md` |
    | touches `server/`, or builds a wallet, token or chain feature of the GDD's section 16 | `.claude/skills/harness-feature/rules/server.md` |
 
