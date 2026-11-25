@@ -57,6 +57,7 @@ describe('GDD-TEC-10 chain listener', () => {
     chain.emitActivated('42', A_MIXED, 2);
     chain.emitActivated('44', B, 1);
     chain.emitActivated('007', A, 3);
+    chain.emitActivated('0', A, 5);
     chain.mine(4); // block 1, head 4, safe 1
     await catchUp(chain, store, 3);
     expect(activationOf(store, '42', 2)).toEqual({ owner: A, block: 1 });
@@ -67,6 +68,11 @@ describe('GDD-TEC-10 chain listener', () => {
     expect(activationOf(store, '7', 3)).toEqual({ owner: A, block: 1 });
     expect(activationOf(store, '007', 3)).toEqual({ owner: A, block: 1 });
     expect(activationOf(store, 'x', 1)).toBeNull();
+    // Not token IDs: never token 0's activation, never a throw.
+    expect(activationOf(store, '0', 5)).toEqual({ owner: A, block: 1 });
+    expect(activationOf(store, '', 5)).toBeNull();
+    expect(activationOf(store, 'x7', 3)).toBeNull();
+    expect(activationOf(store, '7x', 3)).toBeNull();
   });
 
   it('counts once however often it is read', async () => {
@@ -240,8 +246,10 @@ describe('GDD-TEC-10 chain listener', () => {
     chain.emitLivesBought(A, 2.5);
     chain.emitLivesBought('0x12', 7);
     chain.emitLivesBought(A + 'a', 7); // 41 hex digits
+    chain.emitLivesBought('zz' + A, 7); // text before the address
     chain.emitActivated('x1', A, 1);
     chain.emitActivated('', A, 1);
+    chain.emitActivated('1x', A, 1); // text after the digits
     chain.emitActivated('1', 'nope', 1);
     chain.emitActivated('1', A, 0);
     chain.emitActivated('1', A, 1.5);
@@ -253,6 +261,8 @@ describe('GDD-TEC-10 chain listener', () => {
       'n is not a positive whole number',
       'buyer is not an address',
       'buyer is not an address',
+      'buyer is not an address',
+      'tokenId is not a token ID',
       'tokenId is not a token ID',
       'tokenId is not a token ID',
       'owner is not an address',

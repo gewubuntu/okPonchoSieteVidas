@@ -25,7 +25,7 @@ Rules for step 5 of the `harness-feature` skill, one to a line, each with where 
 
 - Every bound gets a fixture on it: the last bought life, the clamp of what is left, the carry of a month or a year into the next (L-010, recurrence 36). `node scripts/mutate.mjs --suggest` lists them.
 - A rule that carries several fields over (hours, minutes, seconds, milliseconds) gets a fixture where each is not zero, so dropping one changes the answer (L-010, recurrence 37).
-- A pattern's quantifier and anchors are bounds too: a check of a shape (an address, a token ID) gets a fixture one longer, one shorter, empty, and with text after it (L-010).
+- A pattern's quantifier and anchors are bounds too: a check of a shape (an address, a token ID) gets a fixture one longer, one shorter, empty, and with text before it and after it, at every place that checks the shape (L-010).
 - A mock of the chain models what the listener relies on: its head is a sealed block, and the plan works a case where an event arrives after a read, not only the first read (L-077).
 - A thing that counts once gets a test that sends it twice and checks the second changes nothing: a start token is single use by the ADR, and so is whatever a later decision makes count once.
 - A rule that refuses someone gets a test for the one refused, not only for the one let through: as built, a state-changing request from another origin is refused (the ADR lists the game's own origin as an assumption, not a decision).
