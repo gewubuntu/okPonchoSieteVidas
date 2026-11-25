@@ -13,6 +13,8 @@ export interface CatchUpResult {
 /** Where the listener has got to: the last block handled, or -1 (so it reads from block 0) with nothing stored. */
 const cursorOf = (store: Store): number => Number(store.get('chain', 'cursor') ?? -1);
 
+// Placeholder: '007' and '7' are one token, so an activation is keyed by the token's canonical decimal.
+const canonicalToken = (tokenId: string): string => BigInt(tokenId).toString();
 const activationKey = (tokenId: string, season: number): string => `${tokenId}/${season}`;
 
 /** Why the event cannot be applied, or null once it was. */
@@ -37,7 +39,7 @@ function apply(store: Store, e: ChainEvent): string | null {
   if (owner === null) return 'owner is not an address';
   if (!Number.isSafeInteger(e.season) || e.season < 1) return 'season is not a season';
   // Placeholder (Open Question 55 (b)): the owner is kept beside the activation and nothing reads it; whether an activation follows a Pal to a new owner is undecided.
-  store.put('activation', activationKey(e.tokenId, e.season), JSON.stringify({ owner, block: e.block }));
+  store.put('activation', activationKey(canonicalToken(e.tokenId), e.season), JSON.stringify({ owner, block: e.block }));
   return null;
 }
 
@@ -72,7 +74,8 @@ export async function catchUp(chain: ChainSource, store: Store, confirmations: n
 }
 
 export function activationOf(store: Store, tokenId: string, season: number): { owner: Address; block: number } | null {
-  const row = store.get('activation', activationKey(tokenId, season));
+  if (!/^\d+$/.test(tokenId)) return null;
+  const row = store.get('activation', activationKey(canonicalToken(tokenId), season));
   if (row === undefined) return null;
   const activation: { owner: Address; block: number } = JSON.parse(row);
   return activation;

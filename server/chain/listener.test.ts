@@ -24,7 +24,7 @@ describe('GDD-TEC-10 chain listener', () => {
     const store = memoryStore();
     store.put('wallet', A, JSON.stringify({ day: 20778, used: 2, bought: 5 }));
     chain.emitLivesBought(A, 7);
-    chain.mine(3);
+    chain.mine(4); // the event is in block 1; head 4 - 3 confirmations = safe 1
     const result = await catchUp(chain, store, 3);
     expect(wallet(store, A)).toEqual({ day: 20778, used: 2, bought: 12 });
     expect(result.applied).toHaveLength(1);
@@ -35,7 +35,7 @@ describe('GDD-TEC-10 chain listener', () => {
     const chain = mockChain();
     const store = memoryStore();
     chain.emitLivesBought(B, 7);
-    chain.mine(3);
+    chain.mine(4); // block 1, head 4, safe 1
     await catchUp(chain, store, 3);
     expect(wallet(store, B)).toEqual({ day: 0, used: 0, bought: 7 });
   });
@@ -45,7 +45,7 @@ describe('GDD-TEC-10 chain listener', () => {
     const store = memoryStore();
     chain.emitLivesBought(A_MIXED, 7);
     chain.emitLivesBought(A, 1);
-    chain.mine(3);
+    chain.mine(4); // block 1, head 4, safe 1
     await catchUp(chain, store, 3);
     expect(wallet(store, A)).toEqual({ day: 0, used: 0, bought: 8 });
     expect(store.get('wallet', A_MIXED)).toBeUndefined();
@@ -56,19 +56,24 @@ describe('GDD-TEC-10 chain listener', () => {
     const store = memoryStore();
     chain.emitActivated('42', A_MIXED, 2);
     chain.emitActivated('44', B, 1);
-    chain.mine(3);
+    chain.emitActivated('007', A, 3);
+    chain.mine(4); // block 1, head 4, safe 1
     await catchUp(chain, store, 3);
-    expect(activationOf(store, '42', 2)).toEqual({ owner: A, block: 0 });
-    expect(activationOf(store, '44', 1)).toEqual({ owner: B, block: 0 });
+    expect(activationOf(store, '42', 2)).toEqual({ owner: A, block: 1 });
+    expect(activationOf(store, '44', 1)).toEqual({ owner: B, block: 1 });
     expect(activationOf(store, '42', 1)).toBeNull();
     expect(activationOf(store, '43', 2)).toBeNull();
+    // '007' and '7' are one token, however it is asked for.
+    expect(activationOf(store, '7', 3)).toEqual({ owner: A, block: 1 });
+    expect(activationOf(store, '007', 3)).toEqual({ owner: A, block: 1 });
+    expect(activationOf(store, 'x', 1)).toBeNull();
   });
 
   it('counts once however often it is read', async () => {
     const chain = mockChain();
     const store = memoryStore();
     chain.emitLivesBought(A, 7);
-    chain.mine(3);
+    chain.mine(4); // block 1, head 4, safe 1
     await catchUp(chain, store, 3);
     await catchUp(chain, store, 3);
     expect(wallet(store, A)).toEqual({ day: 0, used: 0, bought: 7 });
@@ -82,7 +87,7 @@ describe('GDD-TEC-10 chain listener', () => {
     const chain = mockChain();
     const store = memoryStore();
     chain.emitLivesBought(A, 7);
-    chain.mine(3);
+    chain.mine(4); // block 1, head 4, safe 1
     const [one, two] = await Promise.all([catchUp(chain, store, 3), catchUp(chain, store, 3)]);
     expect(wallet(store, A)).toEqual({ day: 0, used: 0, bought: 7 });
     expect(one.applied.length + two.applied.length).toBe(1);
@@ -91,38 +96,51 @@ describe('GDD-TEC-10 chain listener', () => {
   it('waits for CHAIN.confirmations blocks', async () => {
     const chain = mockChain();
     const store = memoryStore();
-    chain.emitLivesBought(A, 7);
-    chain.mine(2);
+    chain.emitLivesBought(A, 7); // block 1
+    chain.mine(2); // head 2, safe 2 - 3 = -1, below from 0: nothing is read
     const early = await catchUp(chain, store, 3);
     expect(store.get('wallet', A)).toBeUndefined();
-    expect(early.to).toBeNull();
-    chain.mine(1);
+    expect(early).toMatchObject({ from: 0, to: null });
+    chain.mine(1); // head 3, safe 0: block 0 (empty) is read, block 1 has only 2 blocks after it
+    const almost = await catchUp(chain, store, 3);
+    expect(store.get('wallet', A)).toBeUndefined();
+    expect(almost).toMatchObject({ from: 0, to: 0 });
+    chain.mine(1); // head 4, safe 1, from 1: block 1 has 3 blocks after it
     const result = await catchUp(chain, store, 3);
     expect(wallet(store, A)).toEqual({ day: 0, used: 0, bought: 7 });
-    expect(result).toMatchObject({ from: 0, to: 0 });
+    expect(result).toMatchObject({ from: 1, to: 1 });
   });
 
-  it('with no confirmations an event counts in the head block', async () => {
+  it('with no confirmations an event counts once its block is mined, and a later one is not lost', async () => {
     const chain = mockChain();
     const store = memoryStore();
-    chain.emitLivesBought(A, 7);
-    await catchUp(chain, store, 0);
+    chain.emitLivesBought(A, 7); // block 1, not mined
+    const open = await catchUp(chain, store, 0); // head 0, safe 0, from 0: the empty genesis block
+    expect(open).toMatchObject({ from: 0, to: 0, applied: [] });
+    expect(store.get('wallet', A)).toBeUndefined();
+    chain.mine(); // head 1
+    await catchUp(chain, store, 0); // safe 1, from 1
     expect(wallet(store, A)).toEqual({ day: 0, used: 0, bought: 7 });
+    chain.emitLivesBought(A, 1); // block 2
+    chain.mine(5); // head 6
+    const result = await catchUp(chain, store, 0); // safe 6, from 2
+    expect(wallet(store, A)).toEqual({ day: 0, used: 0, bought: 8 });
+    expect(result).toMatchObject({ from: 2, to: 6 });
   });
 
   it('the cursor is the last block handled and never moves back', async () => {
     const chain = mockChain();
     const store = memoryStore();
     chain.emitLivesBought(A, 1);
-    chain.mine(5);
+    chain.mine(5); // head 5, safe 2, from 0
     await catchUp(chain, store, 3);
     expect(store.get('chain', 'cursor')).toBe('2');
-    const idle = await catchUp(chain, store, 4);
+    const idle = await catchUp(chain, store, 4); // safe 5 - 4 = 1, below from 3
     expect(idle.to).toBeNull();
     expect(store.get('chain', 'cursor')).toBe('2');
     store.put('chain', 'cursor', '9');
     chain.emitLivesBought(A, 1);
-    chain.mine(10);
+    chain.mine(10); // head 15, safe 12
     const result = await catchUp(chain, store, 3);
     expect(result).toMatchObject({ from: 10, to: 12 });
     expect(store.get('chain', 'cursor')).toBe('12');
@@ -130,7 +148,7 @@ describe('GDD-TEC-10 chain listener', () => {
     // An overlapping call that read an older cursor does not lower it.
     const chain2 = mockChain();
     const store2 = memoryStore();
-    chain2.mine(5);
+    chain2.mine(5); // head 5: the slow call has safe 2
     let entered!: () => void;
     const inside = new Promise<void>((resolve) => {
       entered = resolve;
@@ -153,7 +171,7 @@ describe('GDD-TEC-10 chain listener', () => {
     };
     const one = catchUp(slow, store2, 3);
     await inside;
-    chain2.mine(3);
+    chain2.mine(3); // head 8: the second call has safe 5, from 0
     await catchUp(chain2, store2, 3);
     expect(store2.get('chain', 'cursor')).toBe('5');
     release();
@@ -169,21 +187,22 @@ describe('GDD-TEC-10 chain listener', () => {
     try {
       const chain = mockChain();
       let store = open();
-      chain.emitLivesBought(A, 7);
-      chain.mine(3);
+      chain.emitLivesBought(A, 7); // block 1
+      chain.mine(4); // head 4, safe 1
       await catchUp(chain, store, 3);
       expect(wallet(store, A)).toEqual({ day: 0, used: 0, bought: 7 });
-      expect(store.get('chain', 'cursor')).toBe('0');
+      expect(store.get('chain', 'cursor')).toBe('1');
       store.close?.();
-      // The server is down: purchases at blocks 3 and 4.
+      // The server is down: purchases at blocks 5 and 6.
       chain.emitLivesBought(A, 1);
-      chain.mine(1);
+      chain.mine(1); // head 5
       chain.emitLivesBought(A, 2);
-      chain.mine(5);
+      chain.mine(5); // head 10, safe 7, from 2
+
       store = open();
       const result = await catchUp(chain, store, 3);
       expect(wallet(store, A)).toEqual({ day: 0, used: 0, bought: 10 });
-      expect(result).toMatchObject({ from: 1, to: 6 });
+      expect(result).toMatchObject({ from: 2, to: 7 });
       expect(result.applied).toHaveLength(2);
       store.close?.();
     } finally {
@@ -195,7 +214,7 @@ describe('GDD-TEC-10 chain listener', () => {
     const chain = mockChain();
     const store = memoryStore();
     chain.emitLivesBought(A, 7);
-    chain.mine(3);
+    chain.mine(4); // block 1, head 4, safe 1
     let failed = false;
     const flaky: ChainSource = {
       ...chain,
@@ -220,17 +239,21 @@ describe('GDD-TEC-10 chain listener', () => {
     chain.emitLivesBought(A, 0);
     chain.emitLivesBought(A, 2.5);
     chain.emitLivesBought('0x12', 7);
+    chain.emitLivesBought(A + 'a', 7); // 41 hex digits
     chain.emitActivated('x1', A, 1);
+    chain.emitActivated('', A, 1);
     chain.emitActivated('1', 'nope', 1);
     chain.emitActivated('1', A, 0);
     chain.emitActivated('1', A, 1.5);
     chain.emitLivesBought(A, 7);
-    chain.mine(3);
+    chain.mine(4); // all in block 1, head 4, safe 1
     const result = await catchUp(chain, store, 3);
     expect(result.refused.map((r) => r.reason)).toEqual([
       'n is not a positive whole number',
       'n is not a positive whole number',
       'buyer is not an address',
+      'buyer is not an address',
+      'tokenId is not a token ID',
       'tokenId is not a token ID',
       'owner is not an address',
       'season is not a season',
@@ -251,7 +274,7 @@ describe('GDD-TEC-10 chain listener', () => {
     const chain = mockChain();
     const store = memoryStore();
     chain.emitLivesBought(A, 7);
-    chain.mine(3);
+    chain.mine(4); // block 1, head 4, safe 1
     const full: Store = {
       ...store,
       put: (table, key, value) => {
