@@ -89,11 +89,11 @@ describe("GDD-BOS-04 La Catorce's pose", () => {
     expect(catorcePose(DEF, she({ mode: 'defeated', hits: 3, dir: 1 })).left).toBe(false);
   });
 
-  it('GDD-BOS-04 pose plume: 6 by 10 px over her middle stud while armoured, its foot 5 px under her top, a frame every 8 steps', () => {
-    // Her start: x 400 facing left, so the stud is 0.75 px left of her middle (399.25); her box's top 192, the plume's foot at 197.
-    expect(catorcePose(DEF, catorceStart(DEF, 0)).plume).toEqual({ box: { x0: 396.25, x1: 402.25, y0: 187, y1: 197 }, frame: 0 });
-    // At x 80 facing right, half a px right of her middle.
-    expect(catorcePose(DEF, she({ mode: 'charge', x: 80, dir: 1, armoured: true })).plume!.box).toEqual({ x0: 77.75, x1: 83.75, y0: 187, y1: 197 });
+  it('GDD-BOS-04 pose plume: 6 by 10 px over her middle stud while armoured, its foot 4 px under her top, a frame every 8 steps', () => {
+    // Her start: x 400 facing left, so the stud is 1.25 px left of her middle (398.75); her box's top 192, the plume's foot at 196, the stud's top.
+    expect(catorcePose(DEF, catorceStart(DEF, 0)).plume).toEqual({ box: { x0: 395.75, x1: 401.75, y0: 186, y1: 196 }, frame: 0 });
+    // At x 80 facing right, 1.25 px right of her middle.
+    expect(catorcePose(DEF, she({ mode: 'charge', x: 80, dir: 1, armoured: true })).plume!.box).toEqual({ x0: 78.25, x1: 84.25, y0: 186, y1: 196 });
     expect([0, 4, 7, 8, 15, 16].map((age) => catorcePose(DEF, she({ mode: 'telegraph', armoured: true, age })).plume!.frame)).toEqual([0, 0, 0, 1, 1, 0]);
     expect(catorcePose(DEF, she({ mode: 'charge', armoured: false })).plume).toBeNull();
     // The plume is the armour's: she is never armoured and hurt in the fight, but a hurt or defeated pose has none whatever the flag says.

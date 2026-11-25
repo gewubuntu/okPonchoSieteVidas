@@ -727,7 +727,7 @@ export const CATORCE_ART = {
   turnPx: 2 * Math.PI,
   slamSteps: 4,
   defeatFlashSteps: 4,
-  plume: { w: 6, h: 10, ahead: 0.75, rise: 5, steps: 8 },
+  plume: { w: 6, h: 10, ahead: 1.25, rise: 4, steps: 8 },
 } as const;
 
 /**
