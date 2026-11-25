@@ -7,13 +7,17 @@ import { enemyBox, feetOf, kindOf, type Box } from '../sim/enemy';
 import { touchesHilo } from '../sim/hilo';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { murcielagoAt } from '../sim/murcielago';
-import { startRun, stepRun, type Level, type RunState } from '../sim/run';
+import { startRun, stepRun as simStepRun, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
 import { cutCameraY } from '../ui/camera';
 import { levelById } from './index';
 import { LEVEL_3_1, LEVEL_3_1_ENEMIES, TIPS_3_1 } from './level3-1';
 import { onScreen, tileBox, viewsAlong } from './sightSweep';
 import { gaps, openGaps, validateLevel } from './validate';
+import { expectReplay, headerFor, tapeOf } from './tape';
+
+const tape = tapeOf(simStepRun);
+const stepRun = tape.step;
 
 // GDD-WLD-16: level 3-1, "La Barranca". Every number in these tests is the design's (GDD-WLD-16, measured in a scratch build before the
 // bats, the ledges' return and the raised bottoms existed); where the real simulation gives another, the test pins the measured value
@@ -1328,6 +1332,16 @@ const waited = (waitSteps: number): RunState => {
 };
 
 describe('GDD-WLD-16 3-1 played through', () => {
+  it('GDD-TEC-09 3-1 the bot run replays from its record', () => {
+    const taped = tape.record(() => void drive(route()));
+    const replayed = expectReplay(taped, headerFor('3-1', L), L);
+    expect(replayed.firstDiff).toBe(-1);
+    expect(replayed.steps).toBe(taped.inputs.length);
+    expect(replayed.steps).toBe(2338); // as the route bot's test below pins it
+    expect(replayed.clearReplay).toBe(replayed.clearTaped);
+    expect(replayed.clearReplay).toBe(taped.inputs.length);
+  });
+
   it('GDD-WLD-16 3-1 the route bot holds the way the path runs, glides the chasms, lets go over the ledges and reaches the exit with seven lives and three ofrendas', () => {
     const p = drive(route());
     expect(p.run.phase).toBe('clear');

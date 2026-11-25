@@ -4,7 +4,7 @@ import { withCrumbles } from '../sim/crumble';
 import { feetOf, kindOf, type Enemy, type EnemyState } from '../sim/enemy';
 import { loseLife, startWorld } from '../sim/lives';
 import { spawn, step, type PlayerInput } from '../sim/movement';
-import { startRun, stepRun, touchesExit, type Level, type RunState } from '../sim/run';
+import { startRun, stepRun as simStepRun, touchesExit, type Level, type RunState } from '../sim/run';
 import { isGround } from '../sim/slope';
 import { withSprings } from '../sim/spring';
 import { SLOPE_HEIGHTS } from '../sim/tilemap';
@@ -12,6 +12,10 @@ import { veladoraUsed } from '../sim/veladora';
 import { LEVEL_1_2 } from './level1-2';
 import { LEVELS, withUnlocks } from './index';
 import { gaps } from './validate';
+import { expectReplay, headerFor, tapeOf } from './tape';
+
+const tape = tapeOf(simStepRun);
+const stepRun = tape.step;
 
 const world = LEVEL_1_2.world;
 const mid = (col: number) => col * TILE + TILE / 2;
@@ -351,6 +355,16 @@ describe('GDD-WLD-08 playing 1-2', () => {
     expect(lost).toBe(0);
     expect(run.lives.lives).toBe(7);
     expect(touchesExit(run.player, LEVEL_1_2.exit!)).toBe(true);
+  });
+
+  it('GDD-TEC-09 1-2 the bot run replays from its record', () => {
+    const taped = tape.record(() => void bot(LEVEL_1_2, 1800));
+    const replayed = expectReplay(taped, headerFor('1-2', LEVEL_1_2), LEVEL_1_2);
+    expect(replayed.firstDiff).toBe(-1);
+    expect(replayed.steps).toBe(taped.inputs.length);
+    expect(replayed.steps).toBe(1394); // measured 2026-11-24
+    expect(replayed.clearReplay).toBe(replayed.clearTaped);
+    expect(replayed.clearReplay).toBe(taped.inputs.length);
   });
 
   it('GDD-PRG-01 1-2 with the glide unlocked the route still reaches the exit losing no life', () => {

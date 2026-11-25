@@ -32,6 +32,8 @@ export function jumpAt(x: number, hold: 'top' | number, dir: 1 | -1 = 1): Ctl {
 
 export interface Bot {
   readonly states: readonly RunState[];
+  /** What each step of `states` read (GDD-TEC-09): `idle` while he waited to respawn, else the task's input. */
+  readonly inputs: readonly PlayerInput[];
   /** The steps on which a life was lost. */
   readonly lost: readonly number[];
   /** The step each task was done on. */
@@ -44,6 +46,7 @@ export interface Bot {
  */
 export function runBot(tasks: readonly Ctl[], from: RunState, level: Level, max = 4000, stopAtLoss = false): Bot {
   const states: RunState[] = [];
+  const inputs: PlayerInput[] = [];
   const lost: number[] = [];
   const marks: number[] = [];
   let r = from;
@@ -51,6 +54,7 @@ export function runBot(tasks: readonly Ctl[], from: RunState, level: Level, max 
   while (k < tasks.length && states.length < max && r.phase !== 'clear' && r.phase !== 'gameover') {
     if (r.phase !== 'playing') {
       r = stepRun(r, idle, level);
+      inputs.push(idle);
       states.push(r);
       continue;
     }
@@ -62,11 +66,12 @@ export function runBot(tasks: readonly Ctl[], from: RunState, level: Level, max 
     }
     const before = r.lives.lives;
     r = stepRun(r, input, level);
+    inputs.push(input);
     if (r.lives.lives < before) lost.push(states.length);
     states.push(r);
     if (stopAtLoss && lost.length > 0) break;
   }
-  return { states, lost, marks, end: r };
+  return { states, inputs, lost, marks, end: r };
 }
 
 export const tally = (into: Record<string, number>, key: string) => (into[key] = (into[key] ?? 0) + 1);

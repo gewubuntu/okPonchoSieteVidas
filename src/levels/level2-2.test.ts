@@ -4,11 +4,15 @@ import { enemyBox, kindOf } from '../sim/enemy';
 import { touchesHilo } from '../sim/hilo';
 import { spawn, type PlayerInput, type PlayerState } from '../sim/movement';
 import { bundleBox, rolloLength } from '../sim/papel';
-import { startRun, stepRun, type Level, type RunState } from '../sim/run';
+import { startRun, stepRun as simStepRun, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
 import { withUnlocks, type LevelEntry } from './index';
 import { LEVEL_2_2 } from './level2-2';
 import { gaps, openGaps, validateLevel } from './validate';
+import { expectReplay, headerFor, tapeOf } from './tape';
+
+const tape = tapeOf(simStepRun);
+const stepRun = tape.step;
 
 /** 2-2 as the game's level list will hold it: a World 2 level, not a test level (GDD-WLD-13, GDD-TEC-04). */
 const ENTRY: LevelEntry = { id: '2-2', world: 2, test: false, level: LEVEL_2_2 };
@@ -840,6 +844,16 @@ describe('GDD-WLD-13 2-2 played through', () => {
     // GDD-WLD-03: about 45 s for a perfect run of a World 2 level of eight screens.
     expect(main.states.length).toBeLessThan(2700);
     expect(main.states.length).toBe(2519);
+  });
+
+  it('GDD-TEC-09 2-2 the bot run replays from its record', () => {
+    const taped = tape.record(() => void playMain());
+    const replayed = expectReplay(taped, headerFor('2-2', L), L);
+    expect(replayed.firstDiff).toBe(-1);
+    expect(replayed.steps).toBe(taped.inputs.length);
+    expect(replayed.steps).toBe(2519); // as the play-through above pins it
+    expect(replayed.clearReplay).toBe(replayed.clearTaped);
+    expect(replayed.clearReplay).toBe(taped.inputs.length);
   });
 
   it('GDD-PRG-01 2-2 with the glide unlocked the route still reaches the exit losing no life', () => {

@@ -3,11 +3,15 @@ import { TILE } from '../config/tuning';
 import { hilosCollected } from '../sim/hilo';
 import { loseLife, startWorld } from '../sim/lives';
 import { spawn, type PlayerInput } from '../sim/movement';
-import { startRun, stepRun, touchesExit, type Level, type RunState } from '../sim/run';
+import { startRun, stepRun as simStepRun, touchesExit, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
 import { LEVEL_0_1, TIPS_0_1 } from './level0-1';
 import { LEVELS, withUnlocks } from './index';
 import { gaps } from './validate';
+import { expectReplay, headerFor, tapeOf } from './tape';
+
+const tape = tapeOf(simStepRun);
+const stepRun = tape.step;
 
 const world = LEVEL_0_1.world;
 
@@ -123,6 +127,23 @@ describe('GDD-WLD-06 playing 0-1', () => {
     expect(steps).toBeLessThan(900);
     expect(run.lives.lives).toBe(7);
     expect(touchesExit(run.player, LEVEL_0_1.exit!)).toBe(true);
+  });
+
+  it('GDD-TEC-09 0-1 the bot run replays from its record, plain and with the glide', () => {
+    // Each run is stepped through the tape, written as a record under its header (GDD-PRG-01: the glided twin names the glide) and replayed on
+    // the level as registered: every step's state hash is the replay's, and the clear comes on the same step, the run's last.
+    for (const [played, abilities] of [
+      [LEVEL_0_1, {}],
+      [withUnlocks(LEVEL_0_1, { glide: true }), { glide: true }],
+    ] as const) {
+      const taped = tape.record(() => void bot(played, 900));
+      const replayed = expectReplay(taped, headerFor('0-1', LEVEL_0_1, abilities), LEVEL_0_1);
+      expect(replayed.firstDiff).toBe(-1);
+      expect(replayed.steps).toBe(taped.inputs.length);
+      expect(replayed.steps).toBe(688); // measured 2026-11-24
+      expect(replayed.clearReplay).toBe(replayed.clearTaped);
+      expect(replayed.clearReplay).toBe(taped.inputs.length);
+    }
   });
 
   it('GDD-WLD-06 0-1 the veladora ledge is reached by a full jump from the right end of the raised platform', () => {

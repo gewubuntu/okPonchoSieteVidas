@@ -7,6 +7,10 @@ import type * as Movement from '../sim/movement';
 /** Full names (`describe > test`) of the tests that keep the abilities their level gives. */
 export const GLIDE_OFF_TESTS: ReadonlyMap<string, string> = new Map([
   [
+    'GDD-WLD-06 playing 0-1 > GDD-TEC-09 0-1 the bot run replays from its record, plain and with the glide',
+    "records and replays the plain run and its glided twin itself; with the glide mocked on, the plain run is the twin and the header's abilities are not what the replay is given",
+  ],
+  [
     'GDD-WLD-07 playing 1-1 > GDD-WLD-07 1-1 in Taco, a claw from the right end of the 2-tile wall opens the piñata at column 75, and a hop onto it takes the chile',
     'holds jump 30 steps for a hop onto the piñata; with the glide he has not taken the chile by then',
   ],
@@ -113,6 +117,22 @@ export const GLIDE_OFF_TESTS: ReadonlyMap<string, string> = new Map([
   [
     'GDD-BOS-03 playing 2-4 > GDD-BOS-03 2-4 can be won from the spawn with all seven lives in under 1800 steps',
     'plays the plain-jump route; its glided twin, GDD-PRG-01, plays the level with the glide (the plain fight\'s hit steps are pinned)',
+  ],
+  [
+    'GDD-WLD-12 playing 2-1 > GDD-TEC-09 2-1 the bot run replays from its record',
+    'pins the plain-jump route\'s step count (2791), as its sibling does; with the glide the route clears on step 2893',
+  ],
+  [
+    'GDD-WLD-13 2-2 played through > GDD-TEC-09 2-2 the bot run replays from its record',
+    'a scripted route out of step with the glide: its jumps held through falls glide past their landings, and with the glide it does not clear in 4000 steps',
+  ],
+  [
+    'GDD-WLD-14 playing 2-3 > GDD-TEC-09 2-3 the bot run replays from its record',
+    'pins the plain-jump route\'s step count (2574), as its sibling\'s limit is; with the glide the route clears on step 2922',
+  ],
+  [
+    'GDD-BOS-03 playing 2-4 > GDD-TEC-09 2-4 the bot run replays from its record, plain and with the glide',
+    "records and replays the plain run and its glided twin itself; with the glide mocked on, the plain run is the twin and the header's abilities are not what the replay is given",
   ],
 ]);
 

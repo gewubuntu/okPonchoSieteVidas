@@ -3,11 +3,15 @@ import { TILE } from '../config/tuning';
 import { kindOf } from '../sim/enemy';
 import { loseLife, startWorld } from '../sim/lives';
 import { spawn, type PlayerInput } from '../sim/movement';
-import { startRun, stepRun, touchesExit, type Level, type RunState } from '../sim/run';
+import { startRun, stepRun as simStepRun, touchesExit, type Level, type RunState } from '../sim/run';
 import { veladoraUsed } from '../sim/veladora';
 import { LEVEL_1_1 } from './level1-1';
 import { LEVELS, withUnlocks } from './index';
 import { gaps } from './validate';
+import { expectReplay, headerFor, tapeOf } from './tape';
+
+const tape = tapeOf(simStepRun);
+const stepRun = tape.step;
 
 const world = LEVEL_1_1.world;
 const mid = (col: number) => col * TILE + TILE / 2;
@@ -178,6 +182,16 @@ describe('GDD-WLD-07 playing 1-1', () => {
     expect(steps).toBeLessThan(1500);
     expect(run.lives.lives).toBe(7);
     expect(touchesExit(run.player, LEVEL_1_1.exit!)).toBe(true);
+  });
+
+  it('GDD-TEC-09 1-1 the bot run replays from its record', () => {
+    const taped = tape.record(() => void bot(LEVEL_1_1, 1500));
+    const replayed = expectReplay(taped, headerFor('1-1', LEVEL_1_1), LEVEL_1_1);
+    expect(replayed.firstDiff).toBe(-1);
+    expect(replayed.steps).toBe(taped.inputs.length);
+    expect(replayed.steps).toBe(1421); // measured 2026-11-21
+    expect(replayed.clearReplay).toBe(replayed.clearTaped);
+    expect(replayed.clearReplay).toBe(taped.inputs.length);
   });
 
   it('GDD-PRG-01 1-1 with the glide unlocked the route still reaches the exit losing no life', () => {
