@@ -246,6 +246,7 @@ describe('GDD-TEC-10 chain listener', () => {
     chain.emitLivesBought(A, 2.5);
     chain.emitLivesBought('0x12', 7);
     chain.emitLivesBought(A + 'a', 7); // 41 hex digits
+    chain.emitLivesBought(A.slice(0, -1), 7); // 39 hex digits
     chain.emitLivesBought('zz' + A, 7); // text before the address
     chain.emitActivated('x1', A, 1);
     chain.emitActivated('', A, 1);
@@ -259,6 +260,7 @@ describe('GDD-TEC-10 chain listener', () => {
     expect(result.refused.map((r) => r.reason)).toEqual([
       'n is not a positive whole number',
       'n is not a positive whole number',
+      'buyer is not an address',
       'buyer is not an address',
       'buyer is not an address',
       'buyer is not an address',
