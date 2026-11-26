@@ -96,6 +96,7 @@ export async function issueStart(
   }
   return store.transaction((): Issued => {
     // GDD-CHAIN-04: that the Pal is activated for the running season is checked as the start token is issued.
+    // An activation follows the Pal to a new owner within its season, so it is read for the token, whoever activated it (Decided, user, 2026-11-26, Open Question 55 (b)).
     if (hero.kind === 'pal' && activationOf(store, palId, hero.season) === null) return refuse('the Pal is not activated this season');
     const walletRow = store.get('wallet', player);
     const wallet: WalletLedger = walletRow === undefined ? EMPTY_WALLET : JSON.parse(walletRow);
@@ -115,7 +116,8 @@ export async function issueStart(
 /**
  * GDD-TEC-10, GDD-LIFE-06: a run that clears its world goes on into the next world under a token issued at no cost, whatever the ledger holds.
  * The client is trusted for the clear (Phase 1, "What the server trusts"). GDD-CHAIN-04: an attempt under way keeps its Pal to its end,
- * across a sale or the season's turn too, so the hero is copied and neither the Pal nor the ledger is read.
+ * across a sale or the season's turn too, so the hero is copied and neither the Pal nor the ledger is read. Placeholder: that is GDD-CHAIN-04's recommended
+ * reading while Open Question 55 (c) is open; the other checks again at every level started.
  */
 export function issueContinue(deps: TokenDeps, request: { player: string; after: string }, nowMs: number): Issued {
   const { store } = deps;

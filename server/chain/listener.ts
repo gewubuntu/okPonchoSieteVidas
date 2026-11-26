@@ -36,7 +36,7 @@ function apply(store: Store, e: ChainEvent): string | null {
   const owner = normalAddress(e.owner);
   if (owner === null) return 'owner is not an address';
   if (!Number.isSafeInteger(e.season) || e.season < 1) return 'season is not a season';
-  // Placeholder (Open Question 55 (b)): the owner is kept beside the activation and nothing reads it; whether an activation follows a Pal to a new owner is undecided.
+  // The owner is kept beside the activation and nothing reads it: an activation follows the Pal to a new owner within its season (Decided, user, 2026-11-26, Open Question 55 (b)).
   store.put('activation', activationKey(canonicalToken(e.tokenId), e.season), JSON.stringify({ owner, block: e.block }));
   return null;
 }

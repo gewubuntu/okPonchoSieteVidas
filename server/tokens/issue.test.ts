@@ -119,6 +119,18 @@ describe('GDD-TEC-10 start tokens', () => {
     expect(row(f.store, 'token', payload.id)).toMatchObject({ status: 'issued', hero: { kind: 'pal', tokenId: '42', season: 4 } });
   });
 
+  it('a Pal sold within its season plays on its activation and its day for the buyer', async () => {
+    // Decided (user, 2026-11-26, Open Question 55 (b)): an activation follows the Pal to a new owner, as its daily lives do.
+    const f = fixture();
+    await activate(f); // activated by A for season 4
+    f.chain.setOwner('42', A);
+    ok(await issueStart(f.deps, palRequest(), NOON));
+    f.chain.setOwner('42', B); // sold
+    const payload = ok(await issueStart(f.deps, { player: B, hero: { kind: 'pal', tokenId: '42' }, world: 1 }, NOON));
+    expect(payload).toMatchObject({ player: B, hero: { kind: 'pal', tokenId: '42', season: 4 }, cost: 'free' });
+    expect(row(f.store, 'pal', '42')).toEqual({ day: 20778, used: 2 });
+  });
+
   it('a Pal of another wallet is refused', async () => {
     const f = fixture();
     await activate(f);
