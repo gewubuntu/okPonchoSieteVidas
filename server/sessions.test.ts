@@ -36,6 +36,7 @@ const fixture = (chainOf: (chain: MockChain) => ChainSource = (chain) => chain):
 };
 
 interface Fields { address?: `0x${string}`; domain?: string; uri?: string; chainId?: number; expirationTime?: Date; notBefore?: Date }
+const base = (nonce: string) => ({ address: account.address, domain: site.domain, uri: site.uri, chainId: 8453, nonce, version: '1' as const, issuedAt: new Date(NOON - 1000) });
 const messageOf = (nonce: string, fields: Fields = {}): string =>
   createSiweMessage({
     address: fields.address ?? account.address,
@@ -53,6 +54,11 @@ const request = async (nonce: string, fields: Fields = {}, signer = account) => 
   return { message, signature: await signer.signMessage({ message }) };
 };
 const signedMessage = async (message: string) => ({ message, signature: await account.signMessage({ message }) });
+/** The answer to a message viem writes with these fields, signed by `account`. */
+const schemeReason = async (d: SessionDeps, fields: { scheme: string; uri?: string; domain?: string }): Promise<string> => {
+  const message = createSiweMessage({ ...base(issueNonce(d)), ...fields });
+  return reasonOf(await signIn(d, await signedMessage(message), NOON));
+};
 const sha256hex = (text: string): string => createHash('sha256').update(text).digest('hex');
 const reasonOf = (signed: Awaited<ReturnType<typeof signIn>>): string => (signed.ok ? 'ok' : signed.reason);
 const secretOf = (signed: Awaited<ReturnType<typeof signIn>>): string => {
@@ -141,6 +147,89 @@ describe('GDD-TEC-10 wallet sessions', () => {
     // The site's own scheme, and readable times around NOON, are accepted.
     expect((await signIn(deps, await signedMessage(`https://${messageOf(issueNonce(deps))}`), NOON)).ok).toBe(true);
     expect((await signIn(deps, await request(issueNonce(deps), { expirationTime: new Date(later), notBefore: new Date(NOON) }), NOON)).ok).toBe(true);
+  });
+
+  it('a line the parser skips is refused before the nonce', async () => {
+    // viem's parser reads the times only right after Issued At and in their order, and drops what follows its last match (the review of #134).
+    const { store, deps } = fixture();
+    const past = 'Expiration Time: 2025-11-21T12:00:00.000Z'; // a year before NOON
+    const ahead = 'Not Before: 2027-11-21T12:00:00.000Z'; // a year after
+    const later = new Date(NOON + 3_600_000);
+    const cases: readonly ((nonce: string) => string)[] = [
+      (nonce) => createSiweMessage({ ...base(nonce), requestId: 'r1' }).replace('Request ID: r1', `Request ID: r1\n${past}`),
+      (nonce) => createSiweMessage({ ...base(nonce), notBefore: new Date(NOON - 1000) }).replace(/(Not Before: .*)/, `$1\n${past}`),
+      (nonce) => `${messageOf(nonce)}\n${past.replace('Expiration Time', 'Expiration time')}`,
+      (nonce) => `${messageOf(nonce)}\n\n${past}`,
+      (nonce) => createSiweMessage({ ...base(nonce), resources: ['https://poncho.example/a'] }).replace('- https://poncho.example/a', `- https://poncho.example/a\n${ahead}`),
+      (nonce) => `${messageOf(nonce)}\nanything`,
+      (nonce) => messageOf(nonce, { expirationTime: later }).replace(later.toISOString(), later.toISOString().replace('.000Z', 'Z')), // a time as viem does not write it
+      (nonce) => messageOf(nonce).replace(account.address, account.address.toLowerCase()), // an address as viem does not write it
+    ];
+    for (const make of cases) {
+      const nonce = issueNonce(deps);
+      const message = make(nonce);
+      expect(message).not.toBe(messageOf(nonce));
+      expect(reasonOf(await signIn(deps, await signedMessage(message), NOON))).toBe('not a sign-in message');
+      expect(store.get('nonce', nonce)).toBe('{}');
+    }
+  });
+
+  it('a message as viem writes it, with every optional field, opens a session', async () => {
+    const { deps } = fixture();
+    const message = createSiweMessage({
+      ...base(issueNonce(deps)),
+      scheme: 'https',
+      statement: 'Sign in to PONCHO: Siete Vidas.',
+      expirationTime: new Date(NOON + 3_600_000),
+      notBefore: new Date(NOON - 1000),
+      requestId: 'r1',
+      resources: ['https://poncho.example/a', 'https://poncho.example/b'],
+    });
+    expect((await signIn(deps, await signedMessage(message), NOON)).ok).toBe(true);
+  });
+
+  it('a message or signature that is not text is refused, and so is a message too long to parse', async () => {
+    const { store, deps } = fixture();
+    const message = messageOf(issueNonce(deps));
+    for (const sent of [{ message: undefined, signature: '0x00' }, { message: 5, signature: '0x00' }, { message, signature: undefined }, { message, signature: 5 }]) {
+      expect(reasonOf(await signIn(deps, sent, NOON))).toBe('not a sign-in message');
+    }
+    // A Resources list of millions of lines, as viem's writer writes it, overflows the parser's regular expression (the probe of #134).
+    const nonce = issueNonce(deps);
+    const long = createSiweMessage({ ...base(nonce), resources: Array.from({ length: 3_500_000 }, () => 'a:') });
+    expect(reasonOf(await signIn(deps, { message: long, signature: '0x00' }, NOON))).toBe('not a sign-in message');
+    expect(store.get('nonce', nonce)).toBe('{}');
+  });
+
+  it('a scheme is the same in any case, read from the site\'s URI as written', async () => {
+    const { deps } = fixture();
+    expect(await schemeReason(deps, { scheme: 'HTTPS' })).toBe('ok');
+    const upper: SessionDeps = { ...deps, site: { domain: site.domain, uri: 'HTTPS://poncho.example' } };
+    expect(await schemeReason(upper, { scheme: 'https', uri: 'HTTPS://poncho.example' })).toBe('ok');
+    // A URI viem takes and URL refuses (a port above 65535): its scheme is still read, never a throw.
+    const port: SessionDeps = { ...deps, site: { domain: 'poncho.example:99999', uri: 'https://poncho.example:99999' } };
+    expect(await schemeReason(port, { scheme: 'https', uri: 'https://poncho.example:99999', domain: 'poncho.example:99999' })).toBe('ok');
+    expect(await schemeReason(port, { scheme: 'http', uri: 'https://poncho.example:99999', domain: 'poncho.example:99999' })).toBe('not this game\'s site');
+  });
+
+  it('a clock that gives no time is the server\'s fault, never a time', async () => {
+    const { store, deps } = fixture();
+    const nonce = issueNonce(deps);
+    for (const now of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(signIn(deps, await request(nonce, { expirationTime: new Date(NOON - 1) }), now)).rejects.toThrow('the clock gives no time');
+      expect(() => sessionOf(store, 'abc', now)).toThrow('the clock gives no time');
+    }
+    expect(store.get('nonce', nonce)).toBe('{}');
+  });
+
+  it('a secret that is not text is a guest', async () => {
+    const { store, deps } = fixture();
+    secretOf(await signIn(deps, await request(issueNonce(deps)), NOON));
+    for (const secret of [undefined, null, 5, {}]) {
+      expect(sessionOf(store, secret, NOON)).toBeNull();
+      expect(signOut(store, secret)).toBe(false);
+    }
+    expect(store.entries('session')).toHaveLength(1);
   });
 
   it('a text that is not a sign-in message is refused', async () => {
