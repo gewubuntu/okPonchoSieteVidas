@@ -1,7 +1,7 @@
 // GDD-TEC-10, "Chain events": the listener counts each chain event once, after the confirmations, and catches up after an outage.
 import { creditBought, EMPTY_WALLET, type WalletLedger } from '../ledger';
 import type { Store } from '../store/store';
-import { eventId, normalAddress, type Address, type ChainEvent, type ChainSource } from './chain';
+import { canonicalToken, eventId, isTokenId, normalAddress, type Address, type ChainEvent, type ChainSource } from './chain';
 
 export interface CatchUpResult {
   readonly from: number;
@@ -13,8 +13,6 @@ export interface CatchUpResult {
 /** Where the listener has got to: the last block handled, or -1 (so it reads from block 0) with nothing stored. */
 const cursorOf = (store: Store): number => Number(store.get('chain', 'cursor') ?? -1);
 
-// Placeholder: '007' and '7' are one token, so an activation is keyed by the token's canonical decimal.
-const canonicalToken = (tokenId: string): string => BigInt(tokenId).toString();
 const activationKey = (tokenId: string, season: number): string => `${tokenId}/${season}`;
 
 /** Why the event cannot be applied, or null once it was. */
@@ -34,7 +32,7 @@ function apply(store: Store, e: ChainEvent): string | null {
     return null;
   }
   // GDD-CHAIN-04: Activated(tokenId, owner, season) marks that Pal as activated for that season.
-  if (!/^\d+$/.test(e.tokenId)) return 'tokenId is not a token ID';
+  if (!isTokenId(e.tokenId)) return 'tokenId is not a token ID';
   const owner = normalAddress(e.owner);
   if (owner === null) return 'owner is not an address';
   if (!Number.isSafeInteger(e.season) || e.season < 1) return 'season is not a season';
@@ -74,7 +72,7 @@ export async function catchUp(chain: ChainSource, store: Store, confirmations: n
 }
 
 export function activationOf(store: Store, tokenId: string, season: number): { owner: Address; block: number } | null {
-  if (!/^\d+$/.test(tokenId)) return null;
+  if (!isTokenId(tokenId)) return null;
   const row = store.get('activation', activationKey(canonicalToken(tokenId), season));
   if (row === undefined) return null;
   const activation: { owner: Address; block: number } = JSON.parse(row);

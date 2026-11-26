@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mockChain } from './mock';
 
 const A = '0x' + 'ab'.repeat(20);
+const B = '0x' + 'cd'.repeat(20);
 
 describe('GDD-TEC-10 mock chain', () => {
   it('emitted events land in the next block and are read once it is mined', async () => {
@@ -35,5 +36,19 @@ describe('GDD-TEC-10 mock chain', () => {
     expect(() => chain.mine(0)).toThrow(RangeError);
     expect(() => chain.mine(1.5)).toThrow(RangeError);
     expect(await chain.head()).toBe(0);
+  });
+
+  it('ownerOf reads the owner set, by the token\'s number', async () => {
+    const chain = mockChain();
+    chain.setOwner('007', A);
+    expect(await chain.ownerOf('7')).toBe(A);
+    expect(await chain.ownerOf('8')).toBeNull();
+    chain.setOwner('9', B);
+    expect(await chain.ownerOf('0009')).toBe(B);
+    chain.setOwner('7', null);
+    expect(await chain.ownerOf('007')).toBeNull();
+    chain.setOwner('7', B);
+    chain.setOwner('0007', null); // the same token, spelled another way
+    expect(await chain.ownerOf('7')).toBeNull();
   });
 });

@@ -97,8 +97,9 @@ What was checked for this record (2026-11-21, in a throwaway copy of the reposit
   (Open Question 57; none is issued).
 - Where the config values live (Conflict C13, Open Question 54 (f)): `server/config.ts` with one endpoint is the
   recommended resolution, built as a placeholder.
-- How a Pal's owner is known (Open Question 54 (c)): the chain interface's `ownerOf` and `palsOf`, read as a token is
-  asked for, are a placeholder; following transfers is the other way.
+- How a Pal's owner is known (Open Question 54 (c)): answered since (user, 2026-11-26: "Go with your recommendations,
+  start phase C"): the collection is read for the owner as a start token is asked for (the chain interface's `ownerOf`),
+  its transfers are not followed, and a Pal counts only for the wallet that holds it.
 - That the API is served from the game's own origin: an assumption of the cookie's design, since where the server
   runs is not decided. Another origin needs cross-origin rules and another cookie.
 - Where it is deployed and how (below).
