@@ -51,4 +51,17 @@ describe('GDD-TEC-10 mock chain', () => {
     chain.setOwner('0007', null); // the same token, spelled another way
     expect(await chain.ownerOf('7')).toBeNull();
   });
+
+  it('acceptSignature is what verifySignature reads', async () => {
+    const chain = mockChain();
+    const address = '0x' + 'AB'.repeat(20);
+    expect(await chain.verifySignature(address, 'hello', '0x1234')).toBe(false);
+    chain.acceptSignature(address, 'hello', '0x1234');
+    expect(await chain.verifySignature(address, 'hello', '0x1234')).toBe(true);
+    expect(await chain.verifySignature(address.toLowerCase(), 'hello', '0x1234')).toBe(true);
+    expect(await chain.verifySignature(address.toUpperCase().replace('0X', '0x'), 'hello', '0x1234')).toBe(true);
+    expect(await chain.verifySignature(address, 'other', '0x1234')).toBe(false);
+    expect(await chain.verifySignature(address, 'hello', '0x5678')).toBe(false);
+    expect(await chain.verifySignature(B, 'hello', '0x1234')).toBe(false);
+  });
 });

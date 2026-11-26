@@ -50,7 +50,7 @@ What was checked for this record (2026-11-21, in a throwaway copy of the reposit
 - **HTTP:** Node's own `node:http`, with handlers written against the standard `Request` and `Response`, so tests
   call them with no socket. About a dozen routes with no path parameters: a router would be a dependency for a
   `switch`.
-- **Dependencies:** one, `viem` `^2.58.4`: reading and checking Sign-In with Ethereum messages, recovering a plain
+- **Dependencies:** one, `viem` `^2.58.4` (added with the wallet sessions, 2026-11-26, as `^2.58.7`, the registry's `latest` that day): reading and checking Sign-In with Ethereum messages, recovering a plain
   key's signature, checking a contract wallet's signature on Base (ERC-1271, and ERC-6492 for a wallet not yet
   deployed, which is what "Coinbase Smart Wallet first" needs), and reading event logs and a token's owner. It is
   imported only by `server/sessions.ts` and `server/chain/viem.ts`.

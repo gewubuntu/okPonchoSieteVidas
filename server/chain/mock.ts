@@ -8,7 +8,11 @@ export interface MockChain extends ChainSource {
   mine(blocks?: number): number;
   /** Sets who owns the Pal as the collection holds it now, as given (null: no owner, the token is gone); the token is kept by its canonical number. */
   setOwner(tokenId: string, owner: Address | null): void;
+  /** Records a contract wallet's signature of a message as good, for `verifySignature` to read; the address is compared lowercased. */
+  acceptSignature(address: Address, message: string, signature: string): void;
 }
+
+const signatureKey = (address: Address, message: string, signature: string): string => JSON.stringify([address.toLowerCase(), message, signature]);
 
 /** In memory, from head 0, an empty genesis block. It keeps what it is given as given, so a test can send an event that does not read. */
 export function mockChain(): MockChain {
@@ -16,6 +20,7 @@ export function mockChain(): MockChain {
   let txCount = 0;
   const log: ChainEvent[] = [];
   const owners = new Map<string, Address>();
+  const accepted = new Set<string>();
   // An event goes into the next block, `head + 1`, not yet sealed (so not yet read), its log index counting from 0 within the block.
   const place = () => ({ block: head + 1, logIndex: log.filter((e) => e.block === head + 1).length, txHash: `0x${(++txCount).toString(16).padStart(64, '0')}` });
   const emit = (event: ChainEvent): ChainEvent => {
@@ -29,6 +34,10 @@ export function mockChain(): MockChain {
     emitLivesBought: (buyer, n) => emit({ kind: 'LivesBought', ...place(), buyer, n }),
     emitActivated: (tokenId, owner, season) => emit({ kind: 'Activated', ...place(), tokenId, owner, season }),
     ownerOf: (tokenId) => Promise.resolve(owners.get(canonicalToken(tokenId)) ?? null),
+    verifySignature: (address, message, signature) => Promise.resolve(accepted.has(signatureKey(address, message, signature))),
+    acceptSignature: (address, message, signature) => {
+      accepted.add(signatureKey(address, message, signature));
+    },
     setOwner: (tokenId, owner) => {
       if (owner === null) owners.delete(canonicalToken(tokenId));
       else owners.set(canonicalToken(tokenId), owner);

@@ -1,6 +1,5 @@
 // GDD-TEC-10, docs/decisions/0004-game-server.md ("The mock chain"): the chain as the server reads it.
 // Async because the real source (viem, a later phase) is; the store stays synchronous.
-// `verifySignature` is not here: it belongs to the wallet sessions and is added with its first caller.
 // `ownerOf` reads the collection as a start token is asked for (Decided, user, 2026-11-26, Open Question 54 (c)); `palsOf` (ADR 0004) is not here, since nothing asks for it until hero select, which is not in the first wave.
 export type Address = string; // 0x and 40 hex digits, as read
 export interface EventPlace { readonly block: number; readonly txHash: string; readonly logIndex: number }
@@ -11,6 +10,7 @@ export type ChainEvent =
 export interface ChainSource {
   head(): Promise<number>; // the latest sealed block number
   events(fromBlock: number, toBlock: number): Promise<readonly ChainEvent[]>; // both ends included; in block, then log index, order
+  verifySignature(address: Address, message: string, signature: string): Promise<boolean>; // a contract wallet's signature (ERC-1271, ERC-6492 for one not yet deployed)
   ownerOf(tokenId: string): Promise<Address | null>; // the collection's owner of the Pal, as read now; null: no such token
 }
 
