@@ -21,6 +21,17 @@ function setWithout(path: string): Record<string, Record<string, unknown>> {
 const problemsOf = (group: string, name: string, value: unknown): readonly string[] => resolveConfig({ [group]: { [name]: value } }).problems;
 
 describe('GDD-TEC-10 config', () => {
+  it.each([['START_TOKEN', 'startWithin'], ['SESSION', 'length']])('%s.%s is whole seconds whose milliseconds are a safe whole number', (group, name) => {
+    const most = Math.floor(Number.MAX_SAFE_INTEGER / 1000); // 9007199254740: its milliseconds 9007199254740000 are safe
+    expect(problemsOf(group, name, most)).toEqual([]);
+    expect(problemsOf(group, name, most + 1)).toEqual([`${group}.${name} does not read`]);
+    expect(problemsOf(group, name, Number.MAX_SAFE_INTEGER)).toEqual([`${group}.${name} does not read`]);
+    expect(problemsOf(group, name, 2 ** 53)).toEqual([`${group}.${name} does not read`]);
+    expect(problemsOf(group, name, 1.5)).toEqual([`${group}.${name} does not read`]);
+    expect(problemsOf(group, name, 1)).toEqual([]);
+    expect(problemsOf(group, name, 0)).toEqual([`${group}.${name} does not read`]);
+  });
+
   it('the GDD starting values, and null for what it leaves unset', () => {
     expect(GDD_CONFIG).toEqual({
       LEDGER: { freePerDay: 3, palFreePerDay: 7, resetUtc: '00:00', packSize: 7, packPrice: null },

@@ -39,6 +39,8 @@ export const NEEDED_FOR_BASE: readonly string[] = ['LEDGER.packPrice', 'SEASON.f
 
 type Check = (value: unknown) => boolean;
 const whole = (min: number): Check => (value) => typeof value === 'number' && Number.isInteger(value) && value >= min;
+// A length in seconds whose milliseconds are a safe whole number too, so the end of a token or a session is a finite time that JSON keeps.
+const seconds: Check = (value) => typeof value === 'number' && Number.isSafeInteger(value) && Number.isSafeInteger(value * 1000) && value >= 1;
 const time: Check = (value) => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 // An ISO 8601 instant that names its zone, so that it never reads in the host's own zone.
 const instant: Check = (value) => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:\d\d)$/.test(value) && !Number.isNaN(Date.parse(value));
@@ -48,8 +50,8 @@ const oneOf = (...allowed: readonly unknown[]): Check => (value) => allowed.incl
 const CHECKS: Readonly<Record<string, Check>> = {
   'LEDGER.freePerDay': whole(0), 'LEDGER.palFreePerDay': whole(0), 'LEDGER.resetUtc': time, 'LEDGER.packSize': whole(1), 'LEDGER.packPrice': price,
   'SEASON.months': whole(1), 'SEASON.firstStartUtc': instant,
-  'START_TOKEN.startWithin': whole(1),
-  'SESSION.length': whole(1),
+  'START_TOKEN.startWithin': seconds,
+  'SESSION.length': seconds,
   'CHAIN.mode': oneOf('mock', 'base'), 'CHAIN.confirmations': whole(0),
 };
 

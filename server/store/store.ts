@@ -1,5 +1,5 @@
-// The ledger's kinds of row (GDD-TEC-10): per wallet, per Pal token ID, the listener's cursor (`chain`), each chain event handled (`event`), each Pal's activation per season (`activation`), each start token issued (`token`). Each later table comes with the code that reads it.
-export type Table = 'wallet' | 'pal' | 'chain' | 'event' | 'activation' | 'token';
+// The ledger's kinds of row (GDD-TEC-10): per wallet, per Pal token ID, the listener's cursor (`chain`), each chain event handled (`event`), each Pal's activation per season (`activation`), each start token issued (`token`), the nonces given out and not yet used (`nonce`), the sessions by the SHA-256 of their secret (`session`). Each later table comes with the code that reads it.
+export type Table = 'wallet' | 'pal' | 'chain' | 'event' | 'activation' | 'token' | 'nonce' | 'session';
 export interface Store {
   get(table: Table, key: string): string | undefined;
   put(table: Table, key: string, value: string): void;
