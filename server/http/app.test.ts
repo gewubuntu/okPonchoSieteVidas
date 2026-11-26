@@ -188,6 +188,25 @@ describe('GDD-TEC-10 config over HTTP', () => {
   });
 });
 
+describe('GDD-TEC-10 a body that does not arrive', () => {
+  it('a POST whose body fails part way is 408 "the body did not arrive whole", logged so, and nothing is written', async () => {
+    const { app, log, store } = fixture();
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        if (pulls === 1) controller.enqueue(new TextEncoder().encode('{'));
+        else controller.error(new Error('zz-gone'));
+      },
+    }, { highWaterMark: 0 });
+    const response = await app(new Request(`http://api.invalid${NONCE}`, { method: 'POST', body, headers: { 'content-type': 'application/json' }, duplex: 'half' }));
+    expect(response.status).toBe(408);
+    expect(await response.text()).toBe('{"error":"the body did not arrive whole"}');
+    expect(log).toEqual([{ method: 'POST', route: NONCE, status: 408 }]);
+    expect(store.entries('nonce')).toEqual([]);
+  });
+});
+
 describe('GDD-TEC-10 faults', () => {
   it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])('a clock that gives %s gets 500 "server error" on every route, and nothing is written', async (time) => {
     const { app, store } = fixture({ clock: { now: () => time } });

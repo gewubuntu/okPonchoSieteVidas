@@ -3,6 +3,7 @@
 // CLAUDE.md, the skills and the subagents, and over docs/GDD.md (its changelog aside, which is history) and docs/BACKLOG.md.
 // In the two documents a file that is designed and not built yet is marked ` (planned)` right after its backticks; the
 // mark fails once the path exists, so "planned" cannot outlive the build.
+import { spawnSync } from 'node:child_process';
 
 const ROOTS = /^(src|server|e2e|scripts|docs|assets|\.claude|\.github)\//;
 const PLANNED = ' (planned)';
@@ -41,6 +42,25 @@ export function pathErrors(file, text, exists, { planned = false, skip = () => f
   });
   return errors;
 }
+
+/**
+ * The paths among `paths` that git ignores. The gate counts them as missing: a build output on this disk (`server/dist/`
+ * after a build) is not in a fresh checkout, as CI's is, so a sentence naming it passed here and failed there (L-083).
+ * `checkIgnore(input)` runs `git check-ignore --stdin` with the paths one to a line and gives `{ status, stdout }`:
+ * status 0 when some are ignored, each written back as given; any other status (none ignored, or no git) ignores none.
+ */
+export function ignoredAmong(paths, checkIgnore) {
+  const unique = [...new Set(paths)];
+  if (unique.length === 0) return new Set();
+  const r = checkIgnore(`${unique.join('\n')}\n`);
+  return new Set(r.status === 0 ? r.stdout.split('\n').filter((line) => unique.includes(line)) : []);
+}
+
+/** The `checkIgnore` the gate gives `ignoredAmong`: the git of the repository at `root`. */
+export const gitCheckIgnore = (root) => (input) => spawnSync('git', ['check-ignore', '--stdin'], { cwd: root, input, encoding: 'utf8' });
+
+/** Whether a named path is there as a fresh checkout has it: on this disk, and not among the `ignored` (L-083). */
+export const presentWhen = (exists, ignored) => (p) => exists(p) && !ignored.has(p);
 
 /** The first and last line index of the list under `## Changelog`, or null: the lines up to the next heading of level 1 or 2 or a `---` rule. */
 export function changelogRange(lines) {

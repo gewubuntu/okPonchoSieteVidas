@@ -81,6 +81,20 @@ describe('GDD-TEC-10 boundary: the body bound, in bytes', () => {
   });
 });
 
+describe('GDD-TEC-10 boundary: a body that does not arrive', () => {
+  it('a stream that fails after a chunk is not whole: 408, never a throw', async () => {
+    let pulls = 0;
+    const failing = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        if (pulls === 1) controller.enqueue(new TextEncoder().encode('{"a":'));
+        else controller.error(new Error('zz-gone'));
+      },
+    }, { highWaterMark: 0 });
+    expect(await readBody(streamed(failing), BODY_LIMIT)).toEqual({ ok: false, status: 408, reason: 'the body did not arrive whole' });
+  });
+});
+
 describe('GDD-TEC-10 boundary: encoding and JSON', () => {
   it('the bytes ff fe 41 are not UTF-8, which is not the same refusal as not JSON', async () => {
     expect(await readBody(post(new Uint8Array([0xff, 0xfe, 0x41])), BODY_LIMIT)).toEqual({ ok: false, status: 400, reason: 'the body is not UTF-8' });

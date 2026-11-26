@@ -3,7 +3,9 @@
 import { randomBytes, createPublicKey } from 'node:crypto';
 import { SIM_VERSION } from '../src/sim/version';
 import { createApp, type RequestLog, type Site } from './http/app';
-import { isJsonType, isRecord } from './http/boundary';
+import { codeOf, isJsonType, isRecord } from './http/boundary';
+
+export { codeOf };
 import { mockChain } from './chain/mock';
 import { resolveConfig, type ServerConfig } from './config';
 import { memoryStore } from './store/memory';
@@ -31,11 +33,6 @@ export type Settled = { readonly settings: Settings } | { readonly problems: rea
 const given = (env: Env, name: string): string | undefined => (env[name] === '' ? undefined : env[name]);
 const at = (value: unknown, ...path: readonly string[]): unknown => path.reduce((here, name) => (isRecord(here) ? here[name] : undefined), value);
 
-/** An error's code (EADDRINUSE, EPIPE), the one thing of it a line may name: its text could hold a path or a key. */
-export function codeOf(error: unknown): string {
-  const code: unknown = typeof error === 'object' && error !== null ? Reflect.get(error, 'code') : undefined;
-  return typeof code === 'string' ? code : 'unknown';
-}
 
 interface Stream { on(event: 'error', listener: (error: unknown) => void): unknown }
 /**

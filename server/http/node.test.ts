@@ -4,7 +4,7 @@ import { networkInterfaces } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { setTimeout as wait } from 'node:timers/promises';
 import { BODY_LIMIT, json, readBody, refuse, type RequestLog } from './boundary';
-import { serve, targetOf, type App, type SocketLimits } from './node';
+import { serve, SOCKET_LIMITS, targetOf, UNANSWERED_LIMIT, unreadable, type App, type SocketLimits } from './node';
 
 describe('GDD-TEC-10 adapter: the request target', () => {
   it.each(['/api/v1/config', '/api/v1/lives?pal=7', '/', '/a//b', '/api/v1/config?x=1&y=2', '/api/v1/config%2F', '/a?b=c/d'])('%s is accepted as written', (raw) => {
@@ -58,9 +58,11 @@ function ask(port: number, options: { method: string; path: string; headers?: Re
 const BIG = 24 << 20;
 /** The paths the stub was called with, in order. */
 const calls: string[] = [];
+/** What /limited's readBody gave, in order: 'ok', or the refusal's status. */
+const reads: (string | number)[] = [];
 /**
  * What the adapter hands its requests to: /echo gives back what reached it, /limited reads the body under the limit, /slow answers after
- * 100 ms, /big answers BIG bytes, /throw rejects.
+ * 100 ms and /slower after 600 ms, /big answers BIG bytes, /throw rejects.
  */
 const stub: App = async (request) => {
   const path = new URL(request.url).pathname;
@@ -71,10 +73,15 @@ const stub: App = async (request) => {
   }
   if (path === '/limited') {
     const read = await readBody(request, BODY_LIMIT);
+    reads.push(read.ok ? 'ok' : read.status);
     return read.ok ? json(200, {}) : refuse(read.status, read.reason);
   }
   if (path === '/slow') {
     await wait(100);
+    return json(200, {});
+  }
+  if (path === '/slower') {
+    await wait(600);
     return json(200, {});
   }
   if (path === '/big') return new Response(new Uint8Array(BIG), { status: 200 });
@@ -114,6 +121,7 @@ const statuses = (text: string): number[] => [...text.matchAll(/HTTP\/1\.1 (\d{3
 /** The adapter on `app` with a log kept here. */
 async function served(app: App = stub, limits?: SocketLimits) {
   calls.length = 0;
+  reads.length = 0;
   const log: RequestLog[] = [];
   const server = await serve(app, 0, (line) => { log.push(line); }, limits);
   return { server, log };
@@ -229,14 +237,44 @@ describe('GDD-TEC-10 adapter: CONNECT, a throw, a log that throws', () => {
     }
   }, 5000);
 
-  it('an app that rejects gets the adapter\'s own 500, with the fixed headers, nothing of why, and the connection closed', async () => {
-    const { server } = await served();
+  it('a CONNECT waits its turn: the answers to the requests before it on the connection are sent first, then its 405', async () => {
+    const { server, log } = await served();
+    try {
+      const behindPost = await exchange(server.port, ['POST /echo HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{}CONNECT x:443 HTTP/1.1\r\nHost: x\r\n\r\n']);
+      expect(statuses(behindPost.text)).toEqual([200, 405]);
+      expect(behindPost.closedByServer).toBe(true);
+      const behindSlow = await exchange(server.port, ['GET /slow HTTP/1.1\r\nHost: x\r\n\r\nCONNECT x:443 HTTP/1.1\r\nHost: x\r\n\r\n']);
+      expect(statuses(behindSlow.text)).toEqual([200, 405]);
+      expect(calls).toEqual(['/echo', '/slow']);
+      expect(log).toEqual([{ method: '(other)', route: '(none)', status: 405 }, { method: '(other)', route: '(none)', status: 405 }]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a CONNECT behind an answer its client never reads is cut with the connection at the idle limit, and never answered', async () => {
+    const { server, log } = await served(stub, IDLE);
+    try {
+      const answered = await exchange(server.port, ['GET /big HTTP/1.1\r\nHost: x\r\n\r\nCONNECT x:443 HTTP/1.1\r\nHost: x\r\n\r\n'], { paused: IDLE.idleMs * 4, ms: IDLE.idleMs * 4 + 2000 });
+      expect(answered.closedByServer).toBe(true);
+      expect(answered.text.length).toBeLessThan(BIG);
+      expect(statuses(answered.text)).toEqual([200]);
+      expect(log).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('an app that rejects gets the adapter\'s own 500, with the fixed headers, nothing of why, a line, and the connection closed', async () => {
+    const { server, log } = await served();
     try {
       const answer = await ask(server.port, { method: 'GET', path: '/throw' });
       expect(answer.status).toBe(500);
       expect(answer.text).toBe('{"error":"server error"}');
       expect(answer.headers['content-type']).toBe('application/json; charset=utf-8');
       expect(answer.headers['cache-control']).toBe('no-store');
+      expect(log).toEqual([{ method: 'GET', route: '(none)', status: 500 }]);
+      expect(JSON.stringify(log)).not.toContain('zz-thrown');
       // On a connection the client asks to keep, too: the adapter closes it.
       const kept = await exchange(server.port, ['GET /throw HTTP/1.1\r\nHost: x\r\n\r\n'], { ms: 1000 });
       expect(statuses(kept.text)).toEqual([500]);
@@ -302,6 +340,32 @@ describe('GDD-TEC-10 adapter: the requests of one connection take turns', () => 
     }
   }, 5000);
 
+  it('a POST refused unread behind a slow answer closes the connection too, though its body came whole before its turn', async () => {
+    const { server } = await served();
+    try {
+      const answered = await exchange(server.port, ['GET /slow HTTP/1.1\r\nHost: x\r\n\r\nPOST /nope HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{}GET /echo HTTP/1.1\r\nHost: x\r\n\r\n']);
+      expect(statuses(answered.text)).toEqual([200, 404]);
+      expect(answered.text).toContain('connection: close');
+      await wait(50);
+      expect(calls).toEqual(['/slow', '/nope']);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a GET with a body, which the app is never handed, closes the connection, first or behind a slow answer', async () => {
+    const { server } = await served();
+    try {
+      const withBody = 'GET /echo HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{}';
+      expect(statuses((await exchange(server.port, [`${withBody}${GET_ECHO}`])).text)).toEqual([200]);
+      expect(statuses((await exchange(server.port, [`GET /slow HTTP/1.1\r\nHost: x\r\n\r\n${withBody}${GET_ECHO}`])).text)).toEqual([200, 200]);
+      await wait(50);
+      expect(calls).toEqual(['/echo', '/slow', '/echo']);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
   it('a request pipelined behind a POST the app refused unread never reaches the app: that answer closes the connection', async () => {
     const { server } = await served();
     try {
@@ -317,8 +381,261 @@ describe('GDD-TEC-10 adapter: the requests of one connection take turns', () => 
   }, 5000);
 });
 
-/** Limits small enough for a test to wait them out: the headers, a request, node's check of the two, and a connection's idling. */
-const SMALL: SocketLimits = { requestMs: 800, headersMs: 400, checkMs: 50, idleMs: 300 };
+/**
+ * Limits small enough for a test to wait them out: the headers, a request, node's check of the two, a connection's idling and a kept
+ * connection's wait. The idle limit is far over the 100 ms between a trickling client's writes, so a busy machine never cuts one early;
+ * IDLE has a short one, for the tests of a client that reads nothing.
+ */
+const SMALL: SocketLimits = { requestMs: 1200, headersMs: 400, checkMs: 50, idleMs: 2000, keptMs: 400 };
+const IDLE: SocketLimits = { ...SMALL, idleMs: 300 };
+
+const GET_ECHO = 'GET /echo HTTP/1.1\r\nHost: x\r\n\r\n';
+/** An error as node gives it, with a code and a text no answer may hold. */
+const coded = (code: string): Error => Object.assign(new Error('zz-secret'), { code });
+/** The head of an answer in `text` (its status line and headers) as an object, and its body; `text` holds that one answer. */
+function headOf(text: string): { readonly status: string; readonly headers: Record<string, string>; readonly body: string } {
+  const [head = '', body = ''] = text.split('\r\n\r\n');
+  const [status = '', ...lines] = head.split('\r\n');
+  return { status, headers: Object.fromEntries(lines.map((line) => { const at = line.indexOf(': '); return [line.slice(0, at).toLowerCase(), line.slice(at + 2)]; })), body };
+}
+
+describe('GDD-TEC-10 adapter: requests left unanswered', () => {
+  it('16 requests pipelined at once are all answered, in order', async () => {
+    const { server } = await served();
+    try {
+      const answered = await exchange(server.port, [GET_ECHO.repeat(UNANSWERED_LIMIT - 1) + 'GET /echo HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n']);
+      expect(statuses(answered.text)).toEqual(Array.from({ length: UNANSWERED_LIMIT }, () => 200));
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a 17th request unanswered closes the connection, and none of them is run', async () => {
+    const { server } = await served();
+    try {
+      const answered = await exchange(server.port, [GET_ECHO.repeat(UNANSWERED_LIMIT + 1)]);
+      expect(answered.closedByServer).toBe(true);
+      expect(statuses(answered.text)).toEqual([]);
+      await wait(50);
+      expect(calls).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('requests sent one after another, each once the one before is answered, are all answered, however many there are', async () => {
+    const { server } = await served();
+    try {
+      const count = UNANSWERED_LIMIT + 4;
+      const writes = Array.from({ length: count }, (_, i) => (i === count - 1 ? 'GET /echo HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n' : GET_ECHO));
+      const answered = await exchange(server.port, writes, { gap: 25, ms: 4000 });
+      expect(statuses(answered.text)).toEqual(Array.from({ length: count }, () => 200));
+      expect(answered.closedByServer).toBe(true);
+    } finally {
+      await server.close();
+    }
+  }, 8000);
+
+  it('the limit is 16', () => {
+    expect(UNANSWERED_LIMIT).toBe(16);
+  });
+});
+
+describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', () => {
+  it('bytes that do not read as a request are answered 400 with the fixed headers and a line', async () => {
+    const { server, log } = await served();
+    try {
+      const answered = await exchange(server.port, ['NOT A REQUEST\r\n\r\n']);
+      const { status, headers, body } = headOf(answered.text);
+      expect(status).toBe('HTTP/1.1 400 Bad Request');
+      expect(headers).toEqual({ 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', connection: 'close', 'content-length': '37' });
+      expect(body).toBe('{"error":"the request does not read"}');
+      expect(answered.closedByServer).toBe(true);
+      expect(log).toEqual([{ method: '(other)', route: '(none)', status: 400 }]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('bad bytes after requests: the one being answered is sent first, those still waiting are never run, then the 400', async () => {
+    const { server, log } = await served();
+    try {
+      // The bad bytes 50 ms later, while /slow is being answered and /echo waits.
+      const answered = await exchange(server.port, ['GET /slow HTTP/1.1\r\nHost: x\r\n\r\nGET /echo HTTP/1.1\r\nHost: x\r\n\r\n', 'NOT A REQUEST\r\n\r\n'], { gap: 50 });
+      expect(statuses(answered.text)).toEqual([200, 400]);
+      expect(calls).toEqual(['/slow']);
+      expect(log).toEqual([{ method: '(other)', route: '(none)', status: 400 }]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('bad bytes in the same read as requests: each request that was run is answered, the one waiting is never run, and the 400 comes last', async () => {
+    const { server } = await served();
+    try {
+      // Whether the POST has started when node gives up depends on how node parses one read; either way it is answered if it ran.
+      const answered = await exchange(server.port, ['POST /echo HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{}GET /slow HTTP/1.1\r\nHost: x\r\n\r\nNOT A REQUEST\r\n\r\n']);
+      await wait(150);
+      const answers = statuses(answered.text);
+      expect(answers.at(-1)).toBe(400);
+      expect(answers.slice(0, -1)).toEqual(calls.map(() => 200));
+      expect(calls).not.toContain('/slow');
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a body that breaks while it is read is answered 400 at once, and the app reads it as not whole', async () => {
+    const { server } = await served();
+    try {
+      const answered = await exchange(server.port, ['POST /limited HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{}\r\nZZ\r\n']);
+      expect(statuses(answered.text)).toEqual([400]);
+      expect(answered.closedByServer).toBe(true);
+      await wait(50);
+      expect(reads).toEqual([408]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a client that resets in the middle of its headers is answered nothing and leaves no line, and the server goes on serving', async () => {
+    const { server, log } = await served();
+    try {
+      await new Promise<void>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port });
+        socket.on('error', () => { /* the reset is this end's own */ });
+        socket.on('close', () => { resolve(); });
+        socket.write('GET /echo HTTP/1.1\r\nHost: x\r\nX-Half', () => { setTimeout(() => { socket.resetAndDestroy(); }, 20); });
+      });
+      await wait(100);
+      expect(log).toEqual([]);
+      expect((await ask(server.port, { method: 'GET', path: '/echo' })).status).toBe(200);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a client that resets in the middle of a body is answered nothing and leaves no line of the adapter\'s own; the app reads the body as not whole', async () => {
+    const { server, log } = await served();
+    try {
+      await new Promise<void>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port });
+        socket.on('error', () => { /* the reset is this end's own */ });
+        socket.on('close', () => { resolve(); });
+        socket.write('POST /limited HTTP/1.1\r\nHost: x\r\nContent-Length: 100\r\n\r\n{"a":', () => { setTimeout(() => { socket.resetAndDestroy(); }, 50); });
+      });
+      await wait(100);
+      expect(reads).toEqual([408]);
+      expect(log).toEqual([]);
+      expect((await ask(server.port, { method: 'GET', path: '/echo' })).status).toBe(200);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('headers over node\'s size are answered 431 with the fixed headers', async () => {
+    const { server, log } = await served();
+    try {
+      const answered = await exchange(server.port, [`GET /echo HTTP/1.1\r\nHost: x\r\nX-Big: ${'a'.repeat(20000)}\r\n\r\n`]);
+      const { status, headers, body } = headOf(answered.text);
+      expect(status).toBe('HTTP/1.1 431 Request Header Fields Too Large');
+      expect(headers['content-type']).toBe('application/json; charset=utf-8');
+      expect(body).toBe('{"error":"the headers are too large"}');
+      expect(log).toEqual([{ method: '(other)', route: '(none)', status: 431 }]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('node\'s errors are answered as node would: 408 for a slow client, 431 for large headers, 413 for chunk extensions, else 400', () => {
+    expect(unreadable(coded('ERR_HTTP_REQUEST_TIMEOUT'))).toEqual({ status: 408, reason: 'the request took too long' });
+    expect(unreadable(coded('HPE_HEADER_OVERFLOW'))).toEqual({ status: 431, reason: 'the headers are too large' });
+    expect(unreadable(coded('HPE_CHUNK_EXTENSIONS_OVERFLOW'))).toEqual({ status: 413, reason: 'the body is too large' });
+    expect(unreadable(coded('HPE_INVALID_METHOD'))).toEqual({ status: 400, reason: 'the request does not read' });
+    expect(unreadable(new Error('zz-secret'))).toEqual({ status: 400, reason: 'the request does not read' });
+  });
+
+  it('an Expect the server does not meet is answered 417 in its turn, with the fixed headers and a line, and never reaches the app', async () => {
+    const { server, log } = await served();
+    try {
+      const answered = await exchange(server.port, ['GET /slow HTTP/1.1\r\nHost: x\r\n\r\nPOST /echo HTTP/1.1\r\nHost: x\r\nExpect: zz-later\r\nContent-Length: 2\r\n\r\n{}']);
+      expect(statuses(answered.text)).toEqual([200, 417]);
+      expect(answered.text).toContain('{"error":"no such expectation"}');
+      expect(calls).toEqual(['/slow']);
+      expect(log).toEqual([{ method: 'POST', route: '(none)', status: 417 }]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a request that asks for an Upgrade is refused 400 in its turn and its connection closed: what follows it is never run', async () => {
+    const { server, log } = await served();
+    try {
+      const upgrade = 'GET /echo HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n';
+      const answered = await exchange(server.port, [`GET /slow HTTP/1.1\r\nHost: x\r\n\r\n${upgrade}${GET_ECHO}`]);
+      expect(statuses(answered.text)).toEqual([200, 400]);
+      expect(answered.text).toContain('{"error":"no upgrade here"}');
+      expect(answered.closedByServer).toBe(true);
+      expect(calls).toEqual(['/slow']);
+      expect(log).toEqual([{ method: 'GET', route: '(none)', status: 400 }]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a CONNECT\'s socket is destroyed once its answer is written, though its client keeps its own side open', async () => {
+    const { server } = await served();
+    try {
+      const outcome = await new Promise<string>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port, allowHalfOpen: true });
+        // Read, so the server's end is seen.
+        socket.resume();
+        socket.on('error', (error: Error & { code?: string }) => { resolve(error.code ?? 'error'); });
+        socket.on('end', () => {
+          // The 405 and the server's end have come; a write now meets a socket the server has destroyed.
+          setTimeout(() => { socket.write('more'); setTimeout(() => { socket.write('more'); }, 100); }, 100);
+        });
+        setTimeout(() => { socket.destroy(); resolve('still open'); }, 2000);
+        socket.write('CONNECT x:443 HTTP/1.1\r\nHost: x\r\n\r\n');
+      });
+      expect(outcome).not.toBe('still open');
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('close() destroys a socket node handed over, though its turn still waits behind a slow answer', async () => {
+    const { server } = await served();
+    const socket = connect({ host: '127.0.0.1', port: server.port });
+    socket.on('error', () => { /* the close is this test's own */ });
+    socket.write('GET /slower HTTP/1.1\r\nHost: x\r\n\r\nCONNECT x:443 HTTP/1.1\r\nHost: x\r\n\r\n');
+    await wait(100);
+    const started = Date.now();
+    await server.close();
+    expect(Date.now() - started).toBeLessThan(400);
+    socket.destroy();
+  }, 5000);
+});
+
+describe('GDD-TEC-10 adapter: the limits as the GDD states them', () => {
+  it('5 s for the headers, 10 s for a whole request, checked every second, 30 s with no progress, 5 s for a kept connection', () => {
+    expect(SOCKET_LIMITS).toEqual({ requestMs: 10000, headersMs: 5000, checkMs: 1000, idleMs: 30000, keptMs: 5000 });
+  });
+
+  // The one socket test on the real limits, so the 5 s it waits is over the usual 5 s a test is given: it shows serve() takes them when given none.
+  it('with no limits given, a connection that sends nothing gets 408 between 5 s and the 5 s plus a check', async () => {
+    const server = await serve(stub, 0, () => undefined);
+    try {
+      const answered = await exchange(server.port, [], { ms: 9000 });
+      expect(answered.closedByServer).toBe(true);
+      expect(answered.text).toMatch(/^HTTP\/1\.1 408 /);
+      expect(answered.ms).toBeGreaterThanOrEqual(SOCKET_LIMITS.headersMs - 50);
+      expect(answered.ms).toBeLessThan(SOCKET_LIMITS.headersMs + SOCKET_LIMITS.checkMs + 1000);
+    } finally {
+      await server.close();
+    }
+  }, 12000);
+});
 
 describe('GDD-TEC-10 adapter: how long a client may take', () => {
   it('headers still coming after the headers\' limit get 408 and the connection is closed, soon after the limit', async () => {
@@ -351,11 +668,64 @@ describe('GDD-TEC-10 adapter: how long a client may take', () => {
     }
   }, 5000);
 
-  it('a client that reads none of its answer is cut off once the connection has made no progress for the idle limit', async () => {
+  it('a body that node\'s request limit cuts is read as not whole (408), the status node answers', async () => {
     const { server } = await served(stub, SMALL);
     try {
+      const writes = ['POST /limited HTTP/1.1\r\nHost: x\r\nContent-Length: 100\r\n\r\n', ...Array.from({ length: 25 }, () => 'a')];
+      const answered = await exchange(server.port, writes, { gap: 100, ms: 3000 });
+      expect(answered.text).toMatch(/^HTTP\/1\.1 408 /);
+      await wait(50);
+      expect(reads).toEqual([408]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a kept connection that sends only blank lines after its answer is closed at the kept limit, though each byte is activity', async () => {
+    const { server, log } = await served(stub, SMALL);
+    try {
+      // The answer, then a blank line every 100 ms: node skips them, so no request starts and no other limit runs out.
+      const writes = ['GET /echo HTTP/1.1\r\nHost: x\r\n\r\n', ...Array.from({ length: 25 }, () => '\r\n')];
+      const answered = await exchange(server.port, writes, { gap: 100, ms: 3000 });
+      expect(statuses(answered.text)).toEqual([200]);
+      expect(answered.closedByServer).toBe(true);
+      expect(answered.ms).toBeGreaterThanOrEqual(SMALL.keptMs - 50);
+      expect(answered.ms).toBeLessThan(SMALL.keptMs + 400);
+      expect(log).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a request pipelined behind another is not cut by the kept wait, however long its answer takes', async () => {
+    const { server } = await served(stub, SMALL);
+    try {
+      // /slower answers after 600 ms, past the kept limit: the wait starts only once no request is left.
+      const answered = await exchange(server.port, ['GET /echo HTTP/1.1\r\nHost: x\r\n\r\nGET /slower HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n'], { ms: 3000 });
+      expect(statuses(answered.text)).toEqual([200, 200]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a kept connection whose next request comes within the kept limit is answered again, and its wait starts over', async () => {
+    const { server } = await served(stub, SMALL);
+    try {
+      // Three requests, each 300 ms after the one before: every gap is under the kept limit, though together they are not.
+      const writes = ['GET /echo HTTP/1.1\r\nHost: x\r\n\r\n', 'GET /echo HTTP/1.1\r\nHost: x\r\n\r\n', 'GET /echo HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n'];
+      const answered = await exchange(server.port, writes, { gap: 300, ms: 3000 });
+      expect(statuses(answered.text)).toEqual([200, 200, 200]);
+      expect(calls).toEqual(['/echo', '/echo', '/echo']);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a client that reads none of its answer is cut off once the connection has made no progress for the idle limit', async () => {
+    const { server } = await served(stub, IDLE);
+    try {
       // Nothing is read for four idle limits; then the rest is read, until the server's close or 2 s more.
-      const answered = await exchange(server.port, ['GET /big HTTP/1.1\r\nHost: x\r\n\r\n'], { paused: SMALL.idleMs * 4, ms: SMALL.idleMs * 4 + 2000 });
+      const answered = await exchange(server.port, ['GET /big HTTP/1.1\r\nHost: x\r\n\r\n'], { paused: IDLE.idleMs * 4, ms: IDLE.idleMs * 4 + 2000 });
       expect(answered.closedByServer).toBe(true);
       expect(statuses(answered.text)).toEqual([200]);
       expect(answered.text.length).toBeLessThan(BIG);
@@ -365,7 +735,7 @@ describe('GDD-TEC-10 adapter: how long a client may take', () => {
   }, 5000);
 
   it('a client that reads its answers as they come is not cut off by the idle limit', async () => {
-    const { server } = await served(stub, SMALL);
+    const { server } = await served(stub, IDLE);
     try {
       const answered = await exchange(server.port, ['GET /big HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n'], { ms: 4000 });
       expect(answered.closedByServer).toBe(true);

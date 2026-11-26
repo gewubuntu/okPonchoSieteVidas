@@ -55,8 +55,8 @@ The harness improves itself through `docs/LESSONS.md` and `scripts/check.mjs`.
 | `node scripts/art-lineup.mjs <out.png> <folder or file>...` | New art beside its neighbours and the user's references on one image: sheets at one scale, references at one height, to judge it before the user sees it (L-066). |
 | `node scripts/pr-screenshots.mjs [base]` | Warn if visible files changed and no screenshot was added under `docs/screenshots/`. |
 | `npm run test:e2e` | Playwright playtests on desktop and phone viewports (see the `harness-playtest` skill). |
-| `npm run server` | Build the game server into `server/dist/` and start it on 127.0.0.1 (GDD-TEC-10): the mock chain, a memory store unless `PONCHO_STORE` names a SQLite file, a token key made for the run unless `PONCHO_TOKEN_KEY` is set. Not deployed. |
-| `npm run server:check` | Build the server, boot it on a free port, probe its config and nonce routes through the socket, and exit (the CI step). |
+| `npm run server` | Build the game server into the `dist` folder under `server/` (git ignores it) and start it on 127.0.0.1 (GDD-TEC-10): the mock chain, a memory store unless `PONCHO_STORE` names a SQLite file, a token key made for the run unless `PONCHO_TOKEN_KEY` is set. Not deployed. |
+| `npm run server:check` | Build the server, boot it on a free port, probe its config and nonce routes through the socket, and exit; then run `scripts/server-log-check.mjs` on the bundle: a log that cannot be written stops it with one line, a check that fails exits 1, and a stopped server writes every line first. The CI step. |
 | `node scripts/mutate.mjs --suggest [base]` | Print a mutants file for the lines changed since the merge base with `origin/main` (or `base`): each bound moved a step, each `&&` or `||` operand dropped (L-010). Give each mutant its test. |
 | `node scripts/mutate.mjs <mutants.json>` | Run mutants (L-010) and restore each file; `--restore` after an interrupted run, which the gate otherwise fails on (L-020). |
 | `node scripts/check.mjs --backlog-stub` | Print backlog rows for GDD IDs missing from `docs/BACKLOG.md`. |

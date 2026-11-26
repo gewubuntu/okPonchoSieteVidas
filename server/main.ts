@@ -1,5 +1,6 @@
 // GDD-TEC-10, docs/decisions/0004-game-server.md ("How it runs"): the server's entry, which `npm run server:build` bundles into server/dist/main.js.
-// It has no test of its own: `npm run server:check` (`--check`, the CI step) builds, boots, reads its own config and exits.
+// It has no test of its own: `npm run server:check` (`--check`, the CI step) builds, boots, reads its own config and exits, and then
+// scripts/server-log-check.mjs checks its log rules through the bundle.
 // A log line is one JSON object with fixed fields, written with process.stdout.write; a boot problem goes to stderr. No line holds an IP,
 // a cookie, a body, a token, a wallet or an error's text.
 import { readFileSync } from 'node:fs';
@@ -14,6 +15,12 @@ const say = (line: object): void => {
 };
 const complain = (text: string): void => {
   process.stderr.write(`${text}\n`);
+};
+/** Exits with `code` once every line written so far has reached stdout. A line that could not be written ends the process through guardLogs instead, with exit 1. */
+const exitAfterLog = (code: number): void => {
+  process.stdout.write('', (error) => {
+    if (!(error instanceof Error)) process.exit(code);
+  });
 };
 
 async function main(): Promise<void> {
@@ -39,7 +46,8 @@ async function main(): Promise<void> {
     wired.close();
     for (const problem of problems) complain(problem);
     if (problems.length === 0) say({ event: 'check', ok: true });
-    process.exit(problems.length === 0 ? 0 : 1);
+    exitAfterLog(problems.length === 0 ? 0 : 1);
+    return;
   }
 
   const server = await serve(wired.app, settings.port, say);
@@ -47,7 +55,7 @@ async function main(): Promise<void> {
   const stop = (): void => {
     server.close().then(() => {
       wired.close();
-      process.exit(0);
+      exitAfterLog(0);
     }, () => process.exit(1));
   };
   process.on('SIGINT', stop);

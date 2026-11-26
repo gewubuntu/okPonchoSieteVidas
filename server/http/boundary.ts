@@ -14,13 +14,25 @@ export const REASON = {
   notObject: 'the body is not an object',
   otherFields: 'the body has other fields',
   tooLarge: 'the body is too large',
+  notWhole: 'the body did not arrive whole',
   notJsonRequest: 'not a JSON request',
   notFromSite: 'not from the game\'s site',
   noRoute: 'no such route',
   noMethod: 'no such method',
   noQuery: 'no query here',
   serverError: 'server error',
+  notReadable: 'the request does not read',
+  tooSlow: 'the request took too long',
+  headersTooLarge: 'the headers are too large',
+  noUpgrade: 'no upgrade here',
+  noExpectation: 'no such expectation',
 } as const;
+
+/** An error's code (EADDRINUSE, EPIPE, HPE_HEADER_OVERFLOW), the one thing of it a line or an answer may name: its text could hold a path or a key. */
+export function codeOf(error: unknown): string {
+  const code: unknown = typeof error === 'object' && error !== null ? Reflect.get(error, 'code') : undefined;
+  return typeof code === 'string' ? code : 'unknown';
+}
 
 /** The one line a request leaves in the log: nothing the client wrote but the method, and that only if it is a usual one. */
 export interface RequestLog { readonly method: string; readonly route: string; readonly status: number }
@@ -44,14 +56,15 @@ export const isRecord = (value: unknown): value is Record<string, unknown> => ty
 
 export type Read =
   | { readonly ok: true; readonly body: Readonly<Record<string, unknown>> }
-  | { readonly ok: false; readonly status: 400 | 413; readonly reason: string };
+  | { readonly ok: false; readonly status: 400 | 408 | 413; readonly reason: string };
 
-const refused = (status: 400 | 413, reason: string): Read => ({ ok: false, status, reason });
+const refused = (status: 400 | 408 | 413, reason: string): Read => ({ ok: false, status, reason });
 
 /**
  * The request's body as a JSON object: at most `limit` bytes (counted in bytes, not characters), strict UTF-8, JSON, a plain object.
  * A declared length over the limit is refused unread. Otherwise the stream is read until it ends or passes the limit; then the reader is
- * released, never cancelled: a cancel would destroy the socket and the client would lose the answer (node.ts).
+ * released, never cancelled: a cancel would destroy the socket and the client would lose the answer (node.ts). A stream that fails (the
+ * client went away, or node's request timeout cut it and answered 408 itself) is a 408, so the request's log line names what node sent.
  */
 export async function readBody(request: Request, limit: number): Promise<Read> {
   // A length that is no number (a doubled header reads 'a, b') declares nothing: the stream is counted anyway.
@@ -68,6 +81,8 @@ export async function readBody(request: Request, limit: number): Promise<Read> {
         if (total > limit) return refused(413, REASON.tooLarge);
         chunks.push(value);
       }
+    } catch {
+      return refused(408, REASON.notWhole);
     } finally {
       reader.releaseLock();
     }

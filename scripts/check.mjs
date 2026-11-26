@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { changedSections, changelogSectionErrors, gddVersionErrors } from './gdd-version.mjs';
 import { hunt, huntArgs, reportLine } from './gdd-hunt.mjs';
 import { lessonBrief, lessonEntry } from './lessons.mjs';
-import { changelogRange, pathErrors } from './harness-paths.mjs';
+import { changelogRange, gitCheckIgnore, ignoredAmong, pathErrors, pathsIn, presentWhen } from './harness-paths.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 import { determinismErrors } from './sim-determinism.mjs';
 import { serverImportErrors } from './server-one-way.mjs';
@@ -399,12 +399,16 @@ function checkClaudeSettings() {
 function checkHarnessPaths() {
   const files = ['CLAUDE.md', ...[join('.claude', 'skills'), join('.claude', 'agents')].filter(exists).flatMap((d) => walk(d))]
     .filter((f) => f.endsWith('.md') && exists(f));
-  const errors = files.flatMap((f) => pathErrors(f.split(sep).join('/'), read(f), exists));
+  const documents = ['docs/GDD.md', 'docs/BACKLOG.md'].filter(exists);
+  // L-083: a path git ignores (a build output) is missing from a fresh checkout, so it counts as missing here too.
+  const named = [...files, ...documents].flatMap((f) => read(f).split('\n').flatMap((line) => pathsIn(line).map((p) => p.path)));
+  const there = presentWhen(exists, ignoredAmong(named, gitCheckIgnore(ROOT)));
+  const errors = files.flatMap((f) => pathErrors(f.split(sep).join('/'), read(f), there));
   // L-013: the design documents too, where a file designed and not built yet is marked " (planned)". The GDD's changelog is
   // history and keeps the paths of its day.
-  for (const f of ['docs/GDD.md', 'docs/BACKLOG.md'].filter(exists)) {
+  for (const f of documents) {
     const log = changelogRange(read(f).split('\n'));
-    errors.push(...pathErrors(f, read(f), exists, { planned: true, skip: (i) => log !== null && i > log.start && i <= log.end }));
+    errors.push(...pathErrors(f, read(f), there, { planned: true, skip: (i) => log !== null && i > log.start && i <= log.end }));
   }
   return errors;
 }

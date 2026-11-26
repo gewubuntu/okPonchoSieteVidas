@@ -19,7 +19,7 @@
     "test:sight": "vitest run -c vitest.sight.config.ts",
     "server:build": "vite build --ssr server/main.ts --outDir server/dist --emptyOutDir",
     "server": "npm run server:build && node server/dist/main.js",
-    "server:check": "npm run server:build && node server/dist/main.js --check",
+    "server:check": "npm run server:build && node server/dist/main.js --check && node scripts/server-log-check.mjs",
     "test:e2e": "playwright test --project=desktop --project=phone",
     "check": "node scripts/check.mjs",
     "shots": "playwright test --project=shots-desktop --project=shots-phone"
