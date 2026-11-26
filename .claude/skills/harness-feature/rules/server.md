@@ -4,7 +4,7 @@ Rules for step 5 of the `harness-feature` skill, one to a line, each with where 
 
 ## What is decided, and what is not (GDD-CHAIN-01, GDD-TEC-10)
 
-- Build only what the first wave of GDD-CHAIN-01 names, or what the user has decided since, with their words quoted in the plan. Hero select, the leagues, the cosmetics and a real wallet adapter are not decided: a plan that needs one stops and asks.
+- Build only what the first wave of GDD-CHAIN-01 names, or what the user has decided since, with their words quoted in the plan. An ADR's placeholder for an Open Question (ADR 0004's `ownerOf` and `palsOf` for 54 (c)) is not an answer: it waits for the question to be put to the user with its first caller (L-096). Hero select, the leagues, the cosmetics and a real wallet adapter are not decided: a plan that needs one stops and asks.
 - The chain is the mock: tests and local runs use the chain interface's in-memory one. A call to a real chain, a contract address, or anything in `Dockerfile`, `deploy/` or `.github/workflows/deploy.yml` is a later step the user approves, never part of a feature's plan.
 - What a player could reach of the lives, wallet and Pal features stays off in the production build until the user turns it on, and no build holds the stand-in Pals. A plan that adds such a thing names the switch that keeps it out and plans the test that shows it off in a production build.
 - Where the build meets a conflict of section 16 that is not decided, it builds what GDD-CHAIN-01's "Placeholders" sentence names for that conflict, and nothing else: the recommended resolution for C3, C4, C10, C11 and C13 only; nothing of C5 and of C6; C8 and C12 as that sentence words them. A conflict it does not name, and an Open Question, stop the plan and go to the user (step 3). A placeholder is named as one in a comment at its code, in the GDD section that says what is built, and in the pull request; changing it later is that conflict's decision.
@@ -25,6 +25,8 @@ Rules for step 5 of the `harness-feature` skill, one to a line, each with where 
 
 - Every bound gets a fixture on it: the last bought life, the clamp of what is left, the carry of a month or a year into the next (L-010, recurrence 36). `node scripts/mutate.mjs --suggest` lists them.
 - A rule that carries several fields over (hours, minutes, seconds, milliseconds) gets a fixture where each is not zero, so dropping one changes the answer (L-010, recurrence 37).
+- A pattern's quantifier and anchors are bounds too: a check of a shape (an address, a token ID) gets a fixture exactly one step longer and one step shorter (on the bound, not anywhere past it), empty, and with text before it and after it, at every place that checks the shape (L-010).
+- A mock of the chain models what the listener relies on: its head is a sealed block, and the plan works a case where an event arrives after a read, not only the first read (L-077).
 - A thing that counts once gets a test that sends it twice and checks the second changes nothing: a start token is single use by the ADR, and so is whatever a later decision makes count once.
 - A rule that refuses someone gets a test for the one refused, not only for the one let through: as built, a state-changing request from another origin is refused (the ADR lists the game's own origin as an assumption, not a decision).
 
