@@ -1265,3 +1265,23 @@ Retired IDs: L-046
 - **Rule:** a server function that will take a client's input takes `unknown` for it, refuses or reads as a guest anything not of the expected shape, and keeps every library call that can throw on input inside the refusal; its plan lists the non-text values, a value far over the usual size and a non-finite clock as fixtures. For a feature that checks what a stranger sends, run a probe workflow (independent probers per attack family, a skeptic per finding) before the pull request.
 - **Recurrence:** 1
 - **Promoted:** `.claude/skills/harness-feature/rules/server.md` (a client's input is `unknown`; library throws inside the refusal; the probe workflow).
+
+## L-103 A mutant that broke its file's syntax was counted as caught
+
+- **Date:** 2026-11-26
+- **Area:** tests, harness
+- **What went wrong:** In phase D1 of GDD-TEC-10, after a probe fix rewrote `isEd25519` in `server/boot.ts`, I pointed the planned mutant "selfCheck: key try dropped" at the new code by turning `try {` into `{` and left the `catch` behind. `scripts/mutate.mjs` reported it RED: the file no longer parsed, so every test of it failed. I saw it only by reading the mutant back.
+- **Root cause:** the runner took any red test as the mutant caught, and a mutant whose file does not parse turns every test red for a reason of its own, which says nothing about the rule the mutant names.
+- **Rule:** a mutant changes behaviour, never syntax: the runner refuses one whose file parsed before and does not after, and says so, so it is rewritten as a well-formed change (here, the whole `try` and its `catch` taken out).
+- **Recurrence:** 1
+- **Promoted:** Guard: `scripts/mutate.mjs` (`breaksSyntax` in `scripts/mutant-suggest.mjs`, tested in `scripts/mutant-suggest.test.mjs`: a mutant that leaves its file unparsed is reported BROKEN and counted as not caught).
+
+## L-104 Rules for every request were built in the app, and the socket layer answered and waited outside them
+
+- **Date:** 2026-11-26
+- **Area:** tests
+- **What went wrong:** In phase D1 of GDD-TEC-10 the plan put "one log line per request" and "every answer has the fixed headers" in `createApp`, and named the two timeouts it gave `node:http`. A probe workflow found 16 problems before the commit. The adapter answered a bad target, TRACE and its own 500 outside the app, so they left no line and the 500 had no fixed headers. A CONNECT never reached any handler and was closed unanswered. A request pipelined behind an answer that closed the connection still ran, with its answer never sent. Node checked the 5 s and 10 s limits only every 30 s, and a client that read no answers held its socket for ever. A doubled `Content-Type` passed as JSON, though the Origin rule already said a doubled header reads `a, b`. A `stdout` whose reader went away crashed the server.
+- **Root cause:** the plan placed each rule at the layer most requests reach, not the one every request reaches, and took the library's settings it named as the whole of its behaviour. The defaults that decide when those settings apply were not read: the check interval, no idle timeout, the CONNECT event, pipelining. A stance written for one header was not carried to the other header the same pipeline reads.
+- **Rule:** a rule over every request or every connection is planned and tested at the socket: each answer the adapter or the library gives by itself (a target it refuses, a method `Request` refuses, CONNECT, its own 500, its timeouts, a request pipelined behind a closing answer) gets a socket test. Each limit handed to a library gets a test against the clock, with the setting that decides when it is checked. Every header check meets a doubled header. The process's own streams get an `error` listener.
+- **Recurrence:** 1
+- **Promoted:** `.claude/skills/harness-feature/rules/server.md` (Tests: rules over every request are tested at the socket). Guard: none (which answers a library gives by itself is knowledge of that library, not a pattern a script can find; the probe workflow of L-102 found these before the commit).

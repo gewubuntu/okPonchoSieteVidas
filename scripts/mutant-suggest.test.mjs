@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOUNDS, changedCode, changedLines, covered, occurrences, suggest } from './mutant-suggest.mjs';
+import { BOUNDS, breaksSyntax, changedCode, changedLines, covered, occurrences, suggest } from './mutant-suggest.mjs';
 
 describe('mutant-suggest (L-010)', () => {
   const all = (text) => new Set(text.split('\n').map((_, i) => i + 1));
@@ -122,6 +122,19 @@ describe('mutant-suggest (L-010)', () => {
     expect(suggest('src/a.ts', 'const a: number = x < 1;\n', new Set([1]))).toHaveLength(1);
     // In a plain module `f < g > (h)` is two comparisons; read as TypeScript it would be a call with a type argument.
     expect(suggest('scripts/a.mjs', 'const r = f < g > (h);\n', new Set([1]))).toHaveLength(2);
+  });
+
+  it('a mutant that leaves the file unparsed breaks its syntax; one that still parses, or of a file that never did, does not (L-103)', () => {
+    const original = 'function f(x: unknown): boolean {\n  try {\n    return g(x);\n  } catch {\n    return false;\n  }\n}\n';
+    // The try made a plain block leaves its catch with nothing to belong to.
+    expect(breaksSyntax('server/a.ts', original, original.replace('  try {', '  {'))).toBe(true);
+    // The whole try taken out still parses.
+    expect(breaksSyntax('server/a.ts', original, 'function f(x: unknown): boolean {\n  return g(x);\n}\n')).toBe(false);
+    // A type annotation is TypeScript: read as a plain module it would not parse.
+    expect(breaksSyntax('server/a.ts', original, original.replace('return false', 'return true'))).toBe(false);
+    expect(breaksSyntax('scripts/a.mjs', 'const a = 1;\n', 'const a = ;\n')).toBe(true);
+    // A file that does not parse to begin with (not a module) is never said to be broken.
+    expect(breaksSyntax('docs/a.md', '# A title {', '# A title {{')).toBe(false);
   });
 
   it('hands the parser the path and the text, and reads what it returns', () => {

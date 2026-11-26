@@ -10,7 +10,7 @@
 // a mutant that makes a loop endless would hang the whole run (L-064). A stopped mutant is not caught: bound the loop and
 // run it again.
 // A mutant's own `test` replaces the file's, so each mutant can run against the one test that must kill it (L-026).
-// `from` must occur exactly once in the file. Before each mutant the original is saved to .mutating.json; it is put back
+// `from` must occur exactly once in the file, and the file must still parse with the mutant in it (L-103). Before each mutant the original is saved to .mutating.json; it is put back
 // after the mutant, and the marker deleted. If the run is killed the marker stays, and scripts/check.mjs fails until
 // `--restore` has run, so a mutation can never be committed.
 
@@ -18,7 +18,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { occurrences } from './mutant-suggest.mjs';
+import { breaksSyntax, occurrences } from './mutant-suggest.mjs';
 import { runLimited, verdict } from './run-limited.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -79,9 +79,15 @@ for (const m of mutants) {
     survived++;
     continue;
   }
+  const mutated = original.replace(m.from, () => m.to);
+  if (breaksSyntax(m.file, original, mutated)) {
+    console.log(`BROKEN ${m.name}: the mutant does not parse, so any test goes red on it (L-103); write one that does`);
+    survived++;
+    continue;
+  }
   writeFileSync(MARKER, JSON.stringify({ file: m.file, original }));
   try {
-    writeFileSync(path, original.replace(m.from, () => m.to));
+    writeFileSync(path, mutated);
     // PONCHO_MUTATING tells scripts/check.mjs not to fail on this run's own marker, so the gate can be a mutant's test.
     const r = await runLimited(m.test ?? test, { cwd: ROOT, env: { ...process.env, PONCHO_MUTATING: '1' }, seconds: timeout });
     const says = verdict(r);

@@ -10,6 +10,16 @@ import { createRequire } from 'node:module';
 // Loaded on first use, as in scripts/sim-determinism.mjs, so the runner still works in a checkout with no `node_modules`.
 const require = createRequire(import.meta.url);
 
+/** Vite's parser, reading a `.ts` file as TypeScript and any other as a plain module. */
+const viteParse = (path, text) => require('vite').parseSync(path, text, { lang: path.endsWith('.ts') ? 'ts' : 'js' });
+
+/**
+ * Whether a mutant of `original` into `mutated` breaks the file's syntax: the file parsed before and does not after. Such a
+ * mutant turns every test red for a reason of its own, so its red proves nothing (L-103). A file that did not parse before
+ * (no code, or not a module) is never said to be broken.
+ */
+export const breaksSyntax = (path, original, mutated, parse = viteParse) => parse(path, original).errors.length === 0 && parse(path, mutated).errors.length > 0;
+
 /** A bound and the bound one step from it. */
 export const BOUNDS = { '<': '<=', '<=': '<', '>': '>=', '>=': '>' };
 
@@ -79,7 +89,7 @@ function operands(node) {
  * exactly once: the whole lines the change stands on, widened line by line until no other place in the file reads the same.
  * Its name gives the line and the column of what it changes.
  */
-export function suggest(path, text, lines, parse = (p, t) => require('vite').parseSync(p, t, { lang: p.endsWith('.ts') ? 'ts' : 'js' })) {
+export function suggest(path, text, lines, parse = viteParse) {
   const { program, comments } = parse(path, text);
   const starts = [0, ...[...text.matchAll(/\n/g)].map((m) => m.index + 1)];
   // The source with every comment blanked, so an operator is never found inside one.
