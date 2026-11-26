@@ -52,6 +52,7 @@ const request = async (nonce: string, fields: Fields = {}, signer = account) => 
   const message = messageOf(nonce, fields);
   return { message, signature: await signer.signMessage({ message }) };
 };
+const signedMessage = async (message: string) => ({ message, signature: await account.signMessage({ message }) });
 const sha256hex = (text: string): string => createHash('sha256').update(text).digest('hex');
 const reasonOf = (signed: Awaited<ReturnType<typeof signIn>>): string => (signed.ok ? 'ok' : signed.reason);
 const secretOf = (signed: Awaited<ReturnType<typeof signIn>>): string => {
@@ -119,6 +120,29 @@ describe('GDD-TEC-10 wallet sessions', () => {
     expect(store.entries('nonce').map(([key]) => key)).toEqual([Buffer.alloc(16, 1).toString('hex'), Buffer.alloc(16, 4).toString('hex')]);
   });
 
+  it('a message of another version or scheme, or with a time that does not read, is refused before the nonce', async () => {
+    const { store, deps } = fixture();
+    const later = new Date(NOON + 3_600_000).toISOString(); // 2026-11-21T13:00:00.000Z
+    const cases: readonly [(nonce: string) => string, string][] = [
+      [(nonce) => messageOf(nonce).replace('Version: 1', 'Version: 2'), 'not a sign-in message'],
+      [(nonce) => `http://${messageOf(nonce)}`, 'not this game\'s site'],
+      // A year past, written without its zone: an invalid date to the parser, never "no expiry".
+      [(nonce) => messageOf(nonce, { expirationTime: new Date(later) }).replace(`Expiration Time: ${later}`, 'Expiration Time: 2025-11-21T12:00:00.000'), 'not a sign-in message'],
+      // A year ahead, written with a space for the T.
+      [(nonce) => messageOf(nonce, { notBefore: new Date(later) }).replace(`Not Before: ${later}`, 'Not Before: 2027-11-21 12:00:00.000Z'), 'not a sign-in message'],
+    ];
+    for (const [make, reason] of cases) {
+      const nonce = issueNonce(deps);
+      const message = make(nonce);
+      expect(message).not.toBe(messageOf(nonce));
+      expect(reasonOf(await signIn(deps, await signedMessage(message), NOON))).toBe(reason);
+      expect(store.get('nonce', nonce)).toBe('{}');
+    }
+    // The site's own scheme, and readable times around NOON, are accepted.
+    expect((await signIn(deps, await signedMessage(`https://${messageOf(issueNonce(deps))}`), NOON)).ok).toBe(true);
+    expect((await signIn(deps, await request(issueNonce(deps), { expirationTime: new Date(later), notBefore: new Date(NOON) }), NOON)).ok).toBe(true);
+  });
+
   it('a text that is not a sign-in message is refused', async () => {
     const { deps } = fixture();
     expect(reasonOf(await signIn(deps, { message: 'hello', signature: '0x00' }, NOON))).toBe('not a sign-in message');
@@ -138,6 +162,13 @@ describe('GDD-TEC-10 wallet sessions', () => {
     expect(reasonOf(await signIn(deps, await request(nonce, {}, stranger), NOON))).toBe('the signature is not this wallet\'s');
     expect(store.get('nonce', nonce)).toBeUndefined();
     expect(store.entries('session')).toEqual([]);
+  });
+
+  it('a text that is not hex is never asked of the chain', async () => {
+    const { chain, deps } = fixture();
+    const message = messageOf(issueNonce(deps), { address: B });
+    chain.acceptSignature(B, message, 'not hex');
+    expect(reasonOf(await signIn(deps, { message, signature: 'not hex' }, NOON))).toBe('the signature is not this wallet\'s');
   });
 
   it('a contract wallet\'s signature is checked on the chain', async () => {

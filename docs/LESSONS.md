@@ -1244,3 +1244,13 @@ Retired IDs: L-046
 - **Recurrence 3 (2026-11-24, PR #129, found by the re-review):** white space before the first word hid every git and `gh` rule (the anchor copied from `stale-main.mjs` and `before-merge.mjs`, which had the same hole), and the condition of `if`, `elif`, `while` and `until` was not read. The fix for recurrence 2 took its list from the review's examples again, not from the shell's grammar of where a command word can stand.
 - **Recurrence:** 3
 - **Promoted:** `scripts/hooks/reviewer-read-only.mjs` (denies the reviewer a commit, pull, push, merge, close, approval or request for changes, a tree-changing command that does not begin with `cd` to a folder outside the main checkout, and a run of the main checkout's `scripts/mutate.mjs`), and `docs/HARNESS.md` (Adding a check: a hook that denies takes its spellings from each verb of its rule and each tool that can carry it out, and reads the code of a script it guards for which tree it writes). Guard: `scripts/hooks/reviewer-read-only.test.mjs` (a fixture for each place the hook lists for a command word and each verb; the places it does not read are named in the agent's file)
+
+## L-101 A library's parse was trusted to give a valid value whenever it gave one
+
+- **Date:** 2026-11-26
+- **Area:** tests
+- **What went wrong:** In PR #134 (GDD-TEC-10's wallet sessions) `signIn` compared the message's `Expiration Time` and `Not Before` with the server's clock as viem's `parseSiweMessage` returned them. For a time it cannot read the parser returns an invalid date, not nothing, and both comparisons against NaN are false, so a message that had run out a year before, written without its zone, opened a session. The `pr-reviewer` found it after the push. Its version and scheme were not checked either.
+- **Root cause:** the plan listed what each field must be and not what the parser gives for a field that is there but malformed. The tests built every message with the library's own writer (`createSiweMessage`), which never writes a malformed field, so no fixture reached the case.
+- **Rule:** before a plan leans on a library's parser, probe what it returns for each field present but malformed (an unreadable date, a wrong version, an unknown scheme) and plan a fixture for each that is written by hand, not by the library's own writer; a field the plan does not check is named as left out, with the reason.
+- **Recurrence:** 1
+- **Promoted:** `.claude/skills/harness-feature/rules/server.md` (a parser's malformed fields get hand-written fixtures).

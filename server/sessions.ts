@@ -39,7 +39,10 @@ export function issueNonce(deps: SessionDeps): string {
 
 /** A plain key's signature is recovered to its address; only when that is not the message's address is the chain asked, for a contract wallet (ERC-1271, ERC-6492). */
 async function signedBy(chain: ChainSource, address: Address, message: string, signature: string): Promise<boolean> {
-  const recovered = isHex(signature) ? await recoverMessageAddress({ message, signature }).catch(() => null) : null;
+  // A text that is not hex is no signature at all, and the chain is never asked about it.
+  if (!isHex(signature)) return false;
+  // A hex signature that does not recover is no plain key's: the chain is asked.
+  const recovered = await recoverMessageAddress({ message, signature }).catch(() => null);
   if (recovered !== null && recovered.toLowerCase() === address) return true;
   return chain.verifySignature(address, message, signature);
 }
@@ -59,11 +62,19 @@ export async function signIn(deps: SessionDeps, request: { message: string; sign
   if (parsed.address === undefined || parsed.nonce === undefined) return refuse('not a sign-in message');
   if (parsed.domain !== site.domain) return refuse('not this game\'s site');
   if (parsed.uri !== site.uri) return refuse('not this game\'s site');
+  // The scheme is optional in a message; given, it is the site's.
+  if (parsed.scheme !== undefined && `${parsed.scheme}:` !== new URL(site.uri).protocol) return refuse('not this game\'s site');
   if (parsed.chainId !== BASE_CHAIN_ID) return refuse('not on Base');
+  if (parsed.version !== '1') return refuse('not a sign-in message');
   // The parser reads only `0x` and 40 hex digits as an address, so it needs no check of its own here; lowercased, it is one wallet however spelled.
   const address: Address = parsed.address.toLowerCase();
-  if (parsed.expirationTime !== undefined && nowMs >= parsed.expirationTime.getTime()) return refuse('the message has run out');
-  if (parsed.notBefore !== undefined && nowMs < parsed.notBefore.getTime()) return refuse('the message is not good yet');
+  // The parser gives an invalid date for a time it cannot read; such a time is refused, never taken as no time at all.
+  const expires = parsed.expirationTime?.getTime();
+  const from = parsed.notBefore?.getTime();
+  if (Number.isNaN(expires ?? 0) || Number.isNaN(from ?? 0)) return refuse('not a sign-in message');
+  // No expiry is an expiry never reached; no not-before is a start already passed.
+  if (nowMs >= (expires ?? Number.POSITIVE_INFINITY)) return refuse('the message has run out');
+  if (nowMs < (from ?? Number.NEGATIVE_INFINITY)) return refuse('the message is not good yet');
   const { nonce } = parsed;
   const given = store.transaction(() => store.delete('nonce', nonce)); // the row is there, and gone: good once
   if (!given) return refuse('the nonce was not given out, or was used');

@@ -53,7 +53,7 @@ What was checked for this record (2026-11-21, in a throwaway copy of the reposit
 - **Dependencies:** one, `viem` `^2.58.4` (added with the wallet sessions, 2026-11-26, as `^2.58.7`, the registry's `latest` that day): reading and checking Sign-In with Ethereum messages, recovering a plain
   key's signature, checking a contract wallet's signature on Base (ERC-1271, and ERC-6492 for a wallet not yet
   deployed, which is what "Coinbase Smart Wallet first" needs), and reading event logs and a token's owner. It is
-  imported only by `server/sessions.ts` and `server/chain/viem.ts`.
+  imported only by `server/sessions.ts` and `server/chain/viem.ts`, and by tests (to sign and write the messages they send).
 - **Storage:** Node's own `node:sqlite`, one file, behind a five-method `Store` interface (`get`, `put`, `delete`,
   `entries`, `transaction`) with two implementations, memory (tests, local runs) and SQLite, held to the same
   contract tests. Rows are JSON text under a table name and a key. The interface is synchronous, as both
@@ -93,7 +93,7 @@ What was checked for this record (2026-11-21, in a throwaway copy of the reposit
 - Whether the server ever counts guests (Open Question 53 (a); built as: it does not), whether campaign results are
   replayed (Open Question 54 (b); built as: trusted), which save wins where the browser's and the server's differ
   (Open Question 53 (c); the server only refuses a write based on an older revision), what is kept about a player
-  and for how long (Open Question 54 (d); nothing is deleted but expired nonces and sessions), and league tokens
+  and for how long (Open Question 54 (d); nothing is deleted but used nonces and ended sessions), and league tokens
   (Open Question 57; none is issued).
 - Where the config values live (Conflict C13, Open Question 54 (f)): `server/config.ts` with one endpoint is the
   recommended resolution, built as a placeholder.
@@ -138,7 +138,7 @@ What was checked for this record (2026-11-21, in a throwaway copy of the reposit
   transactions, not a swap.
 - Rows are JSON under a key, so there are no queries across wallets (a table of all purchases, say) without reading
   a whole table. Fine for the ledger; Phase 2's league tables will want real tables, in the same file.
-- Nonces and sessions are swept when they are read or on a timer; nothing else is ever deleted. There is no rate
+- A nonce is deleted when it is used, and has no time limit for now (user, 2026-11-26: "Until used, for now (Recommended)"), so nonces given out and never used stay; a session is deleted when it is read after its end, and nothing sweeps on a timer; nothing else is ever deleted. There is no rate
   limit: anyone can ask for nonces. Both are for the deploy step to settle (a limit at the edge Caddy).
 - A reorganisation of the chain deeper than `CHAIN.confirmations` is not undone: the event stays counted.
 - The life is taken when the token is issued. A token whose answer is lost on the way still cost its life (Open
