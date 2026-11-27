@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { baselineProblem, runLimited, testsRun, verdict } from './run-limited.mjs';
+import { baselineProblem, commandProblem, mutantVerdict, runLimited, testsRun, verdict } from './run-limited.mjs';
 
 describe('run-limited (L-064)', () => {
   const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
@@ -140,6 +140,10 @@ describe('run-limited (L-064)', () => {
     expect(verdict(run({ output: 'Running 0 tests\nError: No tests found\n' }))).toBe('no test');
     expect(verdict(run({ output: 'filter: x\nNo test files found, exiting with code 1\n' }))).toBe('no test');
     expect(verdict(run({ output: "  expect(text).toBe('Error: No tests found')\n  a test said: No test files found" }))).toBe('caught');
+    // A test that prints the words at the start of a line of its own output still ran: its run's summary says so.
+    expect(verdict(run({ status: 0, output: 'Running 1 test using 1 worker\nError: No tests found in the fixture\n  ✓  1 [desktop] › a.spec.ts:1:1 › pw (5ms)\n\n  1 passed (1.0s)\n' }))).toBe('survived');
+    expect(verdict(run({ output: 'stdout | a.test.ts > psi\nNo test files found in the fixture\n\n      Tests  1 failed | 22 skipped (23)\n' }))).toBe('caught');
+    expect(verdict(run({ output: 'No test files found, exiting with code 1\n      Tests  no tests\n' }))).toBe('no test');
     // Vitest colours the line when told to; the codes are no part of it.
     expect(verdict(run({ output: '\x1b[31mNo test files found, exiting with code 1\x1b[39m\n' }))).toBe('no test');
     expect(verdict(run({ output: '\x1b[1m\x1b[31mError: No tests found\x1b[0m' }))).toBe('no test');
@@ -152,17 +156,45 @@ describe('run-limited (L-064)', () => {
     expect(verdict(run({ stopped: true, output: 'Error: No tests found' }))).toBe('stopped');
     expect(verdict(run({ started: false, stopped: true }))).toBe('not started');
   });
+
+  it('reads a mutant\'s red run that reports more than one test as no kill: the mutant made the filter match others', () => {
+    const run = (over) => ({ started: true, status: 1, output: '      Tests  1 failed | 22 skipped (23)\n', stopped: false, ...over });
+    expect(mutantVerdict(run({}))).toBe('caught');
+    expect(mutantVerdict(run({ output: '      Tests  1 failed | 1 passed | 21 skipped (23)\n' }))).toBe('ran more');
+    expect(mutantVerdict(run({ output: 'Running 2 tests using 2 workers\n  1 failed\n  1 passed (1.0s)\n' }))).toBe('ran more');
+    // A run with no summary (a check script), and a module that throws as it loads (no test run), are read as verdict reads them.
+    expect(mutantVerdict(run({ output: 'the check failed\n' }))).toBe('caught');
+    expect(mutantVerdict(run({ output: '      Tests  no tests\n' }))).toBe('caught');
+    expect(mutantVerdict(run({ status: 0, output: '      Tests  2 passed (2)\n' }))).toBe('survived');
+    expect(mutantVerdict(run({ stopped: true, status: null }))).toBe('stopped');
+  });
 });
 
 describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
   it('counts the tests a Vitest or Playwright run ran, skipped ones aside, over every summary, and none where there is no summary', () => {
+    // An expected fail ran (Vitest's own words for an it.fails test, as it prints them).
+    expect(testsRun('      Tests  1 passed | 1 expected fail | 1 skipped (3)\n')).toBe(2);
+    expect(testsRun('      Tests  1 expected fail | 2 skipped (3)\n')).toBe(1);
+    // A Playwright test that skips itself: before its checks it ran none, after them it ran in the project it skips in too.
+    expect(testsRun('Running 1 test using 1 worker\n\n  -  1 [phone] › e2e/boot.spec.ts:27:1 › jump\n\n  1 skipped\n')).toBe(0);
+    expect(testsRun('Running 2 tests using 2 workers\n\n  ✓  1 [desktop] › e2e/block.spec.ts:3:1 › travels (5ms)\n  -  2 [phone] › e2e/block.spec.ts:3:1 › travels\n\n  1 skipped\n  1 passed (658ms)\n')).toBe(2);
+    expect(testsRun('Running 2 tests using 2 workers\n·°\n  1 skipped\n  1 passed (629ms)\n')).toBe(2);
+    expect(testsRun('Running 3 tests using 1 worker\n  1 failed\n  2 did not run\n')).toBe(3);
+    // Each Playwright run is counted on its own: one that skipped its only test ran none, beside one that ran one.
+    expect(testsRun('Running 1 test using 1 worker\n  1 passed (1.0s)\n\nRunning 1 test using 1 worker\n  1 skipped\n')).toBe(1);
+    expect(testsRun('Running 1 test using 1 worker\n  1 passed (1.0s)\n\nRunning 2 tests using 2 workers\n  1 skipped\n  1 passed (1.1s)\n')).toBe(3);
+    // A summary of tests that did not run, or were cut short, ran none.
+    expect(testsRun('Running 2 tests using 1 worker\n  2 did not run\n')).toBe(0);
+    expect(testsRun('Running 1 test using 1 worker\n  1 interrupted\n')).toBe(0);
     expect(testsRun(' Test Files  1 passed (1)\n      Tests  1 passed | 115 skipped (116)\n')).toBe(1);
     expect(testsRun('      Tests  1 failed | 4221 passed | 2 skipped (4224)\n')).toBe(4222);
     expect(testsRun('      Tests  116 skipped (116)\n')).toBe(0);
     expect(testsRun('\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m3 passed\x1b[39m\x1b[22m\x1b[90m (3)\x1b[39m\n')).toBe(3);
     expect(testsRun('      Tests  2 passed (2)\n...\n      Tests  5 passed (5)\n')).toBe(7);
     expect(testsRun('Running 1 test using 1 worker\n  ✓  1 [chromium] › e2e/pause.spec.ts:3:1 › tap (2.1s)\n\n  1 passed (3.0s)\n')).toBe(1);
-    expect(testsRun('  1 failed\n    [chromium] › e2e/a.spec.ts:1:1 › a\n  2 flaky\n  4 passed (9.1s)\n')).toBe(7);
+    expect(testsRun('Running 7 tests using 2 workers\n  1 failed\n    [chromium] › e2e/a.spec.ts:1:1 › a\n  2 flaky\n  4 passed (9.1s)\n')).toBe(7);
+    // Count lines before any run's "Running" line are no run's: here a Vitest failure's diff, beside its one test.
+    expect(testsRun('- Expected\n+ Received\n\n-   2 passed (1.0s)\n+   1 passed (1.0s)\n  2 passed (1.0s)\n\n      Tests  1 failed | 9 skipped (10)\n')).toBe(1);
     expect(testsRun('ok    gdd\nAll checks passed.\n')).toBeNull();
     expect(testsRun('the nonce route does not refuse another origin\n')).toBeNull();
   });
@@ -176,12 +208,62 @@ describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
     // One name in a spec, run in the desktop and phone projects.
     const twice = 'Running 2 tests using 2 workers\n  ✓  1 [desktop] › e2e/pause.spec.ts:3:1 › tap (2.1s)\n  ✓  2 [phone] › e2e/pause.spec.ts:3:1 › tap (2.4s)\n\n  2 passed (3.0s)\n';
     expect(baselineProblem(run({ output: twice }))).toBe('runs 2 tests, not the one that must kill it (Playwright runs each test once in each project: name one with --project)');
-    expect(baselineProblem(run({ output: twice.replace('Running 2 tests using 2 workers', '\x1b[2mRunning 2 tests using 2 workers\x1b[22m') }))).toMatch(/name one with --project\)$/);
+    expect(baselineProblem(run({ output: twice.replace('[phone] ›', '\x1b[2m[phone]\x1b[22m ›') }))).toMatch(/name one with --project\)$/);
+    // Two tests in one project: the filter matches two names, and the project is no part of it.
+    expect(baselineProblem(run({ output: twice.replace('[phone] › e2e/pause.spec.ts:3:1 › tap', '[desktop] › e2e/pause.spec.ts:9:1 › tap twice') }))).toBe('runs 2 tests, not the one that must kill it');
     expect(baselineProblem(run({ output: 'Running 1 test using 1 worker\n  ✓  1 [desktop] › e2e/pause.spec.ts:3:1 › tap (2.1s)\n\n  1 passed (2.2s)\n' }))).toBeNull();
+    // The one test named, an expected fail, is taken; a playtest that skips in the project named runs none, and one that skips in
+    // one project after its checks ran in both.
+    expect(baselineProblem(run({ output: '      Tests  1 expected fail | 9 skipped (10)\n' }))).toBeNull();
+    expect(baselineProblem(run({ output: 'Running 1 test using 1 worker\n\n  -  1 [phone] › e2e/boot.spec.ts:27:1 › jump\n\n  1 skipped\n' }))).toBe('runs no test');
+    expect(baselineProblem(run({ output: 'Running 2 tests using 2 workers\n\n  ✓  1 [desktop] › e2e/block.spec.ts:3:1 › travels (5ms)\n  -  2 [phone] › e2e/block.spec.ts:3:1 › travels\n\n  1 skipped\n  1 passed (658ms)\n' }))).toBe('runs 2 tests, not the one that must kill it (Playwright runs each test once in each project: name one with --project)');
+    // A summary printed twice counts twice: a test whose own output holds a summary's words is refused, on the safe side.
+    expect(baselineProblem(run({ output: 'stdout | a.test.ts > prints\n      Tests  3 passed (3)\n\n      Tests  1 passed | 9 skipped (10)\n' }))).toBe('runs 4 tests, not the one that must kill it');
     expect(baselineProblem(run({ status: 1 }))).toBe('fails on the unmutated code');
     expect(baselineProblem(run({ status: 1, output: 'No test files found, exiting with code 1\n' }))).toBe('no test');
     expect(baselineProblem(run({ status: null, stopped: true }))).toBe('stopped');
     expect(baselineProblem(run({ started: false, status: null }))).toBe('not started');
     expect(baselineProblem(run({ status: 127 }))).toBe('not started');
+  });
+
+  it('takes a mutant\'s test only in its three forms, and refuses every other command before it runs', () => {
+    for (const command of [
+      "npx vitest run server/http/node.test.ts -t 'a nonce asked whole$'",
+      "npx vitest run scripts/run-limited.test.mjs -t 'counts the tests (L-026) | x > y; z'",
+      "npx playwright test e2e/pause.spec.ts -g 'tap' --project desktop",
+      'node scripts/server-log-check.mjs server/dist/main.js',
+      'node scripts/check.mjs',
+      // Taken on main, and still needed (L-108): the bundle's own check, and the gate's other configs.
+      'npm run server:check',
+      "npx vitest run -c vitest.abilities.config.ts src/sim/movement.test.ts -t 'x'",
+      "npx vitest run -c vitest.glide.config.ts src/levels/level1-1.test.ts -t 'x'",
+      "npx vitest run -c vitest.sight.config.ts src/levels/sight.test.ts -t 'x'",
+    ]) expect(commandProblem(command), command).toBeNull();
+    for (const command of [
+      "npx vitest run server/http/node.test.ts -t 'x' > /dev/null", "npx vitest run server/http/node.test.ts -t 'x' --reporter=json",
+      "npx vitest run server -t 'x'", 'npx vitest run server/http/node.test.ts', "npx vitest run a.ts -t 'x'", "npx vitest run a.test.ts -t \"x\"",
+      "npx vitest run a.test.ts -t 'x' && npx vitest run b.test.ts", "npx vitest run a.test.ts -t 'it''s'", " npx vitest run a.test.ts -t 'x'",
+      "npx playwright test e2e/a.spec.ts -g 'x'", "npx playwright test e2e/a.spec.ts -g 'x' --project desktop --reporter=json",
+      'npm test', 'npm run -- test', 'node --no-warnings --run test', 'npm tes', '$(which npm) test', 'node scripts/check.mjs > /dev/null',
+      'node scripts/x.mjs; npm test', 'node scripts/x.mjs $(npm test)', 'node node_modules/vitest/vitest.mjs run a.test.ts', 'sh -c "npm test"',
+      "npx vitest run -c other.config.ts a.test.ts -t 'x'", "npx vitest run a.test.ts -c vitest.sight.config.ts -t 'x'", 'npm run server:check > /dev/null',
+      'npm run server:check && npm test', 'npm run server:build',
+    ]) expect(commandProblem(command), command).not.toBeNull();
+  });
+
+  it('refuses every command that the pattern it replaced refused (L-108): the forms lost none of them', () => {
+    // d3bc703's TEST_RUNNER, kept here as the oracle: a command it refused when it printed no summary is refused before it runs.
+    const before = /\b(vitest|playwright)\b|\b(npm|pnpm|yarn|bun)\s+(run\s+)?t(est)?\b/;
+    const commands = [
+      'npm t', 'npm test', 'npm run test', 'npm run test:e2e', 'npm run test:sight > /dev/null', 'pnpm test', 'yarn test', 'bun test', 'npm  run  test',
+      'npm test>/dev/null', 'npm t>out.txt 2>&1', 'npm run test:e2e>/dev/null', 'sh -c "npm test" > /dev/null', "bash -c 'npm run test:e2e'", '`npm test`',
+      'X=1 npm test', 'cd . && npm test', '(npm test)', '$(npm test)', 'npm test;echo', 'npm test|cat', 'npm test&', 'npm run test --silent',
+      'npx vitest run a.test.ts', 'node node_modules/vitest/vitest.mjs run a', 'npx playwright test e2e/a.spec.ts', 'sh -c "npx vitest run a"',
+      "npx vitest run a.test.ts -t 'x' > /dev/null 2>&1", "npx vitest run a.test.ts -t 'x' --reporter=json",
+    ];
+    for (const command of commands) {
+      expect(before.test(command), `the old pattern refused ${command}`).toBe(true);
+      expect(commandProblem(command), command).not.toBeNull();
+    }
   });
 });

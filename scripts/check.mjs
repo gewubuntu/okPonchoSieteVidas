@@ -577,7 +577,8 @@ function checkSpriteFit() {
 }
 
 // L-020: a mutation run that was killed leaves its marker, and the mutated file, behind (scripts/mutate.mjs). The runner
-// itself sets PONCHO_MUTATING for the test it runs, so a mutant tested against the gate is judged by the other checks.
+// itself sets PONCHO_MUTATING for the test it runs, so a test that runs the gate is judged by its other checks, not by the marker
+// of the run it is part of (the runner refuses the gate as a mutant's test while it prints its test runs' summaries).
 function checkNoMutation() {
   if (process.env['PONCHO_MUTATING'] === '1') return [];
   return exists('.mutating.json') ? ['.mutating.json exists: a mutation run was interrupted and a file may still be mutated. Run node scripts/mutate.mjs --restore'] : [];

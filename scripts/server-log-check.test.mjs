@@ -301,6 +301,48 @@ describe('GDD-TEC-10 server-log-check: a server stopped while its log\'s reader 
     expect(wrong).toMatch(/^exit 0, \d+ of 2000 /);
     expect(wrong).not.toMatch(/^exit 0, 2000 of 2000 /);
   }, 60000);
+
+  it.each(['SIGTERM', 'SIGINT'])('fails a server that ends by itself before its stop, though its every line is out: %s is never tested on it', async (signal) => {
+    const entry = join(dir, 'server-ends-first.mjs');
+    writeFileSync(entry, `
+import { createServer } from 'node:http';
+const server = createServer(() => { process.exit(0); });
+server.listen(Number(process.env.PONCHO_SERVER_PORT), '127.0.0.1', () => {
+  process.stdout.write('{"event":"listening","port":' + server.address().port + '}\\n' + ${JSON.stringify(`${CONFIG_LINE}
+`)}.repeat(2000));
+});
+const broken = () => { process.stderr.write('stopped badly\\n'); process.exit(1); };
+process.on('SIGTERM', broken);
+process.on('SIGINT', broken);
+`);
+    expect(await stopped(entry, signal)).toMatch(/^exit 0 before it was stopped \(its requests ended first\), 2000 of 2000 request lines read/);
+  }, 60000);
+
+  it('counts only the lines that come after the listening line: lines written before any request is sent are no request\'s', async () => {
+    const entry = join(dir, 'server-lines-first.mjs');
+    writeFileSync(entry, readFileSync(fakeServer('server-lines-first-base', 'flush'), 'utf8')
+      .replace(`res.end('{}'); process.stdout.write(${JSON.stringify(`${CONFIG_LINE}
+`)});`, "res.end('{}');")
+      .replace("setTimeout(() => {\n  server.listen", `process.stdout.write(${JSON.stringify(`${CONFIG_LINE}
+`)}.repeat(2000));\nsetTimeout(() => {\n  server.listen`));
+    expect(readFileSync(entry, 'utf8')).toContain('.repeat(2000)');
+    expect(await stopped(entry)).toMatch(/^exit 0, 0 of 2000 request lines read/);
+  }, 60000);
+
+  it('fails a server that dies part way through the requests, and goes on: a request it refuses ends the asking, not the check', async () => {
+    const entry = join(dir, 'server-dies.mjs');
+    writeFileSync(entry, `
+import { createServer } from 'node:http';
+let answered = 0;
+const server = createServer((req, res) => {
+  res.on('finish', () => { process.stdout.write(${JSON.stringify(`${CONFIG_LINE}\n`)}); answered += 1; if (answered === 50) process.exit(1); });
+  res.end('{}');
+});
+server.listen(Number(process.env.PONCHO_SERVER_PORT), '127.0.0.1', () => { process.stdout.write('{"event":"listening","port":' + server.address().port + '}\\n'); });
+`);
+    // A write to a pipe or a file is synchronous on Linux, so the 50th line is out before the exit.
+    expect(await stopped(entry)).toMatch(/^exit 1 before it was stopped \(its requests ended first\), 50 of 2000 request lines read/);
+  }, 60000);
 });
 
 /**
@@ -431,6 +473,23 @@ describe('GDD-TEC-10 server-log-check: a log node writes nowhere, and one whose 
     expect(await discarded(entry)).toMatch(/^exit 1, stderr "the log cannot be written \(EBADF\)\\n"/);
   }, 30000);
 
+  it('fails a server that exits 0 by itself once its reader has left, before the stop is sent: the stop is never tested on it', async () => {
+    const entry = join(dir, 'drained-ends-first.mjs');
+    writeFileSync(entry, `
+import { createServer } from 'node:http';
+let answered = 0;
+const server = createServer((req, res) => {
+  res.end('{}');
+  process.stdout.write(${JSON.stringify(`${CONFIG_LINE}
+`)});
+  answered += 1;
+  if (answered === 3) setTimeout(() => { process.exit(0); }, 50);
+});
+server.listen(Number(process.env.PONCHO_SERVER_PORT), '127.0.0.1', () => { process.stdout.write('{"event":"listening","port":' + server.address().port + '}\\n'); });
+`);
+    expect(await drained(entry)).toMatch(/^exit 0 before it was stopped/);
+  }, 30000);
+
   it('passes a server that exits 0 when its log\'s reader read every line and left', async () => {
     expect(await drained(fakeEntry('drained-good'))).toBeNull();
   }, 30000);
@@ -453,6 +512,35 @@ describe('GDD-TEC-10 server-log-check: a reader that leaves after five lines, on
     // Ten runs of a node that starts and ends at once.
     expect(Date.now() - started).toBeGreaterThan(10 * 20);
   }, 60000);
+});
+
+describe('GDD-TEC-10 server-log-check: a server whose answers break part way', () => {
+  // Its listening line, then to each request a head that promises 100 bytes, 10 of them, and the connection closed.
+  const cutEntry = () => {
+    const entry = join(dir, 'cut-body.mjs');
+    writeFileSync(entry, `
+import { createServer } from 'node:net';
+const server = createServer((socket) => {
+  socket.once('data', () => { socket.end('HTTP/1.1 200 OK\\r\\nContent-Type: application/json\\r\\nContent-Length: 100\\r\\n\\r\\n0123456789'); });
+  socket.on('error', () => undefined);
+});
+server.listen(Number(process.env.PONCHO_SERVER_PORT), '127.0.0.1', () => { process.stdout.write('{"event":"listening","port":' + server.address().port + '}\\n'); });
+`);
+    return entry;
+  };
+  it.each([['drained', drained, /^exit SIGTERM, stderr ""/], ['servedFilled', servedFilled, /^exit SIGTERM after 0 answers, expected 4/]])('fails it in the %s case, and goes on: a body that breaks ends the asking, not the check', async (_name, check, said) => {
+    expect(await check(cutEntry())).toMatch(said);
+  }, 60000);
+});
+
+describe('GDD-TEC-10 server-log-check: a server that ends before it listens', () => {
+  it('is failed in the filled-file case, and the check goes on: the case\'s wait for its listening line ends with it', async () => {
+    const entry = join(dir, 'ends-unlistening.mjs');
+    writeFileSync(entry, "process.stderr.write('boot failed\\n'); process.exit(1);\n");
+    expect(await servedFilled(entry)).toBe('with its log a file with room, it never wrote its listening line');
+    // The case's own wait reads its log once more after the entry is gone; that read failing must not reach this process.
+    await new Promise((done) => { setTimeout(done, 200); });
+  }, 30000);
 });
 
 describe('GDD-TEC-10 server-log-check: a server whose log is a file that fills up', () => {

@@ -1,11 +1,26 @@
+import { execFile } from 'node:child_process';
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { connect } from 'node:net';
 import { networkInterfaces } from 'node:os';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setTimeout as wait } from 'node:timers/promises';
+import { promisify } from 'node:util';
+import { isMainThread } from 'node:worker_threads';
 import { settingsOf, wire } from '../boot';
 import { BODY_LIMIT, json, readBody, refuse, withLine, type RequestLog } from './boundary';
 import { serve, SOCKET_LIMITS, targetOf, UNANSWERED_LIMIT, unreadable, type App, type SocketLimits } from './node';
+
+const run = promisify(execFile);
+
+// L-106: a listener the adapter adds for what a client sends, and does not take off, shows as node's MaxListenersExceededWarning
+// once one connection holds more than ten. None may come while these tests run, so a guard that bounds such listeners can fail here.
+const listenerWarnings: string[] = [];
+const onWarning = (warning: Error): void => { if (warning.name === 'MaxListenersExceededWarning') listenerWarnings.push(warning.message); };
+beforeAll(() => { process.on('warning', onWarning); });
+afterAll(() => {
+  process.off('warning', onWarning);
+  expect(listenerWarnings).toEqual([]);
+});
 
 describe('GDD-TEC-10 adapter: the request target', () => {
   it.each(['/api/v1/config', '/api/v1/lives?pal=7', '/', '/a//b', '/api/v1/config?x=1&y=2', '/api/v1/config%2F', '/a?b=c/d'])('%s is accepted as written', (raw) => {
@@ -63,11 +78,12 @@ const calls: string[] = [];
 const reads: (string | number)[] = [];
 /**
  * What the adapter hands its requests to: /echo gives back what reached it, /limited reads the body under the limit, /slow answers after
- * 100 ms and /slower after 600 ms, /big answers BIG bytes, /bignope refuses BIG bytes unread, /nope-late refuses unread after a wait,
+ * 100 ms, /slower after 600 ms and /held after 2.5 s, /big answers BIG bytes, /bignope refuses BIG bytes unread, /nope-late refuses unread after a wait,
  * /throw rejects and /throw-late rejects after 200 ms, /lined answers after 200 ms with a line of its own, and /biglined answers BIG
  * bytes with one, and /cancel-big gives up on its body and answers BIG bytes with one. Only those three carry a line, so the log
  * holds the adapter's lines and theirs. /framed answers with every header that frames an answer or concerns its connection, and
- * /badhdr with a header before one node refuses.
+ * /badhdr with a header before one node refuses. /error and /error-late (after 100 ms) answer Response.error(), /s204 a 204 and
+ * /s304 a 304 that names a length of its own.
  */
 const stub: App = async (request) => {
   const path = new URL(request.url).pathname;
@@ -89,6 +105,10 @@ const stub: App = async (request) => {
     await wait(600);
     return json(200, {});
   }
+  if (path === '/held') {
+    await wait(2500);
+    return json(200, {});
+  }
   if (path === '/big') return new Response(new Uint8Array(BIG), { status: 200 });
   if (path === '/bignope') return new Response(new Uint8Array(BIG), { status: 404 });
   if (path === '/nope-late') {
@@ -108,6 +128,13 @@ const stub: App = async (request) => {
   if (path === '/framed') {
     return new Response('hello', { headers: { connection: 'keep-alive', 'keep-alive': 'timeout=99', 'proxy-connection': 'zz-app', te: 'zz-app', trailer: 'x-zz-app', 'transfer-encoding': 'chunked', upgrade: 'zz-app', 'content-length': '999', 'x-kept': 'yes' } });
   }
+  if (path === '/error') return Response.error();
+  if (path === '/error-late') {
+    await wait(100);
+    return Response.error();
+  }
+  if (path === '/s204') return new Response(null, { status: 204 });
+  if (path === '/s304') return new Response(null, { status: 304, headers: { 'content-length': '5' } });
   if (path === '/badhdr') return new Response('hello', { headers: { 'a-kept': 'zz-app-value', 'z-bad': 'x\u0001y' } });
   if (path === '/cancel-big') {
     await request.body?.cancel();
@@ -309,6 +336,68 @@ describe('GDD-TEC-10 adapter: CONNECT, a throw, a log that throws', () => {
       const closed = await exchange(server.port, ['GET /framed HTTP/1.0\r\n\r\nGET /echo HTTP/1.0\r\n\r\n'], { ms: 1500 });
       expect(statuses(closed.text)).toEqual([200]);
       expect(closed.closedByServer).toBe(true);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('an app\'s network error is answered with the adapter\'s 500, and its client gone first ends nothing', async () => {
+    const { server, log } = await served();
+    try {
+      const answered = await exchange(server.port, ['GET /error HTTP/1.1\r\nHost: x\r\n\r\n'], { ms: 1500 });
+      expect(statuses(answered.text)).toEqual([500]);
+      expect(log).toEqual([{ method: 'GET', route: '(none)', status: 500 }]);
+      // The client leaves 30 ms in, before the app answers at 100 ms: no answer is written, no line, and the server serves on.
+      await new Promise<void>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port });
+        socket.on('error', () => { /* this end's own */ });
+        socket.write('GET /error-late HTTP/1.1\r\nHost: x\r\n\r\n', () => { setTimeout(() => { socket.destroy(); resolve(); }, 30); });
+      });
+      await wait(300);
+      expect(log).toHaveLength(1);
+      expect((await ask(server.port, { method: 'GET', path: '/echo' })).status).toBe(200);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a 204 and a 304 carry no length, the app\'s own neither, and their connection is kept', async () => {
+    const { server } = await served();
+    try {
+      for (const path of ['/s204', '/s304']) {
+        const answered = await exchange(server.port, [`GET ${path} HTTP/1.1\r\nHost: x\r\n\r\n${GET_ECHO}`], { ms: 1500 });
+        expect(statuses(answered.text), path).toEqual([Number(path.slice(2)), 200]);
+        expect(answered.text.slice(0, answered.text.indexOf('\r\n\r\n')).toLowerCase(), path).not.toContain('content-length');
+      }
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a GET and a HEAD that declare a body are answered by the app, which is handed no body', async () => {
+    const { server } = await served();
+    try {
+      const got = await exchange(server.port, ['GET /echo HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}'], { ms: 1500 });
+      expect(statuses(got.text)).toEqual([200]);
+      expect(got.text).toContain('"method":"GET","text":""');
+      const head = await exchange(server.port, ['HEAD /echo HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}'], { ms: 1500 });
+      expect(statuses(head.text)).toEqual([200]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('a request that declares no body is refused unread with its connection kept: nothing of it lies unread', async () => {
+    const { server } = await served();
+    try {
+      for (const head of ['POST /zz HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n', 'POST /zz HTTP/1.1\r\nHost: x\r\nContent-Length: 00\r\n\r\n', 'DELETE /zz HTTP/1.1\r\nHost: x\r\n\r\n']) {
+        const answered = await exchange(server.port, [`${head}${GET_ECHO}`], { ms: 1500 });
+        expect(statuses(answered.text), head).toEqual([404, 200]);
+        expect(answered.text, head).not.toContain('connection: close');
+      }
+      // One that declares a body it never sends is still closed when refused: what follows would be read as that body.
+      const declared = await exchange(server.port, [`POST /zz HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n`], { ms: 1500 });
+      expect(declared.text).toContain('connection: close');
     } finally {
       await server.close();
     }
@@ -644,6 +733,28 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
       expect(statuses(text)).toEqual([200, 200, 408]);
       expect(calls).toEqual(['/big', '/slower']);
       expect(reads).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  }, 10000);
+
+  it.each([
+    ['a body it held back is read', [[0, 'GET /held HTTP/1.1\r\nHost: x\r\n\r\nPOST /zz HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 66000\r\n\r\n'], [100, ' '.repeat(60000)], [300, `${' '.repeat(6000)}BAD\x01 / HTTP/1.1\r\n\r\n`]]],
+    ['it writes a 100 Continue behind an answer that will not drain', [[0, 'GET /big HTTP/1.1\r\nHost: x\r\n\r\n'], [300, 'POST /echo HTTP/1.1\r\nHost: x\r\nExpect: 100-continue\r\nContent-Length: 0\r\n\r\nBAD\x01 / HTTP/1.1\r\n\r\n']]],
+  ] as const)('nothing is read once node gave up in the same read as it resumes the socket, as when %s', async (_how, writes) => {
+    const { server } = await served(stub, { ...SMALL, requestMs: 4000, headersMs: 3000, idleMs: 6000 });
+    try {
+      // A client that reads nothing: once node gives up, what it sends after stays in its own buffer, past the kernel's few MiB.
+      const unsent = await new Promise<number>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port });
+        socket.pause();
+        socket.on('error', () => { /* the server's close */ });
+        for (const [at, text] of writes) setTimeout(() => { socket.write(text); }, at);
+        const chunk = Buffer.alloc(64 << 10, 0x78);
+        setTimeout(() => { for (let i = 0; i < 512; i += 1) socket.write(chunk); }, 500);
+        setTimeout(() => { resolve(socket.writableLength); socket.destroy(); }, 1500);
+      });
+      expect(unsent).toBeGreaterThan(16 << 20);
     } finally {
       await server.close();
     }
@@ -1023,6 +1134,79 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
     expect(Date.now() - started).toBeLessThan(400);
     socket.destroy();
   }, 5000);
+
+  // The adapter's own answers, each with the line it leaves (finish).
+  const RAW: readonly (readonly [string, string, RequestLog])[] = [
+    ['a CONNECT', 'CONNECT x:443 HTTP/1.1\r\nHost: x\r\n\r\n', { method: '(other)', route: '(none)', status: 405 }],
+    ['a request that asks for an Upgrade', 'GET /echo HTTP/1.1\r\nHost: x\r\nConnection: upgrade\r\nUpgrade: zz\r\n\r\n', { method: 'GET', route: '(none)', status: 400 }],
+    ['bytes node cannot read', 'GARBAGE\r\n\r\n', { method: '(other)', route: '(none)', status: 400 }],
+  ];
+  it.each(RAW)('%s answered in the turn the server is stopped in leaves its line: the client has the answer whole', async (_name, bytes, line) => {
+    const { server, log } = await served();
+    let stopped: Promise<void> = Promise.resolve();
+    // The signal reaches this process alone: a test file runs in a process of its own (Vitest's forks), not a thread of the runner's.
+    expect(isMainThread).toBe(true);
+    const stop = (): void => { stopped = server.close(); };
+    process.once('SIGUSR2', stop);
+    try {
+      const text = await new Promise<string>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port });
+        const parts: Buffer[] = [];
+        socket.on('data', (part: Buffer) => parts.push(part));
+        socket.on('error', () => { /* the stop may reset the connection; the bytes read before it are what counts */ });
+        socket.on('close', () => { resolve(Buffer.concat(parts).toString('latin1')); });
+        // Once the server holds the connection, the bytes and the signal are ready for its same next poll, the bytes first: the stop
+        // then runs in the turn their answer is written in, before the end of that answer is through (a later turn's work).
+        socket.on('connect', () => {
+          setTimeout(() => { socket.write(bytes, () => { process.kill(process.pid, 'SIGUSR2'); }); }, 50);
+        });
+      });
+      await stopped;
+      const answer = headOf(text);
+      expect(answer.status).toMatch(new RegExp(`^HTTP/1\\.1 ${String(line.status)} `));
+      expect(Buffer.byteLength(answer.body)).toBe(Number(answer.headers['content-length']));
+      expect(log).toEqual([line]);
+    } finally {
+      process.off('SIGUSR2', stop);
+      await server.close();
+    }
+  }, 5000);
+
+  // A client in a process of its own: its reset must come between the server's write of the answer and its next read of the socket.
+  const RESETS = `
+    const { connect } = require('node:net');
+    const [port, request, count] = [Number(process.argv[1]), process.argv[2], Number(process.argv[3])];
+    let whole = 0;
+    const one = () => new Promise((resolve) => {
+      const socket = connect({ host: '127.0.0.1', port });
+      let text = '';
+      const timer = setTimeout(() => { socket.destroy(); }, 2000);
+      socket.on('error', () => {});
+      socket.on('close', () => { clearTimeout(timer); resolve(); });
+      socket.on('data', (part) => {
+        text += part.toString('latin1');
+        const end = text.indexOf('\\r\\n\\r\\n');
+        const length = Number(/content-length: (\\d+)/i.exec(text)?.[1] ?? -1);
+        if (end >= 0 && length >= 0 && text.length - end - 4 >= length) { whole += 1; socket.resetAndDestroy(); }
+      });
+      socket.write(request.padEnd(65536, 'a'));
+    });
+    (async () => { for (let i = 0; i < count; i += 1) await one(); process.stdout.write(String(whole)); })();
+  `;
+  it.each(RAW.slice(0, 2))('%s whose client resets as soon as it has the answer whole leaves its line, though the reset is read in the same read loop', async (_name, bytes, line) => {
+    const { server, log } = await served();
+    try {
+      // 64 KiB fills node's read buffer, so libuv reads the socket again in the same loop, right after the answer is written: the
+      // reset is read there, before the end of the answer is through. Of 200 connections, a line logged once the end was through was lost
+      // in some, in every run.
+      const { stdout } = await run(process.execPath, ['-e', RESETS, String(server.port), bytes, '200'], { timeout: 20000 });
+      await wait(100);
+      expect(stdout).toBe('200');
+      expect(log).toEqual(Array.from({ length: 200 }, () => line));
+    } finally {
+      await server.close();
+    }
+  }, 25000);
 });
 
 describe('GDD-TEC-10 adapter: the limits as the GDD states them', () => {
