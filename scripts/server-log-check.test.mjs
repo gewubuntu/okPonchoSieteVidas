@@ -212,13 +212,13 @@ setInterval(() => undefined, 1000);
     expect(['gone', 'Z']).toContain(state);
   }, 30000);
 
-  it('gives up its request at the limit, though the server that took it left the group and never answers', async () => {
-    const pidFile = join(dir, 'mute.pid');
-    const entry = join(dir, 'serving-mute.mjs');
+  it.each([['stays', 'setInterval(() => undefined, 1000);'], ['exits at once', 'process.exit(0);']])('gives up its request at the limit, though the server that took it left the group and never answers, and the entry %s', async (_how, after) => {
+    const pidFile = join(dir, `mute-${_how.length}.pid`);
+    const entry = join(dir, `serving-mute-${_how.length}.mjs`);
     writeFileSync(entry, `
 import { spawn } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
-const portFile = ${JSON.stringify(join(dir, 'mute.port'))};
+const portFile = ${JSON.stringify(join(dir, `mute-${_how.length}.port`))};
 const listener = "const s = require('node:net').createServer(() => undefined); s.listen(0, '127.0.0.1', () => { require('node:fs').writeFileSync(" + JSON.stringify(portFile) + ", String(s.address().port)); });";
 const mute = spawn(process.execPath, ['-e', listener], { stdio: 'ignore', detached: true });
 mute.unref();
@@ -226,7 +226,7 @@ require_pid: { (await import('node:fs')).writeFileSync(${JSON.stringify(pidFile)
 const wait = () => new Promise((done) => { setTimeout(done, 20); });
 while (!existsSync(portFile)) await wait();
 process.stdout.write('{"event":"listening","port":' + readFileSync(portFile, 'utf8') + '}\\n');
-setInterval(() => undefined, 1000);
+${after}
 `);
     const started = Date.now();
     try {

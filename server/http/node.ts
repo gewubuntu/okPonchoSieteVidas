@@ -3,6 +3,7 @@
 // It never reads Host or X-Forwarded-*: the Request's URL has a host of its own that no client sets.
 import { createServer, STATUS_CODES, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable, type Duplex } from 'node:stream';
+import { Socket } from 'node:net';
 import { codeOf, FIXED_HEADERS, lineOf, methodOf, quietly, refuse, REASON, withLine, type RequestLog } from './boundary';
 
 /**
@@ -259,8 +260,12 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
     // out: ending the socket again would destroy it under that answer. A kept survivor: no test here can hold an answer of about 200
     // bytes in the socket's buffers.
     if (!socket.writable) return;
-    // The connection now waits for this answer to go out, under its deadline, not for a next request.
+    // The connection now waits for this answer to go out, under its deadline, not for a next request: neither the kept wait nor
+    // node's own, which it arms once an answer has finished and which would destroy the socket with this answer still in its buffer.
+    // A kept survivor, as above.
     clearTimeout(connectionOf(socket).kept);
+    // Node's events type the socket as a Duplex; a server made with createServer hands over a net.Socket, so this always holds.
+    if (socket instanceof Socket) socket.setTimeout(0);
     const done = deadline(socket);
     socket.end(bytes, (error?: Error | null) => {
       done();
@@ -329,8 +334,9 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
     // Nothing more is read once node has given up: after a timeout node would read on, so a request it gave up on could still come in
     // whole before its turn, a running one's body could reach the app after this answer, and a later request could be read. Node
     // itself resumes a socket it paused while an answer would not drain, so the pause is made again on each resume, after node's own
-    // listener has started reading.
-    if (!connection.broken) socket.on('resume', () => { socket.pause(); });
+    // listener has started reading. Node reports a give-up at most once more (its request timeout; no later read comes), so a
+    // second listener, if added, pauses too (L-025: no check of its own).
+    socket.on('resume', () => { socket.pause(); });
     connection.broken = true;
     socket.pause();
     // Bytes after a request that closes the connection (node's HPE_CLOSED_CONNECTION) need no check of their own (L-025): that

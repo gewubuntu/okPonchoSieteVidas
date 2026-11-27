@@ -173,6 +173,11 @@ describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
     expect(baselineProblem(run({ output: 'All checks passed.\n' }))).toBeNull();
     expect(baselineProblem(run({ output: '      Tests  10 passed (10)\n' }))).toBe('runs 10 tests, not the one that must kill it');
     expect(baselineProblem(run({ output: '      Tests  10 skipped (10)\n' }))).toBe('runs no test');
+    // One name in a spec, run in the desktop and phone projects.
+    const twice = 'Running 2 tests using 2 workers\n  ✓  1 [desktop] › e2e/pause.spec.ts:3:1 › tap (2.1s)\n  ✓  2 [phone] › e2e/pause.spec.ts:3:1 › tap (2.4s)\n\n  2 passed (3.0s)\n';
+    expect(baselineProblem(run({ output: twice }))).toBe('runs 2 tests, not the one that must kill it (Playwright runs each test once in each project: name one with --project)');
+    expect(baselineProblem(run({ output: twice.replace('Running 2 tests using 2 workers', '\x1b[2mRunning 2 tests using 2 workers\x1b[22m') }))).toMatch(/name one with --project\)$/);
+    expect(baselineProblem(run({ output: 'Running 1 test using 1 worker\n  ✓  1 [desktop] › e2e/pause.spec.ts:3:1 › tap (2.1s)\n\n  1 passed (2.2s)\n' }))).toBeNull();
     expect(baselineProblem(run({ status: 1 }))).toBe('fails on the unmutated code');
     expect(baselineProblem(run({ status: 1, output: 'No test files found, exiting with code 1\n' }))).toBe('no test');
     expect(baselineProblem(run({ status: null, stopped: true }))).toBe('stopped');

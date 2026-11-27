@@ -87,5 +87,8 @@ export function baselineProblem(run) {
   if (run.status !== 0) return 'fails on the unmutated code';
   const ran = testsRun(run.output);
   if (ran === null || ran === 1) return null;
-  return ran === 0 ? 'runs no test' : `runs ${ran} tests, not the one that must kill it`;
+  if (ran === 0) return 'runs no test';
+  // Playwright runs a test once in each project, so a name unique in its file runs twice unless the project is named.
+  const projects = /^Running \d+ tests? using/m.test(run.output.replace(/\x1b\[[0-9;]*m/g, '')) ? ' (Playwright runs each test once in each project: name one with --project)' : '';
+  return `runs ${ran} tests, not the one that must kill it${projects}`;
 }

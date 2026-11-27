@@ -70,7 +70,8 @@ function launch(command, args, { env, stdout = 'pipe', limitMs = LIMIT_MS }, sta
       end(null, 'SIGKILL', true);
     }, limitMs);
     child.on('close', (code, signal) => { end(code, signal, false); });
-    start(child, requests.signal);
+    // The requests' own limit too: an entry may be done while a process it left holds the server and never answers.
+    start(child, AbortSignal.any([requests.signal, AbortSignal.timeout(limitMs)]));
   });
 }
 /** How a run ended, as a case reports it. */
