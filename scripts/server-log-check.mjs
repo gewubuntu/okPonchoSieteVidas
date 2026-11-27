@@ -13,6 +13,9 @@
 //   - the server whose log is a file that fills up in the middle of its fourth request line while it serves, asked once at a time: it
 //     answers those four and stops on the line it could not write, exit 1 with the one line, EFBIG (one that lets node's file stream
 //     drop the short write serves a fifth);
+//   - --check with its log a directory, which node takes for a stream that drops every line: exit 1 with the one line, EBADF;
+//   - --check with its log /dev/null, a device node writes as a file: it passes;
+//   - the server with its log a unix socket whose reader read every line and left, then stopped: exit 0 with nothing on stderr;
 //   - the server on a SQLite store, stopped by SIGTERM and again by SIGINT, each signal sent twice 100 ms apart while its log's reader
 //     has stalled: every request's line still reaches the reader, and it exits 0 with nothing on stderr. Node's warning that SQLite
 //     is experimental is turned off for that run.
@@ -21,7 +24,9 @@
 // behind still holds its pipes. Each run takes the entry it starts, so scripts/server-log-check.test.mjs can hand it entries that break
 // each rule.
 import { spawn } from 'node:child_process';
+import { once as onceOf } from 'node:events';
 import { closeSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { connect, createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -34,12 +39,15 @@ const LIMIT_MS = 15000;
 const PATH_ONLY = { PATH: process.env.PATH ?? '' };
 
 /**
- * Starts `command args` in a process group of its own, stdin closed, stdout `stdout`, stderr read, and hands the child to `start`.
- * Resolves once it and every holder of its pipes are done, or at `limitMs`, when the whole group is killed and `timedOut` is set.
+ * Starts `command args` in a process group of its own, stdin closed, stdout `stdout`, stderr read, and hands the child to `start` with
+ * a signal for its requests. Resolves once it and every holder of its pipes are done, or at `limitMs`, when the whole group is killed,
+ * this end of its pipes is closed and its requests are given up, so that a process that left the group holds up nothing, and
+ * `timedOut` is set.
  */
 function launch(command, args, { env, stdout = 'pipe', limitMs = LIMIT_MS }, start = () => undefined) {
   return new Promise((resolve) => {
     const child = spawn(command, args, { cwd: ROOT, env, stdio: ['ignore', stdout, 'pipe'], detached: true });
+    const requests = new AbortController();
     let said = '';
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (part) => { said += part; });
@@ -56,10 +64,13 @@ function launch(command, args, { env, stdout = 'pipe', limitMs = LIMIT_MS }, sta
       } catch {
         // The group is gone already: only a process that left it still holds the pipes.
       }
+      child.stdout?.destroy();
+      child.stderr.destroy();
+      requests.abort();
       end(null, 'SIGKILL', true);
     }, limitMs);
     child.on('close', (code, signal) => { end(code, signal, false); });
-    start(child);
+    start(child, requests.signal);
   });
 }
 /** How a run ended, as a case reports it. */
@@ -68,12 +79,24 @@ const endOf = (r) => (r.timedOut ? `no end within ${LIMIT_MS / 1000} s or its li
 /** The problem --check finds when the site's origin is the one its probe asks the nonce route from as another. */
 const FAILED = 'the nonce route does not refuse another origin\n';
 
+/** How many times a run whose reader left after some lines is made again when it ends with exit 0 and nothing on stderr. */
+const TRIES = 10;
+
 /**
  * Runs `entry --check` with `env` added and stdout read for `lines` lines (0: none) and then left; resolves with what went wrong, or
- * null when it exits 1 having written exactly `expected` to stderr.
+ * null when it exits 1 having written exactly `expected` to stderr. A reader that leaves after some lines races the entry's next line
+ * through the pipe, which on a busy machine may be written before the reader is gone: such a run, exit 0 with nothing on stderr,
+ * proves nothing either way, and is made again, up to TRIES times.
  */
 async function checked(entry, lines, env, expected, limitMs) {
-  const r = await launch(process.execPath, [entry, '--check'], { env: { ...PATH_ONLY, ...env }, limitMs }, (child) => {
+  let r = await checkOnce(entry, lines, env, limitMs);
+  for (let tries = 1; tries < TRIES && lines > 0 && Number.isFinite(lines) && r.code === 0 && r.said === ''; tries += 1) r = await checkOnce(entry, lines, env, limitMs);
+  return r.code === 1 && r.said === expected ? null : `${endOf(r)}, stderr ${JSON.stringify(r.said.slice(0, 400))}, expected exit 1 and ${JSON.stringify(expected)}`;
+}
+
+/** One run of `entry --check` with `env` added and stdout read for `lines` lines (0: none) and then left. */
+function checkOnce(entry, lines, env, limitMs) {
+  return launch(process.execPath, [entry, '--check'], { env: { ...PATH_ONLY, ...env }, limitMs }, (child) => {
     let seen = 0;
     if (lines === 0) child.stdout.destroy();
     else {
@@ -84,7 +107,6 @@ async function checked(entry, lines, env, expected, limitMs) {
       });
     }
   });
-  return r.code === 1 && r.said === expected ? null : `${endOf(r)}, stderr ${JSON.stringify(r.said.slice(0, 400))}, expected exit 1 and ${JSON.stringify(expected)}`;
 }
 
 /** Runs `entry --check` with stdout read for `lines` lines (0: none) and then left; resolves with what went wrong, or null. */
@@ -123,6 +145,79 @@ export async function filled(entry) {
   }
 }
 
+/** The line every log that cannot be written gets when node would write it nowhere (a directory, a datagram socket). */
+const NOWHERE = 'the log cannot be written (EBADF)\n';
+
+/**
+ * Runs `entry --check` with its log a directory, which node takes for a stream that drops every line; resolves with what went wrong,
+ * or null when it exits 1 having written exactly the EBADF line to stderr.
+ */
+export async function nowhere(entry) {
+  const dir = mkdtempSync(join(tmpdir(), 'poncho-log-check-'));
+  const out = openSync(dir, 'r');
+  try {
+    const r = await launch(process.execPath, [entry, '--check'], { env: PATH_ONLY, stdout: out });
+    return r.code === 1 && r.said === NOWHERE ? null : `${endOf(r)}, stderr ${JSON.stringify(r.said.slice(0, 400))}, expected exit 1 and ${JSON.stringify(NOWHERE)}`;
+  } finally {
+    closeSync(out);
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** Runs `entry --check` with its log /dev/null, a device node writes as a file; resolves with what went wrong, or null when it passes. */
+export async function discarded(entry) {
+  const out = openSync('/dev/null', 'w');
+  try {
+    const r = await launch(process.execPath, [entry, '--check'], { env: PATH_ONLY, stdout: out });
+    return r.code === 0 && r.said === '' ? null : `${endOf(r)}, stderr ${JSON.stringify(r.said.slice(0, 400))}, expected exit 0 and nothing`;
+  } finally {
+    closeSync(out);
+  }
+}
+
+/** The requests the drained case sends before its reader leaves. */
+const DRAINED_REQUESTS = 3;
+
+/**
+ * Runs `entry` as the server with its log a unix socket, reads every line up to the lines of DRAINED_REQUESTS requests, then leaves,
+ * and stops it with SIGTERM; resolves with what went wrong, or null when it exits 0 with nothing on stderr. A log whose reader left
+ * after reading everything lost nothing, so the stop owes no line (a write of nothing would fail on such a socket).
+ */
+export async function drained(entry) {
+  const dir = mkdtempSync(join(tmpdir(), 'poncho-log-check-'));
+  const listener = createServer();
+  try {
+    listener.listen(join(dir, 'log.sock'));
+    await onceOf(listener, 'listening');
+    const accepted = onceOf(listener, 'connection');
+    const writer = connect(join(dir, 'log.sock'));
+    await onceOf(writer, 'connect');
+    const [reader] = await accepted;
+    const r = await launch(process.execPath, [entry], { env: { ...PATH_ONLY, PONCHO_SERVER_PORT: '0' }, stdout: writer }, (child, requests) => {
+      // The entry holds its own copy of the socket: this one would keep its peer from seeing the entry's end.
+      writer.destroy();
+      let out = '';
+      let asked = false;
+      reader.setEncoding('utf8');
+      reader.on('data', async (part) => {
+        out += part;
+        const port = portIn(out);
+        if (port === undefined || asked) return;
+        asked = true;
+        for (let i = 0; i < DRAINED_REQUESTS; i += 1) await fetch(`http://127.0.0.1:${port}/api/v1/config`, { signal: requests }).then((response) => response.arrayBuffer(), () => undefined);
+        for (let i = 0; i < 100 && out.split(CONFIG_LINE).length - 1 < DRAINED_REQUESTS; i += 1) await new Promise((done) => { setTimeout(done, 20); });
+        reader.end();
+        reader.destroy();
+        setTimeout(() => { child.kill('SIGTERM'); }, 300);
+      });
+    });
+    return r.code === 0 && r.said === '' ? null : `${endOf(r)}, stderr ${JSON.stringify(r.said.slice(0, 400))}, expected exit 0 and nothing`;
+  } finally {
+    listener.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /** The port in the listening line of `out`, once it is there. */
 const portIn = (out) => /"event":"listening","port":(\d+)/.exec(out)?.[1];
 
@@ -141,13 +236,13 @@ export async function servedFilled(entry) {
   const dir = mkdtempSync(join(tmpdir(), 'poncho-log-check-'));
   const env = { ...PATH_ONLY, PONCHO_SERVER_PORT: '0' };
   /** Calls `ask(port)` once the listening line is in `file`, read from `from` on; stops the child if it is still running after. */
-  const drive = (file, from, ask) => async (child) => {
+  const drive = (file, from, ask) => async (child, requests) => {
     let port;
     for (let i = 0; i < 300 && port === undefined && child.exitCode === null; i += 1) {
       await new Promise((done) => { setTimeout(done, 20); });
       port = portIn(readFileSync(file, 'latin1').slice(from));
     }
-    if (port !== undefined) await ask(port, child);
+    if (port !== undefined) await ask(port, child, requests);
     if (child.exitCode === null) child.kill('SIGTERM');
   };
   try {
@@ -164,9 +259,9 @@ export async function servedFilled(entry) {
     writeFileSync(log, '#'.repeat(prefill));
     const out = openSync(log, 'a');
     const statuses = [];
-    const r = await launch('bash', ['-c', 'trap "" XFSZ; ulimit -f 1; exec "$0" "$@"', process.execPath, entry], { env, stdout: out }, drive(log, prefill, async (port, child) => {
+    const r = await launch('bash', ['-c', 'trap "" XFSZ; ulimit -f 1; exec "$0" "$@"', process.execPath, entry], { env, stdout: out }, drive(log, prefill, async (port, child, requests) => {
       for (let i = 0; i < FILL_REQUESTS && child.exitCode === null; i += 1) {
-        statuses.push(await fetch(`http://127.0.0.1:${port}/api/v1/config`).then(async (response) => { await response.arrayBuffer(); return response.status; }, () => 0));
+        statuses.push(await fetch(`http://127.0.0.1:${port}/api/v1/config`, { signal: requests }).then(async (response) => { await response.arrayBuffer(); return response.status; }, () => 0));
       }
     }));
     closeSync(out);
@@ -185,7 +280,7 @@ export async function servedFilled(entry) {
  */
 export async function served(entry, limitMs = LIMIT_MS) {
   let asked = Promise.resolve(0);
-  const r = await launch(process.execPath, [entry], { env: { ...PATH_ONLY, PONCHO_SERVER_PORT: '0' }, limitMs }, (child) => {
+  const r = await launch(process.execPath, [entry], { env: { ...PATH_ONLY, PONCHO_SERVER_PORT: '0' }, limitMs }, (child, requests) => {
     let out = '';
     child.stdout.setEncoding('utf8');
     // No data comes once the reader is gone, so the port is acted on once (L-025: no check of its own).
@@ -194,7 +289,7 @@ export async function served(entry, limitMs = LIMIT_MS) {
       const port = portIn(out);
       if (port === undefined) return;
       child.stdout.destroy();
-      asked = fetch(`http://127.0.0.1:${port}/api/v1/config`).then((response) => response.status, () => 0);
+      asked = fetch(`http://127.0.0.1:${port}/api/v1/config`, { signal: requests }).then((response) => response.status, () => 0);
     });
   });
   const status = await asked;
@@ -216,7 +311,7 @@ export async function stopped(entry, signal = 'SIGTERM') {
   let out = '';
   try {
     const env = { ...PATH_ONLY, PONCHO_SERVER_PORT: '0', PONCHO_STORE: join(dir, 'store.db') };
-    const r = await launch(process.execPath, ['--disable-warning=ExperimentalWarning', entry], { env, limitMs: LIMIT_MS * 2 }, (child) => {
+    const r = await launch(process.execPath, ['--disable-warning=ExperimentalWarning', entry], { env, limitMs: LIMIT_MS * 2 }, (child, requests) => {
       let asked = false;
       child.stdout.setEncoding('utf8');
       child.stdout.on('data', async (part) => {
@@ -226,7 +321,7 @@ export async function stopped(entry, signal = 'SIGTERM') {
         asked = true;
         child.stdout.pause();
         const base = `http://127.0.0.1:${port}/api/v1/config`;
-        for (let i = 0; i < REQUESTS; i += 8) await Promise.all(Array.from({ length: 8 }, () => fetch(base).then((response) => response.arrayBuffer())));
+        for (let i = 0; i < REQUESTS; i += 8) await Promise.all(Array.from({ length: 8 }, () => fetch(base, { signal: requests }).then((response) => response.arrayBuffer())));
         child.kill(signal);
         setTimeout(() => { child.kill(signal); }, 100);
         setTimeout(() => { child.stdout.resume(); }, 300);
@@ -248,6 +343,9 @@ export async function main(entry, print = { ok: console.log, fail: console.error
     ['a check that finds a problem exits 1 with that one line', () => failed(entry)],
     ['a server whose log\'s reader leaves while it serves stops with one line', () => served(entry)],
     ['a server whose log is a file that fills up while it serves stops on the line it could not write, with one line', () => servedFilled(entry)],
+    ['a log node would write nowhere (a directory) stops the server at once with one line', () => nowhere(entry)],
+    ['a check whose log is /dev/null passes, its lines thrown away', () => discarded(entry)],
+    ['a server whose log\'s reader read every line and left exits 0 when stopped', () => drained(entry)],
     ['a server stopped twice by SIGTERM while its log\'s reader stalls writes every line first, and exits 0', () => stopped(entry, 'SIGTERM')],
     ['a server stopped twice by SIGINT while its log\'s reader stalls writes every line first, and exits 0', () => stopped(entry, 'SIGINT')],
   ];

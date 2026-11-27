@@ -616,6 +616,29 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
     }
   }, 5000);
 
+  it('bad bytes sent a segment at a time behind a slow answer queue one answer: the slow answer and the 400 go out, under the limit', async () => {
+    const { server, log } = await served();
+    try {
+      const answered = await new Promise<string>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port });
+        socket.setNoDelay(true);
+        const parts: Buffer[] = [];
+        socket.on('data', (part: Buffer) => parts.push(part));
+        socket.on('error', () => { /* the server's close */ });
+        socket.on('close', () => { resolve(Buffer.concat(parts).toString('latin1')); });
+        socket.write('GET /slower HTTP/1.1\r\nHost: x\r\n\r\n');
+        // More reads of bad bytes than UNANSWERED_LIMIT, each one segment, while /slower is answered.
+        setTimeout(() => { socket.write('BAD\x01 / HTTP/1.1\r\n\r\n'); }, 50);
+        for (let i = 0; i < UNANSWERED_LIMIT + 14; i += 1) setTimeout(() => { if (!socket.destroyed) socket.write('x'); }, 70 + i * 12);
+        setTimeout(() => { socket.destroy(); }, 3000);
+      });
+      expect(statuses(answered)).toEqual([200, 400]);
+      expect(log).toEqual([{ method: '(other)', route: '(none)', status: 400 }]);
+    } finally {
+      await server.close();
+    }
+  }, 6000);
+
   it('bad bytes that go on after node gave up are answered once, with one line', async () => {
     const { server, log } = await served();
     try {

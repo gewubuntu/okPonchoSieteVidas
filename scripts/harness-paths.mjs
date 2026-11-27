@@ -4,7 +4,8 @@
 // In the two documents a file that is designed and not built yet is marked ` (planned)` right after its backticks; the
 // mark fails once the path exists, so "planned" cannot outlive the build.
 import { spawnSync } from 'node:child_process';
-import { posix } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { isAbsolute, join, posix, relative, sep } from 'node:path';
 
 const ROOTS = /^(src|server|e2e|scripts|docs|assets|\.claude|\.github)\//;
 const PLANNED = ' (planned)';
@@ -53,6 +54,27 @@ export function pathErrors(file, text, exists, { planned = false, skip = () => f
  * are read is not asked, since git refuses it and with it every path asked at once; one git refuses for another reason (beyond a
  * symbolic link, in a submodule) makes each path be asked alone. A path git says nothing of is not ignored.
  */
+/**
+ * What a named path reaches in the repository at `root`, following any symbolic link on the way, as a path from the root
+ * (`/`-separated, its trailing `/` kept); null when nothing is there, or what is there lies outside the repository. A fresh checkout
+ * has what a link reaches only where git keeps that, so the gate judges the path reached, not the text that names it (L-083).
+ */
+export const realIn = (root) => {
+  const base = realpathSync(root);
+  return (path) => {
+    let reached;
+    try {
+      reached = realpathSync(join(root, path));
+    } catch {
+      return null;
+    }
+    const from = relative(base, reached);
+    if (from === '' || from === '..' || from.startsWith(`..${sep}`) || isAbsolute(from)) return null;
+    const real = from.split(sep).join('/');
+    return path.endsWith('/') ? `${real}/` : real;
+  };
+};
+
 /**
  * Whether `path` stays in the repository once its `.` and `..` are read. A named path starts with one of the roots, so it may leave
  * only upward, never be absolute (L-025).

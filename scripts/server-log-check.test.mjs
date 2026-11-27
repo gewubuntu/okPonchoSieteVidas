@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { CONFIG_LINE, failed, filled, main, run, served, servedFilled, stopped } from './server-log-check.mjs';
+import { CONFIG_LINE, discarded, drained, failed, filled, main, nowhere, run, served, servedFilled, stopped } from './server-log-check.mjs';
 
 const MODULE = new URL('./server-log-check.mjs', import.meta.url).href;
 
@@ -212,6 +212,49 @@ setInterval(() => undefined, 1000);
     expect(['gone', 'Z']).toContain(state);
   }, 30000);
 
+  it('gives up its request at the limit, though the server that took it left the group and never answers', async () => {
+    const pidFile = join(dir, 'mute.pid');
+    const entry = join(dir, 'serving-mute.mjs');
+    writeFileSync(entry, `
+import { spawn } from 'node:child_process';
+import { readFileSync, existsSync } from 'node:fs';
+const portFile = ${JSON.stringify(join(dir, 'mute.port'))};
+const listener = "const s = require('node:net').createServer(() => undefined); s.listen(0, '127.0.0.1', () => { require('node:fs').writeFileSync(" + JSON.stringify(portFile) + ", String(s.address().port)); });";
+const mute = spawn(process.execPath, ['-e', listener], { stdio: 'ignore', detached: true });
+mute.unref();
+require_pid: { (await import('node:fs')).writeFileSync(${JSON.stringify(pidFile)}, String(mute.pid)); }
+const wait = () => new Promise((done) => { setTimeout(done, 20); });
+while (!existsSync(portFile)) await wait();
+process.stdout.write('{"event":"listening","port":' + readFileSync(portFile, 'utf8') + '}\\n');
+setInterval(() => undefined, 1000);
+`);
+    const started = Date.now();
+    try {
+      expect(await served(entry, 1500)).toMatch(/its request never answered$/);
+      expect(Date.now() - started).toBeLessThan(8000);
+    } finally {
+      try {
+        process.kill(Number(readFileSync(pidFile, 'utf8')), 'SIGKILL');
+      } catch {
+        // Gone already.
+      }
+    }
+  }, 30000);
+
+  it('lets the check itself end at the limit, though a process that left the group still holds the pipes', () => {
+    const entry = join(dir, 'check-holder.mjs');
+    writeFileSync(entry, `
+import { spawn } from 'node:child_process';
+spawn('sleep', ['20'], { stdio: ['ignore', 'inherit', 'inherit'], detached: true }).unref();
+setInterval(() => undefined, 1000);
+`);
+    const script = `const { run } = await import(${JSON.stringify(new URL('./server-log-check.mjs', import.meta.url).href)}); console.log(await run(${JSON.stringify(entry)}, 1, 1500));`;
+    const started = Date.now();
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', timeout: 15000 });
+    expect(r.stdout).toMatch(/^no end within/);
+    expect(Date.now() - started).toBeLessThan(8000);
+  }, 30000);
+
   it('fails a --check that leaves a process holding its pipes, at the limit and not when that process ends', async () => {
     const entry = join(dir, 'check-left.mjs');
     writeFileSync(entry, `
@@ -270,15 +313,18 @@ function fakeEntry(name, onInt = 'flush') {
   writeFileSync(path, `
 import { createServer } from 'node:http';
 import { fstatSync, writeSync } from 'node:fs';
+import { Socket } from 'node:net';
 const complain = (e) => { process.stderr.write('the log cannot be written (' + e.code + ')\\n'); process.exit(1); };
 process.stdout.on('error', complain);
+const writes = (() => { try { const k = fstatSync(1); if (k.isFile() || k.isCharacterDevice()) return true; } catch { return false; } return process.stdout instanceof Socket; })();
+if (!writes) complain({ code: 'EBADF' });
 const file = (() => { try { return fstatSync(1).isFile(); } catch { return false; } })();
 const say = (text) => {
   if (!file) { process.stdout.write(text); return; }
   const bytes = Buffer.from(text);
   try { for (let at = 0; at < bytes.length;) at += writeSync(1, bytes, at); } catch (e) { complain(e); }
 };
-const exitAfter = (code) => { process.stdout.write('', (e) => { if (!e) process.exit(code); }); };
+const exitAfter = (code) => { setImmediate(() => { if (process.stdout.writableLength === 0) process.exit(code); process.stdout.write('', (e) => { if (!e) process.exit(code); }); }); };
 if (process.argv.includes('--check')) {
   for (let n = 1; n <= 5; n += 1) say('{"event":"check","n":' + n + '}\\n');
   setTimeout(() => {
@@ -316,9 +362,10 @@ if (process.argv.includes('--check')) {
 describe('GDD-TEC-10 server-log-check: every case, as npm run server:check runs them', () => {
   it('passes an entry that keeps every rule, each case on an ok line of its own', async () => {
     const said = { ok: [], fail: [] };
-    expect(await main(fakeEntry('entry-good'), { ok: (line) => said.ok.push(line), fail: (line) => said.fail.push(line) })).toBe(0);
+    const code = await main(fakeEntry('entry-good'), { ok: (line) => said.ok.push(line), fail: (line) => said.fail.push(line) });
     expect(said.fail).toEqual([]);
-    expect(said.ok).toHaveLength(8);
+    expect(code).toBe(0);
+    expect(said.ok).toHaveLength(11);
   }, 120000);
 
   it('fails an entry that breaks one rule, on that case\'s line alone: losing its lines when SIGINT stops it', async () => {
@@ -326,11 +373,59 @@ describe('GDD-TEC-10 server-log-check: every case, as npm run server:check runs 
     expect(await main(fakeEntry('entry-cut-int', 'cut'), { ok: (line) => said.ok.push(line), fail: (line) => said.fail.push(line) })).toBe(1);
     expect(said.fail).toHaveLength(1);
     expect(said.fail[0]).toMatch(/^FAIL  a server stopped twice by SIGINT /);
-    expect(said.ok).toHaveLength(7);
+    expect(said.ok).toHaveLength(10);
   }, 120000);
 });
 
+describe('GDD-TEC-10 server-log-check: a log node writes nowhere, and one whose reader read it all', () => {
+  it('passes an entry that stops at once with the EBADF line when its log is a directory', async () => {
+    expect(await nowhere(fakeEntry('nowhere-good'))).toBeNull();
+  }, 30000);
+
+  it('fails an entry that writes its lines to a directory and exits 0', async () => {
+    const entry = join(dir, 'nowhere-blind.mjs');
+    writeFileSync(entry, readFileSync(fakeEntry('nowhere-blind-base'), 'utf8').replace("if (!writes) complain({ code: 'EBADF' });", ''));
+    expect(await nowhere(entry)).toMatch(/^exit 0, stderr ""/);
+  }, 30000);
+
+  it('passes a check whose log is /dev/null, and fails one that takes that device for nowhere', async () => {
+    expect(await discarded(fakeEntry('discarded-good'))).toBeNull();
+    const entry = join(dir, 'discarded-blind.mjs');
+    writeFileSync(entry, readFileSync(fakeEntry('discarded-blind-base'), 'utf8').replace('k.isFile() || k.isCharacterDevice()', 'k.isFile()'));
+    expect(await discarded(entry)).toMatch(/^exit 1, stderr "the log cannot be written \(EBADF\)\\n"/);
+  }, 30000);
+
+  it('passes a server that exits 0 when its log\'s reader read every line and left', async () => {
+    expect(await drained(fakeEntry('drained-good'))).toBeNull();
+  }, 30000);
+
+  it('fails a server whose stop writes nothing and so finds the reader gone', async () => {
+    const entry = join(dir, 'drained-marker.mjs');
+    writeFileSync(entry, readFileSync(fakeEntry('drained-marker-base'), 'utf8').replace('if (process.stdout.writableLength === 0) process.exit(code); ', ''));
+    expect(readFileSync(entry, 'utf8')).not.toContain('writableLength');
+    expect(await drained(entry)).toMatch(/^exit 1, stderr "the log cannot be written \(EPIPE\)\\n"/);
+  }, 30000);
+});
+
+describe('GDD-TEC-10 server-log-check: a reader that leaves after five lines, on a busy machine', () => {
+  it('runs a case again that proves nothing (exit 0, nothing said), and fails an entry that never proves it', async () => {
+    // It exits 0 whether or not its sixth line could be written, so no run proves anything, however the reads fall.
+    const entry = join(dir, 'check-together.mjs');
+    writeFileSync(entry, "process.stdout.on('error', () => undefined);\nfor (let n = 1; n <= 6; n += 1) process.stdout.write('{\"n\":' + n + '}\\n');\n");
+    const started = Date.now();
+    expect(await run(entry, 5)).toMatch(/^exit 0, stderr ""/);
+    // Ten runs of a node that starts and ends at once.
+    expect(Date.now() - started).toBeGreaterThan(10 * 20);
+  }, 60000);
+});
+
 describe('GDD-TEC-10 server-log-check: a server whose log is a file that fills up', () => {
+  it('fails a server that answers one of the four with a 500 before it stops on the cut line', async () => {
+    const entry = join(dir, 'filled-500.mjs');
+    writeFileSync(entry, readFileSync(fakeEntry('filled-500-base'), 'utf8').replace("res.end('{}');", "served += 1; res.statusCode = served === 2 ? 500 : 200; res.end('{}');").replace('let stopping = false;', 'let stopping = false;\nlet served = 0;'));
+    expect(await servedFilled(entry)).toMatch(/after 4 answers, expected 4: \[200,500,200,200/);
+  }, 60000);
+
   it('passes a server that writes each byte and stops with the one line, every request before answered', async () => {
     expect(await servedFilled(fakeEntry('filled-good'))).toBeNull();
   }, 60000);

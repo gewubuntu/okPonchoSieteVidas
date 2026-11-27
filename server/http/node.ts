@@ -298,8 +298,8 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
   // and then this; a waiting request node gave up on part way is never run.
   server.on('clientError', (error: unknown, socket: Duplex) => {
     // Node says it again for each later read of a connection it gave up on: it is answered once, so a client that sends its bytes a
-    // segment at a time queues one answer, not one per read. A reset needs no check of its own (L-025): finish writes nothing to a
-    // socket that is gone.
+    // segment at a time queues one answer, not one per read (L-106), and does not reach UNANSWERED_LIMIT with them. A reset needs no
+    // check of its own (L-025): finish writes nothing to a socket that is gone.
     const connection = connectionOf(socket);
     if (connection.broken) return;
     connection.broken = true;
@@ -313,8 +313,9 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
       if (!running.res.writableEnded) finish(socket, rawAnswer(status, reason), line);
       return;
     }
-    // A connection ended meanwhile, as by an answer that closed it, gets nothing (finish).
-    void connection.turn.then(() => { finish(socket, rawAnswer(status, reason), line); });
+    // An answer waiting its turn, so it counts toward UNANSWERED_LIMIT as any does. A connection ended meanwhile, as by an answer that
+    // closed it, gets nothing (finish).
+    inTurn(socket, null, async () => { finish(socket, rawAnswer(status, reason), line); });
   });
   // node:http hands a CONNECT, and a request that asks for an Upgrade, to events of their own, with the socket and no response, and
   // tracks the socket no more: close() destroys it here. With no listener a CONNECT is closed unanswered, and an Upgrade is served with

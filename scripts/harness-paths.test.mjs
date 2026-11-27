@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { changelogRange, gitCheckIgnore, gitHoldsFiles, ignoredAmong, pathErrors, pathsIn, presentWhen } from './harness-paths.mjs';
+import { changelogRange, gitCheckIgnore, gitHoldsFiles, ignoredAmong, pathErrors, pathsIn, presentWhen, realIn } from './harness-paths.mjs';
 
 describe('harness-paths (L-013)', () => {
   const have = new Set(['src/sim/run.ts', 'docs/GDD.md', 'assets/sprites/', 'e2e/boot.spec.ts']);
@@ -167,6 +167,26 @@ describe('harness-paths (L-013)', () => {
         expect(['tracked/', 'untracked/', 'logs/', 'empty/'].map(holds)).toEqual([true, true, false, false]);
       } finally {
         rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it('judges a path by what it reaches: through a link into an ignored build output it is that output, outside the repository nothing', () => {
+      const root = mkdtempSync(join(tmpdir(), 'poncho-real-'));
+      const outside = mkdtempSync(join(tmpdir(), 'poncho-outside-'));
+      try {
+        spawnSync('git', ['init', '-q'], { cwd: root });
+        writeFileSync(join(root, '.gitignore'), 'dist/\n');
+        mkdirSync(join(root, 'server', 'dist'), { recursive: true });
+        writeFileSync(join(root, 'server', 'dist', 'main.js'), 'x');
+        mkdirSync(join(root, 'docs'));
+        symlinkSync('../server/dist', join(root, 'docs', 'bundle'));
+        symlinkSync(outside, join(root, 'docs', 'away'));
+        const realOf = realIn(root);
+        expect(['docs/bundle/main.js', 'docs/bundle/', 'docs/away', 'docs/missing.md', 'docs/'].map(realOf)).toEqual(['server/dist/main.js', 'server/dist/', null, null, 'docs/']);
+        expect(ignoredAmong([realOf('docs/bundle/main.js')], gitCheckIgnore(root))).toEqual(new Set(['server/dist/main.js']));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
       }
     });
 
