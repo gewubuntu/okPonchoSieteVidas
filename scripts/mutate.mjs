@@ -8,14 +8,17 @@
 // mutants.json: { "test": "<shell command>", "timeout"?: <seconds>, "mutants": [{ "name": "...", "file": "src/...", "from": "...", "to": "...", "test"?: "..." }] }
 // A mutant's test is stopped after `timeout` seconds (300 unless given), with its process group (scripts/run-limited.mjs):
 // a mutant that makes a loop endless would hang the whole run (L-064). A stopped mutant is not caught: bound the loop and
-// run it again.
+// run it again. Nor is a mutant whose red run reports more than one test (RAN MORE, `mutantVerdict` in scripts/run-limited.mjs):
+// it made the filter match others than the one test it names, as by renaming tests or building them from its data (L-026).
 // A mutant's own `test` replaces the file's, so each mutant can run against the one test that must kill it (L-026). Each command
 // is first run once on the unmutated code: one that fails there, finds no test, or runs other than one test by its Vitest or
 // Playwright summary is refused, reported REFUSED and its mutants counted as not caught, since a run of more counts a kill by any
-// test in it (`baselineProblem` in scripts/run-limited.mjs). One that reports no tests (the gate on a bad input, a check script)
-// is taken as it stands, unless it names a test runner, whose summary must then be read. Two limits of the summary: one printed
-// twice (two reporters, a test whose own output holds summary lines) counts twice and is refused, and a Vitest test that skips
-// itself after its checks (`ctx.skip()`) counts as not run, as the summary does not tell it from a test the filter left out.
+// test in it (`baselineProblem` in scripts/run-limited.mjs). One that reports no tests (a check script; the gate prints its test
+// runs' summaries) is taken as it stands, unless it runs a test runner, by name or through a package script however npm, pnpm,
+// yarn, bun or node --run is asked for it (`namesTestRunner`), whose summary must then be read. Three limits of the summary: one printed
+// twice (two reporters, a test whose own output holds summary lines) counts twice and is refused; a Vitest test that skips
+// itself after its checks (`ctx.skip()`) counts as not run, as the summary does not tell it from a test the filter left out; and
+// a playtest filter that also matches a skipped test counts it, as Playwright's `Running N tests` does, and is refused.
 // `from` must occur exactly once in the file, and the file must still parse with the mutant in it (L-103). Before each mutant the original is saved to .mutating.json; it is put back
 // after the mutant, and the marker deleted. If the run is killed the marker stays, and scripts/check.mjs fails until
 // `--restore` has run, so a mutation can never be committed.
@@ -25,7 +28,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { breaksSyntax, occurrences } from './mutant-suggest.mjs';
-import { baselineProblem, runLimited, verdict } from './run-limited.mjs';
+import { baselineProblem, mutantVerdict, runLimited, testsRun } from './run-limited.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const MARKER = join(ROOT, '.mutating.json');
@@ -109,9 +112,9 @@ for (const m of mutants) {
     writeFileSync(path, mutated);
     // PONCHO_MUTATING tells scripts/check.mjs not to fail on this run's own marker, so the gate can be a mutant's test.
     const r = await runLimited(m.test ?? test, { cwd: ROOT, env: { ...process.env, PONCHO_MUTATING: '1' }, seconds: timeout });
-    const says = verdict(r);
+    const says = mutantVerdict(r);
     if (says !== 'caught') survived++;
-    const shown = { 'not started': 'NOT RUN (the test command could not be started)', stopped: `STOPPED after ${timeout} s (an endless loop? bound it and run again)`, 'no test': 'NO TEST (the filter matched none)', caught: 'RED  ', survived: 'GREEN (survived)' };
+    const shown = { 'not started': 'NOT RUN (the test command could not be started)', stopped: `STOPPED after ${timeout} s (an endless loop? bound it and run again)`, 'no test': 'NO TEST (the filter matched none)', 'ran more': `RAN MORE (red, but it reports ${testsRun(r.output)} tests on the mutant, not the one it names: not counted)`, caught: 'RED  ', survived: 'GREEN (survived)' };
     console.log(`${shown[says]} ${m.name}`);
   } finally {
     restore();

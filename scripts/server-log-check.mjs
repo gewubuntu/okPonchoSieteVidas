@@ -181,12 +181,14 @@ const DRAINED_REQUESTS = 3;
 
 /**
  * Runs `entry` as the server with its log a unix socket, reads every line up to the lines of DRAINED_REQUESTS requests, then leaves,
- * and stops it with SIGTERM; resolves with what went wrong, or null when it exits 0 with nothing on stderr. A log whose reader left
- * after reading everything lost nothing, so the stop owes no line (a write of nothing would fail on such a socket).
+ * and stops it with SIGTERM; resolves with what went wrong, or null when it was still running then and exits 0 with nothing on
+ * stderr. A log whose reader left after reading everything lost nothing, so the stop owes no line (a write of nothing would fail on
+ * such a socket).
  */
 export async function drained(entry) {
   const dir = mkdtempSync(join(tmpdir(), 'poncho-log-check-'));
   const listener = createServer();
+  let signalled = false;
   try {
     listener.listen(join(dir, 'log.sock'));
     await onceOf(listener, 'listening');
@@ -205,13 +207,16 @@ export async function drained(entry) {
         const port = portIn(out);
         if (port === undefined || asked) return;
         asked = true;
-        for (let i = 0; i < DRAINED_REQUESTS; i += 1) await fetch(`http://127.0.0.1:${port}/api/v1/config`, { signal: requests }).then((response) => response.arrayBuffer(), () => undefined);
+        // A body that breaks part way rejects as it is read, as a fetch the entry refuses does: either ends that request, not the check.
+        for (let i = 0; i < DRAINED_REQUESTS; i += 1) await fetch(`http://127.0.0.1:${port}/api/v1/config`, { signal: requests }).then((response) => response.arrayBuffer()).catch(() => undefined);
         for (let i = 0; i < 100 && out.split(CONFIG_LINE).length - 1 < DRAINED_REQUESTS; i += 1) await new Promise((done) => { setTimeout(done, 20); });
         reader.end();
         reader.destroy();
-        setTimeout(() => { child.kill('SIGTERM'); }, 300);
+        // kill is false for a child that has ended: a case that stops the entry passes only a run it stopped.
+        setTimeout(() => { signalled = child.kill('SIGTERM'); }, 300);
       });
     });
+    if (!signalled) return `${endOf(r)} before it was stopped, stderr ${JSON.stringify(r.said.slice(0, 400))}`;
     return r.code === 0 && r.said === '' ? null : `${endOf(r)}, stderr ${JSON.stringify(r.said.slice(0, 400))}, expected exit 0 and nothing`;
   } finally {
     listener.close();
@@ -262,7 +267,8 @@ export async function servedFilled(entry) {
     const statuses = [];
     const r = await launch('bash', ['-c', 'trap "" XFSZ; ulimit -f 1; exec "$0" "$@"', process.execPath, entry], { env, stdout: out }, drive(log, prefill, async (port, child, requests) => {
       for (let i = 0; i < FILL_REQUESTS && child.exitCode === null; i += 1) {
-        statuses.push(await fetch(`http://127.0.0.1:${port}/api/v1/config`, { signal: requests }).then(async (response) => { await response.arrayBuffer(); return response.status; }, () => 0));
+        // An answer whose body breaks part way was not answered (0), as one whose fetch the entry refused.
+        statuses.push(await fetch(`http://127.0.0.1:${port}/api/v1/config`, { signal: requests }).then(async (response) => { await response.arrayBuffer(); return response.status; }).catch(() => 0));
       }
     }));
     closeSync(out);
@@ -305,11 +311,13 @@ export const CONFIG_LINE = '{"method":"GET","route":"/api/v1/config","status":20
 
 /**
  * Runs `entry` as the server on a SQLite store in a folder of its own, stalls its log's reader, sends REQUESTS requests, sends
- * `signal` twice and reads on; resolves with what went wrong, or null.
+ * `signal` twice and reads on; resolves with what went wrong, or null when it was still running when the first signal came, wrote
+ * every request's line after its listening line and exits 0 with nothing on stderr.
  */
 export async function stopped(entry, signal = 'SIGTERM') {
   const dir = mkdtempSync(join(tmpdir(), 'poncho-log-check-'));
   let out = '';
+  let signalled = false;
   try {
     const env = { ...PATH_ONLY, PONCHO_SERVER_PORT: '0', PONCHO_STORE: join(dir, 'store.db') };
     const r = await launch(process.execPath, ['--disable-warning=ExperimentalWarning', entry], { env, limitMs: LIMIT_MS * 2 }, (child, requests) => {
@@ -331,12 +339,14 @@ export async function stopped(entry, signal = 'SIGTERM') {
           // check goes on to the next case.
           return;
         }
-        child.kill(signal);
+        signalled = child.kill(signal);
         setTimeout(() => { child.kill(signal); }, 100);
         setTimeout(() => { child.stdout.resume(); }, 300);
       });
     });
-    const lines = out.split('\n').filter((line) => line.startsWith(CONFIG_LINE)).length;
+    // Only the lines of requests: those after the listening line, which come before any request is sent.
+    const lines = (out.split('"event":"listening"')[1] ?? '').split('\n').filter((line) => line.startsWith(CONFIG_LINE)).length;
+    if (!signalled) return `${endOf(r)} before it was stopped (its requests ended first), ${lines} of ${REQUESTS} request lines read, stderr ${JSON.stringify(r.said.slice(0, 400))}`;
     return r.code === 0 && r.said === '' && lines === REQUESTS ? null : `${endOf(r)}, ${lines} of ${REQUESTS} request lines read, stderr ${JSON.stringify(r.said.slice(0, 400))}`;
   } finally {
     rmSync(dir, { recursive: true, force: true });

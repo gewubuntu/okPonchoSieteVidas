@@ -89,9 +89,10 @@ export function toRequest(req: IncomingMessage): { readonly request: Request } |
     const headers = new Headers();
     // rawHeaders is name, value, name, value: always of even length.
     for (let i = 0; i < req.rawHeaders.length; i += 2) headers.append(req.rawHeaders[i] ?? '', req.rawHeaders[i + 1] ?? '');
-    // A GET and a HEAD have no body to read, nor has a request that declares none (no length and no chunks, or a length of 0), so
-    // nothing of it is left unread; any other's body is read from the stream as the handler asks for it.
-    const declares = req.headers['transfer-encoding'] !== undefined || (req.headers['content-length'] ?? '0') !== '0';
+    // A GET and a HEAD have no body to read, nor has a request that declares none (no length and no chunks, or a length of 0, as
+    // node reads '00' too: it has refused any length that is not all digits), so nothing of it is left unread; any other's body is
+    // read from the stream as the handler asks for it.
+    const declares = req.headers['transfer-encoding'] !== undefined || !/^0+$/.test(req.headers['content-length'] ?? '0');
     if (method === 'GET' || method === 'HEAD' || !declares) return { request: new Request(`${BASE}${target}`, { method, headers }) };
     return { request: new Request(`${BASE}${target}`, { method, headers, body: bodyOf(req), duplex: 'half' }) };
   } catch {

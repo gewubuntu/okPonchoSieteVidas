@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { baselineProblem, runLimited, testsRun, verdict } from './run-limited.mjs';
+import { baselineProblem, mutantVerdict, namesTestRunner, runLimited, testsRun, verdict } from './run-limited.mjs';
 
 describe('run-limited (L-064)', () => {
   const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
@@ -140,6 +140,10 @@ describe('run-limited (L-064)', () => {
     expect(verdict(run({ output: 'Running 0 tests\nError: No tests found\n' }))).toBe('no test');
     expect(verdict(run({ output: 'filter: x\nNo test files found, exiting with code 1\n' }))).toBe('no test');
     expect(verdict(run({ output: "  expect(text).toBe('Error: No tests found')\n  a test said: No test files found" }))).toBe('caught');
+    // A test that prints the words at the start of a line of its own output still ran: its run's summary says so.
+    expect(verdict(run({ status: 0, output: 'Running 1 test using 1 worker\nError: No tests found in the fixture\n  ✓  1 [desktop] › a.spec.ts:1:1 › pw (5ms)\n\n  1 passed (1.0s)\n' }))).toBe('survived');
+    expect(verdict(run({ output: 'stdout | a.test.ts > psi\nNo test files found in the fixture\n\n      Tests  1 failed | 22 skipped (23)\n' }))).toBe('caught');
+    expect(verdict(run({ output: 'No test files found, exiting with code 1\n      Tests  no tests\n' }))).toBe('no test');
     // Vitest colours the line when told to; the codes are no part of it.
     expect(verdict(run({ output: '\x1b[31mNo test files found, exiting with code 1\x1b[39m\n' }))).toBe('no test');
     expect(verdict(run({ output: '\x1b[1m\x1b[31mError: No tests found\x1b[0m' }))).toBe('no test');
@@ -151,6 +155,18 @@ describe('run-limited (L-064)', () => {
     // A stop or a failed start is told before the output is read, and a failed start before a stop.
     expect(verdict(run({ stopped: true, output: 'Error: No tests found' }))).toBe('stopped');
     expect(verdict(run({ started: false, stopped: true }))).toBe('not started');
+  });
+
+  it('reads a mutant\'s red run that reports more than one test as no kill: the mutant made the filter match others', () => {
+    const run = (over) => ({ started: true, status: 1, output: '      Tests  1 failed | 22 skipped (23)\n', stopped: false, ...over });
+    expect(mutantVerdict(run({}))).toBe('caught');
+    expect(mutantVerdict(run({ output: '      Tests  1 failed | 1 passed | 21 skipped (23)\n' }))).toBe('ran more');
+    expect(mutantVerdict(run({ output: 'Running 2 tests using 2 workers\n  1 failed\n  1 passed (1.0s)\n' }))).toBe('ran more');
+    // A run with no summary (a check script), and a module that throws as it loads (no test run), are read as verdict reads them.
+    expect(mutantVerdict(run({ output: 'the check failed\n' }))).toBe('caught');
+    expect(mutantVerdict(run({ output: '      Tests  no tests\n' }))).toBe('caught');
+    expect(mutantVerdict(run({ status: 0, output: '      Tests  2 passed (2)\n' }))).toBe('survived');
+    expect(mutantVerdict(run({ stopped: true, status: null }))).toBe('stopped');
   });
 });
 
@@ -164,6 +180,9 @@ describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
     expect(testsRun('Running 2 tests using 2 workers\n\n  ✓  1 [desktop] › e2e/block.spec.ts:3:1 › travels (5ms)\n  -  2 [phone] › e2e/block.spec.ts:3:1 › travels\n\n  1 skipped\n  1 passed (658ms)\n')).toBe(2);
     expect(testsRun('Running 2 tests using 2 workers\n·°\n  1 skipped\n  1 passed (629ms)\n')).toBe(2);
     expect(testsRun('Running 3 tests using 1 worker\n  1 failed\n  2 did not run\n')).toBe(3);
+    // Each Playwright run is counted on its own: one that skipped its only test ran none, beside one that ran one.
+    expect(testsRun('Running 1 test using 1 worker\n  1 passed (1.0s)\n\nRunning 1 test using 1 worker\n  1 skipped\n')).toBe(1);
+    expect(testsRun('Running 1 test using 1 worker\n  1 passed (1.0s)\n\nRunning 2 tests using 2 workers\n  1 skipped\n  1 passed (1.1s)\n')).toBe(3);
     // A summary of tests that did not run, or were cut short, ran none.
     expect(testsRun('Running 2 tests using 1 worker\n  2 did not run\n')).toBe(0);
     expect(testsRun('Running 1 test using 1 worker\n  1 interrupted\n')).toBe(0);
@@ -208,11 +227,37 @@ describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
   it('refuses a test runner\'s run whose summary is hidden, and takes a command of its own that prints none', () => {
     const run = (output) => ({ started: true, status: 0, output, stopped: false });
     const hidden = 'prints no summary of the tests it ran: keep the default reporter and its output';
-    for (const command of ['npx vitest run a.test.ts > /dev/null 2>&1', 'npx vitest run a.test.ts --reporter=json', 'npx playwright test e2e/a.spec.ts --reporter=json', 'npm t', 'npm run test:e2e', 'pnpm test', 'yarn test', 'bun test']) {
+    for (const command of ['npx vitest run a.test.ts > /dev/null 2>&1', 'npx vitest run a.test.ts --reporter=json', 'npx playwright test e2e/a.spec.ts --reporter=json', 'npm t', 'npm run test:e2e', 'pnpm test', 'yarn test', 'bun test', 'npm run-script test -- a.test.ts > /dev/null 2>&1', 'npm --silent test -- a.test.ts > /dev/null', 'npm tst -- a.test.ts > /dev/null', 'node --run test -- a.test.ts > /dev/null', 'npm run-script test:e2e -- -g . --reporter=json', 'npm run shots', 'pnpm shots', 'cd . && npm rum test:sight > /dev/null']) {
       expect(baselineProblem(run('{"numTotalTests":3}\n'), command), command).toBe(hidden);
     }
-    for (const command of ['node scripts/check.mjs', 'node scripts/server-log-check.mjs', 'npm run server:check', 'npm run typecheck', 'npm run lint']) {
+    for (const command of ['node scripts/check.mjs', 'node scripts/server-log-check.mjs', 'npm run server:check', 'npm run typecheck', 'npm run lint', 'npm run lint -- test', 'node --run typecheck']) {
       expect(baselineProblem(run('All checks passed.\n'), command), command).toBeNull();
     }
+  });
+
+  it('finds a test runner by name, or through the package scripts a command runs, in turn, whatever words ask for them', () => {
+    const scripts = { test: 'vitest run', a: 'npm run b', b: 'node x.mjs && npm run c', c: 'playwright test', loop: 'npm run loop', deep: 'npm run d1', d1: 'npm run d2', d2: 'npm run d3', d3: 'npm run d4', d4: 'npm run d5', d5: 'vitest run', plain: 'node x.mjs' };
+    expect(namesTestRunner('node node_modules/vitest/vitest.mjs run a', scripts)).toBe(true);
+    expect(namesTestRunner('npm run a', scripts)).toBe(true);
+    expect(namesTestRunner('yarn a', scripts)).toBe(true);
+    expect(namesTestRunner('X=1 /usr/bin/npm --silent t', scripts)).toBe(true);
+    expect(namesTestRunner('node --run a', scripts)).toBe(true);
+    expect(namesTestRunner('npm run plain; npm test', scripts)).toBe(true);
+    expect(namesTestRunner('npm run "a"', scripts)).toBe(true);
+    expect(namesTestRunner("npm run 'a'", scripts)).toBe(true);
+    expect(namesTestRunner('node --run=a', scripts)).toBe(true);
+    expect(namesTestRunner('node --runner a', scripts)).toBe(false);
+    expect(namesTestRunner('npm run "a', scripts)).toBe(false);
+    // A script that runs itself ends at the depth bound; one five scripts deep is past it.
+    expect(namesTestRunner('npm run loop', scripts)).toBe(false);
+    expect(namesTestRunner('npm run d1', scripts)).toBe(true);
+    expect(namesTestRunner('npm run deep', scripts)).toBe(false);
+    // Words after `--` are the script's own arguments; a word no script has, and node with no --run, name none.
+    expect(namesTestRunner('npm run plain -- test', scripts)).toBe(false);
+    // Each command of a line is read on its own: one after another's `--` is read whole.
+    for (const between of [';', '&&', '||', '|', '&', '\n', ' (', ')']) expect(namesTestRunner(`npm run plain -- x${between} npm test`, scripts), between).toBe(true);
+    expect(namesTestRunner('npm run nothing', scripts)).toBe(false);
+    expect(namesTestRunner('node test', scripts)).toBe(false);
+    expect(namesTestRunner('npm run constructor', scripts)).toBe(false);
   });
 });

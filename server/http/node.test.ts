@@ -390,7 +390,7 @@ describe('GDD-TEC-10 adapter: CONNECT, a throw, a log that throws', () => {
   it('a request that declares no body is refused unread with its connection kept: nothing of it lies unread', async () => {
     const { server } = await served();
     try {
-      for (const head of ['POST /zz HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n', 'DELETE /zz HTTP/1.1\r\nHost: x\r\n\r\n']) {
+      for (const head of ['POST /zz HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n', 'POST /zz HTTP/1.1\r\nHost: x\r\nContent-Length: 00\r\n\r\n', 'DELETE /zz HTTP/1.1\r\nHost: x\r\n\r\n']) {
         const answered = await exchange(server.port, [`${head}${GET_ECHO}`], { ms: 1500 });
         expect(statuses(answered.text), head).toEqual([404, 200]);
         expect(answered.text, head).not.toContain('connection: close');
