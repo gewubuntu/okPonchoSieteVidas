@@ -233,6 +233,11 @@ describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
       "npx playwright test e2e/pause.spec.ts -g 'tap' --project desktop",
       'node scripts/server-log-check.mjs server/dist/main.js',
       'node scripts/check.mjs',
+      // Taken on main, and still needed (L-108): the bundle's own check, and the gate's other configs.
+      'npm run server:check',
+      "npx vitest run -c vitest.abilities.config.ts src/sim/movement.test.ts -t 'x'",
+      "npx vitest run -c vitest.glide.config.ts src/levels/level1-1.test.ts -t 'x'",
+      "npx vitest run -c vitest.sight.config.ts src/levels/sight.test.ts -t 'x'",
     ]) expect(commandProblem(command), command).toBeNull();
     for (const command of [
       "npx vitest run server/http/node.test.ts -t 'x' > /dev/null", "npx vitest run server/http/node.test.ts -t 'x' --reporter=json",
@@ -241,6 +246,8 @@ describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
       "npx playwright test e2e/a.spec.ts -g 'x'", "npx playwright test e2e/a.spec.ts -g 'x' --project desktop --reporter=json",
       'npm test', 'npm run -- test', 'node --no-warnings --run test', 'npm tes', '$(which npm) test', 'node scripts/check.mjs > /dev/null',
       'node scripts/x.mjs; npm test', 'node scripts/x.mjs $(npm test)', 'node node_modules/vitest/vitest.mjs run a.test.ts', 'sh -c "npm test"',
+      "npx vitest run -c other.config.ts a.test.ts -t 'x'", "npx vitest run a.test.ts -c vitest.sight.config.ts -t 'x'", 'npm run server:check > /dev/null',
+      'npm run server:check && npm test', 'npm run server:build',
     ]) expect(commandProblem(command), command).not.toBeNull();
   });
 

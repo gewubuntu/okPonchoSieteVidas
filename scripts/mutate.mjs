@@ -11,9 +11,10 @@
 // run it again. Nor is a mutant whose red run reports more than one test (RAN MORE, `mutantVerdict` in scripts/run-limited.mjs):
 // it made the filter match others than the one test it names, as by renaming tests or building them from its data (L-026).
 // A mutant's own `test` replaces the file's, so each mutant can run against the one test that must kill it (L-026). Each command
-// must be one of three forms, with no other part of the shell (`commandProblem` in scripts/run-limited.mjs): `npx vitest run
-// <file> -t '<name>'`, `npx playwright test <spec> -g '<name>' --project <project>`, or `node scripts/<check>.mjs` with plain
-// arguments. It is then run once on the unmutated code: one that fails there, finds no test, or runs other than one test by its
+// must be one of four forms, with no other part of the shell (`commandProblem` in scripts/run-limited.mjs): `npx vitest run
+// <file> -t '<name>'` (with `-c vitest.<abilities|glide|sight>.config.ts` before the file for a rule only that config tests),
+// `npx playwright test <spec> -g '<name>' --project <project>`, `npm run server:check` (for what only the bundle tests, as
+// server/main.ts), or `node scripts/<check>.mjs` with plain arguments. It is then run once on the unmutated code: one that fails there, finds no test, or runs other than one test by its
 // Vitest or Playwright summary is refused, reported REFUSED and its mutants counted as not caught, since a run of more counts a
 // kill by any test in it (`baselineProblem`). A check script that reports no tests is taken as it stands; the gate prints its
 // test runs' summaries, so it is refused. Three limits of the summary: one printed twice (a test whose own output holds summary
@@ -111,8 +112,8 @@ for (const m of mutants) {
   writeFileSync(MARKER, JSON.stringify({ file: m.file, original }));
   try {
     writeFileSync(path, mutated);
-    // PONCHO_MUTATING tells scripts/check.mjs not to fail on this run's own marker: a test that runs the gate with its output sent
-    // away (taken, as it shows no summary) would otherwise go red on the marker alone, a kill the mutant did not make.
+    // PONCHO_MUTATING tells scripts/check.mjs not to fail on this run's own marker: a test that runs the gate as a child process
+    // would otherwise go red on the marker alone, a kill the mutant did not make.
     const r = await runLimited(m.test ?? test, { cwd: ROOT, env: { ...process.env, PONCHO_MUTATING: '1' }, seconds: timeout });
     const says = mutantVerdict(r);
     if (says !== 'caught') survived++;

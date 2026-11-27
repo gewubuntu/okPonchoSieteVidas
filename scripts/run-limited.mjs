@@ -103,13 +103,18 @@ export function testsRun(output) {
   return total;
 }
 
-// The forms a mutant's test is written in (L-026, harness-feature step 7): one Vitest test of one file, one playtest in one project,
-// or a check script with plain arguments. A name is in single quotes, which the shell reads as written; anything else of the shell
-// (a redirect, a pipe, a second command, a substitution, another quote) is outside these forms, so no command can hide a run.
+// The forms a mutant's test is written in (L-026, harness-feature step 7): one Vitest test of one file, under the default config or
+// one of the three the gate runs too (a rule only every ability on, the glide or the sight sweep tests); one playtest in one
+// project; the server's check, which rebuilds the bundle (server/main.ts is tested only there, L-010); or a check script with plain
+// arguments. A name is in single quotes, which the shell reads as written; anything else of the shell (a redirect, a pipe, a second
+// command, a substitution, another quote) is outside these forms, so no command written in them can hide its own run's summary or
+// chain a second command. A test in the named file could still start a run of its own: the guard is for the command written by
+// mistake.
 const NAME = "'[^']*'";
 const FORMS = [
-  new RegExp(`^npx vitest run [\\w./-]+\\.test\\.(ts|mjs) -t ${NAME}$`),
+  new RegExp(`^npx vitest run( -c vitest\\.(abilities|glide|sight)\\.config\\.ts)? [\\w./-]+\\.test\\.(ts|mjs) -t ${NAME}$`),
   new RegExp(`^npx playwright test [\\w./-]+\\.spec\\.ts -g ${NAME} --project [\\w-]+$`),
+  /^npm run server:check$/,
   /^node scripts\/[\w-]+\.mjs( [\w./=:@-]+)*$/,
 ];
 
@@ -117,7 +122,7 @@ const FORMS = [
 export function commandProblem(command) {
   return FORMS.some((form) => form.test(command))
     ? null
-    : "is none of the forms a mutant's test is written in: npx vitest run <file> -t '<name>', npx playwright test <spec> -g '<name>' --project <project>, or node scripts/<check>.mjs with plain arguments";
+    : "is none of the forms a mutant's test is written in: npx vitest run [-c vitest.<abilities|glide|sight>.config.ts] <file> -t '<name>', npx playwright test <spec> -g '<name>' --project <project>, npm run server:check, or node scripts/<check>.mjs with plain arguments";
 }
 
 /**
