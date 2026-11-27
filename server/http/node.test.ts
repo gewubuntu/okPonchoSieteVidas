@@ -161,6 +161,9 @@ describe('GDD-TEC-10 adapter: the socket', () => {
       expect(echoed.headers['set-cookie']).toEqual(['a=1; Path=/api', 'b=2']);
       expect(echoed.headers['content-type']).toBe('application/json; charset=utf-8');
       expect(echoed.headers['cache-control']).toBe('no-store');
+      // An answer goes out whole, its length given, never in chunks (writeWhole).
+      expect(echoed.headers['content-length']).toBe(String(Buffer.byteLength(echoed.text)));
+      expect(echoed.headers['transfer-encoding']).toBeUndefined();
       // A GET and a HEAD have no body to read: they reach the app too.
       const got = await ask(port, { method: 'GET', path: '/echo' });
       expect(got.status).toBe(200);
@@ -293,6 +296,7 @@ describe('GDD-TEC-10 adapter: CONNECT, a throw, a log that throws', () => {
       const answer = await ask(server.port, { method: 'GET', path: '/throw' });
       expect(answer.status).toBe(500);
       expect(answer.text).toBe('{"error":"server error"}');
+      expect(answer.headers['content-length']).toBe(String(answer.text.length));
       expect(answer.headers['content-type']).toBe('application/json; charset=utf-8');
       expect(answer.headers['cache-control']).toBe('no-store');
       expect(log).toEqual([{ method: 'GET', route: '(none)', status: 500 }]);
@@ -675,6 +679,32 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
     }
   }, 6000);
 
+  it('nothing more is read once node gave up on bytes it could not read: what the client sends after them stays with the client', async () => {
+    const { server } = await served();
+    try {
+      // Read on, node would say so again for each read, and each would queue work behind /slower (L-106); unread, the bytes fill the
+      // socket's buffers on both ends, and the rest waits in the client's own.
+      const left = await new Promise<{ text: string; unsent: number }>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port });
+        const parts: Buffer[] = [];
+        let unsent = -1;
+        socket.on('data', (part: Buffer) => parts.push(part));
+        socket.on('error', () => { /* the server's close */ });
+        socket.on('close', () => { resolve({ text: Buffer.concat(parts).toString('latin1'), unsent }); });
+        socket.write('GET /slower HTTP/1.1\r\nHost: x\r\n\r\nBAD\x01 / HTTP/1.1\r\n\r\n');
+        const chunk = Buffer.alloc(64 << 10, 0x78);
+        setTimeout(() => { for (let i = 0; i < 512; i += 1) socket.write(chunk); }, 50);
+        setTimeout(() => { unsent = socket.writableLength; }, 400);
+        setTimeout(() => { socket.destroy(); }, 3000);
+      });
+      expect(statuses(left.text)).toEqual([200, 400]);
+      // 32 MiB written; loopback's buffers hold a few MiB, so most of it is still the client's at 400 ms if the server reads none.
+      expect(left.unsent).toBeGreaterThan(16 << 20);
+    } finally {
+      await server.close();
+    }
+  }, 6000);
+
   it('bad bytes that go on after node gave up are answered once, with one line', async () => {
     const { server, log } = await served();
     try {
@@ -806,7 +836,8 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
   it('an answer read whole by a client that resets at once leaves its line, however soon the reset comes', async () => {
     const { server, log } = await served();
     try {
-      for (let i = 0; i < 8; i += 1) {
+      // With the end written in the same turn as the answer, node 24 lost a line in every run of eight (node 22 emits 'finish' all the same).
+      for (let i = 0; i < 24; i += 1) {
         await new Promise<void>((resolve) => {
           const socket = connect({ host: '127.0.0.1', port: server.port });
           let got = 0;
@@ -828,7 +859,7 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
         });
       }
       await wait(100);
-      expect(log).toHaveLength(8);
+      expect(log).toHaveLength(24);
     } finally {
       await server.close();
     }

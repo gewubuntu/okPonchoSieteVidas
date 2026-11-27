@@ -9,7 +9,10 @@
 // A mutant's test is stopped after `timeout` seconds (300 unless given), with its process group (scripts/run-limited.mjs):
 // a mutant that makes a loop endless would hang the whole run (L-064). A stopped mutant is not caught: bound the loop and
 // run it again.
-// A mutant's own `test` replaces the file's, so each mutant can run against the one test that must kill it (L-026).
+// A mutant's own `test` replaces the file's, so each mutant can run against the one test that must kill it (L-026). A Vitest or
+// Playwright command must name that test (-t, -g): a run of a whole file counts a kill by any test in it, so a mutant run so is
+// refused, reported WHOLE FILE and counted as not caught (`namesOneTest` in scripts/mutant-suggest.mjs). The gate or a check
+// script may be a mutant's test as it stands.
 // `from` must occur exactly once in the file, and the file must still parse with the mutant in it (L-103). Before each mutant the original is saved to .mutating.json; it is put back
 // after the mutant, and the marker deleted. If the run is killed the marker stays, and scripts/check.mjs fails until
 // `--restore` has run, so a mutation can never be committed.
@@ -18,7 +21,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { breaksSyntax, occurrences } from './mutant-suggest.mjs';
+import { breaksSyntax, namesOneTest, occurrences } from './mutant-suggest.mjs';
 import { runLimited, verdict } from './run-limited.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -71,6 +74,11 @@ for (const m of mutants) {
   // A mutant with no test of its own and none for the file (as --suggest writes them) is not run: it has no command to run.
   if (!(m.test ?? test)) {
     console.log(`NO TEST ${m.name}: name the one test that must kill it`);
+    survived++;
+    continue;
+  }
+  if (!namesOneTest(m.test ?? test)) {
+    console.log(`WHOLE FILE ${m.name}: its test command runs more than one test; name the one that must kill it (-t, -g), L-026`);
     survived++;
     continue;
   }

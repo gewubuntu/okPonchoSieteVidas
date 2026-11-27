@@ -73,6 +73,18 @@ export function changedLines(diff) {
   return files;
 }
 
+/** A command that runs Vitest or Playwright, by name or through a test script (`npm test`, `npm run test:e2e`, `pnpm test`). */
+const TEST_RUNNER = /(vitest|playwright)(\s|$)|npm\s+(run\s+)?test/;
+/** Vitest's and Playwright's filters on a test's name, each a word of its own. */
+const NAME_FILTER = /\s(-t|-g|--testNamePattern|--grep)(=|\s)/;
+
+/**
+ * Whether a mutant's test command runs only the test that must kill it (L-026): a Vitest or Playwright command names that test
+ * with a filter on its name, or a run of the whole file counts a kill by any other test in it. Any other command (the gate, a
+ * check script) is the mutant's own test as it stands.
+ */
+export const namesOneTest = (command) => !TEST_RUNNER.test(command) || NAME_FILTER.test(command);
+
 /** How often `part` stands in `text`, places that overlap counted too (three equal lines hold a pair of them twice); never for the empty text. */
 export function occurrences(text, part) {
   // The empty text stands everywhere, and searching on for it would never end (L-064).

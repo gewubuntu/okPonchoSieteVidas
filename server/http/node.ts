@@ -101,20 +101,17 @@ export function toRequest(req: IncomingMessage): { readonly request: Request } |
  * closes the connection. Known and not done: a client still sending then may lose the answer to the connection's reset (the lingering
  * close of RFC 9112, 9.6); the game's own client never sends a body that is refused unread.
  */
-/** The answers whose bytes the socket took whole while it was still there: only those leave a line (answerInTurn). */
-const delivered = new WeakSet<ServerResponse>();
-
 /**
- * Writes `body` as `res`'s whole answer, its length given, and marks `res` delivered once the socket has taken all of it, if it is
- * still there then. Node calls a write back with no error also when the socket was destroyed first, and its 'finish' comes then too,
- * so neither tells an answer that went out from one cut off; nor does an error the socket holds by 'finish', which a client that read
- * everything and reset at once leaves there.
+ * Writes `body` as `res`'s whole answer, its length given, in one write with nothing after it, so node's 'finish' comes on the turn
+ * the socket has taken it all (answerInTurn). An end in the same turn adds an empty piece to that write. What the socket cannot take
+ * at once is written on later turns of the loop, an empty last piece too, and a client that has read the answer and reset by then
+ * makes that piece fail, and with it the whole write: node 22 then emits 'finish' with the socket destroyed, and node 24 none. So the
+ * end waits for the write. Node drops an empty piece it can write at once, so an empty body needs nothing of its own, and it writes no
+ * body for a HEAD, a 204 or a 304, calling the write back at once (L-025).
  */
 function writeWhole(res: ServerResponse, body: Buffer | string): void {
-  const socket = res.socket;
   res.setHeader('content-length', String(Buffer.byteLength(body)));
-  res.write(body, () => { if (socket !== null && !socket.destroyed) delivered.add(res); });
-  res.end();
+  res.write(body, () => { res.end(); });
 }
 
 export async function send(res: ServerResponse, response: Response): Promise<void> {
@@ -146,7 +143,7 @@ async function answerOf(app: App, req: IncomingMessage): Promise<Response> {
 
 /**
  * The adapter's own 500, when a request could not be answered: nothing is known of why, so nothing of it is said, and the connection is
- * not kept. Nothing has been sent by then: `send` writes the headers in its last call, `res.end`, and nothing after it can throw (L-025).
+ * not kept. Nothing has been sent by then: `send` writes the headers in its last call, `writeWhole`, and nothing after it can throw (L-025).
  */
 function lastResort(res: ServerResponse): void {
   res.statusCode = 500;
@@ -249,6 +246,9 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
   };
   /** Ends `socket` with `bytes` and destroys it, logging `line` once they are written. A socket already ended or gone gets nothing. */
   const finish = (socket: Duplex, bytes: Buffer, line: RequestLog): void => {
+    // Node still reports a request timeout after bytes it could not read, so a second raw answer can come while the first is going
+    // out: ending the socket again would destroy it under that answer. A kept survivor: no test here can hold an answer of about 200
+    // bytes in the socket's buffers.
     if (!socket.writable) return;
     // The connection now waits for this answer to go out, under its deadline, not for a next request.
     clearTimeout(connectionOf(socket).kept);
@@ -273,9 +273,10 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
         res.once('close', done);
       });
       let line: RequestLog | undefined;
-      // Node emits 'finish' also when the connection is destroyed with the answer still going out (a reset, the deadline, close()):
-      // only an answer the socket took whole while it was there leaves its line (writeWhole).
-      res.once('finish', () => { if (line !== undefined && delivered.has(res)) note(line); });
+      // Node 22 emits 'finish' also when the connection is destroyed with the answer still going out (a reset, the deadline, close()),
+      // and node 24 none then; an answer that went out whole finds its socket there, since its 'finish' follows the write at once
+      // (writeWhole). Node's own 'finish' listener, before this one, only ends a connection the answer closes (L-025).
+      res.once('finish', () => { if (line !== undefined && !socket.destroyed) note(line); });
       try {
         const response = await answerOf(app, req);
         line = lineOf(response);
@@ -326,8 +327,8 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
     const line: RequestLog = { method: '(other)', route: '(none)', status };
     const running = connection.running;
     if (running !== null && !running.req.complete) {
-      // An answer already written for it closes the connection (`send`): nothing more is sent.
-      if (!running.res.writableEnded) finish(socket, rawAnswer(status, reason), line);
+      // An answer already started for it closes the connection (`send`): nothing more is sent, also while it is still going out.
+      if (!running.res.headersSent) finish(socket, rawAnswer(status, reason), line);
       return;
     }
     // The one answer waiting behind the turns (nothing more is read, so no second comes), not counted toward UNANSWERED_LIMIT: 16
