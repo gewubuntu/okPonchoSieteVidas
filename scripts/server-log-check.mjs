@@ -10,6 +10,9 @@
 //     rest): node's own stream for a file drops the count of a short write, so the line must come out as EFBIG, exit 1;
 //   - --check that finds a problem (its site's origin set to the one its probe asks from as another): exit 1 with that one problem;
 //   - the server whose log's reader goes away while it serves, then asked once: exit 1 with the one line;
+//   - the server whose log is a file that fills up in the middle of its fourth request line while it serves, asked once at a time: it
+//     answers those four and stops on the line it could not write, exit 1 with the one line, EFBIG (one that lets node's file stream
+//     drop the short write serves a fifth);
 //   - the server on a SQLite store, stopped by SIGTERM and again by SIGINT, each signal sent twice 100 ms apart while its log's reader
 //     has stalled: every request's line still reaches the reader, and it exits 0 with nothing on stderr. Node's warning that SQLite
 //     is experimental is turned off for that run.
@@ -17,7 +20,7 @@
 // boot. Each runs in a process group of its own, and at its limit the group is killed and the case fails, also when a process it left
 // behind still holds its pipes. Each run takes the entry it starts, so scripts/server-log-check.test.mjs can hand it entries that break
 // each rule.
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { closeSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -102,9 +105,9 @@ export async function filled(entry) {
   try {
     const measured = join(dir, 'measured');
     const once = openSync(measured, 'w');
-    const first = spawnSync(process.execPath, [entry, '--check'], { cwd: ROOT, env: PATH_ONLY, stdio: ['ignore', once, 'ignore'], timeout: LIMIT_MS });
+    const first = await launch(process.execPath, [entry, '--check'], { env: PATH_ONLY, stdout: once });
     closeSync(once);
-    if (first.status !== 0) return `with its log a file with room, exit ${first.status ?? first.signal}, expected 0`;
+    if (first.code !== 0) return `with its log a file with room, ${endOf(first)}, expected exit 0`;
     const text = readFileSync(measured, 'latin1');
     const last = text.length - 1 - text.lastIndexOf('\n', text.length - 2);
     const log = join(dir, 'log');
@@ -122,6 +125,59 @@ export async function filled(entry) {
 
 /** The port in the listening line of `out`, once it is there. */
 const portIn = (out) => /"event":"listening","port":(\d+)/.exec(out)?.[1];
+
+/** The most requests the file case sends before it takes the server for one that never stops. */
+const FILL_REQUESTS = 40;
+/** The request whose line the file case's limit cuts: the server must stop on it, after answering it. */
+const CUT_LINE = 4;
+
+/**
+ * Runs `entry` as the server once with its log a file with room, to learn how much it writes up to its listening line, then again
+ * with its log a file whose 1 KiB limit falls in the middle of request line CUT_LINE after that; reads the port from the file and asks
+ * it once at a time until it stops. Resolves with what went wrong, or null when it answered exactly CUT_LINE requests, each 200, and
+ * exits 1 with exactly the EFBIG line.
+ */
+export async function servedFilled(entry) {
+  const dir = mkdtempSync(join(tmpdir(), 'poncho-log-check-'));
+  const env = { ...PATH_ONLY, PONCHO_SERVER_PORT: '0' };
+  /** Calls `ask(port)` once the listening line is in `file`, read from `from` on; stops the child if it is still running after. */
+  const drive = (file, from, ask) => async (child) => {
+    let port;
+    for (let i = 0; i < 300 && port === undefined && child.exitCode === null; i += 1) {
+      await new Promise((done) => { setTimeout(done, 20); });
+      port = portIn(readFileSync(file, 'latin1').slice(from));
+    }
+    if (port !== undefined) await ask(port, child);
+    if (child.exitCode === null) child.kill('SIGTERM');
+  };
+  try {
+    const roomy = join(dir, 'roomy');
+    const once = openSync(roomy, 'w');
+    await launch(process.execPath, [entry], { env, stdout: once }, drive(roomy, 0, async () => undefined));
+    closeSync(once);
+    const booted = readFileSync(roomy, 'latin1');
+    if (portIn(booted) === undefined) return 'with its log a file with room, it never wrote its listening line';
+    const upToListening = booted.indexOf('\n', booted.indexOf('"event":"listening"')) + 1;
+    const room = upToListening + Math.round((CONFIG_LINE.length + 1) * (CUT_LINE - 0.5));
+    const log = join(dir, 'log');
+    const prefill = Math.max(0, FILE_LIMIT - room);
+    writeFileSync(log, '#'.repeat(prefill));
+    const out = openSync(log, 'a');
+    const statuses = [];
+    const r = await launch('bash', ['-c', 'trap "" XFSZ; ulimit -f 1; exec "$0" "$@"', process.execPath, entry], { env, stdout: out }, drive(log, prefill, async (port, child) => {
+      for (let i = 0; i < FILL_REQUESTS && child.exitCode === null; i += 1) {
+        statuses.push(await fetch(`http://127.0.0.1:${port}/api/v1/config`).then(async (response) => { await response.arrayBuffer(); return response.status; }, () => 0));
+      }
+    }));
+    closeSync(out);
+    const answered = statuses.slice(0, statuses.indexOf(0) === -1 ? statuses.length : statuses.indexOf(0));
+    if (answered.length !== CUT_LINE || answered.some((status) => status !== 200)) return `${endOf(r)} after ${answered.length} answers, expected ${CUT_LINE}: ${JSON.stringify(statuses)}`;
+    const expected = 'the log cannot be written (EFBIG)\n';
+    return r.code === 1 && r.said === expected ? null : `${endOf(r)} after ${answered.length} answers, stderr ${JSON.stringify(r.said.slice(0, 400))}, expected exit 1 and ${JSON.stringify(expected)}`;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 /**
  * Runs `entry` as the server, reads it up to its listening line, then leaves its log and asks it once; resolves with what went wrong,
@@ -191,6 +247,7 @@ export async function main(entry, print = { ok: console.log, fail: console.error
     ['a log on a file that fills up in the middle of a line stops the server with one line', () => filled(entry)],
     ['a check that finds a problem exits 1 with that one line', () => failed(entry)],
     ['a server whose log\'s reader leaves while it serves stops with one line', () => served(entry)],
+    ['a server whose log is a file that fills up while it serves stops on the line it could not write, with one line', () => servedFilled(entry)],
     ['a server stopped twice by SIGTERM while its log\'s reader stalls writes every line first, and exits 0', () => stopped(entry, 'SIGTERM')],
     ['a server stopped twice by SIGINT while its log\'s reader stalls writes every line first, and exits 0', () => stopped(entry, 'SIGINT')],
   ];

@@ -13,11 +13,34 @@ const require = createRequire(import.meta.url);
 /** The language a file is read in, by its extension: TypeScript (`.ts`, `.mts`, `.cts`), TSX, JSX, else a plain module. */
 export const langOf = (path) => (/\.tsx$/i.test(path) ? 'tsx' : /\.jsx$/i.test(path) ? 'jsx' : /\.[cm]?ts$/i.test(path) ? 'ts' : 'js');
 
+/** The regular expression literals of a parsed program that V8 would refuse to make (`/\d++/`, a group named twice), as errors. */
+export function badRegexes(program) {
+  const errors = [];
+  const walk = (node) => {
+    if (Array.isArray(node)) node.forEach(walk);
+    else if (node !== null && typeof node === 'object') {
+      if (node.regex !== undefined) {
+        try {
+          new RegExp(node.regex.pattern, node.regex.flags);
+        } catch (error) {
+          errors.push({ message: error.message });
+        }
+      }
+      for (const key of Object.keys(node)) if (key !== 'regex') walk(node[key]);
+    }
+  };
+  walk(program);
+  return errors;
+}
+
 /**
- * Vite's parser, with the checks V8 makes when it loads a module (a `break` outside a loop, a name declared twice): a mutant that
- * fails them parses, then fails to load, and every test goes red for that (L-103).
+ * Vite's parser, with the checks V8 makes when it loads a module (a `break` outside a loop, a name declared twice, a regular
+ * expression it cannot make): a mutant that fails them parses, then fails to load, and every test goes red for that (L-103).
  */
-const viteParse = (path, text) => require('vite').parseSync(path, text, { lang: langOf(path), showSemanticErrors: true });
+const viteParse = (path, text) => {
+  const parsed = require('vite').parseSync(path, text, { lang: langOf(path), showSemanticErrors: true });
+  return { ...parsed, errors: [...parsed.errors, ...badRegexes(parsed.program)] };
+};
 
 /**
  * Whether a mutant of `original` into `mutated` breaks the file's syntax: the file parsed before and does not after. Such a

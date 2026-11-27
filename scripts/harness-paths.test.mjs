@@ -148,6 +148,9 @@ describe('harness-paths (L-013)', () => {
       expect(there('server/dist/')).toBe(false);
       expect(there('docs/kept/')).toBe(true);
       expect(there('docs/empty/')).toBe(false);
+      // One that leaves the repository is in no checkout, though it is on this disk beside it.
+      expect(there('assets/../../poncho-art/')).toBe(false);
+      expect(there('docs/../../outside/notes.txt')).toBe(false);
     });
 
     it('asks git whether a folder holds a file it tracks or would track: an empty folder, or one of ignored files only, holds none', () => {

@@ -64,8 +64,9 @@ const reads: (string | number)[] = [];
 /**
  * What the adapter hands its requests to: /echo gives back what reached it, /limited reads the body under the limit, /slow answers after
  * 100 ms and /slower after 600 ms, /big answers BIG bytes, /bignope refuses BIG bytes unread, /nope-late refuses unread after a wait,
- * /throw rejects and /throw-late rejects after 200 ms, /lined answers after 200 ms with a line of its own. Only /lined's answer carries a
- * line, so the log holds the adapter's lines and /lined's.
+ * /throw rejects and /throw-late rejects after 200 ms, /lined answers after 200 ms with a line of its own, and /biglined answers BIG
+ * bytes with one, and /cancel-big gives up on its body and answers BIG bytes with one. Only those three carry a line, so the log
+ * holds the adapter's lines and theirs.
  */
 const stub: App = async (request) => {
   const path = new URL(request.url).pathname;
@@ -101,6 +102,11 @@ const stub: App = async (request) => {
   if (path === '/lined') {
     await wait(200);
     return withLine(json(200, {}), { method: 'GET', route: '/lined', status: 200 });
+  }
+  if (path === '/biglined') return withLine(new Response(new Uint8Array(BIG), { status: 200 }), { method: 'GET', route: '/biglined', status: 200 });
+  if (path === '/cancel-big') {
+    await request.body?.cancel();
+    return withLine(new Response(new Uint8Array(BIG), { status: 200 }), { method: 'POST', route: '/cancel-big', status: 200 });
   }
   return refuse(404, 'no such route');
 };
@@ -634,6 +640,20 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
     }
   }, 6000);
 
+  it('a request whose declared body has not come when it is answered closes the connection: what comes next is never read as a request', async () => {
+    const { server } = await served();
+    try {
+      for (const [head, status] of [['GET /echo', 200], ['TRACE /echo', 405], ['POST /echo', 417]] as const) {
+        const expect417 = status === 417 ? 'Expect: zz\r\n' : '';
+        const answered = await exchange(server.port, [`${head} HTTP/1.1\r\nHost: x\r\n${expect417}Content-Length: 40\r\n\r\n`, GET_ECHO], { gap: 100 });
+        expect(statuses(answered.text), head).toEqual([status]);
+        expect(answered.closedByServer, head).toBe(true);
+      }
+    } finally {
+      await server.close();
+    }
+  }, 8000);
+
   it('a POST refused unread after a wait closes the connection, though its body has moved on to the stream the app was handed', async () => {
     const { server } = await served();
     try {
@@ -669,6 +689,60 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
       await server.close();
     }
   }, 5000);
+
+  it('an answer cut off as it goes out leaves no line: by the deadline, by a reset, or by close()', async () => {
+    const { server, log } = await served(stub, IDLE);
+    try {
+      // The client reads nothing for 1 s, so BIG bytes never go out whole; the deadline cuts them at 300 ms. Then it reads to the close.
+      const cut = await exchange(server.port, ['GET /biglined HTTP/1.1\r\nHost: x\r\n\r\n'], { paused: 1000, ms: 4000 });
+      expect(cut.closedByServer).toBe(true);
+      expect(cut.text.length).toBeLessThan(BIG);
+      await new Promise<void>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port });
+        socket.on('error', () => { /* the reset is this end's own */ });
+        socket.on('close', () => { resolve(); });
+        socket.pause();
+        socket.write('GET /biglined HTTP/1.1\r\nHost: x\r\n\r\n', () => { setTimeout(() => { socket.resetAndDestroy(); }, 100); });
+      });
+      await wait(100);
+      expect(log).toEqual([]);
+    } finally {
+      await server.close();
+    }
+    const { server: closing, log: closed } = await served();
+    const held = connect({ host: '127.0.0.1', port: closing.port });
+    held.on('error', () => { /* close() ends it */ });
+    held.pause();
+    held.write('GET /biglined HTTP/1.1\r\nHost: x\r\n\r\n');
+    await wait(150);
+    await closing.close();
+    await wait(50);
+    expect(closed).toEqual([]);
+    // Read whole, the same answer leaves its line.
+    const { server: whole, log: wholeLog } = await served();
+    try {
+      expect((await ask(whole.port, { method: 'GET', path: '/biglined' })).status).toBe(200);
+      // The client may have all of it a few ms before the server's 'finish', and may close at once: the line still comes.
+      await wait(100);
+      expect(wholeLog).toEqual([{ method: 'GET', route: '/biglined', status: 200 }]);
+    } finally {
+      await whole.close();
+    }
+  }, 10000);
+
+  it('an app that gives up on its body leaves the answer its socket: the deadline cuts it, and the server goes on serving', async () => {
+    const { server, log } = await served(stub, IDLE);
+    try {
+      const cut = await exchange(server.port, ['POST /cancel-big HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{}'], { paused: 1000, ms: 4000 });
+      expect(cut.closedByServer).toBe(true);
+      expect(statuses(cut.text)).toEqual([200]);
+      expect(cut.text).toContain('connection: close');
+      expect(log).toEqual([]);
+      expect((await ask(server.port, { method: 'GET', path: '/echo' })).status).toBe(200);
+    } finally {
+      await server.close();
+    }
+  }, 8000);
 
   it('an Expect: 100-continue alone gets its 100 Continue; one that names it among other words gets none, and a 417', async () => {
     const { server } = await served();
@@ -956,6 +1030,7 @@ const EVERY_ANSWER: readonly (readonly [string, string, readonly number[]])[] = 
   ['two pipelined GETs', 'GET /api/v1/config HTTP/1.1\r\nHost: x\r\n\r\nGET /api/v1/config HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n', [200, 200]],
   ['a GET behind an answer that closes', 'GET /api/v1/config HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\nGET /api/v1/config HTTP/1.1\r\nHost: x\r\n\r\n', [200]],
   ['an HTTP/1.0 GET with bytes after it', 'GET /api/v1/config HTTP/1.0\r\nHost: x\r\n\r\nGET /api/v1/config HTTP/1.0\r\nHost: x\r\n\r\n', [200]],
+  ['a GET with an empty chunked body and a trailer, then another', 'GET /api/v1/config HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nX-T: 1\r\n\r\nGET /api/v1/config HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n', [200, 200]],
   ['a target that reads two ways', 'GET /api/v1/x/../config HTTP/1.1\r\nHost: x\r\n\r\n', [400]],
   ['TRACE', 'TRACE /api/v1/config HTTP/1.1\r\nHost: x\r\n\r\n', [405]],
   ['CONNECT', 'CONNECT api.invalid:443 HTTP/1.1\r\nHost: x\r\n\r\n', [405]],

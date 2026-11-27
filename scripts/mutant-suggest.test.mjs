@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOUNDS, breaksSyntax, changedCode, changedLines, covered, langOf, occurrences, suggest } from './mutant-suggest.mjs';
+import { badRegexes, BOUNDS, breaksSyntax, changedCode, changedLines, covered, langOf, occurrences, suggest } from './mutant-suggest.mjs';
 
 describe('mutant-suggest (L-010)', () => {
   const all = (text) => new Set(text.split('\n').map((_, i) => i + 1));
@@ -142,6 +142,16 @@ describe('mutant-suggest (L-010)', () => {
     expect(breaksSyntax('server/a.ts', loop, loop.replace('  for (;;) {', '  {'))).toBe(true);
     const names = 'export function g(): number {\n  let a = 1;\n  return a;\n}\n';
     expect(breaksSyntax('server/a.ts', names, names.replace('  return a;', '  let a = 2;\n  return a;'))).toBe(true);
+  });
+
+  it('refuses a mutant whose regular expression V8 would not make, and passes one it would', () => {
+    const original = 'export const digits = /^\\d+$/;\n';
+    expect(breaksSyntax('server/a.ts', original, original.replace('\\d+$', '\\d++$'))).toBe(true);
+    expect(breaksSyntax('server/a.ts', original, original.replace('\\d+$', '\\d{2,1}$'))).toBe(true);
+    expect(breaksSyntax('server/a.ts', original, original.replace('\\d+$', '\\d*$'))).toBe(false);
+    // Read with its flags: '\\-' is no escape in a unicode expression, though it is one without.
+    expect(breaksSyntax('server/a.ts', 'export const a = /a/u;\n', 'export const a = /\\-/u;\n')).toBe(true);
+    expect(badRegexes({ body: [{ regex: { pattern: '(?<a>x)(?<a>y)', flags: '' } }, { regex: { pattern: 'x', flags: 'g' } }] })).toHaveLength(1);
   });
 
   it('reads .mts, .cts and upper-case .TS files as TypeScript and .tsx as TSX, so a mutant that breaks one is refused', () => {

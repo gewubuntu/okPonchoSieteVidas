@@ -53,12 +53,17 @@ export function pathErrors(file, text, exists, { planned = false, skip = () => f
  * are read is not asked, since git refuses it and with it every path asked at once; one git refuses for another reason (beyond a
  * symbolic link, in a submodule) makes each path be asked alone. A path git says nothing of is not ignored.
  */
+/**
+ * Whether `path` stays in the repository once its `.` and `..` are read. A named path starts with one of the roots, so it may leave
+ * only upward, never be absolute (L-025).
+ */
+export const inRepository = (path) => {
+  const read = posix.normalize(path);
+  return read !== '..' && !read.startsWith('../');
+};
+
 export function ignoredAmong(paths, checkIgnore) {
-  // A named path starts with one of the roots, so once read it may leave the repository only upward, never be absolute (L-025).
-  const unique = [...new Set(paths)].filter((p) => {
-    const read = posix.normalize(p);
-    return read !== '..' && !read.startsWith('../');
-  });
+  const unique = [...new Set(paths)].filter(inRepository);
   if (unique.length === 0) return new Set();
   const ask = (some) => {
     const r = checkIgnore(`${some.join('\0')}\0`);
@@ -81,10 +86,11 @@ export const gitHoldsFiles = (root) => (path) => {
 };
 
 /**
- * Whether a named path is there as a fresh checkout has it: on this disk, not among the `ignored`, and, for a folder, holding a file
- * git keeps, since a fresh checkout has no empty folder and none of ignored files only (L-083).
+ * Whether a named path is there as a fresh checkout has it: inside the repository (one beside it on this disk is in no checkout), on
+ * this disk, not among the `ignored`, and, for a folder, holding a file git keeps, since a fresh checkout has no empty folder and none
+ * of ignored files only (L-083).
  */
-export const presentWhen = (exists, ignored, isFolder = () => false, holdsFiles = () => true) => (p) => exists(p) && !ignored.has(p) && (!isFolder(p) || holdsFiles(p));
+export const presentWhen = (exists, ignored, isFolder = () => false, holdsFiles = () => true) => (p) => inRepository(p) && exists(p) && !ignored.has(p) && (!isFolder(p) || holdsFiles(p));
 
 /** The first and last line index of the list under `## Changelog`, or null: the lines up to the next heading of level 1 or 2 or a `---` rule. */
 export function changelogRange(lines) {

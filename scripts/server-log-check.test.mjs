@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { CONFIG_LINE, failed, filled, main, run, served, stopped } from './server-log-check.mjs';
+import { CONFIG_LINE, failed, filled, main, run, served, servedFilled, stopped } from './server-log-check.mjs';
 
 const MODULE = new URL('./server-log-check.mjs', import.meta.url).href;
 
@@ -130,7 +130,7 @@ describe('GDD-TEC-10 server-log-check: a log on a file that fills up', () => {
   it('fails a --check that writes the line but exits 0, one that crashes with exit 1, and one that fails with room to write', async () => {
     expect(await filled(fakeFileCheck('file-zero', 'zero'))).toMatch(/^exit 0, stderr "the log cannot be written \(EFBIG\)\\n"/);
     expect(await filled(fakeFileCheck('file-crash', 'crash'))).toMatch(/^exit 1, stderr ".*EFBIG/);
-    expect(await filled(fakeFileCheck('file-alone', 'alone'))).toBe('with its log a file with room, exit 3, expected 0');
+    expect(await filled(fakeFileCheck('file-alone', 'alone'))).toBe('with its log a file with room, exit 3, expected exit 0');
   }, 30000);
 });
 
@@ -318,7 +318,7 @@ describe('GDD-TEC-10 server-log-check: every case, as npm run server:check runs 
     const said = { ok: [], fail: [] };
     expect(await main(fakeEntry('entry-good'), { ok: (line) => said.ok.push(line), fail: (line) => said.fail.push(line) })).toBe(0);
     expect(said.fail).toEqual([]);
-    expect(said.ok).toHaveLength(7);
+    expect(said.ok).toHaveLength(8);
   }, 120000);
 
   it('fails an entry that breaks one rule, on that case\'s line alone: losing its lines when SIGINT stops it', async () => {
@@ -326,6 +326,29 @@ describe('GDD-TEC-10 server-log-check: every case, as npm run server:check runs 
     expect(await main(fakeEntry('entry-cut-int', 'cut'), { ok: (line) => said.ok.push(line), fail: (line) => said.fail.push(line) })).toBe(1);
     expect(said.fail).toHaveLength(1);
     expect(said.fail[0]).toMatch(/^FAIL  a server stopped twice by SIGINT /);
-    expect(said.ok).toHaveLength(6);
+    expect(said.ok).toHaveLength(7);
   }, 120000);
+});
+
+describe('GDD-TEC-10 server-log-check: a server whose log is a file that fills up', () => {
+  it('passes a server that writes each byte and stops with the one line, every request before answered', async () => {
+    expect(await servedFilled(fakeEntry('filled-good'))).toBeNull();
+  }, 60000);
+
+  it('fails a server that lets node\'s file stream drop a short write and serves on', async () => {
+    const entry = join(dir, 'filled-stream.mjs');
+    writeFileSync(entry, readFileSync(fakeEntry('filled-stream-base'), 'utf8').replace('if (!file) { process.stdout.write(text); return; }', 'process.stdout.write(text); return;'));
+    // The cut line passes unseen and the server answers once more before the next line fails.
+    expect(await servedFilled(entry)).toMatch(/^exit 1 after 5 answers, expected 4/);
+  }, 60000);
+
+  it('fails a server that stops on the cut line but exits 0, and one that crashes with node\'s own stack', async () => {
+    const base = readFileSync(fakeEntry('filled-variants-base'), 'utf8');
+    const zero = join(dir, 'filled-zero.mjs');
+    writeFileSync(zero, base.replace('catch (e) { complain(e); }', 'catch (e) { process.stderr.write(\'the log cannot be written (\' + e.code + \')\\n\'); process.exit(0); }'));
+    expect(await servedFilled(zero)).toMatch(/^exit 0 after 4 answers, stderr "the log cannot be written \(EFBIG\)\\n"/);
+    const crash = join(dir, 'filled-crash.mjs');
+    writeFileSync(crash, base.replace('catch (e) { complain(e); }', 'catch (e) { throw e; }'));
+    expect(await servedFilled(crash)).toMatch(/^exit 1 after 4 answers, stderr ".*EFBIG/);
+  }, 60000);
 });
