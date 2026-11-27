@@ -59,3 +59,36 @@ export function verdict(run) {
   if (/^(Error: No tests found|No test files found)/m.test(run.output.replace(/\x1b\[[0-9;]*m/g, ''))) return 'no test';
   return run.status !== 0 ? 'caught' : 'survived';
 }
+
+/**
+ * The tests a Vitest or Playwright run reports it ran (passed, failed or flaky), summed over every summary in `output`; null when
+ * it holds no summary of either, as the gate's harness checks or a script's own output do not.
+ */
+export function testsRun(output) {
+  const text = output.replace(/\x1b\[[0-9;]*m/g, '');
+  let total = null;
+  // Vitest: "Tests  1 failed | 4221 passed | 2 skipped (4224)", skipped tests not run.
+  for (const [, counts] of text.matchAll(/^\s*Tests\s+(.+)$/gm)) {
+    total = (total ?? 0) + [...counts.matchAll(/(\d+) (?:passed|failed)/g)].reduce((n, [, k]) => n + Number(k), 0);
+  }
+  // Playwright: one count to a line, as "  3 passed (2.1s)", "  1 failed" or "  1 flaky".
+  for (const [, k] of text.matchAll(/^\s+(\d+) (?:passed|failed|flaky)\b/gm)) total = (total ?? 0) + Number(k);
+  return total;
+}
+
+/**
+ * Why `run`, a mutant's test command run on the unmutated code, cannot be that mutant's test, or null when it can (L-026): it must
+ * start, end in time, pass, and run the one test that must kill the mutant, since a run of more counts a kill by any test in it. A
+ * run that reports no tests at all is a command of its own (the gate on a bad input, a check script) and is taken as it stands.
+ */
+export function baselineProblem(run) {
+  const said = verdict(run);
+  if (said === 'not started' || said === 'stopped' || said === 'no test') return said;
+  if (run.status !== 0) return 'fails on the unmutated code';
+  const ran = testsRun(run.output);
+  if (ran === null || ran === 1) return null;
+  if (ran === 0) return 'runs no test';
+  // Playwright runs a test once in each project, so a name unique in its file runs twice unless the project is named.
+  const projects = /^Running \d+ tests? using/m.test(run.output.replace(/\x1b\[[0-9;]*m/g, '')) ? ' (Playwright runs each test once in each project: name one with --project)' : '';
+  return `runs ${ran} tests, not the one that must kill it${projects}`;
+}

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { runLimited, verdict } from './run-limited.mjs';
+import { baselineProblem, runLimited, testsRun, verdict } from './run-limited.mjs';
 
 describe('run-limited (L-064)', () => {
   const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
@@ -151,5 +151,37 @@ describe('run-limited (L-064)', () => {
     // A stop or a failed start is told before the output is read, and a failed start before a stop.
     expect(verdict(run({ stopped: true, output: 'Error: No tests found' }))).toBe('stopped');
     expect(verdict(run({ started: false, stopped: true }))).toBe('not started');
+  });
+});
+
+describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
+  it('counts the tests a Vitest or Playwright run ran, skipped ones aside, over every summary, and none where there is no summary', () => {
+    expect(testsRun(' Test Files  1 passed (1)\n      Tests  1 passed | 115 skipped (116)\n')).toBe(1);
+    expect(testsRun('      Tests  1 failed | 4221 passed | 2 skipped (4224)\n')).toBe(4222);
+    expect(testsRun('      Tests  116 skipped (116)\n')).toBe(0);
+    expect(testsRun('\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m3 passed\x1b[39m\x1b[22m\x1b[90m (3)\x1b[39m\n')).toBe(3);
+    expect(testsRun('      Tests  2 passed (2)\n...\n      Tests  5 passed (5)\n')).toBe(7);
+    expect(testsRun('Running 1 test using 1 worker\n  ✓  1 [chromium] › e2e/pause.spec.ts:3:1 › tap (2.1s)\n\n  1 passed (3.0s)\n')).toBe(1);
+    expect(testsRun('  1 failed\n    [chromium] › e2e/a.spec.ts:1:1 › a\n  2 flaky\n  4 passed (9.1s)\n')).toBe(7);
+    expect(testsRun('ok    gdd\nAll checks passed.\n')).toBeNull();
+    expect(testsRun('the nonce route does not refuse another origin\n')).toBeNull();
+  });
+
+  it('takes a run on the unmutated code that passed with one test, or with no summary at all, and says why it takes no other', () => {
+    const run = (over) => ({ started: true, status: 0, output: '      Tests  1 passed | 9 skipped (10)\n', stopped: false, ...over });
+    expect(baselineProblem(run({}))).toBeNull();
+    expect(baselineProblem(run({ output: 'All checks passed.\n' }))).toBeNull();
+    expect(baselineProblem(run({ output: '      Tests  10 passed (10)\n' }))).toBe('runs 10 tests, not the one that must kill it');
+    expect(baselineProblem(run({ output: '      Tests  10 skipped (10)\n' }))).toBe('runs no test');
+    // One name in a spec, run in the desktop and phone projects.
+    const twice = 'Running 2 tests using 2 workers\n  ✓  1 [desktop] › e2e/pause.spec.ts:3:1 › tap (2.1s)\n  ✓  2 [phone] › e2e/pause.spec.ts:3:1 › tap (2.4s)\n\n  2 passed (3.0s)\n';
+    expect(baselineProblem(run({ output: twice }))).toBe('runs 2 tests, not the one that must kill it (Playwright runs each test once in each project: name one with --project)');
+    expect(baselineProblem(run({ output: twice.replace('Running 2 tests using 2 workers', '\x1b[2mRunning 2 tests using 2 workers\x1b[22m') }))).toMatch(/name one with --project\)$/);
+    expect(baselineProblem(run({ output: 'Running 1 test using 1 worker\n  ✓  1 [desktop] › e2e/pause.spec.ts:3:1 › tap (2.1s)\n\n  1 passed (2.2s)\n' }))).toBeNull();
+    expect(baselineProblem(run({ status: 1 }))).toBe('fails on the unmutated code');
+    expect(baselineProblem(run({ status: 1, output: 'No test files found, exiting with code 1\n' }))).toBe('no test');
+    expect(baselineProblem(run({ status: null, stopped: true }))).toBe('stopped');
+    expect(baselineProblem(run({ started: false, status: null }))).toBe('not started');
+    expect(baselineProblem(run({ status: 127 }))).toBe('not started');
   });
 });

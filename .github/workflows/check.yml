@@ -20,6 +20,9 @@ jobs:
         run: node scripts/check.mjs
       - name: Build
         run: npm run build
+      - name: Server (build, boot, read its own config)
+        run: npm run server:check
+        timeout-minutes: 5
 
   e2e:
     runs-on: ubuntu-latest

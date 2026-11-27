@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOUNDS, changedCode, changedLines, covered, occurrences, suggest } from './mutant-suggest.mjs';
+import { badRegexes, BOUNDS, breaksSyntax, changedCode, changedLines, covered, langOf, occurrences, suggest } from './mutant-suggest.mjs';
 
 describe('mutant-suggest (L-010)', () => {
   const all = (text) => new Set(text.split('\n').map((_, i) => i + 1));
@@ -122,6 +122,42 @@ describe('mutant-suggest (L-010)', () => {
     expect(suggest('src/a.ts', 'const a: number = x < 1;\n', new Set([1]))).toHaveLength(1);
     // In a plain module `f < g > (h)` is two comparisons; read as TypeScript it would be a call with a type argument.
     expect(suggest('scripts/a.mjs', 'const r = f < g > (h);\n', new Set([1]))).toHaveLength(2);
+  });
+
+  it('a mutant that leaves the file unparsed breaks its syntax; one that still parses, or of a file that never did, does not (L-103)', () => {
+    const original = 'function f(x: unknown): boolean {\n  try {\n    return g(x);\n  } catch {\n    return false;\n  }\n}\n';
+    // The try made a plain block leaves its catch with nothing to belong to.
+    expect(breaksSyntax('server/a.ts', original, original.replace('  try {', '  {'))).toBe(true);
+    // The whole try taken out still parses.
+    expect(breaksSyntax('server/a.ts', original, 'function f(x: unknown): boolean {\n  return g(x);\n}\n')).toBe(false);
+    // A type annotation is TypeScript: read as a plain module it would not parse.
+    expect(breaksSyntax('server/a.ts', original, original.replace('return false', 'return true'))).toBe(false);
+    expect(breaksSyntax('scripts/a.mjs', 'const a = 1;\n', 'const a = ;\n')).toBe(true);
+    // A file that does not parse to begin with (not a module) is never said to be broken.
+    expect(breaksSyntax('docs/a.md', '# A title {', '# A title {{')).toBe(false);
+  });
+
+  it('refuses a mutant that parses but that V8 would not load: a break left outside its loop, a name declared twice', () => {
+    const loop = 'export function f(x: boolean): void {\n  for (;;) {\n    if (x) break;\n  }\n}\n';
+    expect(breaksSyntax('server/a.ts', loop, loop.replace('  for (;;) {', '  {'))).toBe(true);
+    const names = 'export function g(): number {\n  let a = 1;\n  return a;\n}\n';
+    expect(breaksSyntax('server/a.ts', names, names.replace('  return a;', '  let a = 2;\n  return a;'))).toBe(true);
+  });
+
+  it('refuses a mutant whose regular expression V8 would not make, and passes one it would', () => {
+    const original = 'export const digits = /^\\d+$/;\n';
+    expect(breaksSyntax('server/a.ts', original, original.replace('\\d+$', '\\d++$'))).toBe(true);
+    expect(breaksSyntax('server/a.ts', original, original.replace('\\d+$', '\\d{2,1}$'))).toBe(true);
+    expect(breaksSyntax('server/a.ts', original, original.replace('\\d+$', '\\d*$'))).toBe(false);
+    // Read with its flags: '\\-' is no escape in a unicode expression, though it is one without.
+    expect(breaksSyntax('server/a.ts', 'export const a = /a/u;\n', 'export const a = /\\-/u;\n')).toBe(true);
+    expect(badRegexes({ body: [{ regex: { pattern: '(?<a>x)(?<a>y)', flags: '' } }, { regex: { pattern: 'x', flags: 'g' } }] })).toHaveLength(1);
+  });
+
+  it('reads .mts, .cts and upper-case .TS files as TypeScript and .tsx as TSX, so a mutant that breaks one is refused', () => {
+    expect(['a.ts', 'a.mts', 'a.cts', 'A.TS', 'a.tsx', 'a.jsx', 'a.mjs', 'a.js', 'a.md'].map(langOf)).toEqual(['ts', 'ts', 'ts', 'ts', 'tsx', 'jsx', 'js', 'js', 'js']);
+    expect(breaksSyntax('scripts/a.mts', 'export const x: number = 1;\n', 'export const x: number = ;\n')).toBe(true);
+    expect(breaksSyntax('src/a.tsx', 'export const a = <div>{1 as number}</div>;\n', 'export const a = <div>{1 as number};\n')).toBe(true);
   });
 
   it('hands the parser the path and the text, and reads what it returns', () => {

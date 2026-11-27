@@ -1,5 +1,10 @@
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { changelogRange, pathErrors, pathsIn } from './harness-paths.mjs';
+import { changelogRange, gitCheckIgnore, gitHoldsFiles, ignoredAmong, pathErrors, pathsIn, presentWhen, realIn } from './harness-paths.mjs';
 
 describe('harness-paths (L-013)', () => {
   const have = new Set(['src/sim/run.ts', 'docs/GDD.md', 'assets/sprites/', 'e2e/boot.spec.ts']);
@@ -88,5 +93,120 @@ describe('harness-paths (L-013)', () => {
   it('finds no changelog where there is none, and not one whose heading only starts that way', () => {
     expect(changelogRange(['# GDD', '## 1. Vision'])).toBeNull();
     expect(changelogRange(['## Changelog of the art', '- a'])).toBeNull();
+  });
+
+  describe('a path git ignores counts as missing (L-083)', () => {
+    it('gives the paths git writes back as ignored, asking once with each path ended by a NUL', () => {
+      const asked = [];
+      const checkIgnore = (input) => { asked.push(input); return { status: 0, stdout: 'server/dist/\0' }; };
+      expect(ignoredAmong(['server/dist/', 'server/boot.ts', 'server/dist/'], checkIgnore)).toEqual(new Set(['server/dist/']));
+      expect(asked).toEqual(['server/dist/\0server/boot.ts\0']);
+    });
+
+    it('asks nothing of a path that leaves the repository, and asks each path alone when git refuses one for another reason', () => {
+      const asked = [];
+      const checkIgnore = (input) => {
+        asked.push(input);
+        if (input.includes('server/link/')) return { status: 128, stdout: '' };
+        return input === 'server/dist/\0' ? { status: 0, stdout: 'server/dist/\0' } : { status: 1, stdout: '' };
+      };
+      expect(ignoredAmong(['assets/../../poncho-art/', 'docs/../..', 'server/dist/', 'server/link/a.ts', 'docs/GDD.md'], checkIgnore)).toEqual(new Set(['server/dist/']));
+      expect(asked).toEqual(['server/dist/\0server/link/a.ts\0docs/GDD.md\0', 'server/dist/\0', 'server/link/a.ts\0', 'docs/GDD.md\0']);
+    });
+
+    it('ignores none when git says none is ignored, when git cannot run, or when nothing is asked', () => {
+      expect(ignoredAmong(['server/boot.ts'], () => ({ status: 1, stdout: '' }))).toEqual(new Set());
+      expect(ignoredAmong(['server/dist/'], () => ({ status: 128, stdout: 'server/dist/\0' }))).toEqual(new Set());
+      expect(ignoredAmong(['server/dist/'], () => ({ status: null, stdout: null }))).toEqual(new Set());
+      const asked = [];
+      expect(ignoredAmong([], (input) => { asked.push(input); return { status: 0, stdout: '' }; })).toEqual(new Set());
+      expect(asked).toEqual([]);
+    });
+
+    it('asks the repository\'s own git: a build output it ignores is ignored, a tracked file is not, on any disk', () => {
+      const root = fileURLToPath(new URL('..', import.meta.url));
+      expect(ignoredAmong(['server/dist/main.js', 'docs/GDD.md', 'server/dist/main.js'], gitCheckIgnore(root))).toEqual(new Set(['server/dist/main.js']));
+    });
+
+    it('asks the git of the root it is given, not the one the gate runs in', () => {
+      const root = mkdtempSync(join(tmpdir(), 'poncho-ignore-'));
+      try {
+        spawnSync('git', ['init', '-q'], { cwd: root });
+        writeFileSync(join(root, '.gitignore'), 'build/\n');
+        // A name git would quote (an accent, a quote mark) is written back as given.
+        expect(ignoredAmong(['build/out.js', 'src/a.ts', 'build/café.js', 'build/a"b.js'], gitCheckIgnore(root))).toEqual(new Set(['build/out.js', 'build/café.js', 'build/a"b.js']));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it('counts a path as there only when it is on this disk and not ignored, and a folder only when it holds a file git keeps', () => {
+      const there = presentWhen((p) => p !== 'docs/gone.md', new Set(['server/dist/main.js', 'server/dist/']), (p) => p.endsWith('/'), (p) => p === 'docs/kept/' || p === 'server/dist/');
+      expect(there('docs/GDD.md')).toBe(true);
+      expect(there('docs/gone.md')).toBe(false);
+      expect(there('server/dist/main.js')).toBe(false);
+      expect(there('server/dist/')).toBe(false);
+      expect(there('docs/kept/')).toBe(true);
+      expect(there('docs/empty/')).toBe(false);
+      // One that leaves the repository is in no checkout, though it is on this disk beside it.
+      expect(there('assets/../../poncho-art/')).toBe(false);
+      expect(there('docs/../../outside/notes.txt')).toBe(false);
+    });
+
+    it('asks git whether a folder holds a file it tracks or would track: an empty folder, or one of ignored files only, holds none', () => {
+      const root = mkdtempSync(join(tmpdir(), 'poncho-holds-'));
+      try {
+        spawnSync('git', ['init', '-q'], { cwd: root });
+        writeFileSync(join(root, '.gitignore'), '*.log\n');
+        for (const dir of ['tracked', 'untracked', 'logs', 'empty']) mkdirSync(join(root, dir));
+        writeFileSync(join(root, 'tracked', 'a.md'), 'a');
+        spawnSync('git', ['add', 'tracked/a.md'], { cwd: root });
+        writeFileSync(join(root, 'untracked', 'b.md'), 'b');
+        writeFileSync(join(root, 'logs', 'run.log'), 'c');
+        const holds = gitHoldsFiles(root);
+        expect(['tracked/', 'untracked/', 'logs/', 'empty/'].map(holds)).toEqual([true, true, false, false]);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it('judges a path by what it reaches: through a link into an ignored build output it is that output, outside the repository nothing', () => {
+      const root = mkdtempSync(join(tmpdir(), 'poncho-real-'));
+      const outside = mkdtempSync(join(tmpdir(), 'poncho-outside-'));
+      try {
+        spawnSync('git', ['init', '-q'], { cwd: root });
+        writeFileSync(join(root, '.gitignore'), 'dist/\n');
+        mkdirSync(join(root, 'server', 'dist'), { recursive: true });
+        writeFileSync(join(root, 'server', 'dist', 'main.js'), 'x');
+        mkdirSync(join(root, 'docs'));
+        symlinkSync('../server/dist', join(root, 'docs', 'bundle'));
+        symlinkSync(outside, join(root, 'docs', 'away'));
+        symlinkSync('..', join(root, 'docs', 'up'));
+        symlinkSync('../..', join(root, 'docs', 'above'));
+        const realOf = realIn(root);
+        expect(['docs/bundle/main.js', 'docs/bundle/', 'docs/away', 'docs/missing.md', 'docs/'].map(realOf)).toEqual(['server/dist/main.js', 'server/dist/', null, null, 'docs/']);
+        // The root is there, however it is reached; the folder above it is outside.
+        expect(['docs/..', 'docs/../', 'docs/up', 'docs/above', 'docs/above/'].map(realOf)).toEqual(['.', './', '.', null, null]);
+        expect(presentWhen((p) => existsSync(join(root, p)), new Set(), (p) => statSync(join(root, p)).isDirectory(), gitHoldsFiles(root))(realOf('docs/..'))).toBe(true);
+        expect(ignoredAmong([realOf('docs/bundle/main.js')], gitCheckIgnore(root))).toEqual(new Set(['server/dist/main.js']));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+      }
+    });
+
+    it('takes a folder to hold files where git cannot say, as outside any repository', () => {
+      const root = mkdtempSync(join(tmpdir(), 'poncho-no-git-'));
+      try {
+        mkdirSync(join(root, 'empty'));
+        expect(gitHoldsFiles(root)('empty/')).toBe(true);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it('takes no line git writes that was not asked', () => {
+      expect(ignoredAmong(['server/dist/'], () => ({ status: 0, stdout: 'server/dist/\0src/other.ts\0' }))).toEqual(new Set(['server/dist/']));
+    });
   });
 });
