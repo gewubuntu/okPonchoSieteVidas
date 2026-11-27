@@ -114,10 +114,17 @@ function writeWhole(res: ServerResponse, body: Buffer | string): void {
   res.write(body, () => { res.end(); });
 }
 
+/**
+ * The headers that frame an answer or concern only its connection (RFC 9110, 7.6.1): the adapter alone sets them, so an app's
+ * Response that carries one (as a fetched Response passed on would) cannot make an answer no client reads, keep a connection that
+ * closes, or make node throw as it writes. An app's content-length needs no place here: writeWhole sets the length over it (L-025).
+ */
+const FRAMING = new Set(['connection', 'keep-alive', 'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade']);
+
 export async function send(res: ServerResponse, response: Response): Promise<void> {
   const bytes = Buffer.from(await response.arrayBuffer());
   res.statusCode = response.status;
-  for (const [name, value] of response.headers) if (name !== 'set-cookie') res.setHeader(name, value);
+  for (const [name, value] of response.headers) if (name !== 'set-cookie' && !FRAMING.has(name)) res.setHeader(name, value);
   // An empty list writes no header, so an answer with no cookie needs no check of its own (L-025; the socket test reads none back).
   res.setHeader('set-cookie', response.headers.getSetCookie());
   // A body not all read: the client may still be sending it, or it came whole and lies unread (in node's buffer, or in the queue of the
@@ -146,6 +153,8 @@ async function answerOf(app: App, req: IncomingMessage): Promise<Response> {
  * not kept. Nothing has been sent by then: `send` writes the headers in its last call, `writeWhole`, and nothing after it can throw (L-025).
  */
 function lastResort(res: ServerResponse): void {
+  // None of the failed answer's headers: send may have set some before node refused one.
+  for (const name of res.getHeaderNames()) res.removeHeader(name);
   res.statusCode = 500;
   for (const [name, value] of Object.entries(FIXED_HEADERS)) res.setHeader(name, value);
   res.setHeader('connection', 'close');
@@ -317,9 +326,12 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
     // comes, since the connection is read no further (below), so that needs no check of its own (L-025). Nor does a reset: finish
     // writes nothing to a socket that is gone.
     const connection = connectionOf(socket);
-    connection.broken = true;
     // Nothing more is read once node has given up: after a timeout node would read on, so a request it gave up on could still come in
-    // whole before its turn, a running one's body could reach the app after this answer, and a later request could be read.
+    // whole before its turn, a running one's body could reach the app after this answer, and a later request could be read. Node
+    // itself resumes a socket it paused while an answer would not drain, so the pause is made again on each resume, after node's own
+    // listener has started reading.
+    if (!connection.broken) socket.on('resume', () => { socket.pause(); });
+    connection.broken = true;
     socket.pause();
     // Bytes after a request that closes the connection (node's HPE_CLOSED_CONNECTION) need no check of their own (L-025): that
     // request's answer ends the connection, and the answer queued here behind it then finds the socket ended (finish).

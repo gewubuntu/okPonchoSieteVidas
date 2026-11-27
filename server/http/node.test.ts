@@ -66,7 +66,8 @@ const reads: (string | number)[] = [];
  * 100 ms and /slower after 600 ms, /big answers BIG bytes, /bignope refuses BIG bytes unread, /nope-late refuses unread after a wait,
  * /throw rejects and /throw-late rejects after 200 ms, /lined answers after 200 ms with a line of its own, and /biglined answers BIG
  * bytes with one, and /cancel-big gives up on its body and answers BIG bytes with one. Only those three carry a line, so the log
- * holds the adapter's lines and theirs.
+ * holds the adapter's lines and theirs. /framed answers with every header that frames an answer or concerns its connection, and
+ * /badhdr with a header before one node refuses.
  */
 const stub: App = async (request) => {
   const path = new URL(request.url).pathname;
@@ -104,6 +105,10 @@ const stub: App = async (request) => {
     return withLine(json(200, {}), { method: 'GET', route: '/lined', status: 200 });
   }
   if (path === '/biglined') return withLine(new Response(new Uint8Array(BIG), { status: 200 }), { method: 'GET', route: '/biglined', status: 200 });
+  if (path === '/framed') {
+    return new Response('hello', { headers: { connection: 'keep-alive', 'keep-alive': 'timeout=99', 'proxy-connection': 'zz-app', te: 'zz-app', trailer: 'x-zz-app', 'transfer-encoding': 'chunked', upgrade: 'zz-app', 'content-length': '999', 'x-kept': 'yes' } });
+  }
+  if (path === '/badhdr') return new Response('hello', { headers: { 'a-kept': 'zz-app-value', 'z-bad': 'x\u0001y' } });
   if (path === '/cancel-big') {
     await request.body?.cancel();
     return withLine(new Response(new Uint8Array(BIG), { status: 200 }), { method: 'POST', route: '/cancel-big', status: 200 });
@@ -285,6 +290,37 @@ describe('GDD-TEC-10 adapter: CONNECT, a throw, a log that throws', () => {
       expect(answered.text.length).toBeLessThan(BIG);
       expect(statuses(answered.text)).toEqual([200]);
       expect(log).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('an app\'s headers that frame the answer or concern its connection are dropped: the adapter alone frames it and keeps or closes it', async () => {
+    const { server } = await served();
+    try {
+      const kept = await exchange(server.port, [`GET /framed HTTP/1.1\r\nHost: x\r\n\r\n${GET_ECHO}`], { ms: 1500 });
+      expect(statuses(kept.text)).toEqual([200, 200]);
+      const head = kept.text.slice(0, kept.text.indexOf('\r\n\r\n')).toLowerCase();
+      expect(head).toContain('x-kept: yes');
+      expect(head).toContain('content-length: 5');
+      for (const gone of ['zz-app', 'timeout=99', 'transfer-encoding', 'trailer']) expect(head).not.toContain(gone);
+      expect(kept.text).toContain('\r\n\r\nhelloHTTP/1.1 200 ');
+      // HTTP/1.0 with no keep-alive of its own: the app's connection header keeps nothing, so the bytes after it are never read.
+      const closed = await exchange(server.port, ['GET /framed HTTP/1.0\r\n\r\nGET /echo HTTP/1.0\r\n\r\n'], { ms: 1500 });
+      expect(statuses(closed.text)).toEqual([200]);
+      expect(closed.closedByServer).toBe(true);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('the adapter\'s own 500 carries none of the headers the failed answer had set', async () => {
+    const { server, log } = await served();
+    try {
+      const answered = await exchange(server.port, ['GET /badhdr HTTP/1.1\r\nHost: x\r\n\r\n'], { ms: 1500 });
+      expect(statuses(answered.text)).toEqual([500]);
+      expect(answered.text).not.toContain('zz-app-value');
+      expect(log).toEqual([{ method: 'GET', route: '(none)', status: 500 }]);
     } finally {
       await server.close();
     }
@@ -586,6 +622,32 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
       await server.close();
     }
   }, 5000);
+
+  it('nothing is read once node gave up, though node resumes the socket once an answer it held back drains', async () => {
+    const { server } = await served(stub, { ...SMALL, requestMs: 1200, headersMs: 400, idleMs: 4000 });
+    try {
+      // /big fills the socket's buffers while the client reads nothing, so node stops reading for it and resumes once the client
+      // reads. The POST's 1.2 s run out while /slower waits behind /big; its rest, and 17 requests, come after the 408 is decided.
+      const text = await new Promise<string>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port });
+        const parts: Buffer[] = [];
+        socket.pause();
+        socket.on('data', (part: Buffer) => parts.push(part));
+        socket.on('error', () => { /* the server's close */ });
+        socket.on('close', () => { resolve(Buffer.concat(parts).toString('latin1')); });
+        socket.write('GET /big HTTP/1.1\r\nHost: x\r\n\r\n');
+        setTimeout(() => { socket.write('GET /slower HTTP/1.1\r\nHost: x\r\n\r\nPOST /limited HTTP/1.1\r\nHost: x\r\nContent-Length: 10\r\n\r\n{'); }, 100);
+        setTimeout(() => { socket.write(`"a":1234}${GET_ECHO.repeat(UNANSWERED_LIMIT + 1)}`); }, 1500);
+        setTimeout(() => { socket.resume(); }, 1600);
+        setTimeout(() => { socket.destroy(); }, 7000);
+      });
+      expect(statuses(text)).toEqual([200, 200, 408]);
+      expect(calls).toEqual(['/big', '/slower']);
+      expect(reads).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  }, 10000);
 
   it('a waiting request node gave up on is never run, though the rest of its body comes before its turn, nor one node reads after', async () => {
     const { server } = await served(stub, { ...SMALL, requestMs: 300, headersMs: 200 });

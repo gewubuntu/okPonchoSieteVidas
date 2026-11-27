@@ -9,10 +9,11 @@
 // A mutant's test is stopped after `timeout` seconds (300 unless given), with its process group (scripts/run-limited.mjs):
 // a mutant that makes a loop endless would hang the whole run (L-064). A stopped mutant is not caught: bound the loop and
 // run it again.
-// A mutant's own `test` replaces the file's, so each mutant can run against the one test that must kill it (L-026). A Vitest or
-// Playwright command must name that test (-t, -g): a run of a whole file counts a kill by any test in it, so a mutant run so is
-// refused, reported WHOLE FILE and counted as not caught (`namesOneTest` in scripts/mutant-suggest.mjs). The gate or a check
-// script may be a mutant's test as it stands.
+// A mutant's own `test` replaces the file's, so each mutant can run against the one test that must kill it (L-026). Each command
+// is first run once on the unmutated code: one that fails there, finds no test, or runs other than one test by its Vitest or
+// Playwright summary is refused, reported REFUSED and its mutants counted as not caught, since a run of more counts a kill by any
+// test in it (`baselineProblem` in scripts/run-limited.mjs). One that reports no tests (the gate on a bad input, a check script)
+// is taken as it stands.
 // `from` must occur exactly once in the file, and the file must still parse with the mutant in it (L-103). Before each mutant the original is saved to .mutating.json; it is put back
 // after the mutant, and the marker deleted. If the run is killed the marker stays, and scripts/check.mjs fails until
 // `--restore` has run, so a mutation can never be committed.
@@ -21,8 +22,8 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { breaksSyntax, namesOneTest, occurrences } from './mutant-suggest.mjs';
-import { runLimited, verdict } from './run-limited.mjs';
+import { breaksSyntax, occurrences } from './mutant-suggest.mjs';
+import { baselineProblem, runLimited, verdict } from './run-limited.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const MARKER = join(ROOT, '.mutating.json');
@@ -68,17 +69,14 @@ if (existsSync(MARKER)) {
 }
 const { test, mutants, timeout = 300 } = JSON.parse(readFileSync(spec, 'utf8'));
 let survived = 0;
+/** Each test command's run on the unmutated code: null when it may be a mutant's test, or why not. */
+const baselines = new Map();
 for (const m of mutants) {
   const path = join(ROOT, m.file);
   const original = readFileSync(path, 'utf8');
   // A mutant with no test of its own and none for the file (as --suggest writes them) is not run: it has no command to run.
   if (!(m.test ?? test)) {
     console.log(`NO TEST ${m.name}: name the one test that must kill it`);
-    survived++;
-    continue;
-  }
-  if (!namesOneTest(m.test ?? test)) {
-    console.log(`WHOLE FILE ${m.name}: its test command runs more than one test; name the one that must kill it (-t, -g), L-026`);
     survived++;
     continue;
   }
@@ -90,6 +88,17 @@ for (const m of mutants) {
   const mutated = original.replace(m.from, () => m.to);
   if (breaksSyntax(m.file, original, mutated)) {
     console.log(`BROKEN ${m.name}: the mutant does not parse, so any test goes red on it (L-103); write one that does`);
+    survived++;
+    continue;
+  }
+  // On the unmutated code, once for each command: every file is as it was, the last mutant put back.
+  if (!baselines.has(m.test ?? test)) {
+    const problem = baselineProblem(await runLimited(m.test ?? test, { cwd: ROOT, env: process.env, seconds: timeout }));
+    baselines.set(m.test ?? test, problem);
+    console.log(problem === null ? `BASELINE ok: ${m.test ?? test}` : `BASELINE ${problem}: ${m.test ?? test}`);
+  }
+  if (baselines.get(m.test ?? test) !== null) {
+    console.log(`REFUSED ${m.name}: its test ${baselines.get(m.test ?? test)} (L-026)`);
     survived++;
     continue;
   }

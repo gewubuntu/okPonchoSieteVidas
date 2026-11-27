@@ -1,49 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { badRegexes, BOUNDS, breaksSyntax, changedCode, changedLines, covered, langOf, namesOneTest, occurrences, suggest } from './mutant-suggest.mjs';
-
-describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
-  it('takes a Vitest or Playwright command that names its test, in each spelling of the filter', () => {
-    for (const command of [
-      "npx vitest run server/http/node.test.ts -t 'a waiting request'",
-      'npx vitest run src/sim/run.test.ts -t=jump',
-      "npx vitest run a.test.ts --testNamePattern 'b'",
-      'npx vitest run a.test.ts --testNamePattern=b',
-      "npx playwright test e2e/pause.spec.ts -g 'tap'",
-      "npx playwright test e2e/pause.spec.ts --grep 'tap'",
-      'node_modules/.bin/vitest run a.test.ts -t b',
-      "npm test -- -t 'b'",
-      "node node_modules/vitest/vitest.mjs run a.test.ts -t 'b'",
-      "npx vitest@4 run a.test.ts -t 'b'",
-      "node node_modules/@playwright/test/cli.js test e2e/a.spec.ts -g 'b'",
-    ]) expect(namesOneTest(command), command).toBe(true);
-  });
-
-  it('refuses a Vitest or Playwright command that runs a whole file or more, however it is started', () => {
-    for (const command of [
-      'npx vitest run server/http/node.test.ts',
-      'npx vitest run src/sim/run-t.test.ts',
-      'npx vitest run src/odd-t name.test.ts',
-      'npx playwright test e2e/pause.spec.ts',
-      'node_modules/.bin/vitest run a.test.ts',
-      'vitest',
-      'npm test',
-      'npm run test',
-      'npm run test:e2e',
-      'npm  test -- src/a.test.ts',
-      'pnpm test',
-      'node node_modules/vitest/vitest.mjs run server/http/node.test.ts',
-      '/opt/node24/bin/node node_modules/vitest/vitest.mjs run a.test.ts',
-      'npx vitest@latest run a.test.ts',
-      'node node_modules/@playwright/test/cli.js test e2e/a.spec.ts',
-    ]) expect(namesOneTest(command), command).toBe(false);
-  });
-
-  it('takes any other command as the test it is: the gate, a check script, an npm script that is no test runner', () => {
-    for (const command of ['node scripts/check.mjs', 'node scripts/server-log-check.mjs', 'npm run server:check', 'npm run lint', 'node scripts/vitest-like.mjs']) {
-      expect(namesOneTest(command), command).toBe(true);
-    }
-  });
-});
+import { badRegexes, BOUNDS, breaksSyntax, changedCode, changedLines, covered, langOf, occurrences, suggest } from './mutant-suggest.mjs';
 
 describe('mutant-suggest (L-010)', () => {
   const all = (text) => new Set(text.split('\n').map((_, i) => i + 1));
