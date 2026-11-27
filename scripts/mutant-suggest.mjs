@@ -73,8 +73,11 @@ export function changedLines(diff) {
   return files;
 }
 
-/** A command that runs Vitest or Playwright, by name or through a test script (`npm test`, `npm run test:e2e`, `pnpm test`). */
-const TEST_RUNNER = /(vitest|playwright)(\s|$)|npm\s+(run\s+)?test/;
+/**
+ * A command that runs Vitest or Playwright: by its name, its version (`vitest@4`), its file (`node_modules/vitest/vitest.mjs`,
+ * `@playwright/test/cli.js`), or a test script (`npm test`, `npm run test:e2e`, `pnpm test`).
+ */
+const TEST_RUNNER = /(vitest|playwright)(@\S*|\/\S*)?(\s|$)|npm\s+(run\s+)?test/;
 /** Vitest's and Playwright's filters on a test's name, each a word of its own. */
 const NAME_FILTER = /\s(-t|-g|--testNamePattern|--grep)(=|\s)/;
 

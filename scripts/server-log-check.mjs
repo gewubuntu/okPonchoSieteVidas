@@ -321,7 +321,9 @@ export async function stopped(entry, signal = 'SIGTERM') {
         asked = true;
         child.stdout.pause();
         const base = `http://127.0.0.1:${port}/api/v1/config`;
-        for (let i = 0; i < REQUESTS; i += 8) await Promise.all(Array.from({ length: 8 }, () => fetch(base, { signal: requests }).then((response) => response.arrayBuffer())));
+        // Each request has a signal of its own that follows the case's: on one signal 2000 would warn, since fetch raises its limit
+        // only to 1500.
+        for (let i = 0; i < REQUESTS; i += 8) await Promise.all(Array.from({ length: 8 }, () => fetch(base, { signal: AbortSignal.any([requests]) }).then((response) => response.arrayBuffer())));
         child.kill(signal);
         setTimeout(() => { child.kill(signal); }, 100);
         setTimeout(() => { child.stdout.resume(); }, 300);

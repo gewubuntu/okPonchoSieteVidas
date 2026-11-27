@@ -12,6 +12,9 @@ describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
       "npx playwright test e2e/pause.spec.ts --grep 'tap'",
       'node_modules/.bin/vitest run a.test.ts -t b',
       "npm test -- -t 'b'",
+      "node node_modules/vitest/vitest.mjs run a.test.ts -t 'b'",
+      "npx vitest@4 run a.test.ts -t 'b'",
+      "node node_modules/@playwright/test/cli.js test e2e/a.spec.ts -g 'b'",
     ]) expect(namesOneTest(command), command).toBe(true);
   });
 
@@ -28,6 +31,10 @@ describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
       'npm run test:e2e',
       'npm  test -- src/a.test.ts',
       'pnpm test',
+      'node node_modules/vitest/vitest.mjs run server/http/node.test.ts',
+      '/opt/node24/bin/node node_modules/vitest/vitest.mjs run a.test.ts',
+      'npx vitest@latest run a.test.ts',
+      'node node_modules/@playwright/test/cli.js test e2e/a.spec.ts',
     ]) expect(namesOneTest(command), command).toBe(false);
   });
 

@@ -307,13 +307,16 @@ describe('GDD-TEC-10 server-log-check: a server stopped while its log\'s reader 
  * A fake entry that keeps every rule the check holds it to, as the bundle does: --check writes six lines (each byte of each when stdout
  * is a file), the sixth after a pause, and fails with the one problem when its site's origin is another; the server writes its lines
  * once their answers are out, and a stop writes every line and exits 0, once. `onInt`: 'cut' exits at once on SIGINT instead.
+ * `prelude` is a line run first, to break one rule alone; `lineDelay` writes each request's line that many ms after its answer.
  */
-function fakeEntry(name, onInt = 'flush') {
+function fakeEntry(name, onInt = 'flush', { prelude = '', lineDelay = 0 } = {}) {
   const path = join(dir, `${name}.mjs`);
+  const line = `say(${JSON.stringify(`${CONFIG_LINE}\n`)});`;
   writeFileSync(path, `
 import { createServer } from 'node:http';
 import { fstatSync, writeSync } from 'node:fs';
 import { Socket } from 'node:net';
+${prelude}
 const complain = (e) => { process.stderr.write('the log cannot be written (' + e.code + ')\\n'); process.exit(1); };
 process.stdout.on('error', complain);
 const writes = (() => { try { const k = fstatSync(1); if (k.isFile() || k.isCharacterDevice()) return true; } catch { return false; } return process.stdout instanceof Socket; })();
@@ -338,8 +341,7 @@ if (process.argv.includes('--check')) {
   }, 300);
 } else {
   say('{"event":"boot","note":"a note before listening"}\\n');
-  const server = createServer((req, res) => { res.on('finish', () => { say(${JSON.stringify(`${CONFIG_LINE}
-`)}); }); res.end('{}'); });
+  const server = createServer((req, res) => { res.on('finish', () => { ${lineDelay > 0 ? `setTimeout(() => { ${line} }, ${lineDelay});` : line} }); res.end('{}'); });
   setTimeout(() => {
     server.listen(Number(process.env.PONCHO_SERVER_PORT), '127.0.0.1', () => { say('{"event":"listening","port":' + server.address().port + '}\\n'); });
   }, 100);
@@ -360,12 +362,22 @@ if (process.argv.includes('--check')) {
 }
 
 describe('GDD-TEC-10 server-log-check: every case, as npm run server:check runs them', () => {
-  it('passes an entry that keeps every rule, each case on an ok line of its own', async () => {
+  it('passes an entry that keeps every rule, each case on an ok line of its own, and warns of nothing', async () => {
     const said = { ok: [], fail: [] };
-    const code = await main(fakeEntry('entry-good'), { ok: (line) => said.ok.push(line), fail: (line) => said.fail.push(line) });
-    expect(said.fail).toEqual([]);
-    expect(code).toBe(0);
-    expect(said.ok).toHaveLength(11);
+    const warned = [];
+    const onWarning = (warning) => { warned.push(warning.name); };
+    process.on('warning', onWarning);
+    try {
+      const code = await main(fakeEntry('entry-good'), { ok: (line) => said.ok.push(line), fail: (line) => said.fail.push(line) });
+      expect(said.fail).toEqual([]);
+      expect(code).toBe(0);
+      expect(said.ok).toHaveLength(11);
+      await new Promise((done) => { setImmediate(done); });
+      // Node 22 warns once a signal has more listeners than its limit; 2000 requests share the cases' signal.
+      expect(warned.filter((name) => name === 'MaxListenersExceededWarning')).toEqual([]);
+    } finally {
+      process.off('warning', onWarning);
+    }
   }, 120000);
 
   it('fails an entry that breaks one rule, on that case\'s line alone: losing its lines when SIGINT stops it', async () => {
@@ -377,7 +389,31 @@ describe('GDD-TEC-10 server-log-check: every case, as npm run server:check runs 
   }, 120000);
 });
 
+/** Preludes that break one rule of a case alone: its exit code, or what it says on stderr. */
+const EXITS_0 = "process.on('exit', () => { process.exitCode = 0; });";
+const EXITS_1 = "process.on('exit', () => { process.exitCode = 1; });";
+const SAYS_MORE = "process.stderr.write('a stray line\\n');";
+
 describe('GDD-TEC-10 server-log-check: a log node writes nowhere, and one whose reader read it all', () => {
+  it('fails an entry that writes only the EBADF line but exits 0, and one that exits 1 but says more', async () => {
+    expect(await nowhere(fakeEntry('nowhere-exits-0', 'flush', { prelude: EXITS_0 }))).toMatch(/^exit 0, stderr "the log cannot be written \(EBADF\)\\n"/);
+    expect(await nowhere(fakeEntry('nowhere-says-more', 'flush', { prelude: SAYS_MORE }))).toMatch(/^exit 1, stderr "a stray line\\nthe log cannot be written \(EBADF\)\\n"/);
+  }, 30000);
+
+  it('fails a check whose log is /dev/null that says nothing but exits 1, and one that exits 0 but says something', async () => {
+    expect(await discarded(fakeEntry('discarded-exits-1', 'flush', { prelude: EXITS_1 }))).toMatch(/^exit 1, stderr ""/);
+    expect(await discarded(fakeEntry('discarded-says-more', 'flush', { prelude: SAYS_MORE }))).toMatch(/^exit 0, stderr "a stray line\\n"/);
+  }, 30000);
+
+  it('fails a server whose log was read whole that says nothing but exits 1, and one that exits 0 but says something', async () => {
+    expect(await drained(fakeEntry('drained-exits-1', 'flush', { prelude: EXITS_1 }))).toMatch(/^exit 1, stderr ""/);
+    expect(await drained(fakeEntry('drained-says-more', 'flush', { prelude: SAYS_MORE }))).toMatch(/^exit 0, stderr "a stray line\\n"/);
+  }, 30000);
+
+  it('passes a server whose lines come late: the reader reads every line before it leaves', async () => {
+    expect(await drained(fakeEntry('drained-late', 'flush', { lineDelay: 150 }))).toBeNull();
+  }, 30000);
+
   it('passes an entry that stops at once with the EBADF line when its log is a directory', async () => {
     expect(await nowhere(fakeEntry('nowhere-good'))).toBeNull();
   }, 30000);

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -181,8 +181,13 @@ describe('harness-paths (L-013)', () => {
         mkdirSync(join(root, 'docs'));
         symlinkSync('../server/dist', join(root, 'docs', 'bundle'));
         symlinkSync(outside, join(root, 'docs', 'away'));
+        symlinkSync('..', join(root, 'docs', 'up'));
+        symlinkSync('../..', join(root, 'docs', 'above'));
         const realOf = realIn(root);
         expect(['docs/bundle/main.js', 'docs/bundle/', 'docs/away', 'docs/missing.md', 'docs/'].map(realOf)).toEqual(['server/dist/main.js', 'server/dist/', null, null, 'docs/']);
+        // The root is there, however it is reached; the folder above it is outside.
+        expect(['docs/..', 'docs/../', 'docs/up', 'docs/above', 'docs/above/'].map(realOf)).toEqual(['.', './', '.', null, null]);
+        expect(presentWhen((p) => existsSync(join(root, p)), new Set(), (p) => statSync(join(root, p)).isDirectory(), gitHoldsFiles(root))(realOf('docs/..'))).toBe(true);
         expect(ignoredAmong([realOf('docs/bundle/main.js')], gitCheckIgnore(root))).toEqual(new Set(['server/dist/main.js']));
       } finally {
         rmSync(root, { recursive: true, force: true });

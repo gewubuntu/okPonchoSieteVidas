@@ -69,8 +69,10 @@ export const realIn = (root) => {
       return null;
     }
     const from = relative(base, reached);
-    if (from === '' || from === '..' || from.startsWith(`..${sep}`) || isAbsolute(from)) return null;
-    const real = from.split(sep).join('/');
+    // Above the root, or on another drive: outside. (`isAbsolute` cannot hold on POSIX, where `relative` gives no absolute path.)
+    if (from.split(sep)[0] === '..' || isAbsolute(from)) return null;
+    // The root itself is there, as a fresh checkout has it.
+    const real = from === '' ? '.' : from.split(sep).join('/');
     return path.endsWith('/') ? `${real}/` : real;
   };
 };
