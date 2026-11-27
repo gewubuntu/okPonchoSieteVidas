@@ -76,19 +76,27 @@ export function testsRun(output) {
   return total;
 }
 
+/** A command that runs Vitest or Playwright, by name or through a test script (`npm t`, `npm run test:e2e`, `yarn test`). */
+const TEST_RUNNER = /\b(vitest|playwright)\b|\b(npm|pnpm|yarn|bun)\s+(run\s+)?t(est)?\b/;
+
 /**
- * Why `run`, a mutant's test command run on the unmutated code, cannot be that mutant's test, or null when it can (L-026): it must
- * start, end in time, pass, and run the one test that must kill the mutant, since a run of more counts a kill by any test in it. A
- * run that reports no tests at all is a command of its own (the gate on a bad input, a check script) and is taken as it stands.
+ * Why `run`, the run of `command` on the unmutated code, cannot be a mutant's test, or null when it can (L-026): it must start, end
+ * in time, pass, and run the one test that must kill the mutant, since a run of more counts a kill by any test in it. A run that
+ * reports no tests at all is a command of its own (the gate on a bad input, a check script) and is taken as it stands, unless the
+ * command names a test runner, whose summary must then be read. A command built to hide a second run (its output sent away) still
+ * gets past this: the guard is for the command written by mistake.
  */
-export function baselineProblem(run) {
+export function baselineProblem(run, command = '') {
   const said = verdict(run);
   if (said === 'not started' || said === 'stopped' || said === 'no test') return said;
   if (run.status !== 0) return 'fails on the unmutated code';
   const ran = testsRun(run.output);
-  if (ran === null || ran === 1) return null;
+  if (ran === null) return TEST_RUNNER.test(command) ? 'prints no summary of the tests it ran: keep the default reporter and its output' : null;
+  if (ran === 1) return null;
   if (ran === 0) return 'runs no test';
-  // Playwright runs a test once in each project, so a name unique in its file runs twice unless the project is named.
-  const projects = /^Running \d+ tests? using/m.test(run.output.replace(/\x1b\[[0-9;]*m/g, '')) ? ' (Playwright runs each test once in each project: name one with --project)' : '';
-  return `runs ${ran} tests, not the one that must kill it${projects}`;
+  // Playwright runs a test once in each project, so a name unique in its file runs twice unless the project is named; said only
+  // when the run's lines name more than one project ("[desktop] › ..."), not for a filter that matches two tests in one.
+  const projects = new Set([...run.output.replace(/\x1b\[[0-9;]*m/g, '').matchAll(/\[([^\]\n]+)\] › /g)].map(([, name]) => name));
+  const hint = projects.size > 1 ? ' (Playwright runs each test once in each project: name one with --project)' : '';
+  return `runs ${ran} tests, not the one that must kill it${hint}`;
 }

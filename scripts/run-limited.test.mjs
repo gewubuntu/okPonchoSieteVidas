@@ -176,12 +176,25 @@ describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
     // One name in a spec, run in the desktop and phone projects.
     const twice = 'Running 2 tests using 2 workers\n  ✓  1 [desktop] › e2e/pause.spec.ts:3:1 › tap (2.1s)\n  ✓  2 [phone] › e2e/pause.spec.ts:3:1 › tap (2.4s)\n\n  2 passed (3.0s)\n';
     expect(baselineProblem(run({ output: twice }))).toBe('runs 2 tests, not the one that must kill it (Playwright runs each test once in each project: name one with --project)');
-    expect(baselineProblem(run({ output: twice.replace('Running 2 tests using 2 workers', '\x1b[2mRunning 2 tests using 2 workers\x1b[22m') }))).toMatch(/name one with --project\)$/);
+    expect(baselineProblem(run({ output: twice.replace('[phone] ›', '\x1b[2m[phone]\x1b[22m ›') }))).toMatch(/name one with --project\)$/);
+    // Two tests in one project: the filter matches two names, and the project is no part of it.
+    expect(baselineProblem(run({ output: twice.replace('[phone] › e2e/pause.spec.ts:3:1 › tap', '[desktop] › e2e/pause.spec.ts:9:1 › tap twice') }))).toBe('runs 2 tests, not the one that must kill it');
     expect(baselineProblem(run({ output: 'Running 1 test using 1 worker\n  ✓  1 [desktop] › e2e/pause.spec.ts:3:1 › tap (2.1s)\n\n  1 passed (2.2s)\n' }))).toBeNull();
     expect(baselineProblem(run({ status: 1 }))).toBe('fails on the unmutated code');
     expect(baselineProblem(run({ status: 1, output: 'No test files found, exiting with code 1\n' }))).toBe('no test');
     expect(baselineProblem(run({ status: null, stopped: true }))).toBe('stopped');
     expect(baselineProblem(run({ started: false, status: null }))).toBe('not started');
     expect(baselineProblem(run({ status: 127 }))).toBe('not started');
+  });
+
+  it('refuses a test runner\'s run whose summary is hidden, and takes a command of its own that prints none', () => {
+    const run = (output) => ({ started: true, status: 0, output, stopped: false });
+    const hidden = 'prints no summary of the tests it ran: keep the default reporter and its output';
+    for (const command of ['npx vitest run a.test.ts > /dev/null 2>&1', 'npx vitest run a.test.ts --reporter=json', 'npx playwright test e2e/a.spec.ts --reporter=json', 'npm t', 'npm run test:e2e', 'pnpm test', 'yarn test', 'bun test']) {
+      expect(baselineProblem(run('{"numTotalTests":3}\n'), command), command).toBe(hidden);
+    }
+    for (const command of ['node scripts/check.mjs', 'node scripts/server-log-check.mjs', 'npm run server:check', 'npm run typecheck', 'npm run lint']) {
+      expect(baselineProblem(run('All checks passed.\n'), command), command).toBeNull();
+    }
   });
 });

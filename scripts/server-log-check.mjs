@@ -324,7 +324,13 @@ export async function stopped(entry, signal = 'SIGTERM') {
         const base = `http://127.0.0.1:${port}/api/v1/config`;
         // Each request has a signal of its own that follows the case's: on one signal 2000 would warn, since fetch raises its limit
         // only to 1500.
-        for (let i = 0; i < REQUESTS; i += 8) await Promise.all(Array.from({ length: 8 }, () => fetch(base, { signal: AbortSignal.any([requests]) }).then((response) => response.arrayBuffer())));
+        try {
+          for (let i = 0; i < REQUESTS; i += 8) await Promise.all(Array.from({ length: 8 }, () => fetch(base, { signal: AbortSignal.any([requests]) }).then((response) => response.arrayBuffer())));
+        } catch {
+          // A request given up at the case's limit, or refused by an entry that died: the case fails on the lines that came, and the
+          // check goes on to the next case.
+          return;
+        }
         child.kill(signal);
         setTimeout(() => { child.kill(signal); }, 100);
         setTimeout(() => { child.stdout.resume(); }, 300);

@@ -89,8 +89,10 @@ export function toRequest(req: IncomingMessage): { readonly request: Request } |
     const headers = new Headers();
     // rawHeaders is name, value, name, value: always of even length.
     for (let i = 0; i < req.rawHeaders.length; i += 2) headers.append(req.rawHeaders[i] ?? '', req.rawHeaders[i + 1] ?? '');
-    // A GET and a HEAD have no body to read; any other method's body is read from the stream as the handler asks for it.
-    if (method === 'GET' || method === 'HEAD') return { request: new Request(`${BASE}${target}`, { method, headers }) };
+    // A GET and a HEAD have no body to read, nor has a request that declares none (no length and no chunks, or a length of 0), so
+    // nothing of it is left unread; any other's body is read from the stream as the handler asks for it.
+    const declares = req.headers['transfer-encoding'] !== undefined || (req.headers['content-length'] ?? '0') !== '0';
+    if (method === 'GET' || method === 'HEAD' || !declares) return { request: new Request(`${BASE}${target}`, { method, headers }) };
     return { request: new Request(`${BASE}${target}`, { method, headers, body: bodyOf(req), duplex: 'half' }) };
   } catch {
     return { status: 400, reason: REASON.noRoute };
@@ -111,7 +113,9 @@ export function toRequest(req: IncomingMessage): { readonly request: Request } |
  * body for a HEAD, a 204 or a 304, calling the write back at once (L-025).
  */
 function writeWhole(res: ServerResponse, body: Buffer | string): void {
-  res.setHeader('content-length', String(Buffer.byteLength(body)));
+  // A 204 and a 304 carry no length (RFC 9110, 8.6), the app's own included.
+  if (res.statusCode === 204 || res.statusCode === 304) res.removeHeader('content-length');
+  else res.setHeader('content-length', String(Buffer.byteLength(body)));
   res.write(body, () => { res.end(); });
 }
 
@@ -123,6 +127,9 @@ function writeWhole(res: ServerResponse, body: Buffer | string): void {
 const FRAMING = new Set(['connection', 'keep-alive', 'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade']);
 
 export async function send(res: ServerResponse, response: Response): Promise<void> {
+  // A network error (Response.error(), status 0) is no answer to send: node would throw on its status only once it writes, which a
+  // client gone by then puts after every catch. The adapter's own 500 answers it.
+  if (response.type === 'error') throw new Error('an app answered with a network error');
   const bytes = Buffer.from(await response.arrayBuffer());
   res.statusCode = response.status;
   for (const [name, value] of response.headers) if (name !== 'set-cookie' && !FRAMING.has(name)) res.setHeader(name, value);
@@ -333,10 +340,13 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
     const connection = connectionOf(socket);
     // Nothing more is read once node has given up: after a timeout node would read on, so a request it gave up on could still come in
     // whole before its turn, a running one's body could reach the app after this answer, and a later request could be read. Node
-    // itself resumes a socket it paused while an answer would not drain, so the pause is made again on each resume, after node's own
-    // listener has started reading. Node reports a give-up at most once more (its request timeout; no later read comes), so a
-    // second listener, if added, pauses too (L-025: no check of its own).
-    socket.on('resume', () => { socket.pause(); });
+    // itself resumes the socket in several places (once an answer drains, once a body it held back is read, after a 100 Continue),
+    // and each resume starts the handle reading before its 'resume' event, whatever the stream's state. So on each resume the read
+    // is stopped again: node's own 'pause' listener stops the handle, and it is told so even when the stream already counts as paused,
+    // where pause() tells no one. The stream's own state needs no pause of its own (L-025): node's parser reads the handle itself, so
+    // the stream never starts a read again. Once per connection: a listener added on each of node's reports would grow with what the
+    // client sends if reading ever went on (L-106; a kept survivor, as no report comes once reading stops).
+    if (!connection.broken) socket.on('resume', () => { socket.emit('pause'); });
     connection.broken = true;
     socket.pause();
     // Bytes after a request that closes the connection (node's HPE_CLOSED_CONNECTION) need no check of their own (L-025): that

@@ -93,7 +93,7 @@ for (const m of mutants) {
   }
   // On the unmutated code, once for each command: every file is as it was, the last mutant put back.
   if (!baselines.has(m.test ?? test)) {
-    const problem = baselineProblem(await runLimited(m.test ?? test, { cwd: ROOT, env: process.env, seconds: timeout }));
+    const problem = baselineProblem(await runLimited(m.test ?? test, { cwd: ROOT, env: process.env, seconds: timeout }), m.test ?? test);
     baselines.set(m.test ?? test, problem);
     console.log(problem === null ? `BASELINE ok: ${m.test ?? test}` : `BASELINE ${problem}: ${m.test ?? test}`);
   }

@@ -301,6 +301,20 @@ describe('GDD-TEC-10 server-log-check: a server stopped while its log\'s reader 
     expect(wrong).toMatch(/^exit 0, \d+ of 2000 /);
     expect(wrong).not.toMatch(/^exit 0, 2000 of 2000 /);
   }, 60000);
+
+  it('fails a server that dies part way through the requests, and goes on: a request it refuses ends the asking, not the check', async () => {
+    const entry = join(dir, 'server-dies.mjs');
+    writeFileSync(entry, `
+import { createServer } from 'node:http';
+let answered = 0;
+const server = createServer((req, res) => {
+  res.on('finish', () => { process.stdout.write(${JSON.stringify(`${CONFIG_LINE}\n`)}); answered += 1; if (answered === 50) process.exit(1); });
+  res.end('{}');
+});
+server.listen(Number(process.env.PONCHO_SERVER_PORT), '127.0.0.1', () => { process.stdout.write('{"event":"listening","port":' + server.address().port + '}\\n'); });
+`);
+    expect(await stopped(entry)).toMatch(/^exit 1, (49|50) of 2000 request lines read/);
+  }, 60000);
 });
 
 /**
