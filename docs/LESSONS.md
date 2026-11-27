@@ -1348,3 +1348,14 @@ Retired IDs: L-046
 - **Note (2026-11-27):** the same round's critic found the catch itself made a hole. Once a request failed, the stop case returned before sending its signal, yet its verdict counted only the exit, stderr and the lines, so an entry that wrote its lines at once and exited 0 by itself passed though its stop was never tested. The search for the same shape found it in `drained` too: an entry that exited 0 on its own before the SIGTERM passed. Both cases now pass only a run their signal reached, and the stop case counts only the lines after the listening line. A catch or an early return added to a check is read against the verdict it skips past.
 - **Recurrence:** 1
 - **Promoted:** `.claude/skills/harness-feature/rules/server.md` (Tests), beside L-104's line on reading a header as node does.
+
+## L-108 A check rewritten to read words lost what the pattern it replaced caught on the raw text
+
+- **Date:** 2026-11-27
+- **Area:** tests, harness
+- **What went wrong:** In PR #136 (GDD-TEC-10's follow-up), round 7 found the mutant runner's pattern for a test script missed `npm run-script test` and other forms, and 55d6000 replaced the pattern with `namesTestRunner`, which splits a command into words and follows each through `package.json`. The review of 55d6000 found it took commands the old pattern refused: a redirect stuck to a word (`npm test>/dev/null`) or a command quoted inside `sh -c` or backticks hid the script's name, so a whole-file run with its output sent away was a mutant's test again. Its tests listed the new forms by their words, and none of the old pattern's raw-text cases.
+- **Root cause:** a check whose method changed (from a pattern over the raw text to words) was tested on what the new method was written to read, not on what the old one caught: the forms where the two models differ (punctuation stuck to a word, quotes, nesting) were never put to it.
+- **Rule:** when a check is replaced, the old one is kept in the new one's tests as an oracle, run over a list of inputs it refused (its own fixtures, and the forms where the old and new methods read differently): each must still be refused, or the pull request says it no longer is and why.
+- **Recurrence:** 1
+- **Note (2026-11-27):** probe round 8 found four more forms past the word reader (`npm run -- test`, `node --no-warnings --run test`, npm's `npm tes`, `$(which npm)`), after three rounds had each found others. The reader of free commands was replaced by the three forms a mutant's test is written in (`commandProblem`), and the old pattern stayed as the oracle of the replacement, by this lesson's own rule.
+- **Promoted:** `scripts/run-limited.test.mjs` ("refuses every command that the pattern it replaced refused"), the oracle for this check.

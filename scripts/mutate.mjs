@@ -11,14 +11,15 @@
 // run it again. Nor is a mutant whose red run reports more than one test (RAN MORE, `mutantVerdict` in scripts/run-limited.mjs):
 // it made the filter match others than the one test it names, as by renaming tests or building them from its data (L-026).
 // A mutant's own `test` replaces the file's, so each mutant can run against the one test that must kill it (L-026). Each command
-// is first run once on the unmutated code: one that fails there, finds no test, or runs other than one test by its Vitest or
-// Playwright summary is refused, reported REFUSED and its mutants counted as not caught, since a run of more counts a kill by any
-// test in it (`baselineProblem` in scripts/run-limited.mjs). One that reports no tests (a check script; the gate prints its test
-// runs' summaries) is taken as it stands, unless it runs a test runner, by name or through a package script however npm, pnpm,
-// yarn, bun or node --run is asked for it (`namesTestRunner`), whose summary must then be read. Three limits of the summary: one printed
-// twice (two reporters, a test whose own output holds summary lines) counts twice and is refused; a Vitest test that skips
-// itself after its checks (`ctx.skip()`) counts as not run, as the summary does not tell it from a test the filter left out; and
-// a playtest filter that also matches a skipped test counts it, as Playwright's `Running N tests` does, and is refused.
+// must be one of three forms, with no other part of the shell (`commandProblem` in scripts/run-limited.mjs): `npx vitest run
+// <file> -t '<name>'`, `npx playwright test <spec> -g '<name>' --project <project>`, or `node scripts/<check>.mjs` with plain
+// arguments. It is then run once on the unmutated code: one that fails there, finds no test, or runs other than one test by its
+// Vitest or Playwright summary is refused, reported REFUSED and its mutants counted as not caught, since a run of more counts a
+// kill by any test in it (`baselineProblem`). A check script that reports no tests is taken as it stands; the gate prints its
+// test runs' summaries, so it is refused. Three limits of the summary: one printed twice (a test whose own output holds summary
+// lines) counts twice and is refused; a Vitest test that skips itself after its checks (`ctx.skip()`) counts as not run, as the
+// summary does not tell it from a test the filter left out; and a playtest filter that also matches a skipped test counts it, as
+// Playwright's `Running N tests` does, and is refused.
 // `from` must occur exactly once in the file, and the file must still parse with the mutant in it (L-103). Before each mutant the original is saved to .mutating.json; it is put back
 // after the mutant, and the marker deleted. If the run is killed the marker stays, and scripts/check.mjs fails until
 // `--restore` has run, so a mutation can never be committed.
@@ -28,7 +29,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { breaksSyntax, occurrences } from './mutant-suggest.mjs';
-import { baselineProblem, mutantVerdict, runLimited, testsRun } from './run-limited.mjs';
+import { baselineProblem, commandProblem, mutantVerdict, runLimited, testsRun } from './run-limited.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const MARKER = join(ROOT, '.mutating.json');
@@ -98,7 +99,7 @@ for (const m of mutants) {
   }
   // On the unmutated code, once for each command: every file is as it was, the last mutant put back.
   if (!baselines.has(m.test ?? test)) {
-    const problem = baselineProblem(await runLimited(m.test ?? test, { cwd: ROOT, env: process.env, seconds: timeout }), m.test ?? test);
+    const problem = commandProblem(m.test ?? test) ?? baselineProblem(await runLimited(m.test ?? test, { cwd: ROOT, env: process.env, seconds: timeout }));
     baselines.set(m.test ?? test, problem);
     console.log(problem === null ? `BASELINE ok: ${m.test ?? test}` : `BASELINE ${problem}: ${m.test ?? test}`);
   }
@@ -110,7 +111,8 @@ for (const m of mutants) {
   writeFileSync(MARKER, JSON.stringify({ file: m.file, original }));
   try {
     writeFileSync(path, mutated);
-    // PONCHO_MUTATING tells scripts/check.mjs not to fail on this run's own marker, so the gate can be a mutant's test.
+    // PONCHO_MUTATING tells scripts/check.mjs not to fail on this run's own marker: a test that runs the gate with its output sent
+    // away (taken, as it shows no summary) would otherwise go red on the marker alone, a kill the mutant did not make.
     const r = await runLimited(m.test ?? test, { cwd: ROOT, env: { ...process.env, PONCHO_MUTATING: '1' }, seconds: timeout });
     const says = mutantVerdict(r);
     if (says !== 'caught') survived++;

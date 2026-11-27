@@ -533,6 +533,16 @@ server.listen(Number(process.env.PONCHO_SERVER_PORT), '127.0.0.1', () => { proce
   }, 60000);
 });
 
+describe('GDD-TEC-10 server-log-check: a server that ends before it listens', () => {
+  it('is failed in the filled-file case, and the check goes on: the case\'s wait for its listening line ends with it', async () => {
+    const entry = join(dir, 'ends-unlistening.mjs');
+    writeFileSync(entry, "process.stderr.write('boot failed\\n'); process.exit(1);\n");
+    expect(await servedFilled(entry)).toBe('with its log a file with room, it never wrote its listening line');
+    // The case's own wait reads its log once more after the entry is gone; that read failing must not reach this process.
+    await new Promise((done) => { setTimeout(done, 200); });
+  }, 30000);
+});
+
 describe('GDD-TEC-10 server-log-check: a server whose log is a file that fills up', () => {
   it('fails a server that answers one of the four with a 500 before it stops on the cut line', async () => {
     const entry = join(dir, 'filled-500.mjs');

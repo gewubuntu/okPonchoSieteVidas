@@ -4,7 +4,6 @@
 // so while the command runs the group is killed on the signal too. A process that takes a group of its own, such as the
 // dev server the playtests start, is in neither case stopped.
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 
 const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 
@@ -91,6 +90,8 @@ export function testsRun(output) {
   // (the filter must match the one test alone). A run with none passed, failed or flaky ran no test; any other ran the larger of
   // the two counts.
   for (const run of text.split(/^(?=Running \d+ tests? using)/m)) {
+    // Text before a run's "Running" line is no run's: a Vitest failure's diff can hold a line such as "  2 passed (1.0s)".
+    if (!run.startsWith('Running')) continue;
     let ran = null;
     for (const [, k, kind] of run.matchAll(/^\s+(\d+) (passed|failed|flaky|skipped|did not run|interrupted)\b/gm)) {
       ran = (ran ?? 0) + (kind === 'passed' || kind === 'failed' || kind === 'flaky' ? Number(k) : 0);
@@ -102,52 +103,36 @@ export function testsRun(output) {
   return total;
 }
 
-/** The scripts of the repository's package.json, read once. */
-let scriptsRead;
-const repositoryScripts = () => (scriptsRead ??= JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).scripts);
+// The forms a mutant's test is written in (L-026, harness-feature step 7): one Vitest test of one file, one playtest in one project,
+// or a check script with plain arguments. A name is in single quotes, which the shell reads as written; anything else of the shell
+// (a redirect, a pipe, a second command, a substitution, another quote) is outside these forms, so no command can hide a run.
+const NAME = "'[^']*'";
+const FORMS = [
+  new RegExp(`^npx vitest run [\\w./-]+\\.test\\.(ts|mjs) -t ${NAME}$`),
+  new RegExp(`^npx playwright test [\\w./-]+\\.spec\\.ts -g ${NAME} --project [\\w-]+$`),
+  /^node scripts\/[\w-]+\.mjs( [\w./=:@-]+)*$/,
+];
 
-// npm's own short names for its test script.
-const TEST_WORDS = new Set(['t', 'tst']);
-
-/**
- * Whether `command` runs Vitest or Playwright: by name, or through a package script whose own command does, as `npm t`, `npm
- * --silent test`, `npm run-script test:e2e`, `npm run "test"`, `yarn test`, `pnpm shots` or `node --run test`, followed through the scripts it runs
- * in turn. Each word of a package manager's command before `--` that names a script is taken for one, so a flag's value that is
- * a script's name counts too: the error is a refusal (`baselineProblem`), never a command taken. A flag, `run` and its other names
- * (`run-script`, `rum`, `urn`) name no script here.
- */
-export function namesTestRunner(command, scripts = repositoryScripts(), depth = 0) {
-  if (/\b(vitest|playwright)\b/.test(command)) return true;
-  if (depth > 4) return false;
-  for (const part of command.split(/[;|&\n()]/)) {
-    const words = part.trim().split(/\s+/);
-    const tool = words.findIndex((word, i) => /^(npm|pnpm|yarn|bun)$/.test(word.split('/').pop()) || (word.split('/').pop() === 'node' && /^--run(=|$)/.test(words[i + 1] ?? '')));
-    if (tool < 0) continue;
-    const end = words.indexOf('--', tool);
-    for (const written of words.slice(tool + 1, end < 0 ? undefined : end)) {
-      // A name in quotes, or node's --run=<name>, names its script too.
-      const word = written.replace(/^--run=/, '').replace(/^(["'])(.*)\1$/, '$2');
-      const name = TEST_WORDS.has(word) ? 'test' : word;
-      if (Object.hasOwn(scripts, name) && namesTestRunner(scripts[name], scripts, depth + 1)) return true;
-    }
-  }
-  return false;
+/** Why `command` cannot be a mutant's test as written, or null when it is one of the forms above. */
+export function commandProblem(command) {
+  return FORMS.some((form) => form.test(command))
+    ? null
+    : "is none of the forms a mutant's test is written in: npx vitest run <file> -t '<name>', npx playwright test <spec> -g '<name>' --project <project>, or node scripts/<check>.mjs with plain arguments";
 }
 
 /**
  * Why `run`, the run of `command` on the unmutated code, cannot be a mutant's test, or null when it can (L-026): it must start, end
  * in time, pass, and run the one test that must kill the mutant, since a run of more counts a kill by any test in it. A run that
- * reports no tests at all is a command of its own (a check script, as `node scripts/server-log-check.mjs`; the gate prints its test
- * runs' summaries, so it is refused) and is taken as it stands, unless the command runs a test runner (`namesTestRunner`), whose
- * summary must then be read. A command built to hide a second run (its output sent away) still gets past this: the guard is for the
- * command written by mistake. `scripts`: the package scripts the command may name (the repository's unless given, for the tests).
+ * reports no tests at all is a check script, as `node scripts/server-log-check.mjs`, and is taken as it stands; the gate prints its
+ * test runs' summaries, so it is refused. A runner's command is one of the forms `commandProblem` takes, which print the runner's
+ * own summary, so a run of one shows as one.
  */
-export function baselineProblem(run, command = '', scripts = repositoryScripts()) {
+export function baselineProblem(run) {
   const said = verdict(run);
   if (said === 'not started' || said === 'stopped' || said === 'no test') return said;
   if (run.status !== 0) return 'fails on the unmutated code';
   const ran = testsRun(run.output);
-  if (ran === null) return namesTestRunner(command, scripts) ? 'prints no summary of the tests it ran: keep the default reporter and its output' : null;
+  if (ran === null) return null;
   if (ran === 1) return null;
   if (ran === 0) return 'runs no test';
   // Playwright runs a test once in each project, so a name unique in its file runs twice unless the project is named; said only

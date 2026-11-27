@@ -70,8 +70,12 @@ function launch(command, args, { env, stdout = 'pipe', limitMs = LIMIT_MS }, sta
       end(null, 'SIGKILL', true);
     }, limitMs);
     child.on('close', (code, signal) => { end(code, signal, false); });
-    // The requests' own limit too: an entry may be done while a process it left holds the server and never answers.
-    start(child, AbortSignal.any([requests.signal, AbortSignal.timeout(limitMs)]));
+    // The requests' own limit too: an entry may be done while a process it left holds the server and never answers. A case's own
+    // work may still be going when its entry has ended and the case has returned (a read of a log it has removed): that work is no
+    // part of the verdict, so its failure ends it and nothing more (L-107).
+    Promise.resolve()
+      .then(() => start(child, AbortSignal.any([requests.signal, AbortSignal.timeout(limitMs)])))
+      .catch(() => undefined);
   });
 }
 /** How a run ended, as a case reports it. */
