@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOUNDS, breaksSyntax, changedCode, changedLines, covered, occurrences, suggest } from './mutant-suggest.mjs';
+import { BOUNDS, breaksSyntax, changedCode, changedLines, covered, langOf, occurrences, suggest } from './mutant-suggest.mjs';
 
 describe('mutant-suggest (L-010)', () => {
   const all = (text) => new Set(text.split('\n').map((_, i) => i + 1));
@@ -135,6 +135,19 @@ describe('mutant-suggest (L-010)', () => {
     expect(breaksSyntax('scripts/a.mjs', 'const a = 1;\n', 'const a = ;\n')).toBe(true);
     // A file that does not parse to begin with (not a module) is never said to be broken.
     expect(breaksSyntax('docs/a.md', '# A title {', '# A title {{')).toBe(false);
+  });
+
+  it('refuses a mutant that parses but that V8 would not load: a break left outside its loop, a name declared twice', () => {
+    const loop = 'export function f(x: boolean): void {\n  for (;;) {\n    if (x) break;\n  }\n}\n';
+    expect(breaksSyntax('server/a.ts', loop, loop.replace('  for (;;) {', '  {'))).toBe(true);
+    const names = 'export function g(): number {\n  let a = 1;\n  return a;\n}\n';
+    expect(breaksSyntax('server/a.ts', names, names.replace('  return a;', '  let a = 2;\n  return a;'))).toBe(true);
+  });
+
+  it('reads .mts, .cts and upper-case .TS files as TypeScript and .tsx as TSX, so a mutant that breaks one is refused', () => {
+    expect(['a.ts', 'a.mts', 'a.cts', 'A.TS', 'a.tsx', 'a.jsx', 'a.mjs', 'a.js', 'a.md'].map(langOf)).toEqual(['ts', 'ts', 'ts', 'ts', 'tsx', 'jsx', 'js', 'js', 'js']);
+    expect(breaksSyntax('scripts/a.mts', 'export const x: number = 1;\n', 'export const x: number = ;\n')).toBe(true);
+    expect(breaksSyntax('src/a.tsx', 'export const a = <div>{1 as number}</div>;\n', 'export const a = <div>{1 as number};\n')).toBe(true);
   });
 
   it('hands the parser the path and the text, and reads what it returns', () => {

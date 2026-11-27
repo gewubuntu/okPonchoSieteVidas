@@ -10,8 +10,14 @@ import { createRequire } from 'node:module';
 // Loaded on first use, as in scripts/sim-determinism.mjs, so the runner still works in a checkout with no `node_modules`.
 const require = createRequire(import.meta.url);
 
-/** Vite's parser, reading a `.ts` file as TypeScript and any other as a plain module. */
-const viteParse = (path, text) => require('vite').parseSync(path, text, { lang: path.endsWith('.ts') ? 'ts' : 'js' });
+/** The language a file is read in, by its extension: TypeScript (`.ts`, `.mts`, `.cts`), TSX, JSX, else a plain module. */
+export const langOf = (path) => (/\.tsx$/i.test(path) ? 'tsx' : /\.jsx$/i.test(path) ? 'jsx' : /\.[cm]?ts$/i.test(path) ? 'ts' : 'js');
+
+/**
+ * Vite's parser, with the checks V8 makes when it loads a module (a `break` outside a loop, a name declared twice): a mutant that
+ * fails them parses, then fails to load, and every test goes red for that (L-103).
+ */
+const viteParse = (path, text) => require('vite').parseSync(path, text, { lang: langOf(path), showSemanticErrors: true });
 
 /**
  * Whether a mutant of `original` into `mutated` breaks the file's syntax: the file parsed before and does not after. Such a

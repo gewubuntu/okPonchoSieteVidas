@@ -7,6 +7,7 @@ import { memoryStore } from '../store/memory';
 import type { Store } from '../store/store';
 import { loadTokenKey } from '../tokens/key';
 import { createApp, type AppDeps, type RequestLog } from './app';
+import { lineOf } from './boundary';
 
 const NOON = Date.parse('2026-11-21T12:00:00.000Z');
 const KEY_TEXT = generateKeyPairSync('ed25519').privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64');
@@ -28,10 +29,17 @@ function fixture(over: Partial<AppDeps> = {}): Fixture {
     clock: { now: () => { reads.clock += 1; return NOON; } },
     random: (bytes) => Buffer.alloc(bytes, 1),
     sim: SIM_VERSION,
-    log: (line) => { log.push(line); },
     ...over,
   };
-  return { deps, app: createApp(deps), log, store, reads };
+  // The app's answers carry their lines; here each one returned is taken as written, as the socket adapter logs it once it is.
+  const created = createApp(deps);
+  const app = async (request: Request): Promise<Response> => {
+    const response = await created(request);
+    const line = lineOf(response);
+    if (line !== undefined) log.push(line);
+    return response;
+  };
+  return { deps, app, log, store, reads };
 }
 const GET = (path: string, init: RequestInit = {}): Request => new Request(`http://api.invalid${path}`, init);
 const POST = (path: string, body = '{}', headers: Record<string, string> = { 'content-type': 'application/json' }): Request => new Request(`http://api.invalid${path}`, { method: 'POST', body, headers });
@@ -189,7 +197,7 @@ describe('GDD-TEC-10 config over HTTP', () => {
 });
 
 describe('GDD-TEC-10 a body that does not arrive', () => {
-  it('a POST whose body fails part way is 408 "the body did not arrive whole", logged so, and nothing is written', async () => {
+  it('a POST whose body fails part way is 408 "the body did not arrive whole", with its line, and nothing is written (no client gets that 408: see node.test.ts)', async () => {
     const { app, log, store } = fixture();
     let pulls = 0;
     const body = new ReadableStream<Uint8Array>({
@@ -226,9 +234,9 @@ describe('GDD-TEC-10 faults', () => {
   });
 
   it('a handler that throws gets 500 "server error", and neither the answer nor the log says why', async () => {
-    const { store, deps, log } = fixture();
+    const { store } = fixture();
     const broken: Store = { ...store, put: () => { throw new Error('secret-store-text'); } };
-    const app = createApp({ ...deps, store: broken });
+    const { app, log } = fixture({ store: broken });
     const response = await app(POST(NONCE));
     expect(response.status).toBe(500);
     expect(await response.text()).toBe('{"error":"server error"}');
@@ -256,6 +264,16 @@ describe('GDD-TEC-10 the request log', () => {
     expect(JSON.stringify(log)).not.toMatch(/secret/);
   });
 
+  it('a body refused for what it is (too large, not JSON) leaves its line: only a body that did not arrive whole leaves none', async () => {
+    const { app, log } = fixture();
+    await app(POST(NONCE, 'x'.repeat(70000)));
+    await app(POST(NONCE, 'garbage'));
+    expect(log).toEqual([
+      { method: 'POST', route: NONCE, status: 413 },
+      { method: 'POST', route: NONCE, status: 400 },
+    ]);
+  });
+
   it('a path no route has is "(none)", whatever the client wrote; a method on a route that has none is the route\'s own path', async () => {
     const { app, log } = fixture();
     await app(GET('/api/v1/secret-path'));
@@ -272,16 +290,6 @@ describe('GDD-TEC-10 the request log', () => {
     expect(log).toEqual([{ method: '(other)', route: '/api/v1/config', status: 405 }]);
   });
 
-  it('a log that throws changes no answer: the config is still 200 with the fixed headers, an unknown path still 404', async () => {
-    const { app } = fixture({ log: () => { throw new Error('zz-log'); } });
-    const config = await app(GET('/api/v1/config'));
-    expect(config.status).toBe(200);
-    expect(config.headers.get('content-type')).toBe('application/json; charset=utf-8');
-    expect(config.headers.get('cache-control')).toBe('no-store');
-    const none = await app(GET('/nope'));
-    expect(none.status).toBe(404);
-    expect(await none.text()).not.toContain('zz-log');
-  });
 
   it.each(['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])('%s is logged as itself', async (method) => {
     const { app, log } = fixture();

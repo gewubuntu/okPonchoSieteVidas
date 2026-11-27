@@ -7,7 +7,7 @@ import type { ChainSource } from '../chain/chain';
 import { publicConfig, type ServerConfig } from '../config';
 import type { Store } from '../store/store';
 import type { TokenKey } from '../tokens/key';
-import { BODY_LIMIT, fieldsOf, fromElsewhere, isJsonType, json, methodOf, quietly, readBody, REASON, refuse, type RequestLog } from './boundary';
+import { BODY_LIMIT, fieldsOf, fromElsewhere, isJsonType, json, methodOf, readBody, REASON, refuse, withLine } from './boundary';
 import { sessionRoutes } from './routes-session';
 
 /** Where the game is served: its origin, and the domain and URI a sign-in message must name (docs/decisions/0004-game-server.md; a placeholder). */
@@ -23,7 +23,6 @@ export interface AppDeps {
   readonly random: (bytes: number) => Buffer;
   /** The simulation version this build was made with (GDD-TEC-09). */
   readonly sim: string;
-  readonly log: (line: RequestLog) => void;
 }
 /** What a handler is given: the server's time (a finite number, read once) and, of a POST, the body, which has exactly the route's keys. */
 export interface Context { readonly deps: AppDeps; readonly now: number; readonly body: Readonly<Record<string, unknown>> }
@@ -68,9 +67,12 @@ async function respond(deps: AppDeps, request: Request, path: string): Promise<R
   return route.handler({ deps, now, body });
 }
 
-/** The server as a function: every answer, refusals and the 500 included, has the fixed headers, and one line is logged for it. */
+/**
+ * The server as a function: every answer, refusals and the 500 included, has the fixed headers and carries the one line it leaves
+ * (`lineOf`), which the socket adapter logs once the answer is written. A 408 for a body that did not arrive whole is so never logged:
+ * node gave up on the request and the adapter answered it as node does, or the client is gone.
+ */
 export function createApp(deps: AppDeps): (request: Request) => Promise<Response> {
-  const log = quietly(deps.log);
   return async (request) => {
     const path = new URL(request.url).pathname;
     let response: Response;
@@ -80,7 +82,6 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       // Nothing of what was thrown is answered or logged: on a real chain it could hold a key (PONCHO_RPC_URL).
       response = refuse(500, REASON.serverError);
     }
-    log({ method: methodOf(request.method), route: PATHS.has(path) ? path : '(none)', status: response.status });
-    return response;
+    return withLine(response, { method: methodOf(request.method), route: PATHS.has(path) ? path : '(none)', status: response.status });
   };
 }

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SIM_VERSION } from '../src/sim/version';
 import { codeOf, DEFAULT_ORIGIN, DEFAULT_PORT, guardLogs, selfCheck, settingsOf, wire, type Env, type Fetch, type Settings } from './boot';
-import type { RequestLog } from './http/app';
+import { lineOf } from './http/boundary';
 
 const KEY_TEXT = generateKeyPairSync('ed25519').privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64');
 const NO_FILE = (path: string): string => {
@@ -154,22 +154,22 @@ describe('GDD-TEC-10 boot: the settings', () => {
 });
 
 describe('GDD-TEC-10 boot: wiring', () => {
-  it('the app answers the config with the key made for the run, the build\'s simulation version and the real clock, and logs the request', async () => {
-    const log: RequestLog[] = [];
+  it('the app answers the config with the key made for the run, the build\'s simulation version and the real clock, and the answer carries its line', async () => {
     const settings = settled({});
-    const wired = await wire(settings, (line) => { log.push(line); });
+    const wired = await wire(settings);
     const before = Date.now();
-    const answer: { tokenKey: string; sim: string; now: number } = JSON.parse(await (await wired.app(new Request('http://api.invalid/api/v1/config'))).text());
+    const response = await wired.app(new Request('http://api.invalid/api/v1/config'));
+    const answer: { tokenKey: string; sim: string; now: number } = JSON.parse(await response.text());
     expect(answer.tokenKey).toBe(settings.key.publicText);
     expect(answer.sim).toBe(SIM_VERSION);
     expect(answer.now).toBeGreaterThanOrEqual(before);
     expect(answer.now).toBeLessThanOrEqual(Date.now());
-    expect(log).toEqual([{ method: 'GET', route: '/api/v1/config', status: 200 }]);
+    expect(lineOf(response)).toEqual({ method: 'GET', route: '/api/v1/config', status: 200 });
     wired.close();
   });
 
   it('a nonce is made from random bytes, two different ones, and kept in the memory store', async () => {
-    const wired = await wire(settled({}), () => undefined);
+    const wired = await wire(settled({}));
     const ask = async (): Promise<string> => {
       const answer: { nonce: string } = JSON.parse(await (await wired.app(new Request('http://api.invalid/api/v1/sign-in/nonce', { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } }))).text());
       return answer.nonce;
@@ -185,10 +185,10 @@ describe('GDD-TEC-10 boot: wiring', () => {
     const dir = mkdtempSync(join(tmpdir(), 'poncho-boot-'));
     try {
       const settings = settled({ PONCHO_STORE: join(dir, 'poncho.db') });
-      const first = await wire(settings, () => undefined);
+      const first = await wire(settings);
       await first.app(new Request('http://api.invalid/api/v1/sign-in/nonce', { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } }));
       first.close();
-      const second = await wire(settings, () => undefined);
+      const second = await wire(settings);
       expect(second.store.entries('nonce').length).toBe(1);
       second.close();
     } finally {
@@ -201,7 +201,7 @@ interface Config { CHAIN: Record<string, unknown>; LEDGER: unknown; [name: strin
 const BASE = 'http://api.invalid';
 const ORIGIN = 'http://localhost:5173';
 async function app(): Promise<(request: Request) => Promise<Response>> {
-  return (await wire(settled({}), () => undefined)).app;
+  return (await wire(settled({}))).app;
 }
 const direct = (served: (request: Request) => Promise<Response>): Fetch => (url, init) => served(new Request(url, init));
 const down: Fetch = () => Promise.reject(new Error('connection refused'));

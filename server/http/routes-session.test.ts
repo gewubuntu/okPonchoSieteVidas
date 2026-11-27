@@ -30,7 +30,6 @@ function fixture(): { readonly app: (request: Request) => Promise<Response>; rea
     clock: { now: () => NOON },
     random: counter(),
     sim: 'test',
-    log: () => undefined,
   };
   return { app: createApp(deps), store };
 }

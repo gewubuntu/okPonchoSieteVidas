@@ -3,7 +3,7 @@
 // It never reads Host or X-Forwarded-*: the Request's URL has a host of its own that no client sets.
 import { createServer, STATUS_CODES, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable, type Duplex } from 'node:stream';
-import { codeOf, FIXED_HEADERS, methodOf, quietly, refuse, REASON, type RequestLog } from './boundary';
+import { codeOf, FIXED_HEADERS, lineOf, methodOf, quietly, refuse, REASON, withLine, type RequestLog } from './boundary';
 
 /**
  * The server's own settings, not GDD values, in ms: how long a client may take to send a whole request and its headers; how often node
@@ -40,25 +40,57 @@ export function targetOf(raw: string): string | null {
   }
 }
 
-/** The Request for a node request, or the status to answer with: 405 for a method `Request` refuses (TRACE; a CONNECT never comes here, see `serve`), 400 for a target or a header that does not read. */
-export function toRequest(req: IncomingMessage): { readonly request: Request } | { readonly status: 400 | 405 } {
+/**
+ * Whether `req` asks for a 100 Continue in the one form RFC 9110 gives it: node takes any Expect in which the words stand apart. Node
+ * strips the spaces around a header's value, so none is left to trim (L-025).
+ */
+const expectsContinue = (req: IncomingMessage): boolean => req.headers.expect?.toLowerCase() === '100-continue';
+
+/** Whether the app read each request's body to its end, for the requests whose body it was handed (`send` reads it). */
+const bodies = new WeakMap<IncomingMessage, { ended: boolean }>();
+
+/** The body the app is handed: `req`'s bytes as the app asks for them, so that reading to the end is known (`bodies`). */
+function bodyOf(req: IncomingMessage): ReadableStream<Uint8Array> {
+  const read = { ended: false };
+  bodies.set(req, read);
+  const source = Readable.toWeb(req).getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await source.read();
+      if (done) {
+        read.ended = true;
+        controller.close();
+      } else controller.enqueue(value);
+    },
+    cancel: (reason) => source.cancel(reason),
+  }, { highWaterMark: 0 });
+}
+
+/**
+ * The Request for a node request, or the status to answer with: 405 for a method `Request` refuses (TRACE; a CONNECT never comes here,
+ * see `serve`), 400 for a target or a header that does not read and for an HTTP/1.1 request with no Host (RFC 9112, 3.2; node's own
+ * check is off, see `serve`), 417 for an Expect other than 100-continue, on any version.
+ */
+export function toRequest(req: IncomingMessage): { readonly request: Request } | { readonly status: 400 | 405 | 417; readonly reason: string } {
   const method = req.method ?? 'GET';
   try {
     new Request(BASE, { method });
   } catch {
-    return { status: 405 };
+    return { status: 405, reason: REASON.noMethod };
   }
   const target = targetOf(req.url ?? '');
-  if (target === null) return { status: 400 };
+  if (target === null) return { status: 400, reason: REASON.noRoute };
+  if (req.httpVersion === '1.1' && req.headers.host === undefined) return { status: 400, reason: REASON.noHost };
+  if (req.headers.expect !== undefined && !expectsContinue(req)) return { status: 417, reason: REASON.noExpectation };
   try {
     const headers = new Headers();
     // rawHeaders is name, value, name, value: always of even length.
     for (let i = 0; i < req.rawHeaders.length; i += 2) headers.append(req.rawHeaders[i] ?? '', req.rawHeaders[i + 1] ?? '');
     // A GET and a HEAD have no body to read; any other method's body is read from the stream as the handler asks for it.
     if (method === 'GET' || method === 'HEAD') return { request: new Request(`${BASE}${target}`, { method, headers }) };
-    return { request: new Request(`${BASE}${target}`, { method, headers, body: Readable.toWeb(req), duplex: 'half' }) };
+    return { request: new Request(`${BASE}${target}`, { method, headers, body: bodyOf(req), duplex: 'half' }) };
   } catch {
-    return { status: 400 };
+    return { status: 400, reason: REASON.noRoute };
   }
 }
 
@@ -73,24 +105,22 @@ export async function send(res: ServerResponse, response: Response): Promise<voi
   for (const [name, value] of response.headers) if (name !== 'set-cookie') res.setHeader(name, value);
   // An empty list writes no header, so an answer with no cookie needs no check of its own (L-025; the socket test reads none back).
   res.setHeader('set-cookie', response.headers.getSetCookie());
-  // A body not all read: the client may still be sending it, or it came whole and lies unread, as one does whose turn starts behind a
-  // slow answer. Either way the connection is not kept for the next request, wherever in a pipeline the request was.
-  if (!res.req.complete || res.req.readableLength > 0) res.setHeader('connection', 'close');
+  // A body not all read: the client may still be sending it, or it came whole and lies unread (in node's buffer, or in the queue of the
+  // stream the app was handed), wherever in a pipeline the request was. Either way the connection is not kept for the next request.
+  const read = bodies.get(res.req);
+  if (read === undefined ? !res.req.complete || res.req.readableLength > 0 : !read.ended) res.setHeader('connection', 'close');
   res.end(bytes);
 }
 
 /** The adapter's own refusal of a method: Allow names the methods the server serves at all, since no route is matched here. */
 const noMethod = (): Response => refuse(405, REASON.noMethod, 'GET, POST');
 
-async function handle(app: App, log: (line: RequestLog) => void, req: IncomingMessage, res: ServerResponse): Promise<void> {
+/** The answer to `req`, with its line: the app's, or the adapter's own refusal, whose line names no route since none was accepted. */
+async function answerOf(app: App, req: IncomingMessage): Promise<Response> {
   const made = toRequest(req);
-  if ('status' in made) {
-    await send(res, made.status === 405 ? noMethod() : refuse(400, REASON.noRoute));
-    // No target was accepted, so the line names no route.
-    log({ method: methodOf(req.method ?? ''), route: '(none)', status: made.status });
-    return;
-  }
-  await send(res, await app(made.request));
+  if ('request' in made) return app(made.request);
+  const refusal = made.status === 405 ? noMethod() : refuse(made.status, made.reason);
+  return withLine(refusal, { method: methodOf(req.method ?? ''), route: '(none)', status: made.status });
 }
 
 /**
@@ -123,23 +153,31 @@ export function unreadable(error: unknown): { readonly status: 400 | 408 | 413 |
   return { status: 400, reason: REASON.notReadable };
 }
 
+/** A request node emitted, with the response node gave it. */
+interface Exchange { readonly req: IncomingMessage; readonly res: ServerResponse }
+
 /** What the adapter keeps of one connection: its last turn, how many of its requests are unanswered, the last one run, its wait for the next. */
 interface Connection {
   turn: Promise<void>;
   unanswered: number;
   /**
-   * The request whose turn ran last (null for one node handed over). It is not cleared once answered (L-025): an answer to a request not
-   * read to its end closes the connection (`send`), so one still kept was read whole, and `complete` tells the two apart.
+   * The request whose turn ran last, with its response (null for one node handed over). It is not cleared once answered (L-025): an
+   * answer to a request not read to its end closes the connection (`send`), so one still kept was read whole, and `complete` tells the
+   * two apart.
    */
-  running: IncomingMessage | null;
-  /** Set once node gave up reading it: the requests still waiting are never run, and the connection's last answer says why. */
+  running: Exchange | null;
+  /**
+   * Set once node gave up reading it: a request still waiting that node had not read whole is never run, and the connection's last
+   * answer says why.
+   */
   broken: boolean;
   kept: NodeJS.Timeout | undefined;
 }
 
 /**
- * Serves `app` on 127.0.0.1 only (the dev routes are never on the network), at `port` (0: any free one). `log` gets the line of each
- * request the adapter answers itself, as the app's own lines are made; a log that throws changes no answer.
+ * Serves `app` on 127.0.0.1 only (the dev routes are never on the network), at `port` (0: any free one). `log` gets each answer's line
+ * (the app's, `lineOf`, and the adapter's own) once the answer is written, so an answer no client gets leaves none; a log that throws
+ * changes no answer.
  * Known, not built: a client that half-closes its side after its requests loses the answers still waiting (node's own rule); and a
  * request's 10 s counts from its arrival, so a large body pipelined behind a slow answer can run out. D1's routes answer at once.
  */
@@ -158,18 +196,18 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
     return found;
   };
   /**
-   * Runs `step` on `socket` once the turns before it are done, unless the connection is gone or broken by then; once no later turn waits,
-   * the connection's wait for its next request (keptMs) starts.
+   * Runs `step` on `socket` once the turns before it are done, unless the connection is gone by then, or broken with `current`'s request
+   * not read whole (one node gave up on part way); once no later turn waits, the connection's wait for its next request (keptMs) starts.
    */
-  const inTurn = (socket: Duplex, req: IncomingMessage | null, step: () => Promise<void>): void => {
+  const inTurn = (socket: Duplex, current: Exchange | null, step: () => Promise<void>): void => {
     const connection = connectionOf(socket);
     clearTimeout(connection.kept);
     connection.unanswered += 1;
     // The turn below then runs nothing, since its socket is gone (L-025: no return of its own).
     if (connection.unanswered > UNANSWERED_LIMIT) socket.destroy();
     const turn = connection.turn.then(async () => {
-      if (!socket.writableEnded && !socket.destroyed && !connection.broken) {
-        connection.running = req;
+      if (!socket.writableEnded && !socket.destroyed && !(connection.broken && current?.req.complete === false)) {
+        connection.running = current;
         await step();
       }
       connection.unanswered -= 1;
@@ -178,61 +216,90 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
     });
     connection.turn = turn;
   };
-  /** Ends `socket` with `bytes` and destroys it once they are written, logging its line. */
-  const finish = (socket: Duplex, bytes: Buffer, line: RequestLog): void => {
-    socket.end(bytes, () => { socket.destroy(); });
-    note(line);
+  /**
+   * Destroys `socket` unless the answer just written to it is out within the idle limit. Node's own idle timer lets a write that makes
+   * no progress run twice its limit, and each byte the client sends puts it off, so a client that reads nothing could hold the socket
+   * for as long as it keeps sending. `done` ends the wait.
+   */
+  const deadline = (socket: Duplex): (() => void) => {
+    const timer = setTimeout(() => { socket.destroy(); }, limits.idleMs).unref();
+    return () => { clearTimeout(timer); };
   };
-  /** Answers `req` in its turn with `answer`, the adapter's own 500 if that fails, and lets the next turn start once the answer is sent. */
-  const answerInTurn = (req: IncomingMessage, res: ServerResponse, answer: () => Promise<void>): void => {
-    inTurn(req.socket, req, async () => {
+  /** Ends `socket` with `bytes` and destroys it, logging `line` once they are written. A socket already ended or gone gets nothing. */
+  const finish = (socket: Duplex, bytes: Buffer, line: RequestLog): void => {
+    if (!socket.writable) return;
+    const done = deadline(socket);
+    socket.end(bytes, (error?: Error | null) => {
+      done();
+      if (!(error instanceof Error)) note(line);
+      socket.destroy();
+    });
+  };
+  /**
+   * Answers `req` in its turn with the app's answer, the adapter's own 500 if that fails, and lets the next turn start once the answer
+   * is sent. The answer's line is logged on node's 'finish', once it is written: a response whose connection is gone never finishes.
+   */
+  const answerInTurn = (req: IncomingMessage, res: ServerResponse): void => {
+    inTurn(req.socket, { req, res }, async () => {
       // Listened for before anything is written: node's own 'finish', which ends a connection the answer closes, has then run by the next turn.
       const answered = new Promise<void>((done) => {
         res.once('finish', done);
         res.once('close', done);
       });
-      await answer().catch(() => {
+      let line: RequestLog | undefined;
+      res.once('finish', () => { if (line !== undefined) note(line); });
+      try {
+        const response = await answerOf(app, req);
+        line = lineOf(response);
+        await send(res, response);
+      } catch {
+        // Nothing has been written then (lastResort), so the 500 is the one answer, and its line the one line.
+        line = { method: methodOf(req.method ?? ''), route: '(none)', status: 500 };
         lastResort(res);
-        // Its line names the status sent. If the app had answered and its answer could not be written, the app's own line is there too.
-        note({ method: methodOf(req.method ?? ''), route: '(none)', status: 500 });
-      });
+      }
+      const done = deadline(req.socket);
       await answered;
+      done();
     });
   };
-  const server = createServer({ requestTimeout: limits.requestMs, headersTimeout: limits.headersMs, connectionsCheckingInterval: limits.checkMs }, (req, res) => {
-    answerInTurn(req, res, () => handle(app, note, req, res));
+  // requireHostHeader: node would answer an HTTP/1.1 request with no Host itself, out of its turn, with neither fixed header nor a line;
+  // toRequest refuses it instead.
+  const server = createServer({ requestTimeout: limits.requestMs, headersTimeout: limits.headersMs, connectionsCheckingInterval: limits.checkMs, requireHostHeader: false }, (req, res) => {
+    answerInTurn(req, res);
   });
-  // createServer's options do not take it: a socket with no bytes either way for this long is destroyed. An answer is written in one
-  // write, which node counts as one step of progress, so the limit also bounds how long a client may take to read one answer (D1's are
-  // about 1 KB).
+  // createServer's options do not take it: a socket with no bytes either way for this long is destroyed. An answer must also be out
+  // within it once written (deadline), so the limit bounds how long a client may take to read one answer (D1's are about 1 KB).
   server.timeout = limits.idleMs;
-  // An Expect other than 100-continue: node would answer 417 itself, with neither fixed header nor a line. It is answered in its turn.
-  server.on('checkExpectation', (req: IncomingMessage, res: ServerResponse) => {
-    answerInTurn(req, res, async () => {
-      await send(res, refuse(417, REASON.noExpectation));
-      note({ method: methodOf(req.method ?? ''), route: '(none)', status: 417 });
-    });
+  // An HTTP/1.1 Expect: node hands one it takes for 100-continue to 'checkContinue' and any other to 'checkExpectation', and would answer
+  // the second 417 itself, with neither fixed header nor a line. Both are answered in their turn, and toRequest refuses every Expect but
+  // 100-continue itself (node takes '100-continue' among other words for it); only that one gets its 100 Continue, which node writes in
+  // order behind the answers before it. An HTTP/1.0 Expect node passes on as it is.
+  server.on('checkContinue', (req: IncomingMessage, res: ServerResponse) => {
+    if (expectsContinue(req)) res.writeContinue();
+    answerInTurn(req, res);
   });
+  server.on('checkExpectation', (req: IncomingMessage, res: ServerResponse) => { answerInTurn(req, res); });
   // Bytes node could not read as a request (400, 431, 413) and a client too slow (408). Node would answer at once and destroy the
   // socket, cutting the answer of a request it had already run. A request still coming in, being answered, is the one node gave up
-  // on: it is answered now. Otherwise the request being answered is sent first, those still waiting are never run, and then this.
+  // on: it is answered now. Otherwise the bytes came after every request node had read, so each of those is answered first, in its turn,
+  // and then this; a waiting request node gave up on part way is never run.
   server.on('clientError', (error: unknown, socket: Duplex) => {
-    // A reset or a closed socket has no one to answer.
-    if (!socket.writable) {
-      socket.destroy();
-      return;
-    }
+    // A reset, and node saying it again for each later read of a connection it gave up on, need no check of their own (L-025): finish
+    // writes nothing to a socket that is gone or that the first answer ended.
+    const connection = connectionOf(socket);
+    connection.broken = true;
+    // Bytes after a request that closes the connection: that request's answer ends it, and nothing more is owed (RFC 9112, 9.6).
+    if (codeOf(error) === 'HPE_CLOSED_CONNECTION') return;
     const { status, reason } = unreadable(error);
     const line: RequestLog = { method: '(other)', route: '(none)', status };
-    const connection = connectionOf(socket);
-    if (connection.running !== null && !connection.running.complete) {
-      finish(socket, rawAnswer(status, reason), line);
+    const running = connection.running;
+    if (running !== null && !running.req.complete) {
+      // An answer already written for it closes the connection (`send`): nothing more is sent.
+      if (!running.res.writableEnded) finish(socket, rawAnswer(status, reason), line);
       return;
     }
-    connection.broken = true;
-    void connection.turn.then(() => {
-      if (!socket.destroyed) finish(socket, rawAnswer(status, reason), line);
-    });
+    // A connection ended meanwhile, as by an answer that closed it, gets nothing (finish).
+    void connection.turn.then(() => { finish(socket, rawAnswer(status, reason), line); });
   });
   // node:http hands a CONNECT, and a request that asks for an Upgrade, to events of their own, with the socket and no response, and
   // tracks the socket no more: close() destroys it here. With no listener a CONNECT is closed unanswered, and an Upgrade is served with

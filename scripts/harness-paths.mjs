@@ -4,6 +4,7 @@
 // In the two documents a file that is designed and not built yet is marked ` (planned)` right after its backticks; the
 // mark fails once the path exists, so "planned" cannot outlive the build.
 import { spawnSync } from 'node:child_process';
+import { posix } from 'node:path';
 
 const ROOTS = /^(src|server|e2e|scripts|docs|assets|\.claude|\.github)\//;
 const PLANNED = ' (planned)';
@@ -46,21 +47,44 @@ export function pathErrors(file, text, exists, { planned = false, skip = () => f
 /**
  * The paths among `paths` that git ignores. The gate counts them as missing: a build output on this disk (`server/dist/`
  * after a build) is not in a fresh checkout, as CI's is, so a sentence naming it passed here and failed there (L-083).
- * `checkIgnore(input)` runs `git check-ignore --stdin` with the paths one to a line and gives `{ status, stdout }`:
- * status 0 when some are ignored, each written back as given; any other status (none ignored, or no git) ignores none.
+ * `checkIgnore(input)` runs `git check-ignore -z --stdin` with the paths each ended by a NUL, so git neither quotes nor escapes
+ * them, and gives `{ status, stdout }`: status 0 when some are ignored, each written back as given and ended by a NUL; 1 when none
+ * is; any other (git refused a path, or there is no git) says nothing of the rest. A path that leaves the repository once its `..`
+ * are read is not asked, since git refuses it and with it every path asked at once; one git refuses for another reason (beyond a
+ * symbolic link, in a submodule) makes each path be asked alone. A path git says nothing of is not ignored.
  */
 export function ignoredAmong(paths, checkIgnore) {
-  const unique = [...new Set(paths)];
+  // A named path starts with one of the roots, so once read it may leave the repository only upward, never be absolute (L-025).
+  const unique = [...new Set(paths)].filter((p) => {
+    const read = posix.normalize(p);
+    return read !== '..' && !read.startsWith('../');
+  });
   if (unique.length === 0) return new Set();
-  const r = checkIgnore(`${unique.join('\n')}\n`);
-  return new Set(r.status === 0 ? r.stdout.split('\n').filter((line) => unique.includes(line)) : []);
+  const ask = (some) => {
+    const r = checkIgnore(`${some.join('\0')}\0`);
+    if (r.status === 0) return r.stdout.split('\0').filter((p) => some.includes(p));
+    return r.status === 1 ? [] : null;
+  };
+  return new Set(ask(unique) ?? unique.flatMap((p) => ask([p]) ?? []));
 }
 
 /** The `checkIgnore` the gate gives `ignoredAmong`: the git of the repository at `root`. */
-export const gitCheckIgnore = (root) => (input) => spawnSync('git', ['check-ignore', '--stdin'], { cwd: root, input, encoding: 'utf8' });
+export const gitCheckIgnore = (root) => (input) => spawnSync('git', ['check-ignore', '-z', '--stdin'], { cwd: root, input, encoding: 'utf8' });
 
-/** Whether a named path is there as a fresh checkout has it: on this disk, and not among the `ignored` (L-083). */
-export const presentWhen = (exists, ignored) => (p) => exists(p) && !ignored.has(p);
+/**
+ * The `holdsFiles` the gate gives `presentWhen`: whether the folder `path` holds a file git tracks or would track (one not ignored)
+ * in the repository at `root`. Where git cannot say, the folder is taken to hold one, so the check only ever fails on git's word.
+ */
+export const gitHoldsFiles = (root) => (path) => {
+  const r = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', path], { cwd: root, encoding: 'utf8' });
+  return r.status !== 0 || r.stdout.length > 0;
+};
+
+/**
+ * Whether a named path is there as a fresh checkout has it: on this disk, not among the `ignored`, and, for a folder, holding a file
+ * git keeps, since a fresh checkout has no empty folder and none of ignored files only (L-083).
+ */
+export const presentWhen = (exists, ignored, isFolder = () => false, holdsFiles = () => true) => (p) => exists(p) && !ignored.has(p) && (!isFolder(p) || holdsFiles(p));
 
 /** The first and last line index of the list under `## Changelog`, or null: the lines up to the next heading of level 1 or 2 or a `---` rule. */
 export function changelogRange(lines) {

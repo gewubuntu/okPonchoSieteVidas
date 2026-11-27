@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { changedSections, changelogSectionErrors, gddVersionErrors } from './gdd-version.mjs';
 import { hunt, huntArgs, reportLine } from './gdd-hunt.mjs';
 import { lessonBrief, lessonEntry } from './lessons.mjs';
-import { changelogRange, gitCheckIgnore, ignoredAmong, pathErrors, pathsIn, presentWhen } from './harness-paths.mjs';
+import { changelogRange, gitCheckIgnore, gitHoldsFiles, ignoredAmong, pathErrors, pathsIn, presentWhen } from './harness-paths.mjs';
 import { sheetsOf, spriteFitErrors } from './sprite-fit.mjs';
 import { determinismErrors } from './sim-determinism.mjs';
 import { serverImportErrors } from './server-one-way.mjs';
@@ -402,7 +402,7 @@ function checkHarnessPaths() {
   const documents = ['docs/GDD.md', 'docs/BACKLOG.md'].filter(exists);
   // L-083: a path git ignores (a build output) is missing from a fresh checkout, so it counts as missing here too.
   const named = [...files, ...documents].flatMap((f) => read(f).split('\n').flatMap((line) => pathsIn(line).map((p) => p.path)));
-  const there = presentWhen(exists, ignoredAmong(named, gitCheckIgnore(ROOT)));
+  const there = presentWhen(exists, ignoredAmong(named, gitCheckIgnore(ROOT)), (p) => statSync(join(ROOT, p)).isDirectory(), gitHoldsFiles(ROOT));
   const errors = files.flatMap((f) => pathErrors(f.split(sep).join('/'), read(f), there));
   // L-013: the design documents too, where a file designed and not built yet is marked " (planned)". The GDD's changelog is
   // history and keeps the paths of its day.

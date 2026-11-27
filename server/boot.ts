@@ -2,7 +2,7 @@
 // With nothing configured it starts on the mock chain with a memory store. A real chain does not start: its source is not built.
 import { randomBytes, createPublicKey } from 'node:crypto';
 import { SIM_VERSION } from '../src/sim/version';
-import { createApp, type RequestLog, type Site } from './http/app';
+import { createApp, type Site } from './http/app';
 import { codeOf, isJsonType, isRecord } from './http/boundary';
 
 export { codeOf };
@@ -124,8 +124,11 @@ export interface Wired {
   close(): void;
 }
 
-/** The app on its store, the mock chain, the real clock and `randomBytes`, with no socket. SQLite is imported only when a file is asked for, so Node's warning about it shows only then. */
-export async function wire(settings: Settings, log: (line: RequestLog) => void): Promise<Wired> {
+/**
+ * The app on its store, the mock chain, the real clock and `randomBytes`, with no socket; its answers carry their lines, which `serve`
+ * logs once each is written. SQLite is imported only when a file is asked for, so Node's warning about it shows only then.
+ */
+export async function wire(settings: Settings): Promise<Wired> {
   let store: Store & { close?(): void };
   if (settings.storePath === null) store = memoryStore();
   else store = (await import('./store/sqlite')).sqliteStore(settings.storePath);
@@ -138,7 +141,6 @@ export async function wire(settings: Settings, log: (line: RequestLog) => void):
     clock: { now: () => Date.now() },
     random: randomBytes,
     sim: SIM_VERSION,
-    log,
   });
   return { app, store, close: () => { store.close?.(); } };
 }

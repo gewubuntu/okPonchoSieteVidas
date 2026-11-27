@@ -3,18 +3,39 @@
 // scripts/server-log-check.mjs checks its log rules through the bundle.
 // A log line is one JSON object with fixed fields, written with process.stdout.write; a boot problem goes to stderr. No line holds an IP,
 // a cookie, a body, a token, a wallet or an error's text.
-import { readFileSync } from 'node:fs';
+import { fstatSync, readFileSync, writeSync } from 'node:fs';
 import { codeOf, guardLogs, selfCheck, settingsOf, wire } from './boot';
 import { serve } from './http/node';
 
 /** The server's own setting, not a GDD value: how long `--check` may take before CI is not left waiting. */
 const CHECK_TIMEOUT_MS = 10000;
 
-const say = (line: object): void => {
-  process.stdout.write(`${JSON.stringify(line)}\n`);
-};
 const complain = (text: string): void => {
   process.stderr.write(`${text}\n`);
+};
+/** Whether stdout is a regular file, which node writes with a stream that drops the count of a short write (on a full disk, past a size limit). */
+const stdoutIsFile = ((): boolean => {
+  try {
+    return fstatSync(1).isFile();
+  } catch {
+    return false;
+  }
+})();
+const say = (line: object): void => {
+  const text = `${JSON.stringify(line)}\n`;
+  if (!stdoutIsFile) {
+    process.stdout.write(text);
+    return;
+  }
+  // On a file each line is written to its last byte here: a write the kernel cuts short is followed by one that fails, and that ends the
+  // server as guardLogs does for a stream. A write of one byte or more never writes none (L-025).
+  const bytes = Buffer.from(text);
+  try {
+    for (let at = 0; at < bytes.length;) at += writeSync(1, bytes, at);
+  } catch (error) {
+    complain(`the log cannot be written (${codeOf(error)})`);
+    process.exit(1);
+  }
 };
 /** Exits with `code` once every line written so far has reached stdout. A line that could not be written ends the process through guardLogs instead, with exit 1. */
 const exitAfterLog = (code: number): void => {
@@ -32,7 +53,7 @@ async function main(): Promise<void> {
   }
   const { settings } = settled;
   for (const note of settings.notes) say({ event: 'boot', note });
-  const wired = await wire(settings, say);
+  const wired = await wire(settings);
 
   if (process.argv.includes('--check')) {
     // An unref'd timer: it ends a hung check, and never keeps a finished one alive.
@@ -52,7 +73,11 @@ async function main(): Promise<void> {
 
   const server = await serve(wired.app, settings.port, say);
   say({ event: 'listening', port: server.port });
+  let stopping = false;
+  // A second signal while stopping changes nothing: the store is closed once.
   const stop = (): void => {
+    if (stopping) return;
+    stopping = true;
     server.close().then(() => {
       wired.close();
       exitAfterLog(0);

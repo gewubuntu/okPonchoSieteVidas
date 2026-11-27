@@ -26,6 +26,7 @@ export const REASON = {
   headersTooLarge: 'the headers are too large',
   noUpgrade: 'no upgrade here',
   noExpectation: 'no such expectation',
+  noHost: 'the request names no host',
 } as const;
 
 /** An error's code (EADDRINUSE, EPIPE, HPE_HEADER_OVERFLOW), the one thing of it a line or an answer may name: its text could hold a path or a key. */
@@ -41,6 +42,19 @@ export interface RequestLog { readonly method: string; readonly route: string; r
 const USUAL_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']);
 /** A method as a log line names it: as written if it is one of the usual seven, else "(other)". */
 export const methodOf = (method: string): string => (USUAL_METHODS.has(method) ? method : '(other)');
+
+/**
+ * The line each answer leaves, kept beside it. The socket adapter logs it once the answer is written (node.ts), so an answer no client
+ * gets (its connection gone, or node's own answer sent in its place) leaves none.
+ */
+const LINES = new WeakMap<Response, RequestLog>();
+/** `response`, with the line it leaves once it is written. */
+export const withLine = (response: Response, line: RequestLog): Response => {
+  LINES.set(response, line);
+  return response;
+};
+/** The line `response` leaves once it is written, if it has one. */
+export const lineOf = (response: Response): RequestLog | undefined => LINES.get(response);
 
 /** `log`, made so that a log that throws changes nothing of the answer: nothing of what it threw is kept or answered. */
 export const quietly = (log: (line: RequestLog) => void) => (line: RequestLog): void => {
@@ -64,7 +78,8 @@ const refused = (status: 400 | 408 | 413, reason: string): Read => ({ ok: false,
  * The request's body as a JSON object: at most `limit` bytes (counted in bytes, not characters), strict UTF-8, JSON, a plain object.
  * A declared length over the limit is refused unread. Otherwise the stream is read until it ends or passes the limit; then the reader is
  * released, never cancelled: a cancel would destroy the socket and the client would lose the answer (node.ts). A stream that fails (the
- * client went away, or node's request timeout cut it and answered 408 itself) is a 408, so the request's log line names what node sent.
+ * client went away, or node gave up on the request) is a 408 that no client gets: the adapter has answered as node does, or no one is
+ * left to answer (createApp writes no line for it).
  */
 export async function readBody(request: Request, limit: number): Promise<Read> {
   // A length that is no number (a doubled header reads 'a, b') declares nothing: the stream is counted anyway.

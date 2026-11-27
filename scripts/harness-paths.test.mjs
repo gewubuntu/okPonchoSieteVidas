@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { changelogRange, gitCheckIgnore, ignoredAmong, pathErrors, pathsIn, presentWhen } from './harness-paths.mjs';
+import { changelogRange, gitCheckIgnore, gitHoldsFiles, ignoredAmong, pathErrors, pathsIn, presentWhen } from './harness-paths.mjs';
 
 describe('harness-paths (L-013)', () => {
   const have = new Set(['src/sim/run.ts', 'docs/GDD.md', 'assets/sprites/', 'e2e/boot.spec.ts']);
@@ -96,16 +96,27 @@ describe('harness-paths (L-013)', () => {
   });
 
   describe('a path git ignores counts as missing (L-083)', () => {
-    it('gives the paths git writes back as ignored, asking once with each path on a line of its own', () => {
+    it('gives the paths git writes back as ignored, asking once with each path ended by a NUL', () => {
       const asked = [];
-      const checkIgnore = (input) => { asked.push(input); return { status: 0, stdout: 'server/dist/\n' }; };
+      const checkIgnore = (input) => { asked.push(input); return { status: 0, stdout: 'server/dist/\0' }; };
       expect(ignoredAmong(['server/dist/', 'server/boot.ts', 'server/dist/'], checkIgnore)).toEqual(new Set(['server/dist/']));
-      expect(asked).toEqual(['server/dist/\nserver/boot.ts\n']);
+      expect(asked).toEqual(['server/dist/\0server/boot.ts\0']);
+    });
+
+    it('asks nothing of a path that leaves the repository, and asks each path alone when git refuses one for another reason', () => {
+      const asked = [];
+      const checkIgnore = (input) => {
+        asked.push(input);
+        if (input.includes('server/link/')) return { status: 128, stdout: '' };
+        return input === 'server/dist/\0' ? { status: 0, stdout: 'server/dist/\0' } : { status: 1, stdout: '' };
+      };
+      expect(ignoredAmong(['assets/../../poncho-art/', 'docs/../..', 'server/dist/', 'server/link/a.ts', 'docs/GDD.md'], checkIgnore)).toEqual(new Set(['server/dist/']));
+      expect(asked).toEqual(['server/dist/\0server/link/a.ts\0docs/GDD.md\0', 'server/dist/\0', 'server/link/a.ts\0', 'docs/GDD.md\0']);
     });
 
     it('ignores none when git says none is ignored, when git cannot run, or when nothing is asked', () => {
       expect(ignoredAmong(['server/boot.ts'], () => ({ status: 1, stdout: '' }))).toEqual(new Set());
-      expect(ignoredAmong(['server/dist/'], () => ({ status: 128, stdout: 'server/dist/\n' }))).toEqual(new Set());
+      expect(ignoredAmong(['server/dist/'], () => ({ status: 128, stdout: 'server/dist/\0' }))).toEqual(new Set());
       expect(ignoredAmong(['server/dist/'], () => ({ status: null, stdout: null }))).toEqual(new Set());
       const asked = [];
       expect(ignoredAmong([], (input) => { asked.push(input); return { status: 0, stdout: '' }; })).toEqual(new Set());
@@ -122,21 +133,52 @@ describe('harness-paths (L-013)', () => {
       try {
         spawnSync('git', ['init', '-q'], { cwd: root });
         writeFileSync(join(root, '.gitignore'), 'build/\n');
-        expect(ignoredAmong(['build/out.js', 'src/a.ts'], gitCheckIgnore(root))).toEqual(new Set(['build/out.js']));
+        // A name git would quote (an accent, a quote mark) is written back as given.
+        expect(ignoredAmong(['build/out.js', 'src/a.ts', 'build/café.js', 'build/a"b.js'], gitCheckIgnore(root))).toEqual(new Set(['build/out.js', 'build/café.js', 'build/a"b.js']));
       } finally {
         rmSync(root, { recursive: true, force: true });
       }
     });
 
-    it('counts a path as there only when it is on this disk and not ignored', () => {
-      const there = presentWhen((p) => p !== 'docs/gone.md', new Set(['server/dist/']));
+    it('counts a path as there only when it is on this disk and not ignored, and a folder only when it holds a file git keeps', () => {
+      const there = presentWhen((p) => p !== 'docs/gone.md', new Set(['server/dist/main.js', 'server/dist/']), (p) => p.endsWith('/'), (p) => p === 'docs/kept/' || p === 'server/dist/');
       expect(there('docs/GDD.md')).toBe(true);
       expect(there('docs/gone.md')).toBe(false);
+      expect(there('server/dist/main.js')).toBe(false);
       expect(there('server/dist/')).toBe(false);
+      expect(there('docs/kept/')).toBe(true);
+      expect(there('docs/empty/')).toBe(false);
+    });
+
+    it('asks git whether a folder holds a file it tracks or would track: an empty folder, or one of ignored files only, holds none', () => {
+      const root = mkdtempSync(join(tmpdir(), 'poncho-holds-'));
+      try {
+        spawnSync('git', ['init', '-q'], { cwd: root });
+        writeFileSync(join(root, '.gitignore'), '*.log\n');
+        for (const dir of ['tracked', 'untracked', 'logs', 'empty']) mkdirSync(join(root, dir));
+        writeFileSync(join(root, 'tracked', 'a.md'), 'a');
+        spawnSync('git', ['add', 'tracked/a.md'], { cwd: root });
+        writeFileSync(join(root, 'untracked', 'b.md'), 'b');
+        writeFileSync(join(root, 'logs', 'run.log'), 'c');
+        const holds = gitHoldsFiles(root);
+        expect(['tracked/', 'untracked/', 'logs/', 'empty/'].map(holds)).toEqual([true, true, false, false]);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it('takes a folder to hold files where git cannot say, as outside any repository', () => {
+      const root = mkdtempSync(join(tmpdir(), 'poncho-no-git-'));
+      try {
+        mkdirSync(join(root, 'empty'));
+        expect(gitHoldsFiles(root)('empty/')).toBe(true);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
     });
 
     it('takes no line git writes that was not asked', () => {
-      expect(ignoredAmong(['server/dist/'], () => ({ status: 0, stdout: 'server/dist/\nsrc/other.ts\n' }))).toEqual(new Set(['server/dist/']));
+      expect(ignoredAmong(['server/dist/'], () => ({ status: 0, stdout: 'server/dist/\0src/other.ts\0' }))).toEqual(new Set(['server/dist/']));
     });
   });
 });
