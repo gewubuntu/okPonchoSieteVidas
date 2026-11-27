@@ -13,7 +13,9 @@
 // is first run once on the unmutated code: one that fails there, finds no test, or runs other than one test by its Vitest or
 // Playwright summary is refused, reported REFUSED and its mutants counted as not caught, since a run of more counts a kill by any
 // test in it (`baselineProblem` in scripts/run-limited.mjs). One that reports no tests (the gate on a bad input, a check script)
-// is taken as it stands.
+// is taken as it stands, unless it names a test runner, whose summary must then be read. Two limits of the summary: one printed
+// twice (two reporters, a test whose own output holds summary lines) counts twice and is refused, and a Vitest test that skips
+// itself after its checks (`ctx.skip()`) counts as not run, as the summary does not tell it from a test the filter left out.
 // `from` must occur exactly once in the file, and the file must still parse with the mutant in it (L-103). Before each mutant the original is saved to .mutating.json; it is put back
 // after the mutant, and the marker deleted. If the run is killed the marker stays, and scripts/check.mjs fails until
 // `--restore` has run, so a mutation can never be committed.

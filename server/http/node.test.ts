@@ -1,11 +1,16 @@
+import { execFile } from 'node:child_process';
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { connect } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setTimeout as wait } from 'node:timers/promises';
+import { promisify } from 'node:util';
+import { isMainThread } from 'node:worker_threads';
 import { settingsOf, wire } from '../boot';
 import { BODY_LIMIT, json, readBody, refuse, withLine, type RequestLog } from './boundary';
 import { serve, SOCKET_LIMITS, targetOf, UNANSWERED_LIMIT, unreadable, type App, type SocketLimits } from './node';
+
+const run = promisify(execFile);
 
 // L-106: a listener the adapter adds for what a client sends, and does not take off, shows as node's MaxListenersExceededWarning
 // once one connection holds more than ten. None may come while these tests run, so a guard that bounds such listeners can fail here.
@@ -1129,6 +1134,79 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
     expect(Date.now() - started).toBeLessThan(400);
     socket.destroy();
   }, 5000);
+
+  // The adapter's own answers, each with the line it leaves (finish).
+  const RAW: readonly (readonly [string, string, RequestLog])[] = [
+    ['a CONNECT', 'CONNECT x:443 HTTP/1.1\r\nHost: x\r\n\r\n', { method: '(other)', route: '(none)', status: 405 }],
+    ['a request that asks for an Upgrade', 'GET /echo HTTP/1.1\r\nHost: x\r\nConnection: upgrade\r\nUpgrade: zz\r\n\r\n', { method: 'GET', route: '(none)', status: 400 }],
+    ['bytes node cannot read', 'GARBAGE\r\n\r\n', { method: '(other)', route: '(none)', status: 400 }],
+  ];
+  it.each(RAW)('%s answered in the turn the server is stopped in leaves its line: the client has the answer whole', async (_name, bytes, line) => {
+    const { server, log } = await served();
+    let stopped: Promise<void> = Promise.resolve();
+    // The signal reaches this process alone: a test file runs in a process of its own (Vitest's forks), not a thread of the runner's.
+    expect(isMainThread).toBe(true);
+    const stop = (): void => { stopped = server.close(); };
+    process.once('SIGUSR2', stop);
+    try {
+      const text = await new Promise<string>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port });
+        const parts: Buffer[] = [];
+        socket.on('data', (part: Buffer) => parts.push(part));
+        socket.on('error', () => { /* the stop may reset the connection; the bytes read before it are what counts */ });
+        socket.on('close', () => { resolve(Buffer.concat(parts).toString('latin1')); });
+        // Once the server holds the connection, the bytes and the signal are ready for its same next poll, the bytes first: the stop
+        // then runs in the turn their answer is written in, before the end of that answer is through (a later turn's work).
+        socket.on('connect', () => {
+          setTimeout(() => { socket.write(bytes, () => { process.kill(process.pid, 'SIGUSR2'); }); }, 50);
+        });
+      });
+      await stopped;
+      const answer = headOf(text);
+      expect(answer.status).toMatch(new RegExp(`^HTTP/1\\.1 ${String(line.status)} `));
+      expect(Buffer.byteLength(answer.body)).toBe(Number(answer.headers['content-length']));
+      expect(log).toEqual([line]);
+    } finally {
+      process.off('SIGUSR2', stop);
+      await server.close();
+    }
+  }, 5000);
+
+  // A client in a process of its own: its reset must come between the server's write of the answer and its next read of the socket.
+  const RESETS = `
+    const { connect } = require('node:net');
+    const [port, request, count] = [Number(process.argv[1]), process.argv[2], Number(process.argv[3])];
+    let whole = 0;
+    const one = () => new Promise((resolve) => {
+      const socket = connect({ host: '127.0.0.1', port });
+      let text = '';
+      const timer = setTimeout(() => { socket.destroy(); }, 2000);
+      socket.on('error', () => {});
+      socket.on('close', () => { clearTimeout(timer); resolve(); });
+      socket.on('data', (part) => {
+        text += part.toString('latin1');
+        const end = text.indexOf('\\r\\n\\r\\n');
+        const length = Number(/content-length: (\\d+)/i.exec(text)?.[1] ?? -1);
+        if (end >= 0 && length >= 0 && text.length - end - 4 >= length) { whole += 1; socket.resetAndDestroy(); }
+      });
+      socket.write(request.padEnd(65536, 'a'));
+    });
+    (async () => { for (let i = 0; i < count; i += 1) await one(); process.stdout.write(String(whole)); })();
+  `;
+  it.each(RAW.slice(0, 2))('%s whose client resets as soon as it has the answer whole leaves its line, though the reset is read in the same read loop', async (_name, bytes, line) => {
+    const { server, log } = await served();
+    try {
+      // 64 KiB fills node's read buffer, so libuv reads the socket again in the same loop, right after the answer is written: the
+      // reset is read there, before the end of the answer is through. Of 200 connections, a line logged once the end was through was lost
+      // in some, in every run.
+      const { stdout } = await run(process.execPath, ['-e', RESETS, String(server.port), bytes, '200'], { timeout: 20000 });
+      await wait(100);
+      expect(stdout).toBe('200');
+      expect(log).toEqual(Array.from({ length: 200 }, () => line));
+    } finally {
+      await server.close();
+    }
+  }, 25000);
 });
 
 describe('GDD-TEC-10 adapter: the limits as the GDD states them', () => {

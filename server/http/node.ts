@@ -274,9 +274,13 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
     // Node's events type the socket as a Duplex; a server made with createServer hands over a net.Socket, so this always holds.
     if (socket instanceof Socket) socket.setTimeout(0);
     const done = deadline(socket);
-    socket.end(bytes, (error?: Error | null) => {
+    // The line once the bytes are written, as an app's answer's is (writeWhole): a write cut while it waits in the socket's buffers
+    // reports an error and leaves none (a kept survivor, as above). The end's own callback waits for its FIN, on a later turn of the
+    // loop, so a stop or a client's reset read in the same turn as the write destroyed the socket first and dropped the line of an
+    // answer the client had whole.
+    socket.write(bytes, (error?: Error | null) => { if (!(error instanceof Error)) note(line); });
+    socket.end(() => {
       done();
-      if (!(error instanceof Error)) note(line);
       socket.destroy();
     });
   };

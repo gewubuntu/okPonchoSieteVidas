@@ -156,6 +156,17 @@ describe('run-limited (L-064)', () => {
 
 describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
   it('counts the tests a Vitest or Playwright run ran, skipped ones aside, over every summary, and none where there is no summary', () => {
+    // An expected fail ran (Vitest's own words for an it.fails test, as it prints them).
+    expect(testsRun('      Tests  1 passed | 1 expected fail | 1 skipped (3)\n')).toBe(2);
+    expect(testsRun('      Tests  1 expected fail | 2 skipped (3)\n')).toBe(1);
+    // A Playwright test that skips itself: before its checks it ran none, after them it ran in the project it skips in too.
+    expect(testsRun('Running 1 test using 1 worker\n\n  -  1 [phone] › e2e/boot.spec.ts:27:1 › jump\n\n  1 skipped\n')).toBe(0);
+    expect(testsRun('Running 2 tests using 2 workers\n\n  ✓  1 [desktop] › e2e/block.spec.ts:3:1 › travels (5ms)\n  -  2 [phone] › e2e/block.spec.ts:3:1 › travels\n\n  1 skipped\n  1 passed (658ms)\n')).toBe(2);
+    expect(testsRun('Running 2 tests using 2 workers\n·°\n  1 skipped\n  1 passed (629ms)\n')).toBe(2);
+    expect(testsRun('Running 3 tests using 1 worker\n  1 failed\n  2 did not run\n')).toBe(3);
+    // A summary of tests that did not run, or were cut short, ran none.
+    expect(testsRun('Running 2 tests using 1 worker\n  2 did not run\n')).toBe(0);
+    expect(testsRun('Running 1 test using 1 worker\n  1 interrupted\n')).toBe(0);
     expect(testsRun(' Test Files  1 passed (1)\n      Tests  1 passed | 115 skipped (116)\n')).toBe(1);
     expect(testsRun('      Tests  1 failed | 4221 passed | 2 skipped (4224)\n')).toBe(4222);
     expect(testsRun('      Tests  116 skipped (116)\n')).toBe(0);
@@ -180,6 +191,13 @@ describe('a mutant\'s test runs the one test that must kill it (L-026)', () => {
     // Two tests in one project: the filter matches two names, and the project is no part of it.
     expect(baselineProblem(run({ output: twice.replace('[phone] › e2e/pause.spec.ts:3:1 › tap', '[desktop] › e2e/pause.spec.ts:9:1 › tap twice') }))).toBe('runs 2 tests, not the one that must kill it');
     expect(baselineProblem(run({ output: 'Running 1 test using 1 worker\n  ✓  1 [desktop] › e2e/pause.spec.ts:3:1 › tap (2.1s)\n\n  1 passed (2.2s)\n' }))).toBeNull();
+    // The one test named, an expected fail, is taken; a playtest that skips in the project named runs none, and one that skips in
+    // one project after its checks ran in both.
+    expect(baselineProblem(run({ output: '      Tests  1 expected fail | 9 skipped (10)\n' }))).toBeNull();
+    expect(baselineProblem(run({ output: 'Running 1 test using 1 worker\n\n  -  1 [phone] › e2e/boot.spec.ts:27:1 › jump\n\n  1 skipped\n' }))).toBe('runs no test');
+    expect(baselineProblem(run({ output: 'Running 2 tests using 2 workers\n\n  ✓  1 [desktop] › e2e/block.spec.ts:3:1 › travels (5ms)\n  -  2 [phone] › e2e/block.spec.ts:3:1 › travels\n\n  1 skipped\n  1 passed (658ms)\n' }))).toBe('runs 2 tests, not the one that must kill it (Playwright runs each test once in each project: name one with --project)');
+    // A summary printed twice counts twice: a test whose own output holds a summary's words is refused, on the safe side.
+    expect(baselineProblem(run({ output: 'stdout | a.test.ts > prints\n      Tests  3 passed (3)\n\n      Tests  1 passed | 9 skipped (10)\n' }))).toBe('runs 4 tests, not the one that must kill it');
     expect(baselineProblem(run({ status: 1 }))).toBe('fails on the unmutated code');
     expect(baselineProblem(run({ status: 1, output: 'No test files found, exiting with code 1\n' }))).toBe('no test');
     expect(baselineProblem(run({ status: null, stopped: true }))).toBe('stopped');

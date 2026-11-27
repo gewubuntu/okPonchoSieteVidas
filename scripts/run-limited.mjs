@@ -61,18 +61,30 @@ export function verdict(run) {
 }
 
 /**
- * The tests a Vitest or Playwright run reports it ran (passed, failed or flaky), summed over every summary in `output`; null when
- * it holds no summary of either, as the gate's harness checks or a script's own output do not.
+ * The tests a Vitest or Playwright run reports it ran, summed over every summary in `output`; null when it holds no summary of
+ * either, as the gate's harness checks or a script's own output do not. Every summary counts, so one printed twice (two reporters,
+ * a test whose own output holds summary lines) counts twice.
  */
 export function testsRun(output) {
   const text = output.replace(/\x1b\[[0-9;]*m/g, '');
   let total = null;
-  // Vitest: "Tests  1 failed | 4221 passed | 2 skipped (4224)", skipped tests not run.
+  // Vitest: "Tests  1 failed | 4221 passed | 1 expected fail | 2 skipped (4224)". An expected fail (`it.fails`) ran. A skipped test
+  // is one the filter left out or one that skipped itself, which the summary does not tell apart, so one that skips itself after
+  // its checks (`ctx.skip()`) is counted as not run.
   for (const [, counts] of text.matchAll(/^\s*Tests\s+(.+)$/gm)) {
-    total = (total ?? 0) + [...counts.matchAll(/(\d+) (?:passed|failed)/g)].reduce((n, [, k]) => n + Number(k), 0);
+    total = (total ?? 0) + [...counts.matchAll(/(\d+) (?:passed|failed|expected fail)/g)].reduce((n, [, k]) => n + Number(k), 0);
   }
-  // Playwright: one count to a line, as "  3 passed (2.1s)", "  1 failed" or "  1 flaky".
-  for (const [, k] of text.matchAll(/^\s+(\d+) (?:passed|failed|flaky)\b/gm)) total = (total ?? 0) + Number(k);
+  // Playwright: one count to a line, as "  3 passed (2.1s)", "  1 failed", "  1 flaky" or "  1 skipped", after "Running 2 tests using
+  // 2 workers", which counts every test it started, one that skips itself as it runs among them: its checks before the skip ran. A
+  // run with none passed, failed or flaky ran no test; any other ran the larger of the two counts.
+  let ran = null;
+  for (const [, k, kind] of text.matchAll(/^\s+(\d+) (passed|failed|flaky|skipped|did not run|interrupted)\b/gm)) {
+    ran = (ran ?? 0) + (kind === 'passed' || kind === 'failed' || kind === 'flaky' ? Number(k) : 0);
+  }
+  if (ran !== null) {
+    const started = [...text.matchAll(/^Running (\d+) tests? using/gm)].reduce((n, [, k]) => n + Number(k), 0);
+    total = (total ?? 0) + (ran === 0 ? 0 : Math.max(ran, started));
+  }
   return total;
 }
 

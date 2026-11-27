@@ -313,7 +313,8 @@ const server = createServer((req, res) => {
 });
 server.listen(Number(process.env.PONCHO_SERVER_PORT), '127.0.0.1', () => { process.stdout.write('{"event":"listening","port":' + server.address().port + '}\\n'); });
 `);
-    expect(await stopped(entry)).toMatch(/^exit 1, (49|50) of 2000 request lines read/);
+    // A write to a pipe or a file is synchronous on Linux, so the 50th line is out before the exit.
+    expect(await stopped(entry)).toMatch(/^exit 1, 50 of 2000 request lines read/);
   }, 60000);
 });
 
