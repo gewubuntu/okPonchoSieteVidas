@@ -101,6 +101,22 @@ export function toRequest(req: IncomingMessage): { readonly request: Request } |
  * closes the connection. Known and not done: a client still sending then may lose the answer to the connection's reset (the lingering
  * close of RFC 9112, 9.6); the game's own client never sends a body that is refused unread.
  */
+/** The answers whose bytes the socket took whole while it was still there: only those leave a line (answerInTurn). */
+const delivered = new WeakSet<ServerResponse>();
+
+/**
+ * Writes `body` as `res`'s whole answer, its length given, and marks `res` delivered once the socket has taken all of it, if it is
+ * still there then. Node calls a write back with no error also when the socket was destroyed first, and its 'finish' comes then too,
+ * so neither tells an answer that went out from one cut off; nor does an error the socket holds by 'finish', which a client that read
+ * everything and reset at once leaves there.
+ */
+function writeWhole(res: ServerResponse, body: Buffer | string): void {
+  const socket = res.socket;
+  res.setHeader('content-length', String(Buffer.byteLength(body)));
+  res.write(body, () => { if (socket !== null && !socket.destroyed) delivered.add(res); });
+  res.end();
+}
+
 export async function send(res: ServerResponse, response: Response): Promise<void> {
   const bytes = Buffer.from(await response.arrayBuffer());
   res.statusCode = response.status;
@@ -114,7 +130,7 @@ export async function send(res: ServerResponse, response: Response): Promise<voi
   if (!res.req.complete) await new Promise((done) => { setImmediate(done); });
   const read = bodies.get(res.req);
   if (read === undefined ? !res.req.complete || res.req.readableLength > 0 : !read.ended) res.setHeader('connection', 'close');
-  res.end(bytes);
+  writeWhole(res, bytes);
 }
 
 /** The adapter's own refusal of a method: Allow names the methods the server serves at all, since no route is matched here. */
@@ -136,7 +152,7 @@ function lastResort(res: ServerResponse): void {
   res.statusCode = 500;
   for (const [name, value] of Object.entries(FIXED_HEADERS)) res.setHeader(name, value);
   res.setHeader('connection', 'close');
-  res.end(JSON.stringify({ error: REASON.serverError }));
+  writeWhole(res, JSON.stringify({ error: REASON.serverError }));
 }
 
 /**
@@ -172,8 +188,8 @@ interface Connection {
    */
   running: Exchange | null;
   /**
-   * Set once node gave up reading it: a request still waiting that node had not read whole is never run, and the connection's last
-   * answer says why.
+   * Set once node gave up reading it, when the connection is read no further: a request still waiting that node had not read whole
+   * is never run, and the connection's last answer says why.
    */
   broken: boolean;
   kept: NodeJS.Timeout | undefined;
@@ -258,9 +274,8 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
       });
       let line: RequestLog | undefined;
       // Node emits 'finish' also when the connection is destroyed with the answer still going out (a reset, the deadline, close()):
-      // then the socket holds the error that cut the writes (ECONNRESET, ECANCELED). An answer that went out whole leaves it with none,
-      // whether or not the client has closed since.
-      res.once('finish', () => { if (line !== undefined && socket.errored === null) note(line); });
+      // only an answer the socket took whole while it was there leaves its line (writeWhole).
+      res.once('finish', () => { if (line !== undefined && delivered.has(res)) note(line); });
       try {
         const response = await answerOf(app, req);
         line = lineOf(response);
@@ -297,12 +312,14 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
   // on: it is answered now. Otherwise the bytes came after every request node had read, so each of those is answered first, in its turn,
   // and then this; a waiting request node gave up on part way is never run.
   server.on('clientError', (error: unknown, socket: Duplex) => {
-    // Node says it again for each later read of a connection it gave up on: it is answered once, so a client that sends its bytes a
-    // segment at a time queues one answer, not one per read (L-106), and does not reach UNANSWERED_LIMIT with them. A reset needs no
-    // check of its own (L-025): finish writes nothing to a socket that is gone.
+    // Node would say it again for each later read of a connection it gave up on, queuing one answer per read (L-106); no later read
+    // comes, since the connection is read no further (below), so that needs no check of its own (L-025). Nor does a reset: finish
+    // writes nothing to a socket that is gone.
     const connection = connectionOf(socket);
-    if (connection.broken) return;
     connection.broken = true;
+    // Nothing more is read once node has given up: after a timeout node would read on, so a request it gave up on could still come in
+    // whole before its turn, a running one's body could reach the app after this answer, and a later request could be read.
+    socket.pause();
     // Bytes after a request that closes the connection (node's HPE_CLOSED_CONNECTION) need no check of their own (L-025): that
     // request's answer ends the connection, and the answer queued here behind it then finds the socket ended (finish).
     const { status, reason } = unreadable(error);
@@ -313,9 +330,10 @@ export function serve(app: App, port: number, log: (line: RequestLog) => void, l
       if (!running.res.writableEnded) finish(socket, rawAnswer(status, reason), line);
       return;
     }
-    // An answer waiting its turn, so it counts toward UNANSWERED_LIMIT as any does. A connection ended meanwhile, as by an answer that
-    // closed it, gets nothing (finish).
-    inTurn(socket, null, async () => { finish(socket, rawAnswer(status, reason), line); });
+    // The one answer waiting behind the turns (nothing more is read, so no second comes), not counted toward UNANSWERED_LIMIT: 16
+    // requests and bad bytes after them get 16 answers and this. A connection ended meanwhile, as by an answer that closed it, gets
+    // nothing (finish).
+    void connection.turn.then(() => { finish(socket, rawAnswer(status, reason), line); });
   });
   // node:http hands a CONNECT, and a request that asks for an Upgrade, to events of their own, with the socket and no response, and
   // tracks the socket no more: close() destroys it here. With no listener a CONNECT is closed unanswered, and an Upgrade is served with

@@ -341,8 +341,8 @@ describe('GDD-TEC-10 adapter: the requests of one connection take turns', () => 
   it('a request pipelined behind an answer that closes the connection never reaches the app', async () => {
     const { server } = await served();
     try {
-      // HTTP/1.0: node closes the connection after its answer, whatever the client asked.
-      const answered = await exchange(server.port, ['GET /echo HTTP/1.0\r\nHost: x\r\nConnection: keep-alive\r\n\r\nGET /throw HTTP/1.0\r\nHost: x\r\nConnection: keep-alive\r\n\r\n']);
+      // HTTP/1.0 that does not ask to keep the connection: node closes it after its answer.
+      const answered = await exchange(server.port, ['GET /echo HTTP/1.0\r\nHost: x\r\n\r\nGET /throw HTTP/1.0\r\nHost: x\r\n\r\n']);
       expect(statuses(answered.text)).toEqual([200]);
       expect(answered.closedByServer).toBe(true);
       await wait(50);
@@ -583,6 +583,42 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
     }
   }, 5000);
 
+  it('a waiting request node gave up on is never run, though the rest of its body comes before its turn, nor one node reads after', async () => {
+    const { server } = await served(stub, { ...SMALL, requestMs: 300, headersMs: 200 });
+    try {
+      // The POST's 10 s (here 300 ms) run out while /slower is answered; its last byte comes at 450 ms, before its turn at 600 ms.
+      const answered = await exchange(server.port, ['GET /slower HTTP/1.1\r\nHost: x\r\n\r\nPOST /limited HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{', `}${GET_ECHO}`], { gap: 450, ms: 3000 });
+      expect(statuses(answered.text)).toEqual([200, 408]);
+      expect(calls).toEqual(['/slower']);
+      expect(reads).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
+  it('the body of a running request node gave up on never reaches the app, though its last byte comes after the 408', async () => {
+    const { server } = await served(stub, { ...SMALL, requestMs: 300, headersMs: 200 });
+    try {
+      // The client keeps its side open after the 408 and the server's end, so it can still send the last byte of the body. Here the
+      // 408 goes out at once and finish destroys the socket; a 408 held in a full send buffer, which a test here cannot set up, leaves
+      // the socket open, and then only the pause keeps the byte from the app. This fails with neither (the app reads 'ok').
+      const text = await new Promise<string>((resolve) => {
+        const socket = connect({ host: '127.0.0.1', port: server.port, allowHalfOpen: true });
+        const parts: Buffer[] = [];
+        socket.on('data', (part: Buffer) => parts.push(part));
+        socket.on('error', () => { /* the close is this end's own */ });
+        socket.write('POST /limited HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{');
+        setTimeout(() => { socket.write(`}${GET_ECHO}`); }, 600);
+        setTimeout(() => { socket.destroy(); resolve(Buffer.concat(parts).toString('latin1')); }, 900);
+      });
+      expect(statuses(text)).toEqual([408]);
+      expect(calls).toEqual(['/limited']);
+      expect(reads).not.toContain('ok');
+    } finally {
+      await server.close();
+    }
+  }, 5000);
+
   it('bytes after a request that closes the connection get no answer of their own: that request is answered and the connection ends', async () => {
     const { server, log } = await served();
     try {
@@ -766,6 +802,37 @@ describe('GDD-TEC-10 adapter: what node cannot read, and what it hands over', ()
       await server.close();
     }
   }, 8000);
+
+  it('an answer read whole by a client that resets at once leaves its line, however soon the reset comes', async () => {
+    const { server, log } = await served();
+    try {
+      for (let i = 0; i < 8; i += 1) {
+        await new Promise<void>((resolve) => {
+          const socket = connect({ host: '127.0.0.1', port: server.port });
+          let got = 0;
+          let length = -1;
+          let head = '';
+          socket.on('error', () => { /* the reset is this end's own */ });
+          socket.on('close', () => { resolve(); });
+          socket.on('data', (part: Buffer) => {
+            if (length < 0) {
+              head += part.toString('latin1');
+              const end = head.indexOf('\r\n\r\n');
+              if (end < 0) return;
+              length = Number(/content-length: (\d+)/i.exec(head)?.[1] ?? 0);
+              got = head.length - end - 4;
+            } else got += part.length;
+            if (length >= 0 && got >= length) socket.resetAndDestroy();
+          });
+          socket.write('GET /biglined HTTP/1.1\r\nHost: x\r\n\r\n');
+        });
+      }
+      await wait(100);
+      expect(log).toHaveLength(8);
+    } finally {
+      await server.close();
+    }
+  }, 20000);
 
   it('an Expect: 100-continue alone gets its 100 Continue; one that names it among other words gets none, and a 417', async () => {
     const { server } = await served();
@@ -1068,6 +1135,7 @@ const EVERY_ANSWER: readonly (readonly [string, string, readonly number[]])[] = 
   ['a body too slow', `${NONCE_HEAD}Content-Length: 100\r\n\r\n{`, [408]],
   ['bad bytes behind a GET', 'GET /api/v1/config HTTP/1.1\r\nHost: x\r\n\r\nNOT A REQUEST\r\n\r\n', [200, 400]],
   ['more than 16 unanswered', 'GET /api/v1/config HTTP/1.1\r\nHost: x\r\n\r\n'.repeat(UNANSWERED_LIMIT + 1), []],
+  ['16 requests and bad bytes after them', `${'GET /api/v1/config HTTP/1.1\r\nHost: x\r\n\r\n'.repeat(UNANSWERED_LIMIT)}NOT A REQUEST\r\n\r\n`, [...Array.from({ length: UNANSWERED_LIMIT }, () => 200), 400]],
   ['an HTTP/1.1 request with no Host, between two', 'GET /api/v1/config HTTP/1.1\r\nHost: x\r\n\r\nGET /api/v1/config HTTP/1.1\r\n\r\nGET /api/v1/config HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n', [200, 400, 200]],
   ['an HTTP/1.0 request with no Host', 'GET /api/v1/config HTTP/1.0\r\n\r\n', [200]],
   ['an HTTP/1.0 Expect not met', `${NONCE_HEAD.replace('HTTP/1.1', 'HTTP/1.0')}Expect: zz\r\nContent-Length: 2\r\n\r\n{}`, [417]],
