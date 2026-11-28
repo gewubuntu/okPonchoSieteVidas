@@ -12,7 +12,7 @@ import { memoryStore } from './store/memory';
 import type { Store } from './store/store';
 import { loadTokenKey, type TokenKey } from './tokens/key';
 
-/** Placeholders (ADR 0004, "Not decided here": where the server runs and where the game is served are not decided): the port, and the game's origin, the Vite dev server's. */
+/** Placeholders (ADR 0004, "Not decided here": where the server runs, and so whether under the game's own address, is not decided): the port, and the game's origin, the Vite dev server's. */
 export const DEFAULT_PORT = 8787;
 export const DEFAULT_ORIGIN = 'http://localhost:5173';
 
@@ -166,8 +166,9 @@ function isEd25519(text: unknown): boolean {
 
 /**
  * The probes of `--check`, through `fetchFn` (the real socket in main.ts, the app itself in a test): the problems found, none when it is well.
- * They read the server's own config and ask for a nonce with the game's origin and with another's, so the adapter's method, header, body
- * and Origin handling run end to end, and a build whose simulation version never arrived is told apart.
+ * They read the server's own config, ask for a nonce with the game's origin and with another's, and ask for the session with no cookie,
+ * which must be a guest's, so the adapter's method, header, body and Origin handling run end to end, and a build whose simulation version
+ * never arrived is told apart.
  */
 export async function selfCheck(fetchFn: Fetch, baseUrl: string, siteOrigin: string): Promise<readonly string[]> {
   const problems: string[] = [];
@@ -207,6 +208,13 @@ export async function selfCheck(fetchFn: Fetch, baseUrl: string, siteOrigin: str
     check('the nonce route does not refuse another origin', (await askNonce('http://elsewhere.invalid')).status === 403);
   } catch {
     check('the nonce route cannot be asked from another origin', false);
+  }
+  try {
+    const response = await fetchFn(`${baseUrl}/api/v1/session`);
+    const body: unknown = await response.json();
+    check('the session route does not answer a guest', response.status === 200 && at(body, 'wallet') === null);
+  } catch {
+    check('the session route cannot be asked', false);
   }
   return problems;
 }

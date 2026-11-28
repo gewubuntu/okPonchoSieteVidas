@@ -9,7 +9,7 @@
   folder, the scripts, the session cookie, where the config lives, the chain interface and its dev routes, the Node
   version) is the main session's proposal, built as a placeholder (GDD-CHAIN-01) where the GDD holds the point open.
   What is listed under "Not decided here" stays open.
-- **Built:** nothing when this record was written; since built, phases A to D1 (GDD-TEC-10's status line says which), with these placeholders of this record named at their code: the API on 127.0.0.1 at `PONCHO_SERVER_PORT` (8787 by default) and the game's origin `PONCHO_SITE_ORIGIN` (`http://localhost:5173` by default), a SQLite file only where `PONCHO_STORE` names one, `CHAIN.mode: "base"` refused at boot until the real chain source exists, and the simulation version of the build (`SIM_VERSION`) in place of the token's stand-in. The server's own socket settings are in `server/http/node.ts` (`SOCKET_LIMITS`: 5 s for headers, 10 s for a request, 30 s with no progress and for each answer to be taken once written, 5 s from an answer to a kept connection's next request; and `UNANSWERED_LIMIT`, 16 requests waiting on one connection); RFC 9112's lingering close is not built. The files, scripts and line counts it names are the plan's; "is
+- **Built:** nothing when this record was written; since built, phases A to D2 (GDD-TEC-10's status line says which), with these placeholders of this record named at their code: the session cookie `poncho_session` with the routes `/api/v1/sign-in`, `/api/v1/session` and `/api/v1/sign-out`, `Secure` only when the game's origin is https (this record proposed it always; the default origin is plain http); the API on 127.0.0.1 at `PONCHO_SERVER_PORT` (8787 by default) and the game's origin `PONCHO_SITE_ORIGIN` (`http://localhost:5173` by default), a SQLite file only where `PONCHO_STORE` names one, `CHAIN.mode: "base"` refused at boot until the real chain source exists, and the simulation version of the build (`SIM_VERSION`) in place of the token's stand-in. The server's own socket settings are in `server/http/node.ts` (`SOCKET_LIMITS`: 5 s for headers, 10 s for a request, 30 s with no progress and for each answer to be taken once written, 5 s from an answer to a kept connection's next request; and `UNANSWERED_LIMIT`, 16 requests waiting on one connection); RFC 9112's lingering close is not built. The files, scripts and line counts it names are the plan's; "is
   written" and "built as" say what the plan builds.
 - **GDD:** GDD-TEC-10, GDD-LIFE-06, GDD-CHAIN-02, GDD-CHAIN-03, GDD-CHAIN-04, GDD-TEC-09, GDD-TEC-07
 
@@ -40,7 +40,7 @@ What was checked for this record (2026-11-21, in a throwaway copy of the reposit
   `npm ci`. Server code imports the game's own modules by relative path (`../src/sim/save`,
   `../src/levels/index`); nothing of the game imports `server/`.
 - **How the gate reaches it:** `server/tsconfig.json` extends the root one without the browser's types
-  (`lib: ["ES2022"]`, `types: ["node"]`), so server code, and whatever of `src/` it imports, cannot use the DOM;
+  (`lib: ["ES2023"]`, `types: ["node"]`), so server code, and whatever of `src/` it imports, cannot use the DOM;
   `npm run typecheck` runs both projects. `npm run lint` already covers the folder. `npm test` gains
   `server/**/*.test.ts`. No change to `scripts/check.mjs`.
 - **How it runs:** Vite, already the bundler, builds it: `npm run server:build` writes `server/dist/main.js`

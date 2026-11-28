@@ -1,13 +1,15 @@
 // GDD-TEC-10, docs/decisions/0004-game-server.md ("HTTP"): the routes as functions of the standard Request to a Response, so a test calls them with no socket.
 // Placeholder (ADR 0004, "Not decided here"): the API is served from the game's own origin under /api/v1, so `deps.site.origin` is the one
-// origin a state-changing request may carry. Where the game is served is not decided.
+// origin a state-changing request may carry. Where the game server runs, and so whether under the game's own address, is not decided.
 // Every request passes the same steps in this order, and each can only refuse, before anything is written:
-//   route, no query, (on a POST: Origin, content type, body, fields), the clock, then the handler. A throw is a 500.
+//   route, no query, (on a POST: Origin, content type, body, fields), the clock, then the handler, which may await the chain (a contract
+//   wallet's signature) and write. A throw is a 500. Every handler is handed the session cookie's secret, read but not yet looked up.
 import type { ChainSource } from '../chain/chain';
 import { publicConfig, type ServerConfig } from '../config';
 import type { Store } from '../store/store';
 import type { TokenKey } from '../tokens/key';
 import { BODY_LIMIT, fieldsOf, fromElsewhere, isJsonType, json, methodOf, readBody, REASON, refuse, withLine } from './boundary';
+import { secretOf } from './cookie';
 import { sessionRoutes } from './routes-session';
 
 /** Where the game is served: its origin, and the domain and URI a sign-in message must name (docs/decisions/0004-game-server.md; a placeholder). */
@@ -24,8 +26,11 @@ export interface AppDeps {
   /** The simulation version this build was made with (GDD-TEC-09). */
   readonly sim: string;
 }
-/** What a handler is given: the server's time (a finite number, read once) and, of a POST, the body, which has exactly the route's keys. */
-export interface Context { readonly deps: AppDeps; readonly now: number; readonly body: Readonly<Record<string, unknown>> }
+/**
+ * What a handler is given: the server's time (a finite number, read once); of a POST, the body, which has exactly the route's keys; and
+ * `session`, the secret the request's cookie carries, of a secret's shape and not yet looked up (undefined: none, a guest).
+ */
+export interface Context { readonly deps: AppDeps; readonly now: number; readonly body: Readonly<Record<string, unknown>>; readonly session: string | undefined }
 /** A route has no path parameters. A POST's body has exactly `keys` (a GET's `keys` are not read). */
 export interface Route {
   readonly method: 'GET' | 'POST';
@@ -64,7 +69,7 @@ async function respond(deps: AppDeps, request: Request, path: string): Promise<R
   // The clock is read once, after the body, so a request refused before it never needs it; a time that is no number is the server's fault.
   const now = deps.clock.now();
   if (!Number.isFinite(now)) return refuse(500, REASON.serverError);
-  return route.handler({ deps, now, body });
+  return route.handler({ deps, now, body, session: secretOf(request.headers.get('cookie')) });
 }
 
 /**

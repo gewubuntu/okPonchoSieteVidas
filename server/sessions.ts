@@ -1,5 +1,5 @@
 // GDD-TEC-10, "Wallet sessions": Sign-In with Ethereum. The wallet signs a message that names the game's site, Base and a nonce the
-// server gave out once; the server checks it and opens a session. A session is a random secret the player keeps (phase D puts it in a
+// server gave out once; the server checks it and opens a session. A session is a random secret the player keeps (the HTTP API puts it in a
 // cookie); the store holds only its SHA-256, so a copy of the store opens nothing (docs/decisions/0004-game-server.md, "Sessions").
 // Several sessions of one wallet are all good: nothing but the wallet is the player's (GDD-CHAIN-02, "One wallet, many browsers").
 // One of the two files that import viem (the other is server/chain/viem.ts, a later phase).
@@ -10,7 +10,7 @@ import type { Address, ChainSource } from './chain/chain';
 import { BASE_CHAIN_ID, type ServerConfig } from './config';
 import type { Store } from './store/store';
 
-/** Placeholder: where the game is served is not decided (ADR 0004, "Not decided here"), so the domain and URI the message must name are handed in. */
+/** Placeholder: where the game server runs, and so whether under the game's own address, is not decided (ADR 0004, "Not decided here"), so the domain and URI the message must name are handed in. */
 export interface SignInSite { readonly domain: string; readonly uri: string }
 export interface SessionDeps {
   readonly store: Store;
@@ -47,7 +47,8 @@ export function issueNonce(deps: SessionDeps): string {
 /** A plain key's signature is recovered to its address; only when that is not the message's address is the chain asked, for a contract wallet (ERC-1271, ERC-6492). */
 async function signedBy(chain: ChainSource, address: Address, message: string, signature: string): Promise<boolean> {
   // A text that is not hex is no signature at all, and the chain is never asked about it.
-  if (!isHex(signature)) return false;
+  // Nor is an odd count of hex digits: bytes come two digits each, and viem would read a lone last digit as the recovery value.
+  if (!isHex(signature) || signature.length % 2 !== 0) return false;
   // A hex signature that does not recover is no plain key's: the chain is asked.
   const recovered = await recoverMessageAddress({ message, signature }).catch(() => null);
   if (recovered !== null && recovered.toLowerCase() === address) return true;
@@ -83,7 +84,7 @@ function writesBack(parsed: Parsed, message: string): parsed is Parsed & SiweMes
 export async function signIn(deps: SessionDeps, request: { message: unknown; signature: unknown }, nowMs: number): Promise<SignedIn> {
   const { store, chain, config, site, random } = deps;
   const now = clockOf(nowMs);
-  // The request is what a client sent (phase D's body): a message or signature that is not text is no sign-in message.
+  // The request is what a client sent (the sign-in route's body): a message or signature that is not text is no sign-in message.
   const { signature } = request;
   if (typeof signature !== 'string') return refuse('not a sign-in message');
   // A message that is not text is read as the empty message, which is no sign-in message (the parse would refuse it anyway, below).
@@ -126,7 +127,7 @@ export async function signIn(deps: SessionDeps, request: { message: unknown; sig
 /** The wallet a secret belongs to, or null (a guest): no such session, or it has run out, which deletes it. */
 export function sessionOf(store: Store, secret: unknown, nowMs: number): Address | null {
   const now = clockOf(nowMs);
-  // A missing or malformed secret (phase D's cookie) is a guest.
+  // A missing or malformed secret (the request's cookie) is a guest.
   if (typeof secret !== 'string') return null;
   const key = sha256hex(secret);
   const text = store.get('session', key);
