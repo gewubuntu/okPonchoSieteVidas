@@ -12,7 +12,7 @@ import { memoryStore } from './store/memory';
 import type { Store } from './store/store';
 import { loadTokenKey, type TokenKey } from './tokens/key';
 
-/** Placeholders (ADR 0004, "Not decided here": where the server runs and where the game is served are not decided): the port, and the game's origin, the Vite dev server's. */
+/** Placeholders (ADR 0004, "Not decided here": where the server runs, and so whether under the game's own address, is not decided): the port, and the game's origin, the Vite dev server's. */
 export const DEFAULT_PORT = 8787;
 export const DEFAULT_ORIGIN = 'http://localhost:5173';
 

@@ -27,7 +27,7 @@ const bare = (text: string): string => {
 /**
  * The secret a Cookie header carries: the value of the one cookie of the name, if it has a secret's shape; else undefined (a guest).
  * A part's name is the text before its first '=' and its value the text after it, each without the spaces and tabs round it; a part with no '=' is no cookie. Names
- * are compared exactly. Two cookies of the name are a guest even when they are equal, as a doubled Origin is refused. Two Cookie headers
+ * are compared exactly. Placeholder: two cookies of the name are a guest even when they are equal, as a doubled Origin is refused. Two Cookie headers
  * read as one list joined with '; ' (`Headers`); joined with ', ' the value fails the shape.
  */
 export function secretOf(header: string | null): string | undefined {

@@ -1,6 +1,6 @@
 // GDD-TEC-10, docs/decisions/0004-game-server.md ("HTTP"): the routes as functions of the standard Request to a Response, so a test calls them with no socket.
 // Placeholder (ADR 0004, "Not decided here"): the API is served from the game's own origin under /api/v1, so `deps.site.origin` is the one
-// origin a state-changing request may carry. Where the game is served is not decided.
+// origin a state-changing request may carry. Where the game server runs, and so whether under the game's own address, is not decided.
 // Every request passes the same steps in this order, and each can only refuse, before anything is written:
 //   route, no query, (on a POST: Origin, content type, body, fields), the clock, then the handler, which may await the chain (a contract
 //   wallet's signature) and write. A throw is a 500. Every handler is handed the session cookie's secret, read but not yet looked up.

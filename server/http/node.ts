@@ -212,10 +212,12 @@ interface Connection {
 
 /**
  * Serves `app` on 127.0.0.1 only (the dev routes are never on the network), at `port` (0: any free one). `log` gets each answer's line
- * (the app's, `lineOf`, and the adapter's own) once the answer is written, so an answer no client gets leaves none; a log that throws
+ * (the app's, `lineOf`, and the adapter's own) once the answer is written to the socket, so an answer never written leaves none (one the socket took and a client never read
+ * still leaves its line); a log that throws
  * changes no answer.
  * Known, not built: a client that half-closes its side after its requests loses the answers still waiting (node's own rule); and a
- * request's 10 s counts from its arrival, so a large body pipelined behind a slow answer can run out. D1's routes answer at once.
+ * request's 10 s counts from its arrival, so a large body pipelined behind a slow answer can run out. Both were left when D1's routes answered at once; since D2 a sign-in
+ * waits for its signature check.
  */
 export function serve(app: App, port: number, log: (line: RequestLog) => void, limits: SocketLimits = SOCKET_LIMITS): Promise<{ readonly port: number; close(): Promise<void> }> {
   const note = quietly(log);

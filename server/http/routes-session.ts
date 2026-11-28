@@ -1,4 +1,6 @@
-// GDD-TEC-10, "Wallet sessions": the sign-in routes. The nonce; the sign-in, which opens a session and gives its secret in the cookie
+// GDD-TEC-10, "Wallet sessions": the sign-in routes. Placeholders (no document names them): the three paths /api/v1/sign-in,
+// /api/v1/session and /api/v1/sign-out, as the /api/v1 prefix is (app.ts).
+// The nonce; the sign-in, which opens a session and gives its secret in the cookie
 // only, never in the body; the session, which reads the cookie's wallet (a guest is null); and the sign-out, which leaves a guest.
 // The two POSTs are under the pipeline's Origin rule (ADR 0004, "Sessions": state-changing requests); the GET is not, as it changes
 // nothing a client chooses (a session read after its end is deleted). Several sessions of one wallet are all good (GDD-CHAIN-02), so a
@@ -28,10 +30,10 @@ export const sessionRoutes: readonly Route[] = [
     keys: ['message', 'signature'],
     handler: async ({ deps, now, body }) => {
       const signed = await signIn(sessionDeps(deps), { message: body['message'], signature: body['signature'] }, now);
-      // The reason is signIn's own text, never the client's. A 403, not a 401: a 401 must carry a WWW-Authenticate header, and none fits.
+      // The reason is signIn's own text, never the client's. Placeholder: a 403, not a 401: a 401 must carry a WWW-Authenticate header, and none fits.
       if (!signed.ok) return refuse(403, signed.reason);
       const { wallet, secret, expiresAt } = signed;
-      // The cookie ends when the session does: Max-Age is the session's length in whole seconds (SESSION.length).
+      // Placeholder: the cookie ends when the session does: Max-Age is the session's length in whole seconds (SESSION.length).
       return json(200, { wallet, expiresAt }, [sessionCookie(secret, (expiresAt - now) / 1000, secureOn(deps.site))]);
     },
   },

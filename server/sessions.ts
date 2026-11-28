@@ -10,7 +10,7 @@ import type { Address, ChainSource } from './chain/chain';
 import { BASE_CHAIN_ID, type ServerConfig } from './config';
 import type { Store } from './store/store';
 
-/** Placeholder: where the game is served is not decided (ADR 0004, "Not decided here"), so the domain and URI the message must name are handed in. */
+/** Placeholder: where the game server runs, and so whether under the game's own address, is not decided (ADR 0004, "Not decided here"), so the domain and URI the message must name are handed in. */
 export interface SignInSite { readonly domain: string; readonly uri: string }
 export interface SessionDeps {
   readonly store: Store;
