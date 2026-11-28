@@ -4,7 +4,7 @@
 // Run by `npm run server:check` on the bundle it has just built (server/main.ts wires the rules in: guardLogs, server/boot.ts; its own
 // byte-for-byte writes to a file; exitAfterLog). Each case below must hold, or the check fails:
 //   - --check with its stdout a pipe whose reader is gone before the first line: exit 1 with exactly the one line, no stack trace;
-//   - --check with its stdout read for five lines and then left, so its last line (its sixth) cannot be written: the same, so --check
+//   - --check with its stdout read for six lines and then left, so its last line (its seventh) cannot be written: the same, so --check
 //     never exits 0 before that line is out;
 //   - --check with its stdout a file that fills up in the middle of its last line (a 1 KiB size limit, the file already holding the
 //     rest): node's own stream for a file drops the count of a short write, so the line must come out as EFBIG, exit 1;
@@ -361,7 +361,7 @@ export async function stopped(entry, signal = 'SIGTERM') {
 export async function main(entry, print = { ok: console.log, fail: console.error }) {
   const cases = [
     ['a log that cannot be written stops the server with one line: its log has no reader at all', () => run(entry, 0)],
-    ['a log that cannot be written stops the server with one line: its log\'s reader leaves after five lines', () => run(entry, 5)],
+    ['a log that cannot be written stops the server with one line: its log\'s reader leaves after six lines', () => run(entry, 6)],
     ['a log on a file that fills up in the middle of a line stops the server with one line', () => filled(entry)],
     ['a check that finds a problem exits 1 with that one line', () => failed(entry)],
     ['a server whose log\'s reader leaves while it serves stops with one line', () => served(entry)],

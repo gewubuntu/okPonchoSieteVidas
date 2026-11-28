@@ -256,8 +256,29 @@ describe('GDD-TEC-10 wallet sessions', () => {
   it('a text that is not hex is never asked of the chain', async () => {
     const { chain, deps } = fixture();
     const message = messageOf(issueNonce(deps), { address: B });
-    chain.acceptSignature(B, message, 'not hex');
-    expect(reasonOf(await signIn(deps, { message, signature: 'not hex' }, NOON))).toBe('the signature is not this wallet\'s');
+    chain.acceptSignature(B, message, 'not hex!');
+    expect(reasonOf(await signIn(deps, { message, signature: 'not hex!' }, NOON))).toBe('the signature is not this wallet\'s');
+  });
+
+  it('an odd count of hex digits is no signature: the chain is never asked about it', async () => {
+    const { chain, deps } = fixture();
+    const message = messageOf(issueNonce(deps), { address: B });
+    chain.acceptSignature(B, message, '0x123');
+    expect(reasonOf(await signIn(deps, { message, signature: '0x123' }, NOON))).toBe('the signature is not this wallet\'s');
+  });
+
+  it('a plain key\'s signature with its last digit cut off opens no session', async () => {
+    const { store, deps } = fixture();
+    // The recovery value is the last byte, 1b or 1c: cut to "1" it would read as the parity of 1c, so a signature that ends in 1c is the case.
+    let cut = 0;
+    for (let tries = 0; tries < 40 && cut < 3; tries += 1) {
+      const signed = await request(issueNonce(deps));
+      if (!signed.signature.endsWith('1c')) continue;
+      cut += 1;
+      expect(reasonOf(await signIn(deps, { message: signed.message, signature: signed.signature.slice(0, -1) }, NOON))).toBe('the signature is not this wallet\'s');
+    }
+    expect(cut).toBe(3);
+    expect(store.entries('session')).toEqual([]);
   });
 
   it('a contract wallet\'s signature is checked on the chain', async () => {

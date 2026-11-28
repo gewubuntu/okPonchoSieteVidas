@@ -235,6 +235,11 @@ async function answering(status: number, body: unknown): Promise<Fetch> {
   const served = await app();
   return async (url, init) => (url.endsWith('/nonce') ? new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }) : served(new Request(url, init)));
 }
+/** The real app, but the session answer is replaced by `text` with `status`. */
+async function sessionAnswering(status: number, text: string): Promise<Fetch> {
+  const served = await app();
+  return async (url, init) => (url.endsWith('/api/v1/session') ? new Response(text, { status, headers: { 'content-type': 'application/json' } }) : served(new Request(url, init)));
+}
 
 
 describe('GDD-TEC-10 boot: the self check', () => {
@@ -340,7 +345,17 @@ describe('GDD-TEC-10 boot: the self check', () => {
       'the config\'s sim is not a built version',
       'the nonce route cannot be asked',
       'the nonce route cannot be asked from another origin',
+      'the session route cannot be asked',
     ]);
+  });
+
+  it('a session route that does not answer a guest 200 with no wallet is named', async () => {
+    expect(await selfCheck(await sessionAnswering(200, JSON.stringify({ wallet: `0x${'11'.repeat(20)}` })), BASE, ORIGIN)).toEqual(['the session route does not answer a guest']);
+    expect(await selfCheck(await sessionAnswering(500, JSON.stringify({ wallet: null })), BASE, ORIGIN)).toEqual(['the session route does not answer a guest']);
+  });
+
+  it('a session answer that is not JSON is named as unaskable', async () => {
+    expect(await selfCheck(await sessionAnswering(200, '<html>'), BASE, ORIGIN)).toEqual(['the session route cannot be asked']);
   });
 
   it('a config answer that is not JSON is named as unreadable', async () => {

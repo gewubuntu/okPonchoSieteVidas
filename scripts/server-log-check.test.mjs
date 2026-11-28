@@ -346,8 +346,8 @@ server.listen(Number(process.env.PONCHO_SERVER_PORT), '127.0.0.1', () => { proce
 });
 
 /**
- * A fake entry that keeps every rule the check holds it to, as the bundle does: --check writes six lines (each byte of each when stdout
- * is a file), the sixth after a pause, and fails with the one problem when its site's origin is another; the server writes its lines
+ * A fake entry that keeps every rule the check holds it to, as the bundle does: --check writes seven lines (each byte of each when stdout
+ * is a file), the seventh after a pause, and fails with the one problem when its site's origin is another; the server writes its lines
  * once their answers are out, and a stop writes every line and exits 0, once. `onInt`: 'cut' exits at once on SIGINT instead.
  * `prelude` is a line run first, to break one rule alone; `lineDelay` writes each request's line that many ms after its answer.
  */
@@ -371,7 +371,7 @@ const say = (text) => {
 };
 const exitAfter = (code) => { setImmediate(() => { if (process.stdout.writableLength === 0) process.exit(code); process.stdout.write('', (e) => { if (!e) process.exit(code); }); }); };
 if (process.argv.includes('--check')) {
-  for (let n = 1; n <= 5; n += 1) say('{"event":"check","n":' + n + '}\\n');
+  for (let n = 1; n <= 6; n += 1) say('{"event":"check","n":' + n + '}\\n');
   setTimeout(() => {
     if (process.env.PONCHO_SITE_ORIGIN === 'http://elsewhere.invalid') {
       process.stderr.write('the nonce route does not refuse another origin\\n');

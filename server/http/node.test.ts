@@ -6,6 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setTimeout as wait } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { isMainThread } from 'node:worker_threads';
+import { privateKeyToAccount } from 'viem/accounts';
+import { createSiweMessage } from 'viem/siwe';
 import { settingsOf, wire } from '../boot';
 import { BODY_LIMIT, json, readBody, refuse, withLine, type RequestLog } from './boundary';
 import { serve, SOCKET_LIMITS, targetOf, UNANSWERED_LIMIT, unreadable, type App, type SocketLimits } from './node';
@@ -1386,6 +1388,9 @@ async function servedReal(limits?: SocketLimits) {
   return { server, log, close: async () => { await server.close(); wired.close(); } };
 }
 const NONCE_HEAD = 'POST /api/v1/sign-in/nonce HTTP/1.1\r\nHost: x\r\nOrigin: http://localhost:5173\r\nContent-Type: application/json\r\n';
+const SIGN_IN_HEAD = NONCE_HEAD.replace('/api/v1/sign-in/nonce', '/api/v1/sign-in');
+const SIGN_OUT_HEAD = NONCE_HEAD.replace('/api/v1/sign-in/nonce', '/api/v1/sign-out');
+const NO_MESSAGE = '{"message":"x","signature":"0x"}';
 
 /**
  * L-104's guard: every way a connection can be answered, on the real app, each on a connection of its own. The rule over every request,
@@ -1421,6 +1426,9 @@ const EVERY_ANSWER: readonly (readonly [string, string, readonly number[]])[] = 
   ['an HTTP/1.0 Expect: 100-continue, passed on', `${NONCE_HEAD.replace('HTTP/1.1', 'HTTP/1.0')}Expect: 100-continue\r\nContent-Length: 2\r\n\r\n{}`, [200]],
   ['an Expect: 100-continue', `${NONCE_HEAD}Expect: 100-continue\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}`, [200]],
   ['bad bytes behind a POST refused unread', 'POST /api/v1/sign-in/nonce HTTP/1.1\r\nHost: x\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\n{}NOT A REQUEST\r\n\r\n', [415]],
+  ['the session asked by a guest', 'GET /api/v1/session HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n', [200]],
+  ['a sign-out with no session', `${SIGN_OUT_HEAD}Content-Length: 2\r\nConnection: close\r\n\r\n{}`, [200]],
+  ['a sign-in that is no message', `${SIGN_IN_HEAD}Content-Length: ${Buffer.byteLength(NO_MESSAGE)}\r\nConnection: close\r\n\r\n${NO_MESSAGE}`, [403]],
 ];
 
 describe('GDD-TEC-10 adapter on the real app: every answer a client receives leaves one line with its status (L-104)', () => {
@@ -1490,4 +1498,51 @@ describe('GDD-TEC-10 adapter on the real app: one line for a request answered, n
       await close();
     }
   }, 5000);
+});
+
+describe('GDD-TEC-10 adapter on the real app: a session over the socket', () => {
+  it('a sign-in writes one Set-Cookie line, the cookie reads the wallet, and a sign-out takes it away', async () => {
+    const { server, log, close } = await servedReal();
+    try {
+      const base = `http://127.0.0.1:${server.port}`;
+      const own = { origin: 'http://localhost:5173' };
+      const posting = { ...own, 'content-type': 'application/json' };
+      const account = privateKeyToAccount(`0x${'11'.repeat(32)}`);
+      const wallet = account.address.toLowerCase();
+      const asked: { nonce: string } = JSON.parse(await (await fetch(`${base}/api/v1/sign-in/nonce`, { method: 'POST', headers: posting, body: '{}' })).text());
+      const message = createSiweMessage({ address: account.address, domain: 'localhost:5173', uri: 'http://localhost:5173', chainId: 8453, nonce: asked.nonce, version: '1', issuedAt: new Date(Date.now() - 1000) });
+      const signing = await fetch(`${base}/api/v1/sign-in`, { method: 'POST', headers: posting, body: JSON.stringify({ message, signature: await account.signMessage({ message }) }) });
+      expect(signing.status).toBe(200);
+      const cookies = signing.headers.getSetCookie();
+      expect(cookies).toHaveLength(1);
+      expect(cookies[0]).toMatch(/^poncho_session=[A-Za-z0-9_-]{43}; Max-Age=604800; Path=\/api; HttpOnly; SameSite=Lax$/);
+      const cookie = (cookies[0] ?? '').split(';')[0] ?? '';
+      const secret = cookie.slice('poncho_session='.length);
+      expect(await (await fetch(`${base}/api/v1/session`, { headers: { ...own, cookie } })).json()).toEqual({ wallet });
+      // Two Cookie header lines, which the adapter hands on as one list.
+      const raw = await exchange(server.port, [`GET /api/v1/session HTTP/1.1\r\nHost: x\r\nCookie: a=1\r\nCookie: ${cookie}\r\nConnection: close\r\n\r\n`]);
+      expect(statuses(raw.text)).toEqual([200]);
+      expect(raw.text).toContain(`{"wallet":"${wallet}"}`);
+      const out = await fetch(`${base}/api/v1/sign-out`, { method: 'POST', headers: { ...posting, cookie }, body: '{}' });
+      expect(out.status).toBe(200);
+      const cleared = out.headers.getSetCookie();
+      expect(cleared).toHaveLength(1);
+      expect(cleared[0]?.startsWith('poncho_session=; Max-Age=0')).toBe(true);
+      expect(await (await fetch(`${base}/api/v1/session`, { headers: { ...own, cookie } })).json()).toEqual({ wallet: null });
+      await wait(50);
+      expect(log).toEqual([
+        { method: 'POST', route: '/api/v1/sign-in/nonce', status: 200 },
+        { method: 'POST', route: '/api/v1/sign-in', status: 200 },
+        { method: 'GET', route: '/api/v1/session', status: 200 },
+        { method: 'GET', route: '/api/v1/session', status: 200 },
+        { method: 'POST', route: '/api/v1/sign-out', status: 200 },
+        { method: 'GET', route: '/api/v1/session', status: 200 },
+      ]);
+      const logged = JSON.stringify(log);
+      expect(logged).not.toContain(secret);
+      expect(logged).not.toContain('poncho_session');
+    } finally {
+      await close();
+    }
+  }, 10000);
 });
